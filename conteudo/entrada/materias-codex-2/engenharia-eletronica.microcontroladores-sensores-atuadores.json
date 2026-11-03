@@ -1,0 +1,1871 @@
+{
+  "id": "engenharia-eletronica.microcontroladores-sensores-atuadores",
+  "subject": "Engenharia Eletrônica",
+  "title": "Sensores e atuadores para microcontroladores",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Sensores para microcontroladores",
+    "Atuadores para microcontroladores",
+    "Sensores e atuadores em sistemas embarcados",
+    "Interfaceamento de sensores com microcontroladores",
+    "Interfaceamento de atuadores com microcontroladores",
+    "Sensores de luminosidade e temperatura",
+    "Sensores de umidade do ar e pressão",
+    "Sensores de nível e detecção de presença",
+    "Sensores de toque e obstáculos ultrassônicos",
+    "Módulo de relés para microcontroladores",
+    "Ponte H e controle de motores elétricos",
+    "LED e buzzer como atuadores eletrônicos",
+    "Display de sete segmentos e CD4511",
+    "LCD com microcontrolador",
+    "Servomotores e motores de passo"
+  ],
+  "scope": {
+    "covers": "Princípios de leitura e condicionamento de sensores de luminosidade, temperatura, umidade relativa do ar, pressão, nível, toque, obstáculos por ultrassom e presença; sinais analógicos e digitais, conversão, calibração e limitações. Acionamento de módulo de relés, ponte H, LED, buzzer passivo e ativo, display LED de sete segmentos com decodificador CD4511, LCD alfanumérico, servomotores e motores de passo, com atenção à alimentação, correntes, interfaces e segurança elétrica.",
+    "excludes": "Projeto detalhado de circuitos analógicos, dimensionamento completo de fontes e motores, redes industriais, sensores de imagem, protocolos sem fio, programação específica de uma placa e normas de instalações elétricas de potência."
+  },
+  "theoryTitle": "Medir o ambiente e produzir ações com microcontroladores",
+  "chapters": [
+    {
+      "title": "1. Como sensores entregam informação",
+      "markdown": "### O problema que este assunto resolve\n\nUm microcontrolador só toma decisões sobre o mundo físico quando recebe uma representação elétrica do que está acontecendo. O **sensor** converte uma grandeza — luz, temperatura, pressão ou proximidade — em resistência, tensão, corrente, frequência ou dados digitais. A placa lê essa representação e a transforma em informação utilizável. Não existe um único tipo de entrada: é preciso identificar o sinal, a faixa elétrica e a interface antes de ligar o componente.\n\n> **Siglas e termos deste capítulo**\n> - **ADC**: conversor analógico-digital; representa uma tensão por um número.\n> - **GPIO**: pino de entrada/saída de uso geral.\n> - **I²C**: barramento serial síncrono com linhas de dados SDA e relógio SCL.\n> - **SPI**: barramento serial síncrono com relógio e linhas de dados, normalmente com seleção de dispositivo.\n> - **LDR**: resistor cuja resistência varia com a iluminação.\n> - **Pull-up/pull-down**: resistor que define um nível lógico quando a entrada não está sendo ativamente conduzida.\n> - **Histerese**: diferença entre os limiares de ligar e desligar para evitar comutação repetida perto de um limite.\n\n### Luz, temperatura, umidade e pressão\n\nUm **LDR** costuma ser usado em um divisor de tensão: combinado com um resistor fixo, transforma a variação de resistência em tensão que pode ser lida por uma entrada analógica. Em muitos LDRs a resistência diminui quando a iluminação aumenta, mas o sentido da tensão no divisor depende de qual componente está ligado ao lado da alimentação. Por isso, não se deve decorar que “valor alto significa claro” sem conhecer a montagem. A leitura também depende da faixa do ADC e pode precisar de calibração contra uma referência de iluminância.\n\nSensores de temperatura podem usar termistores, junções semicondutoras ou circuitos integrados. Um **NTC** tem resistência que diminui quando a temperatura sobe; sua leitura resistiva exige divisor e conversão, frequentemente não linear. Já um módulo digital pode entregar uma temperatura calculada por protocolo, mas continua sujeito a faixa, resolução, erro e tempo de resposta. Colocar o sensor junto a reguladores ou motores pode medir o aquecimento local, não o ar ambiente.\n\nUm sensor de umidade relativa, como a família DHT, combina um elemento sensível à umidade (capacitivo) e um sensor de temperatura; um circuito interno mede e transmite valores digitais. Esses dispositivos não são necessariamente rápidos: respeite o intervalo entre consultas indicado pelo fabricante. Um sensor barométrico como o BMP280 mede **pressão absoluta** e comunica-se por I²C ou SPI; sua leitura pode ser compensada por temperatura e usada para estimar altitude relativa, mas mudanças meteorológicas também alteram a pressão. Pressão, altitude calculada e nível de líquido não são sinônimos.\n\n| Sensor | Grandeza e princípio comum | Forma de leitura | Cuidado típico |\n| --- | --- | --- | --- |\n| LDR | Luz altera resistência | Divisor e ADC ou comparador | Polaridade da leitura depende do divisor; resposta não é lux calibrado por si só |\n| NTC / sensor integrado | Temperatura altera resistência ou sinal interno | ADC, saída analógica ou barramento digital | Não exceder a faixa; evitar aquecimento por fontes próximas |\n| DHT | Umidade capacitiva e temperatura | Dados digitais em um fio de sinal | Respeitar intervalo de amostragem e posicionamento |\n| BMP280 | Pressão barométrica absoluta | I²C ou SPI | Compensar dados e distinguir pressão de altitude |\n\n### Nível, toque, ultrassom e presença\n\nA medição de **nível** depende do material e do recipiente. Uma boia com contato fornece estado discreto (nível atingiu um ponto); eletrodos condutivos detectam líquido condutor e podem sofrer corrosão; sensores capacitivos podem detectar líquidos através de parede apropriada; e um sensor ultrassônico voltado para a superfície mede distância até ela. Em um tanque, nível pode ser calculado subtraindo a distância medida da altura de referência, desde que a geometria e a posição de montagem sejam conhecidas. Espuma, turbulência e condensação prejudicam algumas leituras sem contato.\n\nUm sensor de **toque capacitivo** detecta alteração da capacitância causada pelo dedo próximo a um eletrodo. A saída pode ser digital, frequentemente com limiar interno, ou o próprio microcontrolador pode medir a alteração. Um botão mecânico, por sua vez, muda um contato e pode apresentar repiques elétricos; debounce por tempo ou filtragem impede que um único toque pareça vários. A entrada precisa de referência lógica definida, por exemplo por pull-up.\n\nUm módulo ultrassônico típico emite um pulso acústico e mede o tempo até o eco. Como o som percorre o trajeto até o alvo e retorna, a distância é proporcional a metade do percurso: d = v·t/2, com v variando com a temperatura do ar. Superfícies inclinadas, pequenas, macias ou absorventes podem refletir pouco; ecos de objetos vizinhos e o tempo de reverberação impõem faixa e intervalo mínimos entre medições. Verifique a tensão do pino de eco: alguns módulos entregam nível superior ao tolerado por entradas de 3,3 V.\n\n“Presença” pode significar coisas diferentes. Um **PIR** percebe variações da radiação infravermelha emitida por corpos quentes em movimento e costuma sinalizar movimento, não presença imóvel contínua. Um radar de micro-ondas pode detectar movimento por efeito Doppler e atravessar certos materiais, com risco de detecção além da área pretendida. Uma barreira óptica indica interrupção do feixe. Escolha o princípio conforme o evento que se quer detectar; nenhum desses sensores identifica automaticamente quem está presente.\n\n### Amostragem, ruído e interpretação\n\nUma leitura isolada pode variar por ruído elétrico, iluminação ambiente, tolerância do componente ou montagem. Média de várias amostras reduz ruído aleatório, mas atrasa a resposta; um filtro passa-baixas atenua variações rápidas; histerese impede que uma saída comute sem parar junto ao limiar. Calibração relaciona leitura bruta a uma referência conhecida. A resolução do ADC limita o menor passo distinguível, mas não garante exatidão: erro do sensor, referência, ruído e calibração continuam relevantes.\n\nSensores analógicos devem permanecer dentro da tensão permitida pela entrada e compartilhar referência de terra quando isso for necessário ao circuito. Sensores digitais também têm limites de tensão, corrente e protocolo. Nunca aplique diretamente uma saída de 5 V a um pino que aceite apenas 3,3 V sem conversão apropriada. Em I²C, vários dispositivos podem compartilhar o barramento se endereços e características elétricas forem compatíveis; resistores de pull-up e capacitância total importam.\n\n### Como cai na prova\n\n- Divisor com LDR produz uma tensão analógica; o sentido claro/escuro depende de sua posição no divisor.\n- PIR comum detecta mudança de infravermelho associada a movimento; não garante detectar uma pessoa imóvel.\n- No ultrassom, o tempo medido inclui ida e volta, portanto usa-se metade do percurso.\n- Sensor digital não dispensa conferir faixa de alimentação, níveis lógicos e ritmo de consulta."
+    },
+    {
+      "title": "2. Saídas digitais, relés e motores DC",
+      "markdown": "### O problema que este assunto resolve\n\nUma saída lógica do microcontrolador serve para comandar sinais de pequena potência, mas em geral não fornece corrente nem tensão adequadas para uma carga externa. O **atuador** converte o comando elétrico em luz, som, movimento ou comutação de uma carga. A interface deve separar a lógica do circuito de potência quando necessário, limitar corrente e prever os efeitos de cargas indutivas.\n\n> **Siglas e termos deste capítulo**\n> - **NO/NA**: contato normalmente aberto, que fica aberto com a bobina desenergizada.\n> - **NC/NF**: contato normalmente fechado, que fica fechado com a bobina desenergizada.\n> - **COM**: contato comum do relé.\n> - **PWM**: modulação por largura de pulso, que controla a fração de tempo em nível alto.\n> - **MOSFET**: transistor de efeito de campo usado frequentemente como chave eletrônica.\n> - **Ponte H**: circuito que permite inverter a polaridade aplicada a uma carga, como motor DC.\n\n### LED e buzzers\n\nUm LED conduz principalmente em uma direção e precisa de limitação de corrente. Para acioná-lo de um GPIO, coloca-se um resistor em série e verifica-se a corrente admissível do pino, do LED e do conjunto. A corrente aproximada depende da tensão de alimentação, da queda direta do LED e do resistor. Um pino não deve ser tratado como fonte de potência para vários LEDs ou carga de alto consumo; use transistor ou driver quando a corrente exigida exceder o permitido. Para variar brilho, PWM altera a razão entre o tempo ligado e desligado.\n\nUm **buzzer ativo** contém oscilador e emite tom ao receber alimentação adequada; o sinal de controle normalmente liga e desliga o som. Um **buzzer passivo** não gera sozinho a frequência audível: é necessário aplicar sinal periódico, por exemplo uma onda quadrada na frequência desejada. PWM pode produzir o tom, mas a amplitude e corrente precisam respeitar a especificação. Alguns buzzers são piezoelétricos; outros têm bobina e se comportam como carga indutiva.\n\n### Módulo de relés\n\nO relé é um interruptor eletromecânico: corrente na bobina cria campo magnético e muda a posição dos contatos. O microcontrolador costuma comandar um **módulo** que contém transistor de acionamento e, frequentemente, diodo de proteção da bobina; a bobina não deve ser ligada diretamente ao GPIO. Em módulos com optoacoplador, a existência do componente não garante isolamento completo: trilhas, jumpers, alimentação compartilhada e distâncias do módulo determinam o isolamento efetivo.\n\nOs contatos COM, NO e NC permitem escolher o estado da carga quando a bobina está desenergizada. A inscrição de corrente e tensão do contato depende do tipo de carga: motores e lâmpadas apresentam picos e arcos diferentes de uma carga resistiva. Verifique ratings para corrente contínua ou alternada e para a natureza da carga. Contatos de relé podem comutar tensões perigosas; isolamento, invólucro, fusível, afastamento e práticas de segurança são indispensáveis. Um relé faz comutação liga/desliga, não controle contínuo de velocidade.\n\n### Ponte H e motor DC\n\nUma ponte H usa quatro chaves organizadas de modo que a corrente no motor possa fluir em um sentido ou no sentido oposto. Em um driver integrado como o L298, entradas selecionam o estado da ponte e um pino de habilitação pode ativar ou inibir a saída. A combinação de entradas determina sentido e, conforme o driver, frenagem ou roda livre; consulte a tabela funcional do componente. Nunca suponha que toda combinação seja segura para qualquer driver: alguns estados podem produzir curto-circuito interno se a lógica do módulo ou do circuito não impedir isso.\n\nA velocidade média de um motor DC pode ser ajustada por PWM no pino enable ou na entrada indicada pelo fabricante. O driver precisa suportar tensão e corrente de partida e bloqueio do motor, que podem superar a corrente em rotação livre. A alimentação do motor deve ser dimensionada à parte do GPIO; a lógica e a potência podem ter alimentações distintas, com referência comum quando exigida pelo circuito. Motores são indutivos e geram surtos: use o driver com diodos de recirculação ou a proteção indicada no datasheet, além de desacoplamento.\n\n| Carga/driver | O que o microcontrolador controla | O que não deve ser presumido |\n| --- | --- | --- |\n| LED | Estado lógico ou PWM | Que o GPIO limita sozinho a corrente |\n| Buzzer ativo | Liga/desliga | Que a frequência do sinal define o tom interno |\n| Buzzer passivo | Frequência e duração do sinal | Que basta aplicar nível contínuo para obter nota |\n| Relé | Estado da bobina via estágio de acionamento | Que contatos isolam qualquer tensão ou aceitam qualquer carga |\n| Ponte H | Sentido e, com PWM, potência média do motor | Que o pino do microcontrolador alimenta o motor |\n\n### Proteção e alimentação\n\nSepare o raciocínio em três perguntas: qual corrente a carga demanda; qual tensão e corrente o pino pode fornecer; que transitórios a carga produz? Drivers, resistores, transistores, diodos e fontes são escolhidos conforme as respostas. Em motores, fios longos e corrente variável podem reiniciar a placa por queda de tensão e ruído; desacoplamento e retorno de corrente bem projetados reduzem o problema. Em carga indutiva, interromper corrente sem caminho de recirculação gera sobretensão.\n\n### Como cai na prova\n\n- LED recebe resistor em série; motor recebe driver dimensionado para a corrente da carga.\n- Buzzer ativo oscila internamente; o passivo requer sinal periódico.\n- Relé tem contatos COM/NO/NC e comuta carga; o GPIO comanda o estágio da bobina.\n- Ponte H inverte corrente no motor; PWM pode regular potência média, sem transformar o GPIO em fonte de potência."
+    },
+    {
+      "title": "3. Displays e indicação visual",
+      "markdown": "### O problema que este assunto resolve\n\nO resultado de uma medição precisa ser apresentado de forma legível. Indicadores de sete segmentos são adequados a algarismos e sinais simples; LCD alfanumérico apresenta texto e símbolos. Em ambos, o projeto inclui a interface lógica, a alimentação, o contraste ou corrente dos emissores e o tempo de atualização.\n\n> **Siglas e termos deste capítulo**\n> - **BCD**: código binário decimal, no qual quatro bits representam um algarismo decimal de 0 a 9.\n> - **CD4511**: circuito CMOS que armazena/decodifica BCD e aciona as saídas de sete segmentos.\n> - **Ânodo/cátodo comum**: ligação compartilhada, respectivamente, dos ânodos ou dos cátodos dos segmentos.\n> - **LCD**: display de cristal líquido; seus pixels não emitem luz por conta própria.\n> - **I²C**: interface serial frequentemente usada por um expansor conectado a módulos LCD.\n\n### Sete segmentos e CD4511\n\nCada segmento LED é um diodo emissor; combinações de segmentos formam dígitos. Um display de **cátodo comum** tem os cátodos dos segmentos ligados ao terminal comum, e os segmentos acendem quando suas saídas recebem corrente em sentido apropriado. O **CD4511B** é um latch/decoder/driver BCD para sete segmentos destinado a displays de cátodo comum. Quatro entradas representam os bits BCD; sete saídas correspondem a a–g. O decodificador reduz a quantidade de pinos necessários em comparação com comandar cada segmento diretamente, mas ainda requer resistores de limitação de corrente conforme o circuito e o display.\n\nO CD4511 também dispõe de entrada de latch enable/strobe, teste de lâmpada e blanking. Com latch habilitado, o dado pode ser armazenado; no modo transparente, as saídas acompanham o BCD conforme a tabela funcional. LT serve para testar os segmentos e BI/blanking os apaga, com polaridade descrita no datasheet. Códigos acima de 9 não representam algarismos BCD válidos e as saídas são apagadas segundo a documentação do componente. Não se deve confundir o CD4511 com decodificadores projetados para display de ânodo comum, nem ignorar a tensão lógica compatível com o microcontrolador.\n\n### LCD alfanumérico\n\nUm LCD alfanumérico comum organiza caracteres em linhas e colunas e recebe comandos e dados por uma interface paralela; muitos módulos usam controlador compatível com HD44780. Pode trabalhar em modo de 8 bits ou de 4 bits, este último economizando pinos à custa de transferir os dados em duas partes. A biblioteca LiquidCrystal do ecossistema Arduino oferece rotinas para inicialização, posicionamento do cursor e escrita, mas a biblioteca não elimina a necessidade de ligar corretamente alimentação, terra, controle e dados.\n\nO pino de contraste normalmente usa uma tensão ajustável por potenciômetro. A luz de fundo é um circuito separado, muitas vezes com LED e requisito próprio de corrente/resistor. Um adaptador I²C reduz o número de fios ao usar expansor de portas; o LCD continua recebendo comandos paralelos internamente. Endereço, pinagem do expansor e alimentação devem corresponder ao módulo. Texto longo que excede o espaço do visor precisa ser dividido, rolado ou atualizado sem piscar toda a tela.\n\n| Aspecto | Sete segmentos + CD4511 | LCD alfanumérico\n| --- | --- |\n| Informação típica | Algarismo decimal e poucos símbolos | Texto, rótulos e números\n| Interface | 4 bits BCD ao decoder, mais controles | Barramento paralelo ou adaptador serial\n| Tipo de display deste arranjo | LED de cátodo comum | Cristal líquido; iluminação de fundo opcional\n| Cuidados | Resistores, tipo de terminal comum e níveis do CI | Contraste, pinagem, inicialização e backlight\n\n### Como cai na prova\n\n- CD4511 recebe BCD e fornece padrões para sete segmentos; o arranjo tradicional é cátodo comum.\n- O LCD pode usar quatro bits de dados e ainda requer sinais de controle e ajuste de contraste.\n- Adaptador I²C economiza fios de interface externa, mas não converte o LCD em um display sem controlador.\n- LED de segmento também exige limitação de corrente."
+    },
+    {
+      "title": "4. Servos e motores de passo",
+      "markdown": "### O problema que este assunto resolve\n\nQuando a saída precisa deslocar uma peça, escolher o motor pelo nome é insuficiente. É preciso saber se a tarefa pede posição angular aproximada, rotação contínua, movimento em incrementos, torque de retenção ou velocidade. O microcontrolador fornece sinais de comando; a alimentação e o estágio de potência devem atender ao motor.\n\n> **Siglas e termos deste capítulo**\n> - **Servo RC**: conjunto compacto com motor, redução, sensor e controle interno, comandado por pulsos.\n> - **PWM**: sinal periódico cuja largura do pulso codifica o comando em servos RC comuns.\n> - **Passo**: incremento angular produzido pela sequência de energização das fases do motor de passo.\n> - **Driver**: circuito que fornece corrente às bobinas a partir dos sinais lógicos.\n> - **Home/referenciamento**: procedimento que estabelece uma posição conhecida, por sensor ou fim de curso.\n\n### Servomotor\n\nUm servo RC de posição contém motor DC, engrenagens, sensor de posição e circuito de realimentação. O controlador interno compara a posição desejada com a posição medida e corrige o movimento. Em servos de posição comuns, pulsos repetidos com larguras dentro de uma faixa definida pelo modelo representam posições; não se trata simplesmente de aplicar qualquer PWM de velocidade. A biblioteca Servo facilita gerar o sinal, mas o intervalo de pulsos e o curso efetivo variam entre modelos. Forçar o braço contra o fim mecânico mantém o motor sob carga e pode danificar engrenagens ou aquecer o conjunto.\n\nA corrente de partida ou de bloqueio do servo é muito maior do que a corrente em repouso. Para um servo maior, use fonte externa dimensionada e conecte os terras em comum quando a entrada de sinal precisar da mesma referência. Não se deve alimentar servo diretamente do pino de 5 V da placa sem conferir a capacidade da fonte. Um servo de rotação contínua usa o comando para definir direção e velocidade aproximada, sem representar uma posição angular absoluta.\n\n### Motor de passo\n\nO motor de passo transforma uma sequência de energização das bobinas em incrementos discretos. Modelos **unipolares** e **bipolares** diferem na disposição das bobinas e no modo de acionamento; o bipolar exige inverter corrente em cada fase, frequentemente com pontes H. A sequência correta e o limite de corrente vêm do motor e do driver. Uma biblioteca como Stepper gera a sequência básica, mas precisa do hardware apropriado — nunca se conectam bobinas de potência diretamente a GPIOs.\n\nO número de passos comandados permite estimar o deslocamento, mas não prova que o eixo chegou ao destino. Se a carga exigir torque excessivo, aceleração for alta ou o rotor perder sincronismo, o motor pode perder passos sem que o microcontrolador perceba. Sem sensor de posição, uma rotina de homing contra referência conhecida é usada para recuperar um ponto inicial. Microstepping aumenta a granularidade do comando com driver adequado, mas não garante a mesma exatidão mecânica do incremento nominal.\n\nBobinas energizadas consomem corrente mesmo paradas e podem aquecer. Desabilitar o driver economiza energia, porém elimina ou reduz o torque de retenção. Acelerar gradualmente reduz perda de sincronismo. Um motor de passo tem controle de posição em malha aberta por sequência, enquanto um servo de posição costuma ter realimentação interna; essa diferença é central em questões comparativas.\n\n| Critério | Servo de posição RC | Motor de passo\n| --- | --- |\n| Comando típico | Largura de pulso periódica | Sequência/pulsos de passos ao driver\n| Realimentação | Interna no servo de posição comum | Frequentemente ausente no conjunto básico\n| Movimento | Alvo angular dentro do curso mecânico | Incrementos; pode girar várias voltas\n| Falha típica | Sobrecarga, fim mecânico, fonte fraca | Perda de passos por carga ou aceleração excessiva\n\n### Como cai na prova\n\n- O servo RC de posição fecha uma malha internamente; o microcontrolador envia o comando de posição por pulsos.\n- O motor de passo exige sequência correta e driver; passos comandados não confirmam posição real.\n- Alimentação de motor deve suportar picos e carga; terra comum é necessário quando os sinais compartilham referência.\n- Redução de pinos com biblioteca não substitui driver de potência."
+    }
+  ],
+  "summary": "Sensores transformam grandezas em sinais que o microcontrolador precisa ler respeitando tipo, faixa, interface, ruído e calibração. LDR e NTC frequentemente entram por divisores analógicos; sensores como DHT e BMP280 entregam dados digitais, com limitações de taxa, comunicação e compensação. Nível pode ser inferido por boia, capacitância, condutividade ou distância; ultrassom mede o tempo de ida e volta do eco; PIR detecta variação infravermelha associada a movimento. Atuadores exigem estágio e alimentação compatíveis: LED usa resistor, buzzer ativo oscila internamente e passivo requer frequência, relé comuta contatos por bobina e ponte H dirige motor DC em ambos os sentidos. O CD4511 decodifica BCD para sete segmentos de cátodo comum. LCD requer interface, inicialização e contraste. Servos RC recebem pulsos e controlam posição internamente; motores de passo dependem de sequência e driver, podendo perder passos sem realimentação.",
+  "flashcards": [
+    {
+      "front": "O que converte uma grandeza física em sinal elétrico?",
+      "back": "Um sensor, cujo princípio pode produzir resistência, tensão, corrente, frequência ou dados digitais."
+    },
+    {
+      "front": "Como um LDR costuma ser conectado para leitura analógica?",
+      "back": "Em um divisor de tensão com resistor fixo; a direção da variação da tensão depende da posição do LDR no divisor."
+    },
+    {
+      "front": "O que acontece com a resistência de um NTC quando a temperatura sobe?",
+      "back": "Ela diminui; a relação é não linear e precisa de conversão/calibração para estimar temperatura."
+    },
+    {
+      "front": "Que grandezas um módulo DHT típico informa?",
+      "back": "Umidade relativa e temperatura, em dados digitais e com intervalo de consulta limitado pelo modelo."
+    },
+    {
+      "front": "O que mede diretamente um BMP280?",
+      "back": "Pressão barométrica absoluta; também disponibiliza temperatura usada na compensação."
+    },
+    {
+      "front": "Por que pressão não é igual a altitude?",
+      "back": "Altitude é estimada a partir da pressão e de uma referência/modelo; clima também altera a pressão."
+    },
+    {
+      "front": "Qual a diferença entre uma boia e uma medição ultrassônica de nível?",
+      "back": "A boia costuma indicar se um ponto foi atingido; ultrassom estima distância à superfície para inferir nível."
+    },
+    {
+      "front": "Qual é o princípio usual de um sensor capacitivo de toque?",
+      "back": "Detectar a alteração da capacitância causada pela aproximação ou contato do dedo no eletrodo."
+    },
+    {
+      "front": "Por que distância ultrassônica usa t dividido por dois?",
+      "back": "O tempo do eco cobre o percurso até o alvo e o retorno; a distância ao alvo é metade do trajeto total."
+    },
+    {
+      "front": "O que detecta normalmente um PIR?",
+      "back": "Variações de radiação infravermelha, comumente associadas ao movimento de corpos quentes."
+    },
+    {
+      "front": "Para que serve histerese em um limiar de sensor?",
+      "back": "Evitar comutações repetidas quando a leitura oscila ao redor de um único limiar."
+    },
+    {
+      "front": "Qual cuidado elétrico é essencial em uma entrada de 3,3 V?",
+      "back": "Não aplicar nível superior ao máximo permitido; usar adaptação de nível quando necessário."
+    },
+    {
+      "front": "Por que um LED precisa de resistor em série?",
+      "back": "Para limitar a corrente e manter LED e pino dentro dos limites elétricos."
+    },
+    {
+      "front": "Como se distingue buzzer ativo de passivo?",
+      "back": "Ativo contém oscilador e geralmente toca ao ser alimentado; passivo requer sinal periódico externo."
+    },
+    {
+      "front": "O que fazem COM, NO e NC num relé?",
+      "back": "COM é o contato comum; NO abre desenergizado e fecha energizado; NC fica fechado desenergizado."
+    },
+    {
+      "front": "Por que não acionar bobina de relé diretamente por GPIO?",
+      "back": "A bobina demanda corrente e é indutiva; usa-se estágio de acionamento e proteção apropriada."
+    },
+    {
+      "front": "Qual é a função principal de uma ponte H?",
+      "back": "Inverter a polaridade/corrente aplicada a uma carga, permitindo controlar o sentido de um motor DC."
+    },
+    {
+      "front": "Qual entrada alimenta o CD4511?",
+      "back": "Quatro bits de BCD, que são decodificados para as saídas dos sete segmentos."
+    },
+    {
+      "front": "Que display é tradicionalmente acionado pelo CD4511?",
+      "back": "Display LED de sete segmentos com cátodo comum."
+    },
+    {
+      "front": "O que deve ser ajustado num LCD alfanumérico típico?",
+      "back": "A inicialização e o contraste; a luz de fundo pode exigir conexão/corrente própria."
+    },
+    {
+      "front": "Como um servo RC de posição recebe comando?",
+      "back": "Por pulsos periódicos cuja largura representa a posição desejada, dentro da faixa do modelo."
+    },
+    {
+      "front": "O motor de passo confirma que chegou ao número de passos mandado?",
+      "back": "Não necessariamente; sem realimentação pode perder passos por sobrecarga ou aceleração excessiva."
+    },
+    {
+      "front": "Para que serve o driver de motor de passo?",
+      "back": "Comutar a corrente das bobinas conforme a sequência lógica, dentro dos limites de corrente e tensão."
+    },
+    {
+      "front": "O que a média de amostras melhora e piora?",
+      "back": "Pode reduzir ruído aleatório, mas acrescenta atraso à resposta."
+    },
+    {
+      "front": "Para que serve um procedimento de homing?",
+      "back": "Levar o mecanismo a uma referência física/sensorizada para estabelecer posição conhecida."
+    }
+  ],
+  "tips": [
+    "Identifique primeiro se a saída do sensor é analógica, digital ou serial; isso define o pino e a leitura.",
+    "Não associe nível lógico alto a claro ou escuro sem desenhar o divisor do LDR.",
+    "No ultrassom, eco é percurso de ida e volta; alvos inclinados ou absorventes podem não retornar eco confiável.",
+    "Dimensione a alimentação pelo pico de corrente do motor ou servo, e não só pelo consumo em repouso.",
+    "Relé é chave liga/desliga; ponte H pode inverter motor e receber PWM para regular potência média.",
+    "Associe CD4511 a entrada BCD e display de cátodo comum; confirme pinos, controles e correntes no datasheet."
+  ],
+  "traps": [
+    "Supor que todo sensor de presença detecta uma pessoa parada: PIR comum depende de variação infravermelha.",
+    "Tratar resolução do ADC como se fosse exatidão do sensor.",
+    "Ligar carga de motor, bobina ou LED potente diretamente ao GPIO.",
+    "Confundir buzzer passivo, que requer tom, com buzzer ativo, que já oscila internamente.",
+    "Usar CD4511 com display de ânodo comum sem conferir compatibilidade do circuito.",
+    "Presumir que passos comandados provam a posição alcançada pelo motor."
+  ],
+  "activeRecall": [
+    "Desenhe um divisor de tensão com LDR e explique por que trocar a posição do LDR inverte a tendência da leitura.",
+    "Compare um NTC com um sensor digital de temperatura quanto à conversão e à interface.",
+    "Explique por que pressão barométrica pode ajudar a estimar altitude, mas não fornece altitude absoluta sem referência.",
+    "Descreva como um sensor ultrassônico mede distância e cite dois fatores que prejudicam o eco.",
+    "Diferencie PIR, barreira óptica e detector de toque capacitivo pelo fenômeno físico detectado.",
+    "Explique como COM, NO e NC se comportam com a bobina do relé desenergizada e energizada.",
+    "Descreva como uma ponte H permite mudar o sentido de rotação de um motor DC.",
+    "Compare o comando e o risco de perda de posição de servo RC e motor de passo."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Leitura de sensor e condicionamento",
+      "summary": "Confundir grandeza física com nível lógico, ignorar divisor, calibração, faixa do ADC, ruído, referência e compatibilidade de tensão."
+    },
+    {
+      "key": "e2",
+      "title": "Presença, distância e nível",
+      "summary": "Atribuir ao PIR detecção garantida de pessoa imóvel, esquecer ida e volta do eco ou tratar pressão como altitude e distância como nível sem referência."
+    },
+    {
+      "key": "e3",
+      "title": "Acionamento de cargas",
+      "summary": "Comandar diretamente pelo GPIO um LED sem resistor, bobina, motor ou outro atuador que demande corrente ou proteção externa."
+    },
+    {
+      "key": "e4",
+      "title": "Displays e decodificação",
+      "summary": "Trocar cátodo comum por ânodo comum, ignorar os quatro bits BCD ou esquecer contraste, inicialização e alimentação do LCD."
+    },
+    {
+      "key": "e5",
+      "title": "Movimento e realimentação",
+      "summary": "Confundir largura de pulso de servo com PWM de velocidade, ou assumir que um motor de passo em malha aberta sempre chegou à posição comandada."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um divisor formado por LDR e resistor fixo transforma a variação de resistência do sensor em uma tensão que pode ser amostrada por uma entrada analógica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "O divisor converte a mudança de resistência em mudança de tensão. A tendência de tensão com a luz depende de qual componente fica ligado ao lado da alimentação.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em qualquer divisor com LDR, o aumento de iluminação necessariamente faz o valor lido pelo ADC aumentar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "A resistência do LDR costuma diminuir com mais luz, mas a tensão no ponto médio pode subir ou cair conforme a posição relativa do LDR e do resistor fixo.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um termistor NTC é caracterizado por diminuir sua resistência quando a temperatura aumenta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "NTC significa coeficiente de temperatura negativo. A relação resistência-temperatura não é linear e precisa ser interpretada por conversão ou calibração.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um módulo digital de temperatura dispensa verificar sua tensão de saída, pois o fato de comunicar dados digitais garante compatibilidade com qualquer GPIO.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "A interface digital continua sujeita a limites de alimentação e nível lógico. Uma saída de 5 V pode exceder o máximo de uma entrada de 3,3 V.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sensores DHT típicos combinam elemento capacitivo de umidade, medição de temperatura e circuito que disponibiliza os dados digitalmente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "A família DHT integra detecção de umidade e temperatura com processamento e saída digital. Modelos lentos exigem respeitar o intervalo mínimo entre leituras.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A pressão medida por um barômetro BMP280 é uma medida direta de nível de líquido, independente do recipiente e da montagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "O BMP280 mede pressão barométrica absoluta. Nível de líquido requer outro princípio ou uma relação física e montagem que permitam inferi-lo.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um BMP280 pode comunicar-se com o microcontrolador por I²C ou por SPI, conforme a configuração do módulo e do circuito.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "A documentação do sensor prevê ambas as interfaces seriais síncronas; deve-se seguir os pinos e a configuração de modo efetivamente disponíveis.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sensor PIR comum detecta qualquer pessoa imóvel dentro do seu campo de visão porque mede continuamente sua distância.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "PIR percebe variações de infravermelho associadas tipicamente ao movimento de corpos quentes; não mede distância nem garante presença contínua de alvo imóvel.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma entrada digital com botão mecânico pode registrar vários eventos em uma única pressão por causa de repiques dos contatos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "O contato pode oscilar eletricamente antes de estabilizar. Debounce por software ou hardware filtra as transições extras, e pull-up/pull-down define o estado de repouso.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar a quantidade de amostras usadas numa média reduz o ruído aleatório sem nenhum efeito sobre o tempo de resposta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "A média pode suavizar ruído aleatório, mas requer acumular ou ponderar leituras e tende a atrasar a resposta a mudanças reais.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No sensor ultrassônico de eco, a distância ao alvo é calculada usando o percurso completo de ida e volta como se fosse apenas a distância de ida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "O tempo do eco inclui ida e volta. Multiplica-se o tempo pela velocidade do som e divide-se por dois para obter a distância de ida ao alvo.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sensor capacitivo de toque pode detectar uma mudança de capacitância causada pela aproximação de um dedo a um eletrodo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "O corpo altera o campo elétrico e a capacitância efetiva percebida pelo circuito. O módulo ou firmware converte a variação em estado de toque.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma boia elétrica normalmente fornece uma indicação discreta de que o líquido atingiu determinada altura, em vez de uma medida contínua de toda a coluna.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "O contato da boia muda de estado em torno de um ponto de acionamento. Para obter nível contínuo usa-se outro princípio ou vários pontos de detecção.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A histerese em um comparador de sensor usa limiares distintos para ligar e desligar, reduzindo comutações rápidas perto do limite.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "A separação entre limiar de subida e de descida impede que pequenas oscilações de ruído junto a um único limiar alternem repetidamente a saída.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A calibração contra uma referência conhecida pode relacionar a leitura bruta de um sensor a uma unidade física, mas não elimina limites de faixa e resolução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Calibrar determina uma relação entre indicação e referência. A calibração não faz o sensor operar fora de sua faixa nem cria resolução que o conversor não possui.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um LED ligado a um pino de microcontrolador deve ter sua corrente limitada por resistor ou por um driver que cumpra essa função.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Sem limitação de corrente, a corrente pode exceder o permitido pelo LED e pelo GPIO. O resistor em série é uma solução básica para um LED individual.",
+      "section": "2. Saídas digitais, relés e motores DC",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um buzzer passivo alimentado apenas com nível contínuo deve produzir qualquer frequência de áudio porque não contém circuito oscilador externo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Buzzer passivo precisa de sinal periódico externo para produzir tom. Nível contínuo não fornece a alternância necessária para a vibração audível sustentada.",
+      "section": "2. Saídas digitais, relés e motores DC",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um módulo de relé pode usar um transistor para que um GPIO comande a bobina sem conduzir diretamente toda a corrente dela.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "O estágio de acionamento fornece o caminho de corrente da bobina e isola funcionalmente o pino da carga da bobina. Proteção contra a tensão indutiva também é necessária.",
+      "section": "2. Saídas digitais, relés e motores DC",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Com a bobina de um relé desenergizada, o contato NO costuma estar fechado e o contato NC costuma estar aberto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "NO significa normalmente aberto e NC normalmente fechado, referindo-se ao estado de repouso da bobina. Ao energizar, os contatos comutam conforme o modelo.",
+      "section": "2. Saídas digitais, relés e motores DC",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ponte H permite inverter o sentido da corrente na carga, possibilitando comandar os dois sentidos de rotação de um motor DC.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Ao selecionar pares opostos de chaves da ponte, a polaridade nos terminais do motor se inverte. A tabela de estados e proteção dependem do driver utilizado.",
+      "section": "2. Saídas digitais, relés e motores DC",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O GPIO de controle de uma ponte H também deve fornecer a corrente de partida do motor, já que a ponte apenas troca a polaridade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "A ponte H é o estágio de potência que conduz a corrente do motor; GPIOs fornecem sinais lógicos. Fonte e driver devem suportar corrente de partida e bloqueio.",
+      "section": "2. Saídas digitais, relés e motores DC",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aplicar PWM à entrada de habilitação apropriada de um driver pode ajustar a potência média entregue a um motor DC.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "PWM alterna a saída entre estados habilitado e inibido. A carga responde à potência média, desde que o driver, a frequência e o motor sejam adequados.",
+      "section": "2. Saídas digitais, relés e motores DC",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A corrente de um motor em bloqueio pode superar muito a corrente observada girando sem carga, por isso o driver não deve ser escolhido apenas pela corrente em vazio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Sem rotação, a força contraeletromotriz diminui e a corrente pode se aproximar do limite imposto pela resistência do enrolamento e da fonte. O driver deve contemplar picos reais.",
+      "section": "2. Saídas digitais, relés e motores DC",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A presença de um optoacoplador no módulo de relé, por si só, garante isolamento galvânico mesmo que as alimentações estejam unidas por jumper.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Isolamento depende do circuito completo, trilhas, distâncias, jumpers e fontes. Unir referências pode eliminar a separação galvânica pretendida.",
+      "section": "2. Saídas digitais, relés e motores DC",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ligação faz o LDR produzir uma leitura analógica utilizável pelo microcontrolador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ligá-lo em série com resistor fixo e ler a tensão do ponto médio do divisor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conectá-lo em paralelo com o pino analógico sem alimentação e medir a frequência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ligá-lo diretamente entre duas saídas digitais para medir sua resistência por software.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conectá-lo em série com um relé para que cada variação de luz gere um pulso digital.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ligar o LDR ao barramento SPI, pois sua resistência já representa um pacote serial.",
+          "correct": false
+        }
+      ],
+      "explanation": "O divisor converte a resistência dependente da luz em tensão; a entrada analógica amostra esse nível, respeitados a alimentação e os limites do conversor.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma leitura de LDR sobe quando a iluminação aumenta. Qual conclusão é tecnicamente correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O LDR foi ligado diretamente à alimentação, pois sua resistência sempre gera nível alto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É necessário verificar a posição do LDR no divisor, pois ela determina o sentido da tensão lida.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A placa está necessariamente defeituosa, já que mais luz sempre reduz o valor no ADC.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A leitura prova a iluminância em lux sem calibração, pois o ADC já aplica curva fotométrica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O LDR só pode ser lido por entrada digital, de modo que o valor indica apenas ligado ou desligado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mais luz costuma reduzir a resistência do LDR, mas a tendência no ponto médio depende de sua posição em relação à alimentação e ao terra. A tensão não é lux calibrado automaticamente.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa estimar a temperatura do ar com NTC ligado a um ADC. O que é necessário para converter a leitura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar divisor e uma relação ou calibração entre resistência/ADC e temperatura.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Multiplicar diretamente o número do ADC por um fator universal fixo para todo NTC.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ler a resistência pelo pino digital sem circuito e assumir temperatura em graus Celsius.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conectar o NTC à saída PWM e interpretar a razão cíclica como temperatura medida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar um decodificador BCD para converter a resistência em temperatura sem calibração.",
+          "correct": false
+        }
+      ],
+      "explanation": "O divisor transforma resistência em tensão e o ADC em código. A relação do NTC é não linear e depende do modelo, exigindo parâmetros ou calibração.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um DHT entrega leituras de temperatura e umidade, mas leituras excessivamente frequentes falham. Qual medida é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar a comunicação digital por entrada analógica, mesmo sem saída analógica no componente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Consultar a documentação do modelo e respeitar o intervalo mínimo entre medições.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aumentar a frequência de consulta até o valor ficar estável por média.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ligar dois pinos de dados em paralelo para que o sensor responda mais rápido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desligar a alimentação entre cada bit recebido para reiniciar o protocolo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sensores DHT são relativamente lentos e têm intervalo recomendado de amostragem. Consultas prematuras podem resultar em dado repetido ou falha de comunicação.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto usa BMP280 e precisa ler pressão barométrica em ambiente com interferência de comunicação. Que combinação de interface é compatível com o sensor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas saída de relé, porque pressão é medida como contato mecânico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "I²C ou SPI, conforme configuração e ligações suportadas pelo módulo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Somente uma entrada de interrupção analógica, pois o sensor não usa dados seriais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente PWM de motor, pois a pressão é codificada na largura de pulsos de potência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Barramento de sete segmentos, porque o BMP280 produz diretamente códigos BCD.",
+          "correct": false
+        }
+      ],
+      "explanation": "O BMP280 oferece comunicação I²C e SPI. A configuração física do módulo e as conexões selecionam o modo; a pressão bruta é compensada segundo os dados do sensor.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema calcula altitude com um barômetro, mas a indicação varia com o tempo mesmo sem deslocamento. Qual explicação é plausível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A pressão atmosférica permanece constante; qualquer variação do barômetro comprova deslocamento vertical.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O sensor mede pressão absoluta; por isso, variação sem movimento indica defeito, pois o clima não altera a pressão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O valor deve ser corrigido com um resistor de LED, que compensa mudanças meteorológicas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A pressão absoluta varia também com o clima; a altitude estimada depende de referência e modelo atmosférico.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A saída é nível de líquido, e a mudança só pode ser causada pelo tanque esvaziando.",
+          "correct": false
+        }
+      ],
+      "explanation": "O barômetro mede pressão absoluta, não altura geométrica. A altitude estimada depende de referência e modelo atmosférico; mudanças do clima podem alterar a pressão sem que o equipamento se mova.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um tanque requer apenas alarme de nível baixo e tolera contato com o líquido. Qual sensor simples é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um LCD instalado no tanque, pois a tela mede diretamente a altura e comuta o alarme quando o líquido baixa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma boia com contato na altura de alarme sinaliza discretamente quando o líquido atinge esse ponto.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ponte H em série com o tanque, pois a corrente do motor varia com o nível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CD4511 ligado ao GPIO, pois o CI calcula o volume automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Buzzer passivo mergulhado no líquido, pois a frequência indica um ponto fixo de nível.",
+          "correct": false
+        }
+      ],
+      "explanation": "A boia atua como chave quando o líquido alcança sua altura de montagem, entregando o estado discreto adequado ao alarme. Ela não mede continuamente volume ou altura ao longo do tanque.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num sensor ultrassônico de distância, a leitura oscila diante de uma placa estreita inclinada. Qual causa é mais provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A velocidade do som se torna nula diante de placas estreitas, e o módulo não consegue iniciar uma medição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A velocidade do som é sempre nula quando o objeto tem pouca área.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma placa pequena e inclinada pode desviar a reflexão acústica para longe do receptor, deixando o eco fraco ou ausente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O alvo inclinado transforma o tempo de ida e volta em um código BCD inválido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O eco fica necessariamente mais forte quanto mais macio e absorvente for o objeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "O eco pode ser refletido para longe do receptor quando a placa é estreita ou inclinada, fazendo a leitura oscilar. Materiais absorventes também reduzem a energia que retorna ao sensor.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma porta deve acender uma luz quando uma pessoa atravessa a entrada, e uma placa usa PIR. Qual interpretação é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O PIR detecta variações infravermelhas de fontes térmicas em movimento, sem informar distância ou identidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O PIR fornece distância exata e identifica quem cruzou o campo de visão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O PIR mede a distância por ecos ultrassônicos e identifica cada pessoa que cruza o campo de visão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O PIR detecta presença imóvel por ultrassom e não é afetado por movimento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O PIR é um contato de relé que comuta a carga de iluminação diretamente sem circuito de saída.",
+          "correct": false
+        }
+      ],
+      "explanation": "O PIR percebe variações de infravermelho associadas ao movimento de fontes térmicas em seu campo. Não determina distância nem identidade; sua saída pode comandar o circuito de iluminação.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma entrada de 3,3 V recebe o pino de eco de um módulo ultrassônico cuja saída lógica é 5 V. Como proteger a entrada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ligar diretamente, pois todo sinal digital é seguro qualquer que seja a tensão alta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar divisor resistivo ou conversor de nível apropriado, após confirmar a especificação do módulo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Inserir uma ponte H no pino para inverter o nível e limitar a tensão automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conectar o pino ao terra através de um LED, que absorve qualquer tensão acima de 3,3 V.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Configurar o GPIO como saída baixa e esperar que o eco se ajuste à tensão permitida.",
+          "correct": false
+        }
+      ],
+      "explanation": "A entrada não deve exceder sua tensão máxima. Um divisor ou conversor de nível reduz a tensão do eco, com valores definidos conforme frequência, impedância e requisitos elétricos.",
+      "section": "1. Como sensores entregam informação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma saída digital de microcontrolador deve acionar um LED indicador que consome corrente acima do limite do pino. Qual solução é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ligar o LED diretamente entre dois GPIOs e configurar ambos como saída alta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar transistor ou driver dimensionado para a corrente, mantendo resistor de limitação apropriado ao LED.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Remover o resistor, pois o limite de corrente é controlado pelo programa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir o LED por um buzzer passivo sem alterar o circuito de saída.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar um pino analógico como fonte de potência, pois entradas analógicas suportam corrente ilimitada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O GPIO comanda um estágio de potência e o LED continua precisando de limitação de corrente. A corrente da carga deve ser fornecida pelo driver/fonte dentro de seus ratings.",
+      "section": "2. Saídas digitais, relés e motores DC",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um equipamento precisa emitir tons diferentes em frequências definidas pelo programa. Qual tipo de buzzer é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Buzzer ativo, pois sua oscilação interna sempre segue qualquer frequência externa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Buzzer passivo, comandado por sinal periódico com a frequência desejada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Relé eletromecânico, porque seus contatos geram tons musicais sem circuito adicional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "LDR, pois sua resistência varia de modo audível quando muda a iluminação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CD4511, pois suas saídas de segmentos produzem frequências de áudio independentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O buzzer passivo não fixa sozinho a frequência do tom e pode ser excitado por onda periódica. O buzzer ativo contém oscilador interno e tende a emitir tom próprio ao ser alimentado.",
+      "section": "2. Saídas digitais, relés e motores DC",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma sirene simples, o buzzer ativo toca quando o módulo é habilitado, mas não permite selecionar livremente notas musicais pela frequência do GPIO. Qual razão explica isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O buzzer ativo só recebe dados BCD, por isso cada nota exige um CD4511.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A bobina do relé conectado ao buzzer divide a frequência do microcontrolador em notas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O circuito oscilador interno determina o tom principal; o sinal de controle normalmente comuta sua alimentação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O ADC mede o volume e por isso impede alterar a frequência sonora.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O buzzer ativo não possui componente eletrônico e depende da temperatura ambiente para oscilar.",
+          "correct": false
+        }
+      ],
+      "explanation": "A oscilação está incorporada ao buzzer ativo e define seu tom nominal. Para gerar frequências externas variáveis escolhe-se normalmente um transdutor passivo compatível.",
+      "section": "2. Saídas digitais, relés e motores DC",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relé possui terminais COM, NO e NC. Qual ligação mantém a carga desligada enquanto a bobina não recebe energia e a liga quando o relé atua?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ligar a carga entre COM e NC, pois NC abre apenas quando a bobina está desenergizada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ligar a carga em paralelo com os pinos de entrada do microcontrolador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ligar a carga entre COM e NO, usando o acionador de bobina adequado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ligar a carga entre NO e NC sem usar o contato comum.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conectar a carga em série com o resistor do LED indicador da placa.",
+          "correct": false
+        }
+      ],
+      "explanation": "NO permanece aberto em repouso e fecha quando a bobina é energizada. COM–NO, portanto, forma o caminho que liga a carga na atuação do relé.",
+      "section": "2. Saídas digitais, relés e motores DC",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao escolher um módulo de relé para acionar uma carga, qual informação deve ser conferida além da tensão nominal escrita nos contatos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A frequência do cristal do microcontrolador, já que ela define a capacidade elétrica do contato.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente a cor do módulo, pois todos os contatos suportam qualquer carga indutiva.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conferir ratings de corrente e tensão para a carga, incluindo picos e AC/DC.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A quantidade de caracteres do LCD, que determina a corrente máxima do relé.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A resolução do ADC, pois ela substitui os limites elétricos publicados pelo fabricante.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cargas indutivas e lâmpadas podem produzir picos de corrente e arco diferentes de uma carga resistiva. Ratings para corrente alternada e contínua não são necessariamente intercambiáveis.",
+      "section": "2. Saídas digitais, relés e motores DC",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois estados de entrada de uma ponte H fazem o motor girar em sentidos opostos. Qual fenômeno elétrico explica a mudança de sentido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O relé apaga o campo magnético do motor sem alterar a tensão em seus terminais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A ponte troca o motor por um buzzer e muda a frequência de ressonância.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A ponte inverte a polaridade entre os terminais do motor e o sentido da corrente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O ADC muda sua referência e transforma corrente contínua em pressão barométrica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O eixo do motor inverte a direção da gravidade ao receber sinal lógico alto.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ponte seleciona caminhos diferentes de corrente através do motor, invertendo a tensão entre os terminais e o sentido de rotação em motor DC comum.",
+      "section": "2. Saídas digitais, relés e motores DC",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um motor DC reinicia a placa quando parte, embora o GPIO esteja ligado a uma ponte H. Que providência é mais diretamente relacionada ao sintoma?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o número de leituras do sensor de pressão até a alimentação estabilizar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reduzir a resolução do display LCD, pois os caracteres consomem toda corrente de partida do motor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Rever fonte, corrente de partida, queda de tensão, terra e desacoplamento.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Trocar a ponte por fio direto ao GPIO, removendo o estágio de potência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter o sinal do motor em BCD, pois reinicializações são causadas por códigos acima de nove.",
+          "correct": false
+        }
+      ],
+      "explanation": "A partida pode provocar corrente alta e queda de tensão; ruído e retorno compartilhado também interferem na placa. Dimensionamento da fonte, fiação, desacoplamento e referência devem ser revistos.",
+      "section": "2. Saídas digitais, relés e motores DC",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um display de cátodo comum de sete segmentos será acionado por CD4511. Que dados são aplicados às entradas de seleção de algarismo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um pulso ultrassônico cuja largura representa cada segmento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma resistência do LDR ligada diretamente às sete saídas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quatro bits que codificam o algarismo em BCD.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Dois sinais de fase de motor de passo sem qualquer entrada lógica adicional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Caracteres ASCII paralelos de oito bits, um por segmento luminoso.",
+          "correct": false
+        }
+      ],
+      "explanation": "O CD4511 recebe quatro bits BCD, faz a decodificação e aciona as saídas a–g para formar o algarismo no display compatível.",
+      "section": "3. Displays e indicação visual",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um estudante escolhe um display de ânodo comum para o CD4511B sem circuito adicional, embora o módulo seja especificado para cátodo comum. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O tipo comum é irrelevante, pois cada LED de segmento conduz igualmente nos dois sentidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A ligação é obrigatória, porque o CD4511 só funciona com ânodo comum.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O display precisa ser substituído por LCD, que usa os mesmos pinos a–g.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CD4511 requer display de cátodo comum ou driver compatível.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Basta alimentar a entrada BCD com tensão maior que a nominal para inverter todos os segmentos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O CD4511B é especificado para acionar display LED de cátodo comum. A polaridade e a capacidade de corrente das saídas precisam combinar com o display.",
+      "section": "3. Displays e indicação visual",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O display ligado ao CD4511 fica apagado quando o controlador ativa a entrada de blanking prevista no circuito. Qual função essa entrada desempenha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Seleciona o protocolo I²C para a comunicação com o display de cristal líquido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converte automaticamente qualquer valor de pressão em algarismo decimal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumenta a corrente de todos os segmentos sem limite para maximizar brilho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Blanking apaga as saídas de segmentos conforme sua lógica ativa.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Inverte a polaridade da fonte do microcontrolador para mudar o sentido do motor.",
+          "correct": false
+        }
+      ],
+      "explanation": "A entrada BI/blanking controla o apagamento do conjunto de segmentos. Sua lógica ativa deve ser conferida na tabela funcional do modelo específico.",
+      "section": "3. Displays e indicação visual",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de um adaptador I²C em um LCD alfanumérico reduz os fios de dados conectados ao microcontrolador. O que continua necessário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar o controlador interno por um sensor PIR para gerar os caracteres.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Retirar toda alimentação do LCD, pois I²C transmite energia suficiente pelos dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conectar os segmentos a–g do CD4511 ao barramento SDA sem expansor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Inicializar o LCD e prover alimentação, terra e contraste.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Ligar a luz de fundo diretamente ao pino de reset e dispensar o terra comum.",
+          "correct": false
+        }
+      ],
+      "explanation": "O adaptador usa expansor serial para comandar as linhas paralelas do LCD, mas não elimina alimentação, terra, inicialização ou ajuste de contraste.",
+      "section": "3. Displays e indicação visual",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um LCD alfanumérico acende o backlight, mas os caracteres quase não aparecem. Qual ajuste deve ser examinado primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A sequência da ponte H, que define o contraste dos caracteres em qualquer LCD.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O número de passos do motor conectado ao pino de dados do display.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A resistência do LDR, pois todo LCD calibra automaticamente seu contraste pela luz ambiente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificar contraste e inicialização, além do backlight.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O sentido de rotação do buzzer ativo, que controla a tensão do cristal líquido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Backlight ilumina o visor, enquanto contraste e inicialização determinam a visibilidade e interpretação dos caracteres. São funções elétricas distintas.",
+      "section": "3. Displays e indicação visual",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quatro bits de entrada do CD4511 recebem o código binário 1010. Qual descrição é mais adequada para esse caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É um comando que transforma o CD4511 em conversor I²C para o LCD.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É necessariamente o algarismo decimal dez, exibido como dois dígitos pelo próprio CI.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É sempre o padrão válido para o algarismo zero em qualquer ordem de bits.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "1010 é BCD inválido; o CD4511 pode apagar as saídas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "É uma entrada analógica que representa dez volts no display de sete segmentos.",
+          "correct": false
+        }
+      ],
+      "explanation": "BCD usa códigos de 0000 a 1001 para algarismos de zero a nove. A documentação do CD4511 informa apagamento das saídas para códigos inválidos acima de 1001.",
+      "section": "3. Displays e indicação visual",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema de alarme precisa exibir rótulos como ABERTO e FECHADO além de números. Qual escolha atende melhor à apresentação textual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um LDR, porque sua resistência armazena sequências de letras em luz ambiente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um único dígito de sete segmentos sem multiplexação ou caracteres especiais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma ponte H, cujas saídas compõem letras por inversão de corrente no motor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "LCD alfanumérico para apresentar caracteres em linhas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um relé de um polo, porque os contatos formam automaticamente os pixels do texto.",
+          "correct": false
+        }
+      ],
+      "explanation": "LCD alfanumérico foi projetado para exibir caracteres e texto. O indicador de sete segmentos é mais adequado a algarismos e poucos símbolos.",
+      "section": "3. Displays e indicação visual",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servo de posição recebe pulsos repetidos e move o eixo para a posição desejada. Qual descrição do sistema é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O servo comum contém realimentação e controle internos; a largura do pulso codifica a posição dentro da faixa do modelo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A frequência do pulso sempre define a velocidade do motor sem relação com posição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O servo é apenas um motor DC sem redução nem sensor, e o eixo sabe a posição por contagem de software.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O pulso deve alimentar diretamente o enrolamento do servo com corrente de potência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sinal é um dado BCD para CD4511, que determina o ângulo do eixo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O servo RC de posição integra motor, engrenagens, sensor e controlador. Pulsos de comando indicam alvo; faixa e curso efetivos dependem do modelo.",
+      "section": "4. Servos e motores de passo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servo pequeno funciona ligado à placa, mas um servo maior reinicia o microcontrolador sob carga. Qual procedimento tende a resolver corretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar fonte externa dimensionada para os picos do servo e compartilhar a referência de terra do sinal quando exigido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar a tensão do GPIO até que o pino forneça a corrente de bloqueio do servo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover o sinal de comando e conectar o servo diretamente ao pino de entrada analógica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Acrescentar CD4511 em série com a alimentação para converter a corrente em posição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desligar o terra comum para que o pulso do servo não compartilhe referência com a placa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Servos podem exigir picos de corrente altos. Fonte adequada e retorno de corrente ajudam a evitar queda de tensão; o sinal precisa de referência compatível com o circuito de controle.",
+      "section": "4. Servos e motores de passo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um motor de passo recebe o número previsto de pulsos, mas pode terminar fora da posição esperada sob carga excessiva. Qual explicação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Em malha aberta, o controlador conta comandos, mas não mede necessariamente a posição real do rotor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cada pulso contém uma leitura de encoder que confirma automaticamente o ângulo alcançado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O motor transforma passos excedentes em sinal de pressão no BMP280.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O CD4511 impede a rotação e registra posição absoluta em sua entrada de latch.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A posição de um motor de passo independe de torque, velocidade e sequência das bobinas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um motor de passo sem sensor de realimentação pode perder sincronismo. O software sabe quantos passos mandou, não se o eixo os completou diante da carga.",
+      "section": "4. Servos e motores de passo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um motor de passo bipolar será acionado por microcontrolador. Que circuito é necessário para energizar e inverter a corrente das fases?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Driver apropriado, frequentemente com pontes H, escolhido para tensão e corrente das bobinas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente um pino ADC por fase, pois o conversor analógico fornece corrente de motor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um buzzer ativo por bobina, que alterna sozinho a polaridade conforme a carga.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um display LCD em paralelo, que converte os caracteres em corrente de fase.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um único resistor de pull-up, suficiente para alimentar todas as fases do motor.",
+          "correct": false
+        }
+      ],
+      "explanation": "O driver comuta a corrente de cada fase conforme a sequência e atende aos requisitos de potência. As GPIOs geram lógica, não corrente para bobinas.",
+      "section": "4. Servos e motores de passo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma máquina precisa retornar a uma posição de referência após perder passos. Qual recurso é apropriado para restabelecer a origem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar homing até um sensor ou fim de curso conhecido e definir essa posição como referência.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Repetir o mesmo número de passos sem referência, supondo que a posição anterior permaneceu correta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ler a umidade do ar e convertê-la diretamente em posição angular absoluta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Acionar o relé de potência até o LCD escrever o valor do ângulo no eixo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar a frequência do buzzer para reconstruir a posição sem sensor ou referência mecânica.",
+          "correct": false
+        }
+      ],
+      "explanation": "Homing procura uma posição física conhecida por sensor ou fim de curso. A partir dela, o controlador pode restabelecer a referência para contagem de passos.",
+      "section": "4. Servos e motores de passo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um motor de passo deve acelerar rapidamente desde parado até alta velocidade. Qual prática reduz o risco de perder sincronismo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar rampa de aceleração compatível com torque, carga, tensão e driver.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desligar o driver em todos os passos, pois bobinas desenergizadas aumentam o torque disponível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar a velocidade abruptamente, pois motor de passo não tem limite dinâmico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar a sequência das fases aleatoriamente para que o eixo encontre sozinho a posição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alimentar as bobinas pelos GPIOs em alta frequência e dispensar o driver.",
+          "correct": false
+        }
+      ],
+      "explanation": "Aceleração gradual permite que o rotor acompanhe o campo com torque disponível. Mudanças bruscas de velocidade ou carga elevada podem fazer o motor perder passos.",
+      "section": "4. Servos e motores de passo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Arduino — Built-in Examples: Sensors e Ping Ultrasonic Range Finder",
+      "publisher": "Arduino",
+      "reference": "Exemplos oficiais de leitura de sensor e medição de distância por ultrassom",
+      "url": "https://docs.arduino.cc/built-in-examples/",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Arduino — Servo Motor Basics",
+      "publisher": "Arduino",
+      "reference": "Controle de servomotores RC, biblioteca Servo e requisitos de alimentação",
+      "url": "https://docs.arduino.cc/learn/electronics/servo-motors/",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Arduino — Stepper Library",
+      "publisher": "Arduino",
+      "reference": "Controle de motores de passo unipolares e bipolares com hardware apropriado",
+      "url": "https://docs.arduino.cc/libraries/stepper/",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Texas Instruments — CD4511B CMOS BCD-to-7-Segment Latch Decoder Drivers",
+      "publisher": "Texas Instruments",
+      "reference": "Entradas BCD, latch, lamp test, blanking, saídas a–g e display de cátodo comum",
+      "url": "https://www.ti.com/lit/ds/symlink/cd4511b.pdf",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "STMicroelectronics — L298 Dual Full-Bridge Driver Datasheet",
+      "publisher": "STMicroelectronics",
+      "reference": "Estágios de ponte completa, entradas, enable e aplicações em motores DC e de passo",
+      "url": "https://www.st.com/resource/en/datasheet/l298.pdf",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Bosch Sensortec — BMP280 Datasheet",
+      "publisher": "Bosch Sensortec",
+      "reference": "Sensor barométrico absoluto e interfaces I²C/SPI",
+      "url": "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bmp280-ds001.pdf",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Adafruit — DHT11, DHT22 and AM2302 Sensors",
+      "publisher": "Adafruit Learning System",
+      "reference": "Princípio capacitivo de umidade, termistor, interface digital e taxa de amostragem dos módulos DHT",
+      "url": "https://learn.adafruit.com/dht",
+      "accessedAt": "2026-10-30"
+    }
+  ]
+}

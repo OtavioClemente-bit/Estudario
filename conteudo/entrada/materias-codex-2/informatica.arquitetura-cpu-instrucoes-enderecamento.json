@@ -1,0 +1,748 @@
+{
+  "id": "informatica.arquitetura-cpu-instrucoes-enderecamento",
+  "subject": "Informática",
+  "title": "Arquitetura de CPU: instruções e modos de endereçamento",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Arquitetura de CPU e instruções",
+    "Modos de endereçamento da CPU",
+    "Conjunto de instruções de processadores",
+    "Representação binária de instruções de CPU",
+    "Formato de instrução de máquina",
+    "Instruções de transferência e processamento",
+    "Instruções aritméticas e lógicas da CPU",
+    "Endereçamento imediato e direto",
+    "Endereçamento indireto e indexado",
+    "Endereçamento relativo ao contador de programa",
+    "Modos de endereçamento e conjunto típico de instruções de uma CPU",
+    "Armazenamento e representação de instruções"
+  ],
+  "scope": {
+    "covers": "Representação de instruções de máquina como campos codificados em bits; relação entre opcode, operandos, registradores, imediatos e endereços; formatos de tamanho fixo e variável em diferentes ISAs; busca e execução em termos gerais; modos de endereçamento imediato, por registrador, direto/absoluto, indireto por registrador, base mais deslocamento, indexado, relativo ao PC e implícito; endereço efetivo; famílias típicas de instruções de transferência, aritméticas, lógicas, deslocamento, comparação, controle de fluxo, pilha e entrada/saída; exemplos oficiais de x86-64 e RISC-V, deixando explícitas as diferenças entre ISAs.",
+    "excludes": "Microarquitetura detalhada de pipelines e execução fora de ordem; programação assembly de uma ISA completa; codificação exaustiva de opcodes; projeto de circuitos da unidade de controle; gerenciamento de memória virtual, caches e interrupções além do necessário para contextualizar instruções."
+  },
+  "theoryTitle": "Como a CPU representa e executa instruções",
+  "chapters": [
+    {
+      "title": "1. Da instrução escrita à palavra de máquina",
+      "markdown": "### O problema que este assunto resolve\n\nO processador não executa diretamente palavras como `SOMA` ou `CARREGUE`. Ele busca na memória uma sequência de bits, interpreta seus campos segundo uma arquitetura definida e realiza a operação indicada. O conjunto de regras que define instruções, registradores visíveis, formatos e efeitos é a **arquitetura do conjunto de instruções**, ou ISA. Intel 64/x86-64 e RISC-V são ISAs diferentes: seus códigos binários e convenções não podem ser misturados.\n\n> **Siglas e termos deste capítulo**\n> - **ISA**: Instruction Set Architecture, interface de instruções visível ao software.\n> - **Opcode**: campo que identifica a operação, como soma, carga ou salto.\n> - **Operando**: dado ou referência a dado sobre o qual a instrução atua.\n> - **Registrador**: armazenamento pequeno e rápido dentro da CPU, nomeado na ISA.\n> - **Assembly**: representação textual legível de instruções de máquina.\n> - **PC**: Program Counter, registrador que indica a posição da próxima instrução a buscar; também chamado IP em x86.\n\n### Campos e representação\n\nUma instrução costuma combinar um campo de operação com campos que especificam operandos. Conforme a ISA, podem existir campos de registradores, valores imediatos, modos de endereço, deslocamentos e bits de controle. Nem toda instrução contém todos esses campos: uma instrução sem operandos explícitos pode usar registradores implícitos definidos pela arquitetura.\n\nO montador traduz mnemônicos e operandos do assembly para codificações binárias. Um desassemblador faz o caminho interpretativo inverso, exibindo uma leitura textual possível dos bytes. A forma textual `ADD r1, r2, r3` só tem esse significado se o formato e a convenção de operandos da ISA assim determinarem.\n\n| Propriedade | Formato de tamanho fixo | Formato de tamanho variável |\n| --- | --- | --- |\n| Comprimento | Todas as instruções da classe têm tamanho definido, como 32 bits no RISC-V base | Pode variar entre instruções; x86 possui instruções de comprimentos diferentes |\n| Busca e decodificação | Fronteiras de instruções são mais simples de localizar | O decodificador precisa determinar o comprimento a partir dos bytes |\n| Espaço de codificação | Campos regulares e simples podem ocupar espaço mesmo quando pouco usados | Instruções frequentes podem usar codificações compactas, com maior complexidade de decodificação |\n| Exemplo | Instruções base RV32I têm 32 bits | Instruções x86 podem conter prefixos, opcode, campos ModR/M/SIB e deslocamento/imediato |\n\nA memória armazena instruções como bytes em posições endereçáveis; a CPU busca os bytes indicados pelo PC, decodifica a instrução e atualiza o estado arquitetural conforme sua semântica. Uma instrução não precisa corresponder a uma palavra de tamanho único em todas as arquiteturas. No RISC-V base, cada instrução tem 32 bits; extensões como a extensão comprimida adicionam instruções de 16 bits. Em x86, o comprimento é variável.\n\n### Como cai na prova\n\n- **Opcode** responde “qual operação?”; operandos respondem “sobre quais dados ou locais?”.\n- O assembly é representação legível; a CPU busca e decodifica os bits codificados.\n- Não generalize um formato de uma ISA para todas: tamanho fixo e variável coexistem.\n- Campos e ordem de operandos dependem da ISA e da sintaxe do montador."
+    },
+    {
+      "title": "2. Endereçamento: de onde vem o operando",
+      "markdown": "### O problema que este assunto resolve\n\nA mesma operação, como somar, pode usar uma constante escrita na instrução, um registrador ou um dado guardado na memória. O **modo de endereçamento** determina como a CPU obtém o operando ou calcula o endereço do dado. Distinguir valor de endereço evita uma pegadinha recorrente: em `LOAD R1, [R2]`, R2 normalmente contém o endereço de memória e a CPU carrega o conteúdo desse endereço para R1.\n\n> **Siglas e termos deste capítulo**\n> - **Endereço efetivo (EA)**: endereço de memória calculado para acessar o operando.\n> - **Imediato**: constante codificada dentro da própria instrução.\n> - **Absoluto/direto**: endereço do operando aparece explicitamente na instrução.\n> - **Indireto**: um registrador ou posição contém o endereço a ser usado.\n> - **Deslocamento (offset)**: valor somado a uma base para formar um endereço.\n> - **Indexador**: registrador usado para selecionar elemento em uma sequência, frequentemente combinado com escala.\n\n### Modos usuais\n\n| Modo | Como se obtém o dado | Exemplo esquemático |\n| --- | --- | --- |\n| Imediato | O próprio campo codificado é o valor | `ADDI R1, R2, 7`: soma 7 ao valor de R2 |\n| Por registrador | O operando é o conteúdo do registrador nomeado | `ADD R1, R2, R3` |\n| Direto/absoluto | O campo da instrução fornece o endereço da memória | `LOAD R1, [0x2000]` |\n| Indireto por registrador | O registrador fornece o endereço da memória | `LOAD R1, [R2]` |\n| Base + deslocamento | EA = conteúdo da base + deslocamento imediato | `LOAD R1, 12(R2)` |\n| Indexado | EA combina base, índice e, em algumas ISAs, escala | `base + índice × escala + deslocamento` |\n| Relativo ao PC | EA de desvio = endereço de referência do PC + deslocamento assinado | `BEQ R1, R2, destino` |\n| Implícito | A instrução define previamente operando ou localização | Instrução que usa implicitamente flags ou topo da pilha |\n\nO modo **imediato** não significa acesso à memória: a constante faz parte da codificação e seu tamanho é limitado pelo formato. No modo indireto, é essencial separar o endereço guardado no registrador do conteúdo armazenado na memória. Em modo relativo ao PC, o deslocamento costuma ser assinado, permitindo alcançar destinos antes ou depois do ponto de referência, dentro do alcance codificado.\n\nO modo concreto depende da ISA. No RISC-V base, cargas e armazenamentos usam base mais imediato; desvios condicionais usam deslocamentos relativos ao PC; operações aritméticas podem usar operandos em registradores ou imediato. Em x86-64, instruções podem expressar endereços com base, índice, escala e deslocamento, e o modo RIP-relative calcula endereço a partir do ponteiro da próxima instrução mais deslocamento assinado.\n\n### Como cai na prova\n\n- `R1 = R2 + 5` usa valor imediato; não busca o número 5 na memória.\n- `EA = base + deslocamento` é endereçamento com deslocamento, comum para campos de estrutura e pilha.\n- Salto relativo não carrega o destino inteiro necessariamente; codifica distância em relação ao PC.\n- Modos disponíveis e detalhes de cálculo são próprios de cada ISA."
+    },
+    {
+      "title": "3. Instruções de dados, cálculo e decisão",
+      "markdown": "### O problema que este assunto resolve\n\nProgramas manipulam valores, consultam dados, calculam resultados e decidem o próximo caminho. O conjunto de instruções da CPU oferece operações para essas tarefas, mas os nomes e detalhes variam. É possível classificar as instruções pela função: transferir dados, calcular, comparar, alterar bits, controlar a sequência ou interagir com recursos de entrada e saída.\n\n> **Siglas e termos deste capítulo**\n> - **LOAD**: carrega dados da memória para um registrador.\n> - **STORE**: grava na memória um valor de registrador.\n> - **ALU**: unidade lógico-aritmética, que executa operações aritméticas e lógicas.\n> - **Flag**: bit de estado, como zero, carry ou sinal, quando a ISA o define.\n> - **Branch**: desvio de fluxo, condicional ou incondicional.\n> - **Pilha (stack)**: estrutura LIFO, frequentemente usada para retornos e dados temporários.\n\n### Famílias típicas\n\n| Família | Exemplos de efeito |\n| --- | --- |\n| Transferência | LOAD/LD lê memória para registrador; STORE/SW grava registrador na memória; MOV transfere entre locais permitidos pela ISA |\n| Aritmética | ADD, SUB, multiplicação e divisão; algumas instruções atualizam flags e outras não |\n| Lógica bit a bit | AND, OR, XOR e NOT combinam ou invertem bits |\n| Deslocamento e rotação | SHL/SLL desloca bits à esquerda; SHR/SRL desloca à direita; variantes aritméticas preservam o sinal conforme a largura |\n| Comparação e teste | Compara valores ou testa bits; pode atualizar flags ou alimentar diretamente um desvio |\n| Controle de fluxo | Salto, desvio condicional, chamada de procedimento e retorno |\n| Pilha | PUSH/POP em algumas ISAs; outras usam cargas/armazenamentos com registrador de pilha |\n| Entrada e saída | Instruções dedicadas em certas arquiteturas, ou acessos a endereços mapeados em memória |\n\nO RISC-V ilustra uma organização **load-store**: operações aritméticas regulares trabalham com registradores, e instruções específicas de carga e armazenamento acessam memória. Isso não é uma lei universal de CPU. Em x86 há operações com operandos de memória em várias instruções, embora restrições concretas de operandos variem.\n\nUma comparação pode definir flags e uma instrução de desvio consultá-las, como ocorre em certas ISAs. Em outras, o desvio compara registradores diretamente. Por exemplo, RV32I oferece `BEQ` para desviar se dois registradores forem iguais e `BNE` para desviar se forem diferentes; o conjunto base não exige uma instrução separada que primeiro grave um resultado de comparação em flags.\n\n### Como cai na prova\n\n- LOAD copia memória para registrador; STORE copia registrador para memória.\n- XOR não é soma; opera bit a bit e produz 1 quando os bits correspondentes diferem.\n- Chamada e retorno alteram o fluxo; uma chamada também preserva ou registra informação de retorno conforme convenção/ISA.\n- “Toda CPU tem a mesma lista de instruções” é falso: há classes comuns, mas ISAs diferem."
+    },
+    {
+      "title": "4. Busca, execução e sequência de instruções",
+      "markdown": "### O problema que este assunto resolve\n\nA CPU precisa saber qual instrução executar e como passar à próxima. No modelo didático, o PC indica a instrução a buscar; a unidade de controle interpreta seus campos; unidades funcionais executam a operação e registram os resultados. Instruções sequenciais avançam o PC, enquanto desvios e chamadas escolhem outro endereço. Implementações modernas podem sobrepor etapas e executar internamente fora de ordem, mas preservam o comportamento arquitetural exigido pela ISA.\n\n> **Siglas e termos deste capítulo**\n> - **Busca (fetch)**: leitura dos bytes da instrução no endereço indicado pelo PC.\n> - **Decodificação**: identificação de operação, operandos e modo aplicável.\n> - **Execução**: cálculo, leitura/escrita ou alteração do controle conforme a instrução.\n> - **PC-relative**: cálculo de destino ou dado relativo ao PC.\n> - **Call/return**: transferência de controle para rotina e retorno ao ponto de chamada.\n\n### Ciclo conceitual e desvios\n\nUm esquema didático resume-se a buscar, decodificar, obter operandos, executar e escrever resultados. Nem todo processador implementa essas fases como estágios isolados nem espera uma instrução terminar para começar a próxima. Pipeline, previsão de desvio e execução especulativa são detalhes microarquiteturais; o programa observa os efeitos arquiteturais definidos.\n\nUm desvio **condicional** escolhe entre continuar sequencialmente e alterar o PC conforme uma condição. O destino pode ser codificado como deslocamento relativo; assim, uma instrução curta pode alcançar posições próximas sem carregar um endereço absoluto completo. Uma chamada de rotina também precisa de um modo de recuperar o retorno: a ISA pode guardar o endereço de retorno em registrador ou empilhá-lo em memória, entre outras opções.\n\nNo RISC-V, `JAL` grava o endereço de retorno em um registrador de destino e salta a um alvo relativo ao PC; `JALR` calcula o destino usando um registrador mais imediato. Em x86, instruções de chamada e retorno usam a pilha arquitetural para manter endereços de retorno. Esses exemplos mostram soluções distintas para um propósito comum.\n\n### Como cai na prova\n\n- Operação sequencial e salto diferem na atualização do PC.\n- A fase de busca lê instrução; LOAD, por sua vez, lê dados para o programa.\n- Uma CPU pode ter pipeline sem que a ISA exponha o escalonamento interno como instruções diferentes.\n- O mecanismo de chamada/retorno não é idêntico entre arquiteturas."
+    },
+    {
+      "title": "5. Exemplos concretos: x86-64 e RISC-V",
+      "markdown": "### O problema que este assunto resolve\n\nOs termos “registrador”, “imediato” e “deslocamento” ficam mais precisos quando observados em ISAs reais. A documentação oficial da Intel descreve codificações x86 com prefixos e campos como ModR/M e SIB, enquanto a especificação RISC-V define formatos regulares como R, I, S, B, U e J para instruções base. Não se deve transportar uma regra de codificação de uma para outra.\n\n> **Siglas e termos deste capítulo**\n> - **ModR/M**: byte de codificação x86 que especifica campos de registrador e modo/operando.\n> - **SIB**: byte x86 de escala, índice e base para certas formas de endereço.\n> - **RISC**: família de princípios de projeto com instruções tipicamente regulares; não quer dizer “poucas instruções” em toda configuração.\n> - **RV32I**: conjunto base inteiro RISC-V de 32 bits.\n> - **RIP-relative**: forma x86-64 de calcular endereço com base no ponteiro da instrução seguinte mais deslocamento.\n\n### Codificação e alcance de endereços\n\nA documentação Intel mostra que endereços x86-64 podem combinar base, índice, fator de escala e deslocamento, conforme os campos codificados. O endereço pode ser formado como `base + índice × escala + deslocamento`; uma forma RIP-relative, por sua vez, calcula a partir do RIP da próxima instrução somado a um deslocamento assinado de 32 bits. O alcance descrito para esse deslocamento é aproximadamente ±2 GiB.\n\nNo RISC-V base, instruções têm formato de 32 bits com campos para opcode, registradores e, quando cabível, imediato. Os imediatos de alguns formatos são distribuídos em posições diferentes dos bits codificados: a especificação mantém posições de bits de imediato em comum entre formatos sempre que possível, favorecendo decodificação regular. Os desvios condicionais usam formato B e deslocamento assinado em múltiplos de dois bytes. Loads e stores usam imediato com registrador-base para endereçar memória.\n\n| Tarefa | Exemplo ISA | Como a referência aparece |\n| --- | --- | --- |\n| Ler palavra | RISC-V `LW rd, offset(rs1)` | Endereço = valor de `rs1` + imediato com sinal |\n| Gravar palavra | RISC-V `SW rs2, offset(rs1)` | Escreve o valor de `rs2` na memória calculada pela base e imediato |\n| Desvio por igualdade | RISC-V `BEQ rs1, rs2, alvo` | Compara registradores e usa deslocamento de formato B |\n| Ler dado próximo ao código | x86-64 RIP-relative | RIP da próxima instrução + deslocamento assinado |\n| Acesso indexado x86 | Base + índice escalado + deslocamento | Campos ModR/M/SIB codificam componentes conforme a forma válida |\n\n### Como cai na prova\n\n- x86 tem comprimento variável; RISC-V base usa instruções de 32 bits e pode incluir extensão comprimida de 16 bits.\n- Em RV32I, load/store separam memória e operações aritméticas em registradores.\n- Deslocamento de branch RV32I não é um endereço absoluto: é assinado e expresso em múltiplos de dois bytes.\n- A forma RIP-relative x86-64 usa como base o RIP da próxima instrução, não o início do arquivo executável."
+    }
+  ],
+  "summary": "Uma instrução de máquina é uma codificação binária definida pela ISA. Seu opcode identifica a operação e outros campos podem indicar registradores, imediatos, modos ou deslocamentos. O assembly apresenta mnemônicos legíveis que um montador converte em bits. O modo de endereçamento determina a origem do valor ou o cálculo do endereço efetivo: imediato, registrador, direto, indireto, base mais deslocamento, indexado, relativo ao PC ou implícito. CPUs oferecem famílias típicas de instruções para transferir dados, calcular, operar bits, comparar, desviar, chamar/retornar e, conforme a arquitetura, entrada e saída. No modelo conceitual, o PC conduz a busca e muda em sequência ou por transferência de controle. As ISAs diferem: x86 usa instruções de tamanho variável e formas de endereço como base/índice/escala/deslocamento e RIP-relative; RISC-V base usa formatos regulares de 32 bits, loads/stores com base mais imediato e branches relativos ao PC.",
+  "flashcards": [
+    { "front": "O que define uma ISA?", "back": "As instruções e seus efeitos, registradores visíveis, formatos e regras que formam a interface entre software e processador." },
+    { "front": "Qual é a função do opcode?", "back": "Identificar a operação codificada, como soma, carga ou desvio." },
+    { "front": "O que significa um operando imediato?", "back": "O valor está codificado na própria instrução; não é buscado de um endereço de memória." },
+    { "front": "Como um modo por registrador obtém o operando?", "back": "Usa o conteúdo do registrador indicado pela instrução." },
+    { "front": "O que é endereço efetivo?", "back": "O endereço de memória calculado para localizar o operando de uma instrução." },
+    { "front": "Qual a distinção entre indireto por registrador e por registrador direto?", "back": "No indireto, o registrador guarda o endereço cuja memória será acessada; no direto, seu conteúdo é o próprio valor operado." },
+    { "front": "Como se calcula base mais deslocamento?", "back": "Soma-se o conteúdo do registrador-base ao deslocamento codificado, segundo as regras da ISA." },
+    { "front": "O que caracteriza endereço indexado?", "back": "Combina endereço-base e índice; algumas ISAs também permitem escala e deslocamento." },
+    { "front": "O que significa endereço relativo ao PC?", "back": "O endereço-alvo resulta da soma do PC de referência com um deslocamento, normalmente assinado." },
+    { "front": "Qual família transfere da memória para registrador?", "back": "Load, como LW no RISC-V." },
+    { "front": "Qual família grava um registrador na memória?", "back": "Store, como SW no RISC-V." },
+    { "front": "O que faz XOR bit a bit?", "back": "Produz 1 nos bits em que os operandos diferem e 0 nos bits em que são iguais." },
+    { "front": "Para que serve uma instrução branch?", "back": "Alterar o fluxo de execução condicionalmente ou de modo incondicional, atualizando o PC." },
+    { "front": "O que é um operando implícito?", "back": "Um operando ou estado que a própria definição da instrução determina sem nomeá-lo explicitamente." },
+    { "front": "O que diferencia instruções de comprimento fixo e variável?", "back": "Fixas têm tamanho uniforme na classe definida; variáveis ocupam quantidades distintas de bytes conforme a codificação." },
+    { "front": "Qual o tamanho das instruções RV32I base?", "back": "32 bits; a extensão comprimida do RISC-V acrescenta codificações de 16 bits." },
+    { "front": "As instruções x86 têm todas o mesmo tamanho?", "back": "Não. O x86 usa codificação de comprimento variável." },
+    { "front": "Como x86-64 pode compor um endereço indexado?", "back": "Com base, índice, fator de escala e deslocamento, conforme os campos válidos da instrução." },
+    { "front": "Como funciona o RIP-relative x86-64?", "back": "Soma-se um deslocamento assinado ao RIP da próxima instrução para formar o endereço." },
+    { "front": "Como RV32I forma o endereço de load e store?", "back": "Soma o conteúdo do registrador-base ao imediato com sinal da instrução." },
+    { "front": "O assembly é executado textualmente pela CPU?", "back": "Não. O montador traduz os mnemônicos em codificação de máquina definida pela ISA." },
+    { "front": "O que faz o PC no modelo conceitual?", "back": "Indica de onde a CPU buscará a próxima instrução, sendo atualizado em sequência ou por desvios." }
+  ],
+  "tips": [
+    "Separe endereço de conteúdo: em LOAD R1, [R2], R2 geralmente fornece o endereço, e a memória nesse endereço fornece o dado.",
+    "O imediato é um valor embutido na instrução; seu alcance é limitado pelo espaço de bits disponível.",
+    "Use a expressão endereço efetivo para o resultado do cálculo base, índice, escala e deslocamento.",
+    "Leia o verbo da instrução: LOAD lê memória; STORE escreve memória.",
+    "Identifique a ISA do enunciado antes de aplicar regras de tamanho, ordem de operandos ou formato.",
+    "Desvio relativo representa distância em relação ao PC de referência, não necessariamente um endereço completo."
+  ],
+  "traps": [
+    "Confundir endereço indireto em registrador com o valor armazenado no registrador.",
+    "Afirmar que qualquer instrução aritmética pode acessar memória diretamente: isso depende da ISA e da instrução.",
+    "Tratar todas as instruções como palavras de 32 bits; x86 é variável, e extensões RISC-V também podem usar 16 bits.",
+    "Confundir busca da instrução pelo PC com leitura de dado realizada por LOAD.",
+    "Afirmar que todo desvio consulta flags; RV32I inclui branches que comparam registradores diretamente.",
+    "Supor que o mnemônico ou ordem dos operandos seja universal entre montadores e arquiteturas."
+  ],
+  "activeRecall": [
+    { "question": "Explique a função do opcode e dos campos de operandos.", "answer": "O opcode identifica a operação; campos de operandos dizem quais registradores, valores imediatos ou referências participam, conforme o formato da ISA." },
+    { "question": "Compare imediato e indireto por registrador.", "answer": "Imediato é um valor codificado na instrução; no indireto, o registrador contém um endereço de memória que será acessado." },
+    { "question": "Como funciona base mais deslocamento?", "answer": "A CPU soma o conteúdo do registrador-base ao deslocamento fornecido pela instrução e usa o resultado como endereço efetivo." },
+    { "question": "Cite quatro famílias típicas de instruções e sua função.", "answer": "Transferência move valores entre registradores e memória; aritmética calcula; lógica combina bits; controle de fluxo altera a sequência." },
+    { "question": "Como um desvio relativo calcula o destino?", "answer": "Combina o endereço de referência do PC com um deslocamento, em geral assinado e limitado pelo formato." },
+    { "question": "O que diferencia a codificação x86 de RV32I?", "answer": "x86 tem comprimento variável e campos de endereço como ModR/M/SIB; RV32I base possui instruções de 32 bits e formatos regulares." },
+    { "question": "Explique por que load-store é uma descrição do RISC-V base, não de toda CPU.", "answer": "No RISC-V base, operações aritméticas usam registradores e loads/stores acessam memória; outras ISAs permitem combinações de operandos diferentes." },
+    { "question": "Quais etapas aparecem no ciclo conceitual de instrução?", "answer": "Busca, decodificação, obtenção de operandos, execução e gravação do resultado; implementação real pode sobrepor ou combinar essas etapas." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Valor imediato confundido com endereço", "summary": "Interpreta uma constante embutida na instrução como se fosse uma posição de memória a ser lida." },
+    { "key": "e2", "title": "Endereço confundido com conteúdo", "summary": "Não distingue o registrador que contém um ponteiro do dado localizado na memória apontada." },
+    { "key": "e3", "title": "Generalização entre ISAs", "summary": "Aplica tamanho, sintaxe, formato ou capacidade de uma arquitetura a todas as CPUs." },
+    { "key": "e4", "title": "Transferência LOAD e STORE invertida", "summary": "Troca o sentido da transferência de dados entre memória e registradores da CPU." },
+    { "key": "e5", "title": "Desvio e atualização do PC confundidos", "summary": "Trata destino relativo como absoluto ou confunde controle do fluxo de execução com leitura de dados." }
+  ],
+  "questions": [
+    {
+      "statement": "Na codificação de uma instrução, qual campo identifica a operação principal que a CPU deve realizar?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O opcode, interpretado conforme a ISA que define aquele formato de máquina.", "correct": true },
+        { "key": "B", "text": "O endereço efetivo, que sempre seleciona a operação antes de localizar o dado.", "correct": false },
+        { "key": "C", "text": "O registrador PC, que codifica a operação aritmética solicitada pelo programa.", "correct": false },
+        { "key": "D", "text": "O imediato, que necessariamente indica qual instrução deve ser decodificada.", "correct": false },
+        { "key": "E", "text": "O campo de escala, presente em todas as instruções de qualquer arquitetura.", "correct": false }
+      ],
+      "explanation": "O opcode identifica a operação definida pela ISA. Endereço efetivo localiza um operando de memória, PC acompanha a posição de instrução e imediato representa um valor; nem toda instrução tem campo de escala.",
+      "section": "1. Da instrução escrita à palavra de máquina", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um modo de endereçamento imediato, o número usado como operando é obtido de qual local?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Da memória apontada pelo PC, que contém obrigatoriamente o valor do operando.", "correct": false },
+        { "key": "B", "text": "De uma posição absoluta fornecida em um segundo acesso de memória.", "correct": false },
+        { "key": "C", "text": "Da pilha, cujo topo serve como fonte em todos os modos imediatos.", "correct": false },
+        { "key": "D", "text": "Do conteúdo do registrador de índice vezes o fator de escala.", "correct": false },
+        { "key": "E", "text": "Do campo de bits da própria instrução, dentro do limite de codificação.", "correct": true }
+      ],
+      "explanation": "O operando imediato é codificado dentro da instrução. Pode haver busca da instrução na memória, mas isso não transforma a constante imediata em uma referência a outro endereço de memória.",
+      "section": "2. Endereçamento: de onde vem o operando", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Considere a operação esquemática LOAD R1, [R2]. No modo indireto por registrador, qual é o papel de R2?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "R2 contém o próprio dado final, que é copiado sem leitura de memória.", "correct": false },
+        { "key": "B", "text": "R2 fornece o endereço de memória cujo conteúdo será carregado em R1.", "correct": true },
+        { "key": "C", "text": "R2 contém o opcode que escolhe entre LOAD e STORE durante a execução.", "correct": false },
+        { "key": "D", "text": "R2 fornece um deslocamento que é somado ao endereço de R1 em todas as ISAs.", "correct": false },
+        { "key": "E", "text": "R2 indica quantos bytes devem ser acrescentados ao PC após cada instrução.", "correct": false }
+      ],
+      "explanation": "Os colchetes indicam, neste exemplo esquemático, que R2 é usado como endereço. A CPU busca o conteúdo da memória apontada por R2 e o coloca em R1; a sintaxe concreta depende da ISA.",
+      "section": "2. Endereçamento: de onde vem o operando", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa representa corretamente o cálculo de endereço efetivo base mais deslocamento?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "EA = opcode + PC, operação aplicada a qualquer formato de instrução.", "correct": false },
+        { "key": "B", "text": "EA = conteúdo da base somado ao deslocamento codificado.", "correct": true },
+        { "key": "C", "text": "EA = índice dividido pelo tamanho do registrador-base.", "correct": false },
+        { "key": "D", "text": "EA = valor imediato sem referência a registrador ou endereço-base.", "correct": false },
+        { "key": "E", "text": "EA = conteúdo carregado da memória somado ao valor armazenado no PC.", "correct": false }
+      ],
+      "explanation": "No modo base mais deslocamento, o endereço efetivo resulta da soma do conteúdo do registrador-base e do deslocamento. O opcode não participa desse cálculo e um imediato pode ser dado, sem ser endereço, em outra instrução.",
+      "section": "2. Endereçamento: de onde vem o operando", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma instrução com endereço indexado pode formar o endereço efetivo combinando base, índice, escala e deslocamento, quando a ISA oferece esses componentes.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Uma forma indexada pode combinar o registrador-base, o índice escalado e um deslocamento. A disponibilidade e os detalhes de codificação dependem da arquitetura.",
+      "section": "2. Endereçamento: de onde vem o operando", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve melhor o modo relativo ao PC?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O destino é formado a partir de um registrador-base de dados, sem consultar o PC.", "correct": false },
+        { "key": "B", "text": "O campo codifica necessariamente o endereço absoluto de toda a memória física.", "correct": false },
+        { "key": "C", "text": "O imediato é sempre tratado como dado e somado ao operando aritmético.", "correct": false },
+        { "key": "D", "text": "A instrução consulta flags para obter o endereço de retorno armazenado na pilha.", "correct": false },
+        { "key": "E", "text": "Um deslocamento é combinado com um valor de referência do PC para chegar ao alvo.", "correct": true }
+      ],
+      "explanation": "No endereçamento relativo ao PC, o deslocamento se soma ao PC de referência para produzir o endereço-alvo. O campo pode ser menor que um endereço completo; flags podem determinar se o desvio ocorre, mas não formam o alvo.",
+      "section": "2. Endereçamento: de onde vem o operando", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual transferência corresponde à semântica usual de uma instrução LOAD?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Do endereço de memória para um registrador, segundo o tamanho definido.", "correct": true },
+        { "key": "B", "text": "De um registrador para a memória, com gravação obrigatória do PC.", "correct": false },
+        { "key": "C", "text": "De um registrador para outro, sem possibilidade de acesso à memória.", "correct": false },
+        { "key": "D", "text": "Da unidade lógica para o opcode, substituindo a instrução buscada.", "correct": false },
+        { "key": "E", "text": "Da pilha para o contador de programa, em todo modelo load-store.", "correct": false }
+      ],
+      "explanation": "LOAD lê o valor na memória indicada e o transfere para um registrador. STORE realiza em geral o sentido inverso. Detalhes de largura e endereçamento são definidos por cada ISA.",
+      "section": "3. Instruções de dados, cálculo e decisão", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma organização load-store como o conjunto base RV32I, qual instrução acessa a memória para gravar o valor de um registrador?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "ADD, que soma dois registradores e grava automaticamente o resultado na memória.", "correct": false },
+        { "key": "B", "text": "BEQ, que grava o valor do registrador comparado no endereço de destino.", "correct": false },
+        { "key": "C", "text": "SW, que armazena um registrador na posição base mais deslocamento.", "correct": true },
+        { "key": "D", "text": "JAL, que copia o conteúdo de qualquer registrador para uma palavra de dados.", "correct": false },
+        { "key": "E", "text": "XOR, que calcula o endereço e o grava sem instrução de armazenamento.", "correct": false }
+      ],
+      "explanation": "SW é a instrução RISC-V base que armazena uma palavra de um registrador na memória, usando base mais imediato para formar o endereço. ADD e XOR calculam em registradores; BEQ e JAL controlam o fluxo.",
+      "section": "3. Instruções de dados, cálculo e decisão", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o resultado bit a bit de XOR quando os dois bits correspondentes são diferentes?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O resultado é sempre zero, pois XOR só conserva bits idênticos.", "correct": false },
+        { "key": "B", "text": "O resultado é um, pois XOR indica diferença entre os bits correspondentes.", "correct": true },
+        { "key": "C", "text": "O resultado é a soma decimal dos operandos, com transporte para o bit seguinte.", "correct": false },
+        { "key": "D", "text": "O resultado é o complemento de ambos os operandos, sem compará-los.", "correct": false },
+        { "key": "E", "text": "O resultado depende exclusivamente do valor presente no registrador PC.", "correct": false }
+      ],
+      "explanation": "XOR produz 1 quando os bits correspondentes diferem e 0 quando são iguais. Soma binária com transporte é outra operação, assim como complemento bit a bit.",
+      "section": "3. Instruções de dados, cálculo e decisão", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Toda CPU precisa implementar uma instrução aritmética separada de comparação que atualize flags antes de qualquer desvio condicional.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O desenho varia por ISA. No RISC-V base, por exemplo, BEQ e BNE comparam registradores diretamente e não dependem de uma instrução anterior que grave flags de comparação.",
+      "section": "3. Instruções de dados, cálculo e decisão", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma instrução aritmética recebe dois operandos em registradores e deve gravar o resultado em memória. Qual conclusão é segura para qualquer ISA?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Toda ISA faz isso, pois qualquer instrução da ALU pode endereçar memória.", "correct": false },
+        { "key": "B", "text": "Nenhuma ISA permite operandos de memória em operação aritmética.", "correct": false },
+        { "key": "C", "text": "O PC sempre fornece o endereço de destino do resultado aritmético.", "correct": false },
+        { "key": "D", "text": "A capacidade depende da ISA; no RV32I base, aritmética opera em registradores e store é separado.", "correct": true },
+        { "key": "E", "text": "Um imediato transforma qualquer aritmética em acesso indireto à memória.", "correct": false }
+      ],
+      "explanation": "As ISAs diferem no uso de operandos de memória. No conjunto base RV32I, operações aritméticas usam registradores; store separado grava resultados na memória. Não se deve universalizar essa regra nem a forma x86.",
+      "section": "3. Instruções de dados, cálculo e decisão", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No ciclo conceitual de instrução, qual etapa interpreta o opcode e determina como os campos serão entendidos?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A etapa de armazenamento, que copia todos os registradores para a memória.", "correct": false },
+        { "key": "B", "text": "A etapa de desvio, que muda o PC independentemente do opcode.", "correct": false },
+        { "key": "C", "text": "A fase de busca, que calcula o resultado antes de ler a instrução.", "correct": false },
+        { "key": "D", "text": "A gravação, que identifica o modo de endereçamento após terminar a execução.", "correct": false },
+        { "key": "E", "text": "A decodificação, que identifica a operação e interpreta os campos da instrução.", "correct": true }
+      ],
+      "explanation": "Na descrição didática, decodificar é reconhecer a instrução e interpretar seus campos. A busca lê os bytes; executar realiza o efeito e a gravação registra resultados quando aplicável.",
+      "section": "4. Busca, execução e sequência de instruções", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual efeito caracteriza um desvio tomado em comparação à execução sequencial?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A CPU busca dados de todos os endereços antes de atualizar os registradores.", "correct": false },
+        { "key": "B", "text": "O PC passa a apontar para o destino calculado, em vez de seguir apenas ao próximo endereço sequencial.", "correct": true },
+        { "key": "C", "text": "O opcode é removido da memória e substituído pelo endereço absoluto do programa.", "correct": false },
+        { "key": "D", "text": "O registrador de pilha assume sempre o valor do operando imediato da instrução.", "correct": false },
+        { "key": "E", "text": "A operação transforma qualquer instrução LOAD em uma operação de gravação.", "correct": false }
+      ],
+      "explanation": "Desvio tomado altera o fluxo ao atualizar o PC com o destino. Se a condição não for satisfeita, a execução segue o caminho sequencial previsto; a forma exata de calcular o destino depende da ISA.",
+      "section": "4. Busca, execução e sequência de instruções", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na execução de uma chamada de procedimento, o programa precisa preservar um meio de voltar à instrução posterior à chamada.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O endereço de retorno deve ficar disponível para a instrução de retorno. A ISA pode guardá-lo em registrador, pilha ou mecanismo definido de outra forma.",
+      "section": "4. Busca, execução e sequência de instruções", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A execução especulativa de uma implementação altera o significado arquitetural que a ISA atribui ao opcode para aquele programa.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Execução especulativa é uma técnica microarquitetural. A implementação precisa preservar os efeitos arquiteturais definidos pela ISA, mesmo que internamente antecipe trabalho.",
+      "section": "4. Busca, execução e sequência de instruções", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição diferencia corretamente x86 de comprimento fixo e variável?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "x86 usa instruções de comprimento variável; o decodificador determina o tamanho de cada codificação.", "correct": true },
+        { "key": "B", "text": "x86 codifica toda instrução em exatamente 32 bits, sem prefixos nem campos opcionais.", "correct": false },
+        { "key": "C", "text": "x86 armazena apenas mnemônicos ASCII, sem codificação de operação em bits.", "correct": false },
+        { "key": "D", "text": "x86 exige um endereço de 64 bits dentro de cada instrução, mesmo sem acesso à memória.", "correct": false },
+        { "key": "E", "text": "x86 utiliza formatos R, I, S, B, U e J idênticos aos definidos pelo RISC-V.", "correct": false }
+      ],
+      "explanation": "A codificação x86 é variável e pode incluir prefixos e diferentes campos. Formatos R/I/S/B/U/J são formatos RISC-V, e nem toda instrução x86 contém um endereço completo.",
+      "section": "1. Da instrução escrita à palavra de máquina", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O RISC-V base RV32I tem instruções de 32 bits, enquanto a extensão comprimida acrescenta formas codificadas em 16 bits.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. As instruções base RV32I têm 32 bits; a extensão C especifica instruções comprimidas de 16 bits. Portanto, não se deve dizer que todo programa RISC-V tem apenas um comprimento de instrução.",
+      "section": "5. Exemplos concretos: x86-64 e RISC-V", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em que situação se usa o modo direto ou absoluto, de forma esquemática?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O endereço do dado é obtido apenas somando o PC e um deslocamento assinado.", "correct": false },
+        { "key": "B", "text": "O registrador indicado contém o endereço, mas essa informação não aparece na instrução.", "correct": false },
+        { "key": "C", "text": "O campo ou operando da instrução especifica diretamente o endereço de memória a acessar.", "correct": true },
+        { "key": "D", "text": "O dado está no próprio campo imediato, sem consulta de posição de memória.", "correct": false },
+        { "key": "E", "text": "A posição é sempre calculada pelo índice escalado somado ao registrador de pilha.", "correct": false }
+      ],
+      "explanation": "No endereçamento direto, a instrução fornece diretamente o endereço da posição de memória. Imediato fornece o valor, indireto usa um local que contém o endereço e relativo ao PC soma um deslocamento à referência do PC.",
+      "section": "2. Endereçamento: de onde vem o operando", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um formato de comprimento fixo, instruções do formato têm fronteiras regulares que facilitam localizar o início da próxima instrução.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Se cada instrução tem comprimento uniforme, a posição seguinte é calculada com esse tamanho. Isso simplifica a localização das fronteiras em relação a uma codificação variável.",
+      "section": "1. Da instrução escrita à palavra de máquina", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência descreve melhor a ação do montador (assembler)?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Executar cada mnemônico na ALU e armazenar o resultado no código-fonte.", "correct": false },
+        { "key": "B", "text": "Converter a codificação de máquina em comentários sem interpretar símbolos.", "correct": false },
+        { "key": "C", "text": "Controlar o escalonamento físico de instruções nos núcleos do processador.", "correct": false },
+        { "key": "D", "text": "Traduzir mnemônicos e operandos de assembly em códigos definidos pela ISA.", "correct": true },
+        { "key": "E", "text": "Modificar a ISA do processador para acrescentar novos opcodes ao circuito.", "correct": false }
+      ],
+      "explanation": "O montador converte a representação assembly em instruções de máquina codificadas para uma ISA. Ele não executa as operações nem muda o conjunto de instruções implementado pelo processador.",
+      "section": "1. Da instrução escrita à palavra de máquina", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No modo imediato, o tamanho limitado do campo de bits pode restringir quais constantes podem ser representadas diretamente.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O imediato ocupa uma quantidade finita de bits, com alcance e sinal definidos pelo formato. Constantes fora desse alcance precisam ser construídas ou carregadas de outra forma.",
+      "section": "2. Endereçamento: de onde vem o operando", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual grupo reúne apenas famílias típicas de instruções de CPU?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Aritmética, lógica bit a bit, transferência de dados e controle de fluxo.", "correct": true },
+        { "key": "B", "text": "Renderização de tela, consulta DNS, compilação C e gestão de arquivos.", "correct": false },
+        { "key": "C", "text": "Backup de aplicação, autenticação web, balanceamento e replicação SQL.", "correct": false },
+        { "key": "D", "text": "Desfragmentação, indexação de busca, paginação de navegador e correio eletrônico.", "correct": false },
+        { "key": "E", "text": "Endereços IPv4, resolução de domínio, sincronização NTP e certificados digitais.", "correct": false }
+      ],
+      "explanation": "Aritmética, operações lógicas, transferência e controle de fluxo são categorias comuns de instruções. As outras opções listam serviços ou tarefas de software e rede, não famílias de opcode da CPU.",
+      "section": "3. Instruções de dados, cálculo e decisão", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em todo modo de endereçamento indireto, o dado final está necessariamente no próprio registrador que fornece o endereço.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. No indireto, o registrador fornece um endereço e o dado está na memória desse endereço. Se o conteúdo do registrador fosse o operando final, seria endereçamento por registrador, não indireto para memória.",
+      "section": "2. Endereçamento: de onde vem o operando", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual enunciado descreve a diferença entre endereço direto e indireto por registrador?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "No direto, o campo dá o endereço; no indireto, o registrador contém o endereço a acessar.", "correct": true },
+        { "key": "B", "text": "No direto, o endereço é sempre relativo ao PC; no indireto, o PC nunca é atualizado.", "correct": false },
+        { "key": "C", "text": "No direto, há imediato; no indireto, qualquer constante vira um registrador de índice.", "correct": false },
+        { "key": "D", "text": "No direto, o operando está implícito; no indireto, o endereço é necessariamente absoluto.", "correct": false },
+        { "key": "E", "text": "No direto, acessa-se a pilha; no indireto, toda memória é lida duas vezes.", "correct": false }
+      ],
+      "explanation": "O acesso direto especifica o endereço no operando da instrução. O acesso indireto por registrador encontra esse endereço no conteúdo do registrador. O dado é obtido da memória em ambos os casos, mas a fonte do endereço difere.",
+      "section": "2. Endereçamento: de onde vem o operando", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em RV32I, um desvio condicional BEQ pode comparar dois registradores e usar um deslocamento relativo ao PC para o alvo.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. BEQ desvia se os dois registradores forem iguais. Seu imediato de formato B representa deslocamento assinado em múltiplos de dois bytes em relação ao PC.",
+      "section": "5. Exemplos concretos: x86-64 e RISC-V", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No formato B do RISC-V base, qual é a característica do imediato de desvio condicional?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "É um endereço absoluto sem sinal, do tamanho do espaço de endereçamento completo.", "correct": false },
+        { "key": "B", "text": "É um número de registrador multiplicado pelo endereço armazenado em memória.", "correct": false },
+        { "key": "C", "text": "É uma constante de dados para somar ao valor de um dos registradores comparados.", "correct": false },
+        { "key": "D", "text": "É um deslocamento assinado codificado em unidades de dois bytes, relativo ao PC.", "correct": true },
+        { "key": "E", "text": "É um valor guardado em flag pela instrução anterior, sem codificação no branch.", "correct": false }
+      ],
+      "explanation": "Branches condicionais RV32I usam formato B: o imediato representa deslocamento assinado em múltiplos de dois bytes e compõe um alvo relativo ao PC. Não é endereço absoluto nem resultado de flag anterior.",
+      "section": "5. Exemplos concretos: x86-64 e RISC-V", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No modo base mais deslocamento, é a memória-base que guarda a posição de referência e o registrador contém o dado final, sem consulta ao endereço calculado.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O registrador-base fornece uma referência; a CPU soma o deslocamento para obter o endereço efetivo. Em uma instrução que acessa memória, o conteúdo é lido ou escrito nesse endereço calculado.",
+      "section": "2. Endereçamento: de onde vem o operando", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em qual descrição aparece a forma RIP-relative documentada para x86-64?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O endereço resulta da soma entre RIP da próxima instrução e deslocamento assinado.", "correct": true },
+        { "key": "B", "text": "O endereço é sempre o valor absoluto gravado em um registrador de segmento.", "correct": false },
+        { "key": "C", "text": "O endereço é obtido multiplicando o opcode pela largura do operando de memória.", "correct": false },
+        { "key": "D", "text": "O endereço aponta para o byte inicial do arquivo, independentemente da posição atual.", "correct": false },
+        { "key": "E", "text": "O endereço vem exclusivamente do registrador de índice, sem base ou deslocamento.", "correct": false }
+      ],
+      "explanation": "Em x86-64, a forma RIP-relative calcula o endereço somando um deslocamento assinado ao RIP da próxima instrução. O modo facilita referências a dados próximos do código, dentro do alcance do deslocamento.",
+      "section": "5. Exemplos concretos: x86-64 e RISC-V", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em RV32I, instruções de load e store utilizam um registrador-base e um imediato para formar o endereço de memória.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Loads e stores RV32I usam base mais deslocamento imediato. O valor do registrador-base somado ao imediato define o endereço efetivo para leitura ou escrita.",
+      "section": "5. Exemplos concretos: x86-64 e RISC-V", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Que função têm os campos ModR/M e SIB em codificações x86?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "São campos exclusivos de branch RISC-V, que guardam apenas deslocamentos assinados.", "correct": false },
+        { "key": "B", "text": "São registradores de propósito geral que guardam instruções após a decodificação.", "correct": false },
+        { "key": "C", "text": "São estruturas do sistema operacional que traduzem código fonte para assembly.", "correct": false },
+        { "key": "D", "text": "São modos de pilha que obrigam cada instrução x86 a acessar memória duas vezes.", "correct": false },
+        { "key": "E", "text": "Codificam, conforme a forma, operandos de registrador e componentes de endereço como base e índice.", "correct": true }
+      ],
+      "explanation": "Em x86, o byte ModR/M seleciona formas de operando e registrador; o byte SIB pode codificar escala, índice e base. A presença e interpretação desses campos dependem da instrução e do modo de codificação.",
+      "section": "5. Exemplos concretos: x86-64 e RISC-V", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um modo de endereçamento implícito dispensa que todos os operandos apareçam escritos no texto da instrução.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A definição da instrução pode indicar operandos ou estado implícitos, como um registrador específico ou flags. A existência desse modo e os operandos envolvidos dependem da ISA.",
+      "section": "2. Endereçamento: de onde vem o operando", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente a relação entre tamanho do formato e decodificação?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Formato fixo elimina a necessidade de identificar opcode e operandos na instrução.", "correct": false },
+        { "key": "B", "text": "Formato variável simplifica todas as fronteiras porque cada instrução ocupa um byte.", "correct": false },
+        { "key": "C", "text": "Formato variável exige determinar o comprimento; formato fixo oferece fronteiras regulares.", "correct": true },
+        { "key": "D", "text": "Formato fixo só pode codificar instruções sem operandos imediatos ou registradores.", "correct": false },
+        { "key": "E", "text": "Comprimento da instrução não tem relação com a organização de sua codificação.", "correct": false }
+      ],
+      "explanation": "Em formato variável, a CPU precisa determinar o comprimento de cada instrução para encontrar a seguinte. O formato fixo torna as fronteiras regulares, embora a decodificação ainda precise interpretar opcode e campos.",
+      "section": "1. Da instrução escrita à palavra de máquina", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Toda ISA usa uma unidade de controle que exige que cada instrução de máquina possua explicitamente todos os operandos.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Uma instrução pode omitir operandos explícitos quando a ISA os define implicitamente. Além disso, organização interna da unidade de controle não exige uma única forma de codificação para todas as arquiteturas.",
+      "section": "1. Da instrução escrita à palavra de máquina", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma constante que não cabe no campo imediato de uma instrução pode exigir uma sequência de instruções para ser construída ou carregada.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O campo imediato tem largura limitada. Um montador ou compilador pode formar uma constante maior com mais de uma instrução ou carregar seu valor da memória, conforme a ISA e o contexto.",
+      "section": "2. Endereçamento: de onde vem o operando", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa aponta uma função típica da instrução STORE?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Comparar registradores e atualizar o PC quando seus valores forem iguais.", "correct": false },
+        { "key": "B", "text": "Ler o dado de memória e colocá-lo no registrador de destino.", "correct": false },
+        { "key": "C", "text": "Decodificar o formato variável e identificar o comprimento da instrução seguinte.", "correct": false },
+        { "key": "D", "text": "Gravar na memória um valor obtido de registrador, usando endereço definido pela ISA.", "correct": true },
+        { "key": "E", "text": "Somar dois valores e gravar exclusivamente a flag de sinal no endereço base.", "correct": false }
+      ],
+      "explanation": "STORE grava na memória um valor proveniente de registrador, no endereço determinado pelos operandos e regras da arquitetura. LOAD realiza leitura da memória para registrador; desvio compara ou altera o PC.",
+      "section": "3. Instruções de dados, cálculo e decisão", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em x86-64, o endereço RIP-relative usa como base o valor do RIP da próxima instrução, somado a um deslocamento assinado.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A documentação Intel define o endereço como RIP da próxima instrução acrescido de deslocamento assinado de 32 bits. Essa codificação dá alcance aproximado de ±2 GiB.",
+      "section": "5. Exemplos concretos: x86-64 e RISC-V", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma instrução condicional pode deixar o PC seguir sequencialmente quando a condição testada não é satisfeita.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Se a condição for falsa, o desvio não é tomado e a execução prossegue na sequência. Se for verdadeira, o PC passa ao destino definido pela instrução.",
+      "section": "4. Busca, execução e sequência de instruções", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção descreve uma instrução de deslocamento lógico à esquerda, em termos gerais?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Desloca bits para a direita, replicando necessariamente o bit de sinal.", "correct": false },
+        { "key": "B", "text": "Desloca os bits para a esquerda; bits que saem e entram seguem regras da ISA.", "correct": true },
+        { "key": "C", "text": "Soma dois endereços absolutos e armazena o resultado no contador de instruções.", "correct": false },
+        { "key": "D", "text": "Compara os operandos sem modificar dados, flags ou qualquer estado arquitetural.", "correct": false },
+        { "key": "E", "text": "Transfere sempre uma palavra da memória para o topo da pilha do programa.", "correct": false }
+      ],
+      "explanation": "Deslocamento lógico à esquerda move os bits para posições de maior peso. O tratamento das posições que ficam vagas e dos bits descartados depende da largura e regras da instrução, mas não equivale a uma carga de memória.",
+      "section": "3. Instruções de dados, cálculo e decisão", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma instrução de chamada pode usar um registrador de retorno numa ISA e a pilha arquitetural em outra.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O RISC-V JAL grava endereço de retorno em registrador de destino; x86 usa a pilha arquitetural nas chamadas e retornos usuais. São soluções distintas para permitir voltar após a rotina.",
+      "section": "4. Busca, execução e sequência de instruções", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Por que não se deve afirmar que toda CPU tem exatamente o mesmo conjunto típico de instruções?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Porque cada programa cria uma ISA temporária e elimina a necessidade de arquitetura.", "correct": false },
+        { "key": "B", "text": "Porque instruções são apenas convenções do sistema operacional, sem relação com hardware.", "correct": false },
+        { "key": "C", "text": "Porque conjuntos de instruções e codificações variam entre arquiteturas, apesar de categorias recorrentes.", "correct": true },
+        { "key": "D", "text": "Porque apenas as instruções de entrada e saída variam; todas as outras são idênticas.", "correct": false },
+        { "key": "E", "text": "Porque a linguagem assembly define um conjunto universal independente da CPU.", "correct": false }
+      ],
+      "explanation": "As ISAs diferem nos opcodes, formatos, registradores e modos disponíveis. Ainda assim, é útil reconhecer categorias recorrentes como transferência, aritmética, lógica e controle de fluxo.",
+      "section": "3. Instruções de dados, cálculo e decisão", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No RISC-V base, as instruções aritméticas comuns acessam a memória diretamente como se cada uma fosse uma instrução load ou store.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. RV32I segue modelo load-store: aritmética opera com registradores; instruções load e store específicas transferem dados entre registradores e memória.",
+      "section": "3. Instruções de dados, cálculo e decisão", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um acesso indexado que utiliza base, índice e escala, qual papel cumpre a escala?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Define um fator aplicado ao índice antes de somá-lo à base e ao deslocamento.", "correct": true },
+        { "key": "B", "text": "Converte o opcode em imediato e determina a operação de leitura ou escrita.", "correct": false },
+        { "key": "C", "text": "Indica quantas instruções sequenciais devem ser ignoradas pelo PC.", "correct": false },
+        { "key": "D", "text": "Inverte o sentido do dado entre memória e registrador sem alterar o endereço.", "correct": false },
+        { "key": "E", "text": "Substitui o registrador-base e guarda o conteúdo final da posição de memória.", "correct": false }
+      ],
+      "explanation": "Na forma indexada x86, o índice pode ser multiplicado por fator de escala antes de somar base e deslocamento. Escala compõe endereço; não determina o opcode nem o sentido do fluxo de dados.",
+      "section": "5. Exemplos concretos: x86-64 e RISC-V", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma instrução com operando implícito, uma definição da ISA pode indicar um registrador ou estado que não foi escrito expressamente como operando.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A instrução pode atuar sobre estado implícito que sua especificação determina, reduzindo os operandos escritos. O programador deve conhecer a semântica daquela ISA.",
+      "section": "2. Endereçamento: de onde vem o operando", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual exemplo representa uma instrução que compara registradores e decide o fluxo sem precisar de uma comparação separada que grave flags?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "SW em RV32I, que lê flags e pula se o endereço da memória for igual ao PC.", "correct": false },
+        { "key": "B", "text": "BEQ em RV32I, que desvia quando os dois registradores comparados são iguais.", "correct": true },
+        { "key": "C", "text": "LW em RV32I, que compara dois endereços e armazena uma flag no registrador de destino.", "correct": false },
+        { "key": "D", "text": "XOR em RV32I, que realiza chamada de procedimento e grava o endereço de retorno.", "correct": false },
+        { "key": "E", "text": "JALR em RV32I, que sempre compara flags e ignora qualquer registrador de base.", "correct": false }
+      ],
+      "explanation": "BEQ compara diretamente dois registradores e desvia se forem iguais. SW e LW transferem dados, XOR é operação lógica e JALR calcula alvo a partir de registrador e imediato.",
+      "section": "5. Exemplos concretos: x86-64 e RISC-V", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na sequência conceitual, buscar uma instrução e executar um LOAD são a mesma operação, pois ambas leem memória.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Busca lê os bytes da instrução no endereço indicado pelo PC; LOAD lê dado para o programa no endereço definido pelos operandos. São acessos com finalidades distintas.",
+      "section": "4. Busca, execução e sequência de instruções", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um salto relativo para trás, a ISA pode representar o destino com deslocamento negativo em relação ao PC de referência.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Um deslocamento assinado pode indicar alvos antes ou depois do endereço de referência, dentro do alcance representável. Isso permite implementar laços e desvios próximos.",
+      "section": "4. Busca, execução e sequência de instruções", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O mnemônico ADD garante que todas as ISAs usam a mesma ordem textual de operandos e a mesma codificação binária.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Um mnemônico descreve uma operação em assembly, mas sintaxe, ordem de operandos e codificação são definidos pela arquitetura e pelo montador. A mesma palavra não implica formato universal.",
+      "section": "1. Da instrução escrita à palavra de máquina", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma instrução de retorno realiza em geral uma transferência de controle para o ponto de continuação de uma chamada anterior.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O retorno obtém o endereço de retorno segundo o mecanismo definido pela ISA e atualiza o PC para continuar o programa após a chamada. O local de armazenamento desse endereço varia.",
+      "section": "4. Busca, execução e sequência de instruções", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em RV32I, qual alternativa compara corretamente load, store e branch?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Load grava registrador na memória; store lê memória; branch soma os dados comparados.", "correct": false },
+        { "key": "B", "text": "Load lê memória para registrador; store grava registrador na memória; branch altera o fluxo condicionalmente.", "correct": true },
+        { "key": "C", "text": "Load e store são operações aritméticas; branch é uma forma de imediato sem PC.", "correct": false },
+        { "key": "D", "text": "Load e branch escrevem dados na pilha; store grava opcode no endereço de destino.", "correct": false },
+        { "key": "E", "text": "Load acessa só registradores; store e branch acessam sempre memória absoluta.", "correct": false }
+      ],
+      "explanation": "No RV32I, loads transferem da memória para registradores, stores fazem o sentido inverso e branches condicionais escolhem se o PC muda para um alvo relativo. As três famílias têm efeitos distintos.",
+      "section": "5. Exemplos concretos: x86-64 e RISC-V", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No modo por registrador, o operando é o valor mantido no registrador especificado, sem que o modo por si só exija uma leitura de memória para obtê-lo.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O operando está no registrador. Se o registrador servir de ponteiro para um LOAD, a instrução acessa memória por outro modo; não se deve confundir esse uso indireto com o valor por registrador.",
+      "section": "2. Endereçamento: de onde vem o operando", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de campos é característico das formas de endereçamento indexado x86 que usam o byte SIB?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Código de país, máscara de rede e porta de transporte para localizar um servidor.", "correct": false },
+        { "key": "B", "text": "Valor de flag, contador de laço e endereço de retorno da pilha de execução.", "correct": false },
+        { "key": "C", "text": "Base, índice e escala, combináveis com deslocamento conforme a codificação.", "correct": true },
+        { "key": "D", "text": "Opcode, mnemônico e comentário, todos armazenados em texto ASCII no processador.", "correct": false },
+        { "key": "E", "text": "Imediato, alvo absoluto e registrador PC, obrigatórios em toda operação x86.", "correct": false }
+      ],
+      "explanation": "SIB significa Scale, Index, Base. Em certas formas x86, esses componentes representam índice escalado e base, com possível deslocamento codificado em outro campo. Não são nomes de dados de rede nem texto de assembly.",
+      "section": "5. Exemplos concretos: x86-64 e RISC-V", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um desvio condicional, qual resultado ocorre quando a condição especificada não é satisfeita?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A CPU grava o endereço efetivo na memória e repete a instrução de comparação.", "correct": false },
+        { "key": "B", "text": "O desvio não é tomado e o PC segue pelo fluxo sequencial previsto.", "correct": true },
+        { "key": "C", "text": "O registrador-base substitui o opcode e transforma o branch em uma operação load.", "correct": false },
+        { "key": "D", "text": "O dado de memória é copiado para a pilha e a execução sempre retorna da rotina.", "correct": false },
+        { "key": "E", "text": "A CPU inverte todos os bits do imediato antes de decodificar outra instrução.", "correct": false }
+      ],
+      "explanation": "Se a condição for falsa, o branch condicional não altera o fluxo para o alvo e a execução continua sequencialmente. O efeito exato de atualização do PC segue as regras de cada ISA.",
+      "section": "4. Busca, execução e sequência de instruções", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Que informação pode ser obtida pela decodificação de uma instrução de máquina?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O nome de todos os arquivos fonte usados para compilar o sistema operacional.", "correct": false },
+        { "key": "B", "text": "O resultado final de cada instrução futura antes de consultar seus operandos.", "correct": false },
+        { "key": "C", "text": "A frequência de clock escolhida pelo programa para executar o processador.", "correct": false },
+        { "key": "D", "text": "A operação e a interpretação dos campos de operandos conforme o formato da ISA.", "correct": true },
+        { "key": "E", "text": "A tradução de endereços virtuais para físicos feita obrigatoriamente pelo montador.", "correct": false }
+      ],
+      "explanation": "A decodificação interpreta o opcode e os campos segundo a ISA para identificar a operação e seus operandos. Compilação, frequência e tradução de endereços são processos distintos.",
+      "section": "1. Da instrução escrita à palavra de máquina", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "As instruções de uma ISA são apenas nomes de conveniência: dois processadores podem executar a mesma sequência de bits com significados diferentes sem que isso altere a compatibilidade binária.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A ISA define como a codificação é interpretada. Uma sequência binária só tem significado de instrução conforme a arquitetura e suas extensões; diferenças podem tornar o binário incompatível.",
+      "section": "1. Da instrução escrita à palavra de máquina", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Intel® 64 and IA-32 Architectures Software Developer’s Manual, Volume 1: Basic Architecture",
+      "publisher": "Intel",
+      "reference": "Formato simbólico das instruções, operandos, endereçamento segmentado e conceitos da arquitetura básica.",
+      "url": "https://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-vol-1-manual.pdf",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Intel® 64 and IA-32 Architectures Software Developer’s Manual, Volume 2A",
+      "publisher": "Intel",
+      "reference": "Formatos de instrução, campos ModR/M e SIB, referência de instruções e RIP-relative addressing.",
+      "url": "https://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-manual.pdf",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The RISC-V Instruction Set Manual, Volume I: Unprivileged Architecture — RV32I Base Integer Instruction Set",
+      "publisher": "RISC-V International",
+      "reference": "Formatos de instrução, registradores, loads, stores, desvios e imediatos do conjunto base RV32I.",
+      "url": "https://docs.riscv.org/reference/isa/v20260120/unpriv/rv32.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The RISC-V Instruction Set Manual — C Extension for Compressed Instructions",
+      "publisher": "RISC-V International",
+      "reference": "Instruções comprimidas de 16 bits e formatos compactos da extensão C.",
+      "url": "https://docs.riscv.org/reference/isa/unpriv/c-st-ext",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

@@ -1,0 +1,2090 @@
+{
+  "id": "informatica.admin-operacao-windows-server-linux",
+  "subject": "Informática",
+  "title": "Administração e operação de Windows Server e Linux",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Administração de Windows Server e Linux",
+    "Operação de sistemas Windows Server e Linux",
+    "Administração de servidores Windows e Linux",
+    "Sistemas operacionais de servidor Windows e Linux",
+    "Windows Server: administração e operação",
+    "Linux: administração e operação de servidores",
+    "Gerenciamento de serviços Windows e Linux",
+    "Contas e permissões em Windows Server e Linux",
+    "Monitoramento de servidores Windows e Linux",
+    "Administração de sistemas operacionais de servidor"
+  ],
+  "scope": {
+    "covers": "Administração e operação de sistemas Microsoft Windows Server e Linux: instalação de funções e recursos; gerenciamento local e remoto; inicialização, serviços, processos, logs e monitoramento; contas, grupos, autenticação e permissões; armazenamento, sistemas de arquivos, compartilhamentos e cotas; configuração e diagnóstico de rede, DNS e DHCP; atualizações, firewall, cópias de segurança e recuperação; virtualização e alta disponibilidade em nível operacional; ferramentas gráficas e linha de comando; noções práticas de segurança e diagnóstico em ambientes Windows e Linux.",
+    "excludes": "Projeto detalhado de Active Directory e políticas de domínio, administração aprofundada de serviços de aplicação ou banco de dados, programação de scripts, configuração de distribuições específicas além dos exemplos identificados, arquiteturas de nuvem, Kubernetes e comandos exclusivos de versões não indicadas."
+  },
+  "theoryTitle": "Rotinas de administração de servidores Windows e Linux",
+  "chapters": [
+    {
+      "title": "1. Operação, funções e acesso administrativo",
+      "markdown": "### O problema que este assunto resolve\n\nUm servidor fornece serviços compartilhados: autenticação, nomes, endereços de rede, arquivos, aplicações ou máquinas virtuais. Administrar significa manter esses serviços disponíveis, atualizados e controlados, identificando alterações e falhas sem tratar o servidor como uma estação de uso pessoal. Em Windows Server, o Server Manager instala e administra funções e recursos; PowerShell permite executar tarefas localmente ou de forma remota. No Linux, o administrador combina shell, ferramentas da distribuição e serviços de sistema.\n\n> **Siglas e termos deste capítulo**\n> - **Função (role)**: serviço principal oferecido pelo servidor, como DNS ou DHCP.\n> - **Recurso (feature)**: capacidade adicional que pode apoiar uma função, como ferramentas de administração.\n> - **Server Core**: opção de instalação do Windows Server com interface gráfica reduzida; a administração ocorre principalmente por terminal e ferramentas remotas.\n> - **SSH**: protocolo para acesso remoto seguro a um shell.\n> - **sudo**: mecanismo para executar comandos autorizados com privilégios elevados no Linux.\n> - **RDP**: protocolo de acesso remoto a uma sessão gráfica do Windows.\n\n### Instalar e administrar sem confundir função com ferramenta\n\nNo Windows Server, o assistente **Add Roles and Features** do Server Manager instala funções e recursos. PowerShell oferece a mesma classe de operação por cmdlets como `Install-WindowsFeature`; `Get-WindowsFeature` consulta o que está instalado. Instalar a função DHCP, por exemplo, não equivale a criar escopos, autorizar o servidor no Active Directory nem configurar reservas: são etapas administrativas distintas. O Windows Admin Center oferece administração remota por navegador e ferramentas de servidor, mas a documentação da Microsoft esclarece que ele complementa as RSAT e não substitui todo console especializado.\n\nEm Linux, os comandos de pacote dependem da família da distribuição. Debian e derivados usam `apt`/`dpkg`; RHEL e derivados usam `dnf`/`rpm`. `systemctl` administra unidades do systemd, mas não instala pacotes nem define, por si só, a configuração interna da aplicação. A documentação de uma rotina deve registrar host, conta usada, mudança, resultado e possibilidade de retorno.\n\n### Acesso remoto com privilégio mínimo\n\nUse RDP ou ferramentas administrativas remotas no Windows conforme a necessidade e as regras da rede. No Linux, SSH permite terminal remoto; autenticação por chave reduz dependência de senha transmitida e deve ser combinada com proteção da chave privada. Não exponha interfaces administrativas à internet sem controles. Elevar privilégio somente para a tarefa necessária reduz o impacto de erro ou credencial comprometida. Uma sessão administrativa remota também depende de DNS, rota, firewall, autenticação e serviço de destino: falha em qualquer camada pode impedir o acesso.\n\n### Como cai na prova\n\n- O Server Manager administra funções e recursos; instalar uma função não significa que todo o serviço já esteja configurado para uso.\n- PowerShell e shell Linux são interfaces de administração; comandos e gerenciadores de pacotes não são intercambiáveis entre distribuições.\n- Windows Admin Center complementa ferramentas de administração remota; não é substituto universal de RSAT e consoles especializados.\n- SSH e RDP atendem formas diferentes de acesso remoto; acesso remoto exige autenticação e conectividade, além do protocolo."
+    },
+    {
+      "title": "2. Contas, grupos e controle de acesso",
+      "markdown": "### O problema que este assunto resolve\n\nPermissões definem quem pode usar o sistema, alterar arquivos e administrar serviços. Uma conta compartilhada por toda a equipe dificulta atribuir ações a uma pessoa e revogar acesso de alguém que mudou de função. A administração correta cria identidades individuais, agrupa permissões por função e concede apenas o necessário.\n\n> **Siglas e termos deste capítulo**\n> - **SID**: identificador de segurança associado a uma identidade Windows.\n> - **ACL**: lista de controle de acesso que registra permissões concedidas ou negadas.\n> - **UID/GID**: identificadores numéricos de usuário e grupo em sistemas Unix/Linux.\n> - **DAC**: controle discricionário de acesso baseado, entre outros atributos, em proprietário e permissões.\n> - **MAC**: controle obrigatório adicional, aplicado por política como SELinux.\n> - **UAC**: mecanismo do Windows que solicita confirmação ou credenciais para ações administrativas.\n\n### Identidades, grupos e privilégio mínimo\n\nNo Windows, contas locais são distintas das contas de domínio. Grupos locais, como Administrators e Remote Desktop Users, reúnem permissões para facilitar a gestão; pertencer a Administrators concede ampla capacidade e deve ser restrito. O UAC ajuda a separar o uso cotidiano de operações elevadas, mas não transforma uma conta administradora em conta sem privilégios. A identidade Windows é representada por SID, inclusive depois de renomeada.\n\nNo Linux, cada usuário e grupo possui UID e GID. `id` mostra a identidade e grupos efetivos; `getent passwd` e `getent group` consultam bases configuradas no sistema. Ferramentas como `useradd`, `usermod` e `passwd` gerenciam contas em muitas distribuições, mas os comandos de alto nível podem variar. O `sudo` delega comandos permitidos e registra a execução segundo a configuração do sistema. Em Debian, adicionar grupo suplementar sem a opção de anexar pode substituir outros grupos; por isso o administrador verifica o resultado com `id`.\n\n### Permissões de arquivos e diretórios\n\nNo Linux, `r`, `w` e `x` significam leitura, escrita e execução para proprietário, grupo e outros. Em diretório, `x` permite atravessar/acessar nomes dentro dele, `r` permite listar nomes e `w` permite criar ou remover entradas, condicionado também à travessia. `chmod` altera modo; `chown` altera proprietário; `chgrp` altera grupo. ACLs ampliam a lista de usuários e grupos contemplados. A permissão tradicional `777` concede leitura, escrita e execução a todos e raramente é uma correção apropriada.\n\nNo Windows, permissões NTFS são expressas em ACLs. Permissões efetivas resultam da combinação de entradas aplicáveis ao usuário e aos grupos, considerando herança e entradas explícitas. Compartilhamento de rede acrescenta outro nível: ao acessar pela rede, a autorização prática é limitada pela combinação das permissões de compartilhamento e NTFS, prevalecendo o acesso mais restritivo. Uma negação explícita pode prevalecer sobre permissões concedidas, conforme as regras de avaliação da ACL.\n\n### Camadas de segurança no Linux\n\nSELinux acrescenta uma política de controle obrigatório baseada em contexto. Ele não é substituto das permissões tradicionais: se DAC nega o acesso, a política SELinux não o concede. Um serviço pode ter permissões Unix aparentemente corretas e ainda ser bloqueado por rótulo ou política; o diagnóstico deve examinar logs de auditoria, contexto e política antes de desativar a proteção. Em RHEL, mensagens de negação AVC são registradas no log de auditoria.\n\n### Como cai na prova\n\n- UID/GID identificam usuários e grupos no Linux; SID identifica uma conta ou grupo Windows.\n- Permissão `x` em diretório significa travessia, não execução de um arquivo binário.\n- Em compartilhamento Windows, permissões NTFS e permissões de compartilhamento atuam em conjunto no acesso remoto.\n- SELinux pode negar uma operação que as permissões tradicionais permitem; desativá-lo indiscriminadamente não é o diagnóstico correto."
+    },
+    {
+      "title": "3. Serviços, processos, inicialização e logs",
+      "markdown": "### O problema que este assunto resolve\n\nQuando uma aplicação não responde, é preciso separar quatro perguntas: o processo existe? o serviço foi iniciado? a inicialização automática está configurada? há erro registrado? Reiniciar tudo sem verificar estado pode interromper outros serviços e apagar evidências temporárias. O diagnóstico começa observando o estado e correlacionando horário, serviço, processo e log.\n\n> **Siglas e termos deste capítulo**\n> - **Serviço**: programa executado em segundo plano para oferecer uma função do sistema.\n> - **Processo**: instância de programa em execução, com PID e recursos associados.\n> - **PID**: identificador de processo.\n> - **systemd**: gerenciador de sistema e serviços comum em distribuições Linux atuais.\n> - **Journal**: registro estruturado coletado pelo systemd-journald.\n> - **Event Viewer**: console Windows para consultar logs de eventos.\n\n### Serviços no Windows e no Linux\n\nNo Windows, `Get-Service` lista serviços e estados; `Start-Service`, `Stop-Service` e `Restart-Service` alteram seu estado; `Set-Service` pode configurar propriedades como tipo de inicialização. O Service Control Manager mantém a configuração e inicia serviços conforme seus gatilhos e dependências. No Linux com systemd, `systemctl status nome.service` mostra estado e informações recentes; `systemctl start` e `stop` atuam imediatamente; `enable` configura início no boot e `disable` remove essa ativação. `enable` não significa necessariamente iniciar agora, e `start` não implica habilitar no próximo boot.\n\nUma unidade systemd pode ser `service`, `mount`, `timer`, `socket` ou outro tipo. Dependências e ordenação são declaradas na unidade; `systemctl list-dependencies` ajuda a examiná-las. Evite editar arquivos de unidade fornecidos por pacotes: use um *drop-in* administrativo em `/etc/systemd/system/nome.service.d/` e recarregue a configuração com `systemctl daemon-reload` após alterações.\n\n### Processos e logs\n\nNo Windows, o Gerenciador de Tarefas e `Get-Process` mostram processos; o Monitor de Recursos e contadores de desempenho ajudam a localizar consumo de CPU, memória, disco e rede. Event Viewer organiza eventos por logs como System e Application; filtre por intervalo e origem antes de concluir que um erro isolado explica uma indisponibilidade. PowerShell pode consultar eventos com `Get-WinEvent`.\n\nNo Linux, `ps` e `top`/`htop` ajudam a observar processos; `kill` envia sinais, não é sinônimo de desligamento seguro de serviço. `journalctl -u nome.service` filtra o journal pela unidade; `journalctl -b` limita a inicialização atual. Logs tradicionais também podem estar em `/var/log`, dependendo da distribuição e serviço. Registros persistentes do journal dependem de configuração e armazenamento: não presuma que todo histórico estará presente após reinício.\n\n### Diagnóstico operacional\n\nUma sequência segura é: confirmar o sintoma e escopo; verificar conectividade e dependências; consultar estado do serviço e processo; ler eventos/logs no intervalo; checar espaço e recursos; identificar mudança recente; aplicar correção controlada e observar o resultado. Registre a causa provável e não copie credenciais ou dados sensíveis para chamados. Se o serviço falha ao iniciar, consulte a mensagem específica e dependências antes de repetir reinícios.\n\n### Como cai na prova\n\n- `systemctl enable` configura ativação no boot; `start` inicia no momento.\n- Journal e Event Viewer são ferramentas para consultar registros, não mecanismos de backup.\n- Processo e serviço não são sinônimos: um serviço pode ter múltiplos processos ou nenhum processo ativo quando parado.\n- Logs devem ser filtrados por origem, horário e contexto; um reinício cego pode mascarar a causa."
+    },
+    {
+      "title": "4. Rede, armazenamento, atualização e continuidade",
+      "markdown": "### O problema que este assunto resolve\n\nUm servidor saudável precisa de conectividade previsível, espaço suficiente, atualizações planejadas e cópias recuperáveis. A operação deve verificar dependências: um nome que não resolve aponta para DNS; um endereço ausente pode apontar para configuração IP ou DHCP; um compartilhamento inacessível pode resultar de rota, firewall, serviço ou permissão.\n\n> **Siglas e termos deste capítulo**\n> - **DNS**: serviço que associa nomes a dados como endereços IP.\n> - **DHCP**: serviço que entrega parâmetros de configuração de rede a clientes.\n> - **Escopo DHCP**: faixa de endereços e opções administradas para uma rede.\n> - **RAID**: combinação de discos para desempenho e/ou tolerância a falhas; não substitui backup.\n> - **RPO/RTO**: objetivos de perda de dados aceitável e tempo de recuperação.\n> - **Snapshot**: ponto de estado de volume ou máquina virtual; sua existência isolada não garante recuperação contra perda do armazenamento.\n\n### Rede e funções de infraestrutura\n\nNo Windows Server, DHCP é uma função instalável e administrável por Server Manager, console DHCP ou cmdlets. Escopos definem a faixa distribuída; exclusões reservam endereços que não devem ser concedidos dinamicamente; reservas associam cliente e endereço conforme o protocolo. Em uma floresta Active Directory, servidores DHCP devem ser autorizados para evitar que um servidor não aprovado distribua endereços. A Microsoft documenta failover DHCP entre dois servidores: eles compartilham dados de escopo e concessões, mantêm bases próprias sincronizadas e reduzem risco de concessão duplicada quando a comunicação falha.\n\nDNS deve ser testado separando resolução de nome de conectividade IP: `Resolve-DnsName` no Windows e `getent hosts` ou `dig` em Linux ajudam a verificar resolução; `ping` verifica resposta ICMP quando permitido, mas não prova que uma aplicação ou porta está disponível. `ipconfig /all` apresenta configuração Windows; `ip addr` e `ip route` exibem endereços e rotas em Linux. Em ambas as plataformas, confira gateway, DNS, rota, firewall e porta de destino.\n\n### Discos, compartilhamentos e cópias de segurança\n\nO Windows usa ferramentas como Disk Management, Storage Spaces e `Get-Volume`; Linux usa `lsblk`, `df -h`, `du` e `findmnt` para inspecionar dispositivos, uso, montagem e consumo. `df` mostra espaço dos sistemas de arquivos montados; `du` estima consumo de diretórios. Um disco com espaço livre não garante que o sistema de arquivos esteja montado no caminho esperado.\n\nCompartilhamentos Windows podem usar SMB e permissões de compartilhamento mais NTFS. Em Linux, NFS e Samba oferecem opções de compartilhamento distintas; em qualquer caso, autenticação, firewall e permissões locais precisam concordar. Backup é uma cópia recuperável de dados/configuração; RAID e replicação melhoram disponibilidade ou continuidade, mas podem replicar exclusão e corrupção. Planeje cópias fora do domínio de falha e teste restauração, conferindo RPO/RTO definidos para o serviço.\n\n### Atualizações, firewall e virtualização\n\nAtualizações corrigem erros e vulnerabilidades, mas devem ser avaliadas e aplicadas com janela, plano de retorno e verificação posterior. Windows Update, ferramentas de gestão central e gerenciadores de pacotes fazem parte do processo; `apt update` atualiza índices de pacotes Debian, enquanto `apt upgrade` instala atualizações disponíveis. Em RHEL, `dnf check-update` consulta atualizações e `dnf upgrade` aplica pacotes. `firewall-cmd` administra firewalld em sistemas que o usam; regras devem abrir somente o tráfego necessário. No Windows, Windows Defender Firewall permite regras de entrada e saída por perfil.\n\nHyper-V permite hospedar máquinas virtuais Windows e outros sistemas convidados suportados. O host, a rede virtual, armazenamento e recursos atribuídos precisam ser monitorados. Failover Clustering agrupa servidores para aumentar disponibilidade de cargas configuradas; não é sinônimo de backup e depende de pré-requisitos, quorum, rede e armazenamento apropriados.\n\n### Como cai na prova\n\n- DHCP fornece concessões e opções; DNS resolve nomes. Um serviço não substitui o outro.\n- O failover DHCP sincroniza informações entre parceiros; uma relação entre servidores não é o mesmo que cluster de failover.\n- RAID, replicação e snapshots não substituem cópia de segurança isolada e teste de restauração.\n- `apt update` atualiza listas, não instala por si só todas as atualizações; uso e nomes variam por distribuição."
+    }
+  ],
+  "summary": "Administração operacional mantém funções e recursos do servidor configurados, acessíveis e observáveis. No Windows Server, Server Manager, PowerShell, consoles, Windows Admin Center, Event Viewer, serviços, ACLs e ferramentas de rede cobrem tarefas cotidianas; no Linux, ferramentas da distribuição, systemd, journalctl, shell, permissões DAC, ACLs e, em distribuições como RHEL, SELinux sustentam operação equivalente. Diagnostique por camadas: identidade e permissão, processo/serviço, logs, rede, armazenamento e dependências. Aplique menor privilégio, alterações registradas, atualizações planejadas, firewall restritivo e backups com restauração testada. DHCP distribui parâmetros de rede; DNS resolve nomes. Failover e RAID elevam disponibilidade, mas não substituem cópias de segurança recuperáveis.",
+  "flashcards": [
+    {
+      "front": "Qual ferramenta gráfica do Windows Server instala funções e recursos?",
+      "back": "Server Manager, por Add Roles and Features; PowerShell também permite instalar recursos compatíveis."
+    },
+    {
+      "front": "Qual cmdlet consulta funções e recursos disponíveis no Windows Server?",
+      "back": "Get-WindowsFeature."
+    },
+    {
+      "front": "O que faz Windows Admin Center na administração?",
+      "back": "Permite administrar servidores e recursos remotamente por navegador; complementa RSAT e consoles especializados."
+    },
+    {
+      "front": "O que o SID representa no Windows?",
+      "back": "Identificador de segurança de uma conta ou grupo, usado nas verificações de acesso."
+    },
+    {
+      "front": "O que identificam UID e GID no Linux?",
+      "back": "UID identifica usuário; GID identifica grupo."
+    },
+    {
+      "front": "Para que serve sudo?",
+      "back": "Executar comandos autorizados com privilégios elevados segundo a configuração do sistema."
+    },
+    {
+      "front": "Quais são as três classes tradicionais de permissões Linux?",
+      "back": "Proprietário, grupo e outros; cada classe pode ter leitura, escrita e execução."
+    },
+    {
+      "front": "O que significa x em um diretório Linux?",
+      "back": "Permite atravessar/acessar nomes nele; não significa executar um arquivo contido."
+    },
+    {
+      "front": "O que acrescenta uma ACL?",
+      "back": "Entradas de controle de acesso para usuários ou grupos além das classes tradicionais."
+    },
+    {
+      "front": "O que é SELinux?",
+      "back": "Módulo de segurança do Linux que aplica política obrigatória baseada em contexto, além das permissões DAC."
+    },
+    {
+      "front": "Qual cmdlet lista serviços Windows e seus estados?",
+      "back": "Get-Service."
+    },
+    {
+      "front": "No systemd, qual diferença entre start e enable?",
+      "back": "start inicia agora; enable configura a ativação no boot."
+    },
+    {
+      "front": "Como consultar eventos do serviço web.service no journal?",
+      "back": "journalctl -u web.service."
+    },
+    {
+      "front": "Qual console Windows exibe logs System e Application?",
+      "back": "Event Viewer, ou Visualizador de Eventos."
+    },
+    {
+      "front": "O que exibe systemctl status?",
+      "back": "Estado da unidade, dados do serviço e informação recente útil ao diagnóstico."
+    },
+    {
+      "front": "Qual é a função do DHCP?",
+      "back": "Conceder endereços IP e outros parâmetros de configuração aos clientes."
+    },
+    {
+      "front": "Qual é a função do DNS?",
+      "back": "Resolver nomes para dados associados, como endereços IP."
+    },
+    {
+      "front": "O que representa um escopo DHCP?",
+      "back": "Faixa de endereços e opções que o servidor administra para uma rede."
+    },
+    {
+      "front": "Para que serve df -h?",
+      "back": "Mostrar uso e espaço disponível nos sistemas de arquivos montados, em formato legível."
+    },
+    {
+      "front": "Para que serve lsblk?",
+      "back": "Listar dispositivos de bloco e a organização de discos e partições."
+    },
+    {
+      "front": "Por que RAID não substitui backup?",
+      "back": "Falhas lógicas, exclusões e corrupção podem atingir os dados replicados; RAID não fornece cópia isolada recuperável."
+    },
+    {
+      "front": "O que mede RPO?",
+      "back": "A quantidade de perda de dados temporal aceitável após uma interrupção."
+    },
+    {
+      "front": "O que mede RTO?",
+      "back": "O tempo objetivo para restaurar o serviço após uma interrupção."
+    },
+    {
+      "front": "O que faz apt update?",
+      "back": "Atualiza índices de pacotes disponíveis nos repositórios configurados; não equivale a instalar atualizações."
+    },
+    {
+      "front": "Como firewalld costuma ser administrado em distribuições que o utilizam?",
+      "back": "Com firewall-cmd, definindo regras e serviços permitidos conforme a necessidade."
+    }
+  ],
+  "tips": [
+    "Se a questão mencionar ativação no próximo boot em Linux com systemd, pense em enable; para iniciar agora, em start.",
+    "Ao testar uma aplicação, verifique DNS, rota, firewall e porta; ping bem-sucedido sozinho não prova que o serviço responde.",
+    "Em Linux, lembre que x em diretório permite atravessá-lo e que r permite listar seus nomes.",
+    "Para acesso Windows pela rede, avalie em conjunto a ACL NTFS e a permissão do compartilhamento.",
+    "Ao diagnosticar serviço, cruze o estado da unidade com logs do intervalo e dependências antes de reiniciar.",
+    "Associe disponibilidade a redundância e recuperação a backup restaurável; RAID não é cópia de segurança."
+  ],
+  "traps": [
+    "Afirmar que instalar a função DHCP já cria escopos e autoriza o servidor no Active Directory confunde instalação com configuração.",
+    "Dizer que systemctl enable inicia imediatamente a unidade confunde habilitação no boot com start.",
+    "Tratar `chmod 777` como solução geral remove restrições para todos e aumenta exposição.",
+    "Dizer que permissões de compartilhamento anulam as NTFS ignora a avaliação conjunta no acesso remoto.",
+    "Confundir falta de resposta a ping com falha definitiva da aplicação ignora ICMP bloqueado e a camada de transporte.",
+    "Afirmar que SELinux deve ser desativado sempre que houver acesso negado ignora contexto, política e registros AVC."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva uma sequência de diagnóstico para serviço Windows ou Linux que deixou de responder.",
+      "answer": "Delimitar sintoma, verificar conectividade e dependências, consultar serviço e processo, examinar logs no período, checar recursos e mudança recente, corrigir de forma controlada e confirmar a recuperação."
+    },
+    {
+      "question": "Compare os papéis de Server Manager, PowerShell e Windows Admin Center.",
+      "answer": "Server Manager instala e administra funções e recursos; PowerShell automatiza e consulta por cmdlets; Windows Admin Center oferece ferramentas de administração remota e complementa consoles e RSAT."
+    },
+    {
+      "question": "Explique a diferença entre conta, grupo e permissão no controle de acesso.",
+      "answer": "Conta identifica um usuário; grupo reúne identidades para atribuir acesso; permissão define ações permitidas ou negadas sobre um recurso."
+    },
+    {
+      "question": "Como ler as permissões rwxr-x--- de um arquivo Linux?",
+      "answer": "Proprietário tem leitura, escrita e execução; grupo tem leitura e execução; outros não têm permissões."
+    },
+    {
+      "question": "Por que o mesmo arquivo pode estar acessível localmente e negado por compartilhamento Windows?",
+      "answer": "O acesso remoto considera as permissões do compartilhamento e as permissões NTFS aplicáveis; a combinação mais restritiva limita o acesso."
+    },
+    {
+      "question": "Como diferenciar falha de DNS de falha de conectividade IP?",
+      "answer": "Testar resolução do nome separadamente com ferramenta DNS/consulta de hosts e testar endereço, rota e porta; nome não resolvido pode coexistir com conectividade IP."
+    },
+    {
+      "question": "O que precisa ser testado depois de criar backups?",
+      "answer": "A restauração de dados e configurações em ambiente adequado, medindo se atende os objetivos de recuperação e se a cópia não depende do mesmo domínio de falha."
+    },
+    {
+      "question": "Qual é a diferença operacional entre atualizar índice de pacote e atualizar software no Debian?",
+      "answer": "apt update atualiza os índices locais dos repositórios; apt upgrade usa esses índices para instalar versões atualizadas dos pacotes."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Instalação de função confundida com configuração",
+      "summary": "Adicionar a função instala componentes. Ainda podem ser necessários autorização, escopos, opções, zonas, regras e validação de funcionamento."
+    },
+    {
+      "key": "e2",
+      "title": "Inicialização do serviço confundida com habilitação no boot",
+      "summary": "No systemd, start/stop alteram estado atual; enable/disable alteram ativação automática. Verifique as duas dimensões."
+    },
+    {
+      "key": "e3",
+      "title": "Permissões de arquivo e diretório interpretadas do mesmo modo",
+      "summary": "No Linux, x em diretório permite travessia; r permite listar nomes; w permite alterar entradas, sujeito às demais permissões e controles."
+    },
+    {
+      "key": "e4",
+      "title": "Disponibilidade confundida com recuperação",
+      "summary": "Failover, RAID e replicação podem manter serviço ou cópias atualizadas, mas exclusão e corrupção também podem propagar. Backup exige cópia recuperável e teste."
+    },
+    {
+      "key": "e5",
+      "title": "Erro de acesso atribuído apenas a DAC",
+      "summary": "Permissões Unix/NTFS são uma camada. ACLs, permissões de compartilhamento, firewall, autenticação e, no RHEL, política SELinux também podem negar acesso."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe instalou a função DHCP no Windows Server e concluiu que os computadores já receberiam endereços. Qual etapa operacional ainda pode ser necessária para uma rede IPv4?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar e configurar o escopo DHCP com faixa e opções adequadas à sub-rede.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Converter o servidor DHCP em controlador de domínio antes de atender clientes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Instalar o cliente DHCP em cada estação para distribuir endereços ao servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Habilitar DNSSEC em cada estação para que o servidor possa conceder endereços.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar uma zona reversa, que por si só define a faixa de concessões DHCP.",
+          "correct": false
+        }
+      ],
+      "explanation": "A função instala o serviço, mas a rede ainda precisa de um escopo que defina a faixa e as opções de configuração. Em domínio Active Directory, também pode ser necessário autorizar o servidor; a zona DNS não substitui o escopo.",
+      "section": "1. Operação, funções e acesso administrativo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um Linux com systemd, o administrador executa `systemctl enable app.service`. O efeito esperado dessa ação é configurar a unidade para iniciar automaticamente conforme a configuração de boot.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Enable configura a ativação automática no boot. Para iniciar a unidade imediatamente, usa-se start; habilitar não significa necessariamente alterar o estado atual.",
+      "section": "3. Serviços, processos, inicialização e logs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa administra um servidor remoto com Windows Admin Center. Essa ferramenta substitui todas as ferramentas RSAT e todos os consoles específicos para qualquer função do Windows Server.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A Microsoft descreve o Windows Admin Center como complementar às RSAT. Funções como Active Directory, DHCP, DNS e IIS podem exigir ferramentas de administração especializadas.",
+      "section": "1. Operação, funções e acesso administrativo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Windows Server, o cmdlet `Get-WindowsFeature` serve para consultar funções e recursos instalados ou disponíveis no servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O cmdlet consulta as funções e os recursos do Windows Server. A instalação é uma operação diferente, feita por ferramenta gráfica ou cmdlet apropriado.",
+      "section": "1. Operação, funções e acesso administrativo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ferramenta permite consultar eventos do Windows organizados nos logs System e Application?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Disk Management, que apresenta eventos organizados por origem e horário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Event Viewer, que permite filtrar eventos por log, origem e período.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Task Scheduler, que mantém o histórico completo de todas as aplicações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Server Manager, que substitui o registro de eventos do sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Device Manager, que registra todas as alterações de serviços e aplicações.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Event Viewer exibe e filtra logs do Windows, entre eles System e Application. Disk Management cuida de discos; Task Scheduler agenda tarefas; Device Manager administra dispositivos.",
+      "section": "3. Serviços, processos, inicialização e logs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo tradicional de permissões Linux, a permissão `x` aplicada a um diretório permite atravessá-lo e acessar entradas por seus nomes, desde que as demais condições de acesso sejam atendidas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Para diretórios, execução significa busca ou travessia. Leitura permite listar nomes e escrita permite alterar entradas, observadas as demais permissões e controles de acesso.",
+      "section": "2. Contas, grupos e controle de acesso",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação no Linux não inicia após habilitação da unidade. Qual comando mostra estado e mensagens recentes da unidade systemd?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`apt update app.service`, que consulta o processo e seu estado atual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`chmod app.service`, que mostra mensagens e ativa a unidade automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`systemctl status app.service`, que mostra estado e dados recentes da unidade.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`ip route app.service`, que lista erros recentes do gerenciador de serviços.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`df app.service`, que informa as dependências e o estado da unidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "systemctl status é a consulta direta do estado de uma unidade e pode apresentar mensagens recentes. A investigação pode continuar com journalctl -u app.service para examinar o journal filtrado.",
+      "section": "3. Serviços, processos, inicialização e logs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma permissão de compartilhamento Windows sempre concede acesso remoto, mesmo quando a ACL NTFS nega a leitura do arquivo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O acesso por rede depende tanto das permissões do compartilhamento quanto das permissões NTFS. Uma concessão no compartilhamento não elimina a restrição NTFS aplicável.",
+      "section": "2. Contas, grupos e controle de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de ferramentas Linux ajuda a verificar sistema de arquivos cheio e consumo de espaço por diretório?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`journalctl` para espaço livre e `systemctl` para tamanho de cada diretório.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`chmod` para uso dos sistemas de arquivos e `chown` para listar os diretórios maiores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`ip addr` para espaço livre e `ip route` para listar diretórios maiores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`id` para espaço livre e `getent` para tamanho dos diretórios montados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`df -h` para volumes e `du` para consumo por diretório.",
+          "correct": true
+        }
+      ],
+      "explanation": "df informa o uso dos sistemas de arquivos montados, enquanto du percorre diretórios e estima o espaço associado. São consultas diferentes e ajudam a localizar se a falta de espaço é global ou concentrada em uma árvore.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo é necessariamente idêntico a um serviço: se o serviço está parado, nenhum processo relacionado pode continuar em execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Serviço é uma unidade de gerenciamento e função em segundo plano; processo é uma instância de programa. Relações variam, e outros processos podem continuar ativos mesmo quando uma unidade específica está parada.",
+      "section": "3. Serviços, processos, inicialização e logs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma estação recebe um endereço IP, mas não resolve o nome de um servidor. Qual hipótese deve ser testada primeiro de forma separada da conectividade IP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A resolução DNS do nome e os servidores DNS configurados no cliente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A permissão de execução do arquivo de log do servidor remoto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O estado do RAID do servidor, mesmo sem indício de falha de disco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A política de tela de bloqueio aplicada à estação pelo domínio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A tabela de partições local, que controla a tradução de nomes DNS.",
+          "correct": false
+        }
+      ],
+      "explanation": "O cliente já possui endereço IP, mas a falha descrita é de resolução de nome. Consulte DNS e configuração do cliente separadamente; depois teste rota e porta para diferenciar outras camadas.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ajustar SELinux para permissive ou desativá-lo é a primeira correção recomendada para qualquer operação negada em RHEL, sem examinar logs ou contexto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma negação pode decorrer de contexto ou regra SELinux, mas o diagnóstico deve examinar política, rótulos e mensagens AVC nos registros de auditoria. Desativar a proteção sem determinar a causa remove uma camada de segurança e pode mascarar configuração incorreta.",
+      "section": "2. Contas, grupos e controle de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente a relação entre DHCP e DNS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DHCP resolve nomes; DNS distribui endereços IP de forma dinâmica aos clientes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DHCP concede parâmetros de rede; DNS resolve nomes para dados associados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "DHCP e DNS são dois nomes para o serviço que autentica contas locais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DNS define permissões NTFS; DHCP controla o estado de serviços Linux.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "DNS substitui o gateway; DHCP substitui as rotas em todos os servidores.",
+          "correct": false
+        }
+      ],
+      "explanation": "DHCP fornece concessões de endereço e opções de configuração; DNS resolve nomes. Eles podem cooperar, mas suas funções são distintas.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Debian, `apt update` instala automaticamente todas as versões novas dos pacotes disponíveis nos repositórios.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. apt update atualiza os índices locais de pacotes. A instalação de atualizações é uma ação separada, por exemplo com apt upgrade, observadas dependências e política operacional.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre redundância de discos e backup está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RAID impede que exclusões acidentais sejam propagadas para os demais discos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RAID guarda versões antigas dos arquivos e dispensa qualquer outra cópia dos dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RAID tolera certas falhas, mas não substitui backup isolado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Um snapshot no mesmo volume protege contra qualquer perda física do armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A existência de redundância elimina a necessidade de testar restaurações.",
+          "correct": false
+        }
+      ],
+      "explanation": "RAID pode manter disponibilidade diante de algumas falhas físicas, mas não é uma cópia isolada: exclusões, corrupção ou falha mais ampla podem afetar os dados. Uma estratégia de backup precisa permitir restauração testada.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Antes de remover uma conta Linux de um grupo suplementar, o administrador deve verificar os privilégios concedidos por esse grupo e o impacto nos serviços da pessoa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Grupos podem conceder acesso a arquivos, dispositivos, logs ou comandos administrativos. A alteração deve seguir a necessidade de acesso e ser conferida na identidade efetiva após a mudança.",
+      "section": "2. Contas, grupos e controle de acesso",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma unidade app.service está ativa agora, mas não deve iniciar após reinicialização. Qual combinação systemd corresponde a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar stop e enable, para manter a unidade parada e ativá-la no próximo boot.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar disable sem stop, para desativar sua ativação automática e preservar o estado atual.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar start e enable, para encerrar a unidade e evitar o boot seguinte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar daemon-reload, que sempre desativa serviços e encerra seus processos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar status e journalctl, que alteram o estado e a configuração de boot.",
+          "correct": false
+        }
+      ],
+      "explanation": "disable remove a configuração de ativação automática e não precisa parar a unidade já ativa. Como o objetivo é mantê-la ativa agora, não se executa stop.",
+      "section": "3. Serviços, processos, inicialização e logs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Linux, `journalctl -u ssh.service` pode filtrar as entradas do journal associadas à unidade indicada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. journalctl consulta o journal do systemd e a opção -u restringe a consulta a uma unidade, útil para relacionar mensagens ao serviço investigado.",
+      "section": "3. Serviços, processos, inicialização e logs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conta renomeada no Windows necessariamente recebe novo SID, fazendo desaparecer as permissões que usavam o identificador anterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O SID é o identificador de segurança da identidade e não é simplesmente o nome exibido. Renomear a conta não equivale a criar outra identidade com novo SID.",
+      "section": "2. Contas, grupos e controle de acesso",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente alcança o servidor por endereço IP, mas uma conexão TCP à aplicação falha. Qual conjunto de verificações é mais pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar nova partição no cliente, pois conexões TCP são armazenadas no sistema de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Alterar todos os UIDs do servidor e repetir a conexão sem consultar registros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar a máscara de rede sem avaliar rota, porta ou configuração do host.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificar serviço, porta, firewall e rota de retorno.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Executar desfragmentação do volume, que libera a porta da aplicação automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A falha ocorre depois de alcançar o endereço IP, então a investigação deve considerar serviço, porta, firewall e rota de retorno. Uma resposta a ping não comprova disponibilidade de uma porta TCP.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Linux, a permissão de leitura sobre um diretório permite, por si só e em qualquer situação, abrir todo arquivo nele, mesmo que o usuário não tenha permissão de travessia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A leitura do diretório permite listar nomes, mas a travessia exige permissão x. O acesso a um arquivo depende também das permissões do próprio arquivo e dos diretórios no caminho.",
+      "section": "2. Contas, grupos e controle de acesso",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao adicionar um servidor Windows a uma ferramenta de administração remota, a conectividade e a autenticação continuam sendo necessárias para acessar os recursos do host.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma interface de administração remota não elimina requisitos de rede, credenciais e permissões. O Windows Admin Center, por exemplo, adiciona uma conexão de servidor e usa credenciais para conectar quando solicitado.",
+      "section": "1. Operação, funções e acesso administrativo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em qual situação a autenticação SSH por chave é operacionalmente útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para habilitar todas as unidades systemd no boot sem alterar sua configuração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Para substituir regras de firewall e tornar qualquer serviço acessível pela internet.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para conceder automaticamente privilégios de root a toda conta que possua uma chave.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para restaurar arquivos apagados sem backup após uma falha de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para acesso SSH remoto, protegendo a chave privada e limitando chaves autorizadas.",
+          "correct": true
+        }
+      ],
+      "explanation": "A chave autentica uma sessão SSH sem depender apenas de senha, desde que configurada e protegida. Ela não contorna firewall, não concede root por si só e não substitui backup.",
+      "section": "1. Operação, funções e acesso administrativo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando `df -h` mostra o espaço usado e disponível em sistemas de arquivos montados, enquanto `du` ajuda a estimar o consumo de diretórios.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. São consultas complementares: df resume sistemas de arquivos e du percorre arquivos e diretórios para estimar seu consumo de armazenamento.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O endereço reservado em um escopo DHCP e a exclusão DHCP têm o mesmo efeito: ambos proíbem o cliente correspondente de usar o endereço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma exclusão retira endereços da distribuição dinâmica; uma reserva associa um endereço a determinado cliente para que ele receba aquele endereço conforme a configuração do servidor.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização habilita DHCP failover entre dois servidores Windows. Qual resultado essa relação busca oferecer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sincronizar automaticamente todo o conteúdo de arquivos dos servidores em um volume de backup.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sincronizar escopos e concessões para manter continuidade.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Converter os dois servidores em um único computador e dispensar configuração de rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Replicar zonas DNS e substituir a autorização de servidores DHCP no domínio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Garantir concessão simultânea do mesmo endereço a clientes diferentes em caso de falha.",
+          "correct": false
+        }
+      ],
+      "explanation": "DHCP failover mantém informações de escopo e concessões entre parceiros para dar continuidade ao atendimento. As bases permanecem independentes e são sincronizadas; a configuração também evita entregar a mesma concessão a clientes diferentes quando os parceiros perdem comunicação.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em distribuição Linux com firewalld, `firewall-cmd` é uma ferramenta administrativa para consultar ou configurar regras do firewall.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Em sistemas que utilizam firewalld, firewall-cmd administra configuração e regras. A presença e o comportamento dependem da distribuição e do serviço de firewall adotado.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra de firewall deve abrir somente o tráfego necessário ao serviço e à origem previstos, em vez de liberar indiscriminadamente todas as portas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Restringir protocolo, porta, perfil e origem reduz a superfície de exposição e permite que a política reflita a necessidade real do serviço.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual procedimento oferece evidência prática de que uma política de backup atende a recuperação prevista?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conferir apenas se o software de backup exibiu uma mensagem de conclusão sem erros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Restaurar uma cópia de teste e conferir dados e duração.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Manter todas as cópias no mesmo volume dos arquivos originais para facilitar acesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir testes por replicação contínua para impedir qualquer falha lógica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Calcular apenas o espaço livre do servidor, sem abrir ou recuperar cópias.",
+          "correct": false
+        }
+      ],
+      "explanation": "A restauração de teste demonstra que a cópia pode ser lida e usada e permite medir os objetivos de recuperação. Uma mensagem de sucesso ou réplica atualizada, isoladamente, não comprova recuperação de dados e serviço.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No RHEL, a política SELinux pode negar uma operação mesmo quando as permissões tradicionais de usuário, grupo e outros parecem permiti-la.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. SELinux é uma camada MAC além do controle DAC. A análise deve considerar rótulos e política, e as negações podem ser examinadas nos registros de auditoria.",
+      "section": "2. Contas, grupos e controle de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após alterar um arquivo de unidade systemd fornecido por um pacote, qual prática administrativa é mais apropriada para manter a alteração local e reaplicável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Editar o executável do serviço e reiniciar o kernel para registrar a mudança.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Editar diretamente o arquivo do pacote, presumindo que atualizações o preservarão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar permissões de todos os arquivos do pacote para permitir leitura global.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar um drop-in em /etc e recarregar a configuração do systemd.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Criar outro usuário com UID igual ao PID para substituir a configuração da unidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "Drop-ins em /etc/systemd/system preservam ajustes administrativos separados dos arquivos instalados por pacotes. Depois da alteração, daemon-reload solicita ao gerenciador que releia as unidades.",
+      "section": "3. Serviços, processos, inicialização e logs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Hyper-V e Failover Clustering tornam dispensáveis o monitoramento do host, o planejamento de recursos e a cópia de segurança das máquinas virtuais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Virtualização e cluster oferecem recursos operacionais, mas continuam exigindo gestão de host, redes, armazenamento, capacidade, quorum e backup. Cluster busca disponibilidade de cargas configuradas e não equivale a cópia histórica recuperável.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um host Linux está respondendo a ping, mas o cliente não acessa SSH. O ping, sozinho, confirma que o daemon SSH está ativo e aceita conexões.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Ping testa resposta ICMP quando permitida, não o estado do daemon SSH nem a porta TCP usada pelo serviço. Verifique unidade, escuta, porta, firewall e rota de retorno.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador suspeita de consumo elevado de memória em Windows Server. Qual abordagem inicial é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Instalar a função DNS, que libera automaticamente a memória ocupada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apagar logs System e Application antes de observar qual processo consome memória.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar todas as permissões NTFS para controle total e medir novamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Examinar processos e recursos com ferramentas de monitoramento.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar o firewall, que converte memória comprometida em memória livre.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ferramentas de processos e monitoramento permitem identificar consumo por processo e correlacionar com recursos do servidor. Apagar logs ou mudar permissões não diagnostica pressão de memória e pode agravar a investigação.",
+      "section": "3. Serviços, processos, inicialização e logs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema Linux, `usermod -aG equipe ana` acrescenta a usuária ao grupo suplementar equipe sem substituir os demais grupos suplementares indicados na conta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A opção -a, combinada com -G, anexa o grupo suplementar. Sem -a, -G pode substituir a lista suplementar existente; convém conferir o resultado com id e observar que sessões já abertas podem não refletir a nova associação.",
+      "section": "2. Contas, grupos e controle de acesso",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que distingue um endereço excluído de um endereço reservado na configuração DHCP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A exclusão e a reserva são sinônimos e não possuem efeitos diferentes no escopo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A exclusão associa o endereço a um cliente; a reserva impede qualquer cliente de recebê-lo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A exclusão configura DNS reverso; a reserva define as permissões NTFS do cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A exclusão entrega endereço permanente; a reserva torna obrigatório usar endereço aleatório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exclusão evita distribuição; reserva destina endereço ao cliente.",
+          "correct": true
+        }
+      ],
+      "explanation": "Exclusões retiram endereços da alocação dinâmica geral; reservas destinam um endereço a um cliente identificado, conforme a configuração do servidor. Confundir as duas regras pode causar endereço não entregue ou entregue ao equipamento errado.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Permissões NTFS podem ser herdadas de diretórios superiores, e a análise de acesso deve considerar também as entradas aplicáveis aos grupos do usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. ACLs NTFS podem conter permissões herdadas e explícitas. A avaliação considera a identidade e os grupos aplicáveis, além das regras de precedência entre concessões e negações.",
+      "section": "2. Contas, grupos e controle de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ação é apropriada antes de aplicar atualizações em um servidor que sustenta serviço importante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desabilitar todos os logs e o firewall para evitar que a atualização seja registrada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar pacotes sem verificar repositório, armazenamento ou dependências do serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Planejar janela e retorno, atualizar e validar o serviço.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Substituir os backups por um snapshot local e presumir que toda atualização seja reversível.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atualizar primeiro a produção e usar o resultado como único teste de compatibilidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "Atualização de servidor precisa de planejamento operacional, conhecimento de dependências, janela compatível e procedimento de retorno. Após aplicar, confirme estado, logs e funcionamento do serviço; não presuma que toda mudança seja reversível.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O processo de falha de um serviço e os eventos de sistema registrados no período podem ser correlacionados por horário e origem para reduzir hipóteses no diagnóstico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Correlacionar evento, serviço, processo e horário ajuda a relacionar o sintoma com dependência, alteração ou falha concreta, em vez de reiniciar sem evidência.",
+      "section": "3. Serviços, processos, inicialização e logs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao restringir um diretório Linux para que somente seu proprietário o liste e atravesse, qual modo numérico tradicional corresponde a rwx------?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "755, pois grupo e outros recebem leitura e travessia além do proprietário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "700, pois proprietário tem rwx e grupo e outros não recebem permissões.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "644, pois diretórios usam leitura e escrita sem necessidade de travessia.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "777, pois somente o proprietário recebe execução nesse modo numérico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "600, pois o dígito inicial concede execução ao proprietário e leitura a todos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada dígito combina leitura (4), escrita (2) e execução (1): rwx vale 7 e --- vale 0. Assim rwx------ corresponde a 700. Para diretório, o x do proprietário permite atravessá-lo.",
+      "section": "2. Contas, grupos e controle de acesso",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A replicação contínua pode propagar também exclusão ou corrupção, razão pela qual não deve ser considerada, por si só, um histórico de backup.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Replicação mantém cópias sincronizadas para continuidade, mas pode transportar alterações destrutivas. Uma política de backup preserva pontos recuperáveis e deve ser testada.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer saber se um caminho de armazenamento Linux corresponde a uma montagem ativa e quais dispositivos de bloco existem. Qual combinação ajuda a inspecionar a situação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar findmnt para montagens e lsblk para dispositivos e partições.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar journalctl para listar partições e chmod para localizar pontos montados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar usermod para identificar discos e systemctl para criar partições.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar getent para montar volumes e passwd para listar sistemas de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar ssh para consultar uso por diretório e ip route para formatar discos.",
+          "correct": false
+        }
+      ],
+      "explanation": "findmnt consulta a hierarquia de montagens e lsblk apresenta dispositivos de bloco, partições e relações. Essa distinção ajuda quando o espaço existe no dispositivo, mas o caminho esperado não está montado nele.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema Linux com systemd, `systemctl daemon-reload` reinicia todos os serviços ativos e arquiva automaticamente os logs.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. daemon-reload faz o systemd reler definições de unidades, mas não reinicia automaticamente todos os serviços ativos nem arquiva o journal. Uma alteração em uma unidade pode exigir ação específica sobre o serviço.",
+      "section": "3. Serviços, processos, inicialização e logs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando o servidor DHCP falha em ambiente Active Directory, qual condição é relevante além da existência de escopos configurados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar se todos os clientes têm conta no grupo local Administrators do servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Verificar se o servidor está autorizado no Active Directory e se atende à rede correta.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Confirmar que o serviço DNS está desinstalado para evitar resolução concorrente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar a rede IPv4 do servidor e criar uma zona reversa para cada estação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar as permissões NTFS do diretório Windows em todos os clientes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em uma implantação com Active Directory, a documentação Microsoft prevê a autorização do servidor DHCP. Ainda é necessário conferir conectividade, escopo e opções da sub-rede atendida.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Windows, uma conta administrativa compartilhada por toda a equipe melhora a atribuição individual das ações e reduz a exposição operacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma credencial compartilhada dificulta identificar qual pessoa executou uma operação e amplia o impacto de seu comprometimento. Contas individuais e privilégios concedidos conforme a tarefa favorecem rastreabilidade e menor exposição.",
+      "section": "2. Contas, grupos e controle de acesso",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor tem sistema de arquivos quase cheio. Qual resposta de operação separa melhor o diagnóstico de capacidade do de crescimento de arquivos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conferir df para o volume e du para localizar diretórios que concentram consumo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Reiniciar o host e presumir que os arquivos ocupados desaparecerão da montagem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar o endereço DNS e interpretar a resposta como espaço de disco recuperado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar todos os UIDs e GIDs para que o sistema de arquivos expanda automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar SELinux, que converte blocos usados em espaço livre sem alterar dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "df mostra a situação do sistema de arquivos e du ajuda a localizar diretórios com grande consumo. Depois de identificar a causa, pode-se aplicar política de retenção, limpeza controlada ou expansão planejada, sem apagar dados às cegas.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Windows, o firewall filtra conexões de entrada, mas não permite criar regras para controlar tráfego de saída do servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O Windows Defender Firewall admite regras de entrada e também de saída, que podem ser associadas a perfis e condições. A política deve refletir os serviços e destinos necessários, em vez de presumir que o tráfego de saída não é controlável.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "RTO define a perda de dados temporalmente aceitável, enquanto RPO determina o prazo máximo para restabelecer o serviço após uma interrupção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os conceitos foram invertidos: RTO expressa o objetivo de tempo para restabelecer o serviço, enquanto RPO indica a perda de dados aceitável, normalmente medida em tempo. Testes de restauração verificam se ambos os objetivos são alcançáveis.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação usa o nome db.interno e não conecta; a consulta DNS retorna o endereço esperado. Qual próximo teste diferencia serviço indisponível de erro de resolução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar imediatamente o UID de todos os usuários porque DNS respondeu corretamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Testar conectividade ao endereço e à porta da aplicação, e conferir o serviço e o firewall.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apagar o escopo DHCP do servidor para reconfigurar a porta de banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar a máscara de rede sem avaliar rota, porta ou configuração do host.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar apt update no cliente, que reinicia o serviço remoto e corrige o firewall.",
+          "correct": false
+        }
+      ],
+      "explanation": "Como a resolução já retorna o endereço esperado, verifique a conectividade IP e a porta da aplicação, além do estado de escuta, firewall e rota de retorno. Isso isola a camada de serviço sem alterar DNS funcional.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Linux, `chmod` altera permissões tradicionais do arquivo ou diretório, enquanto `chown` altera seu proprietário e, conforme o uso, grupo associado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. chmod muda bits de permissão; chown muda propriedade. A autorização para executar essas alterações depende da identidade e das regras do sistema.",
+      "section": "2. Contas, grupos e controle de acesso",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Windows Admin Center permite administrar recursos como visualização de eventos, serviços, firewall e armazenamento em uma conexão de servidor, conforme ferramentas disponíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação lista ferramentas de eventos, firewall, usuários locais, serviços, armazenamento, atualizações e outros recursos. Disponibilidade pode variar por solução e extensão instalada.",
+      "section": "1. Operação, funções e acesso administrativo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma falha de serviço Linux ocorre apenas durante a inicialização atual. Qual consulta limita o journal a mensagens dessa inicialização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`journalctl -b`, que restringe a consulta às mensagens do boot atual.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`systemctl enable -b`, que filtra logs sem alterar o serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`chmod -b`, que exibe apenas mensagens de kernel da inicialização atual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`apt upgrade -b`, que lê o journal sem instalar pacotes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`df -b`, que consulta mensagens persistentes por unidade systemd.",
+          "correct": false
+        }
+      ],
+      "explanation": "A opção -b de journalctl seleciona mensagens associadas a uma inicialização. É possível combiná-la com filtros de unidade para reduzir a consulta ao serviço e período relevantes.",
+      "section": "3. Serviços, processos, inicialização e logs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deve reduzir a superfície de ataque de servidores. Qual medida operacional se alinha ao princípio do menor privilégio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar uma conta administrativa compartilhada para toda a equipe e desativar os registros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover funções não utilizadas, limitar contas administrativas e permitir somente tráfego necessário.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Conceder controle total a todos os usuários para evitar solicitações de acesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Abrir todas as portas e confiar exclusivamente em senha de usuário local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar atualizações e auditoria para reduzir atividade do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Remover componentes sem uso, restringir privilégios e limitar tráfego necessário reduz exposição. Contas compartilhadas, permissões amplas e ausência de registros prejudicam segurança e rastreabilidade.",
+      "section": "1. Operação, funções e acesso administrativo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Linux sempre usa `apt` para instalar pacotes, inclusive em distribuições da família Red Hat Enterprise Linux.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O gerenciador de pacotes varia por família de distribuição. Debian e derivados usam apt/dpkg; RHEL e derivados usam dnf/rpm. A ferramenta deve corresponder à distribuição administrada.",
+      "section": "1. Operação, funções e acesso administrativo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve de modo correto o papel de Failover Clustering no Windows Server?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Agrupar servidores para suportar disponibilidade de cargas configuradas, com nós e recursos gerenciados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar automaticamente backup histórico imutável de cada arquivo sem configuração adicional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir Active Directory, DNS e todas as redes de armazenamento por um único serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar a mesma carga em todos os nós sem monitorar quorum ou recursos compartilhados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter todos os servidores associados em uma única máquina sem nome ou endereço de rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Failover Clustering agrupa servidores em uma infraestrutura de tolerância a falhas para cargas e funções configuradas. A operação requer recursos e dependências adequados; não substitui backup, DNS, identidade, monitoramento nem planejamento de quorum.",
+      "section": "4. Rede, armazenamento, atualização e continuidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Linux, as permissões tradicionais do sistema de arquivos são a única camada que pode bloquear acesso a um arquivo em toda distribuição e configuração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. ACLs podem refinar permissões tradicionais e módulos como SELinux acrescentam política obrigatória. Montagem, identidade, aplicação e outros controles também podem afetar o acesso.",
+      "section": "2. Contas, grupos e controle de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor Linux foi atualizado e reiniciado; o daemon do serviço está ativo, mas clientes não conectam. Qual verificação é mais completa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Considerar o estado active como prova suficiente de que DNS, porta e permissões estão corretos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conferir porta em escuta, firewall, rota, logs do serviço e teste de cliente pela rede.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apagar o journal para limpar a falha e aguardar que os clientes atualizem seus endereços.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar a unidade no boot, pois isso abre automaticamente a porta para conexões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o UID do daemon sem examinar a política de acesso ou arquivos de configuração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Estado ativo não garante que o serviço esteja escutando na interface e porta esperadas nem que o caminho de rede esteja liberado. Correlacione logs, escuta, firewall, DNS/rota e um teste de cliente.",
+      "section": "3. Serviços, processos, inicialização e logs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Manage Servers with Windows Admin Center",
+      "publisher": "Microsoft Learn",
+      "reference": "Conexões de servidores e ferramentas de administração remota",
+      "url": "https://learn.microsoft.com/en-us/windows-server/manage/windows-admin-center/use/manage-servers",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Windows Admin Center frequently asked questions",
+      "publisher": "Microsoft Learn",
+      "reference": "Recursos disponíveis e relação complementar com RSAT",
+      "url": "https://learn.microsoft.com/en-us/windows-server/manage/windows-admin-center/understand/faq",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Install and configure DHCP Server on Windows Server",
+      "publisher": "Microsoft Learn",
+      "reference": "Instalação, autorização em Active Directory e escopos DHCP",
+      "url": "https://learn.microsoft.com/en-us/windows-server/networking/technologies/dhcp/quickstart-install-configure-dhcp-server",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "DHCP failover in Windows Server",
+      "publisher": "Microsoft Learn",
+      "reference": "Parceiros, sincronização de concessões e modos de failover",
+      "url": "https://learn.microsoft.com/en-us/windows-server/networking/technologies/dhcp/dhcp-failover",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Managing users and groups",
+      "publisher": "Red Hat Documentation, RHEL 9",
+      "reference": "UID, GID, grupos, proprietário e permissões de arquivos",
+      "url": "https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/configuring_basic_system_settings/managing-users-and-groups_configuring-basic-system-settings",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Using SELinux",
+      "publisher": "Red Hat Documentation, RHEL 9",
+      "reference": "SELinux, controle DAC/MAC, systemd e registros AVC",
+      "url": "https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html-single/using_selinux/using_selinux",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Debian Reference: GNU/Linux tutorials",
+      "publisher": "Projeto Debian",
+      "reference": "Permissões, umask e administração de grupos",
+      "url": "https://www.debian.org/doc/manuals/debian-reference/ch01.en.html",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "journalctl",
+      "publisher": "freedesktop.org",
+      "reference": "Consulta e filtragem do journal do systemd",
+      "url": "https://www.freedesktop.org/software/systemd/man/256/journalctl.html",
+      "accessedAt": "2026-11-01"
+    }
+  ]
+}

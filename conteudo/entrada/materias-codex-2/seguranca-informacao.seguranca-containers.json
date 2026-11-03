@@ -1,0 +1,820 @@
+{
+  "id": "seguranca-informacao.seguranca-containers",
+  "subject": "Segurança da Informação",
+  "title": "Segurança de containers",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Segurança de containers",
+    "Segurança em containers de aplicações",
+    "Contêineres e isolamento de processos",
+    "Proteção de containers Linux",
+    "Hardening de containers Docker",
+    "Segurança de imagens de containers",
+    "Controles de segurança Kubernetes",
+    "Proteção de workloads em containers",
+    "Riscos de containers e mitigação",
+    "Segurança da cadeia de imagens"
+  ],
+  "scope": {
+    "covers": "Fundamentos de segurança de containers; isolamento por namespaces e cgroups e limites em relação a máquinas virtuais; ameaças no host, daemon/runtime, imagens, registries, orquestrador e aplicações; redução de superfície e privilégios; imagens confiáveis, atualizações, varredura e segredos; execução não privilegiada, capabilities, seccomp, AppArmor/SELinux, sistema de arquivos somente leitura, rede, volumes e recursos; controles Kubernetes SecurityContext e Pod Security Standards/Admission; monitoramento, resposta e defesa em profundidade.",
+    "excludes": "Administração completa de Kubernetes, exploração prática de vulnerabilidades, sintaxe detalhada de todos os runtimes, políticas específicas de provedores de nuvem e certificação de imagens por ferramentas particulares."
+  },
+  "theoryTitle": "Proteção do ciclo de vida dos containers",
+  "chapters": [
+    {
+      "title": "1. O que o container isola",
+      "markdown": "### O problema que este assunto resolve\n\nContainers empacotam aplicação e dependências para execução consistente, mas não equivalem automaticamente a máquinas virtuais. Em containers Linux comuns, os processos compartilham o kernel do host. Namespaces oferecem visões isoladas de recursos como processos, rede e montagens; cgroups contabilizam e limitam consumo de CPU, memória e outros recursos. Esses mecanismos reduzem interferência, mas um erro no kernel, uma configuração permissiva ou acesso a recursos do host pode atravessar a fronteira esperada.\n\n> **Siglas e termos deste capítulo**\n> - **Container**: processo isolado com sistema de arquivos, rede e parâmetros configurados pelo runtime.\n> - **Imagem**: artefato imutável em camadas usado para criar containers.\n> - **Runtime**: componente que prepara e executa containers, como o runtime chamado pelo Docker ou pelo Kubernetes.\n> - **Namespace**: mecanismo do kernel que fornece uma visão isolada de determinado recurso.\n> - **Cgroup**: mecanismo para contabilizar e limitar recursos de grupos de processos.\n> - **Escape**: quebra de isolamento que permite alcançar recursos do host ou de outros workloads.\n\n### Fronteiras de confiança\n\nA segurança precisa considerar mais que o processo dentro do container. O host fornece o kernel; o daemon ou runtime controla criação, montagem de volumes e rede; a imagem introduz sistema operacional e bibliotecas; o registry distribui artefatos; e o orquestrador decide onde e com quais permissões cada Pod roda. Uma aplicação comprometida pode tentar abusar de cada uma dessas fronteiras.\n\n| Camada | Exemplo de risco | Controle útil |\n| --- | --- | --- |\n| Host e kernel | Falha explorável no kernel compartilhado | Atualizar kernel, limitar workloads e aplicar isolamento adicional |\n| Runtime e daemon | Usuário não confiável controla daemon root | Restringir acesso ao socket/API e manter runtime atualizado |\n| Imagem e registry | Biblioteca vulnerável ou imagem adulterada | Proveniência, revisão, varredura e política de admissão |\n| Configuração do workload | Processo root, modo privilegiado, hostPath | SecurityContext restritivo e revisão do manifesto |\n| Aplicação e dados | Segredo exposto ou serviço vulnerável | Segredos fora da imagem, menor privilégio e observabilidade |\n\nO socket do daemon Docker é especialmente sensível: quem consegue controlá-lo pode solicitar operações poderosas, inclusive montar diretórios do host em containers. Portanto, dar acesso ao socket a uma aplicação ou usuário equivale a conceder controle elevado sobre o host, mesmo que o container da aplicação pareça comum.\n\n### Container não é uma VM pequena\n\nUma VM normalmente apresenta um kernel convidado separado sobre um hipervisor; container tradicional usa o kernel do host. Por isso, atualizar somente a imagem não corrige falhas do kernel, e uma falha de isolamento do kernel pode afetar vários containers. Sandboxes como gVisor ou máquinas virtuais leves podem adicionar uma fronteira, mas não dispensam configuração, atualização ou controle de acesso.\n\n### Como cai na prova\n\n- Se a afirmação disser que cada container possui kernel próprio, está descrevendo uma VM, não o container Linux usual.\n- Namespaces isolam visões; cgroups limitam e contabilizam consumo. São mecanismos distintos e complementares.\n- O socket do daemon e a montagem de diretórios do host são caminhos de alto impacto, não simples conveniências administrativas."
+    },
+    {
+      "title": "2. Imagens e cadeia de fornecimento",
+      "markdown": "### O problema que este assunto resolve\n\nUma imagem pode carregar falhas conhecidas, ferramentas desnecessárias, configurações inseguras e credenciais esquecidas. Como containers são criados repetidamente a partir dela, o defeito se replica em cada ambiente. Segurança de imagem começa antes do deploy e continua enquanto o artefato estiver em uso.\n\n> **Siglas e termos deste capítulo**\n> - **Registry**: serviço que armazena e distribui imagens.\n> - **Tag**: nome mutável que aponta para uma versão de imagem.\n> - **Digest**: identificador derivado do conteúdo, útil para fixar precisamente o artefato.\n> - **SBOM**: inventário de componentes de software incluídos no artefato.\n> - **Proveniência**: evidência sobre origem e processo de construção do artefato.\n> - **Segredo**: credencial, chave ou token que deve ter acesso controlado e ciclo de rotação.\n\n### Um fluxo de construção confiável\n\nParta de imagens-base mantidas e necessárias; prefira imagens mínimas quando compatíveis; fixe uma versão ou digest revisado em vez de depender de uma tag flutuante como latest; atualize pacotes e bibliotecas; construa em pipeline controlado; faça varredura de vulnerabilidades e verifique licenças e componentes; produza inventário e evidências de origem; assine ou valide artefatos conforme a política do ambiente; e só permita implantação de imagens aprovadas. A varredura encontra riscos conhecidos, mas não prova ausência de falhas nem substitui revisão de configuração e código.\n\nImagens imutáveis facilitam reproduzir exatamente o artefato testado. Uma tag pode ser movida para apontar a outro conteúdo, enquanto um digest identifica o conteúdo específico. Em implantação sensível, fixar o digest reduz a chance de uma atualização inesperada entre validação e execução.\n\n### Segredos não são conteúdo de imagem\n\nSenha colocada em Dockerfile, argumento de build, camada de imagem ou repositório pode persistir mesmo que seja apagada numa camada posterior. Passe credenciais por mecanismo próprio de segredo no momento de execução, limite quais workloads podem lê-las, evite registrá-las em logs e planeje rotação. Em Kubernetes, Secret é objeto para distribuir dados sensíveis, mas requer controles de acesso e proteção do armazenamento do cluster; sua existência não torna o dado automaticamente seguro.\n\n### Corrigir vulnerabilidades sem improviso\n\nAo detectar pacote vulnerável, identifique imagens e workloads afetados, avalie a exposição, reconstrua com versão corrigida e publique novo artefato, depois implante e confirme que a versão antiga deixou de rodar. Exceções temporárias devem ser documentadas, limitadas e acompanhadas. Desabilitar a varredura ou ocultar o alerta elimina visibilidade, não o risco.\n\n### Como cai na prova\n\n- A imagem deve ser tratada como software sujeito a inventário, atualização, revisão e controle de origem.\n- Tag mutável e digest imutável não oferecem a mesma garantia de identidade.\n- Remover um segredo numa camada posterior não garante que ele desapareceu das camadas anteriores.\n- Scanner é um controle de detecção de vulnerabilidades conhecidas; não é certificado de segurança total."
+    },
+    {
+      "title": "3. Endurecimento do runtime",
+      "markdown": "### O problema que este assunto resolve\n\nUma imagem correta pode ser executada com privilégios excessivos. O runtime e o manifesto determinam identidade do processo, capacidades, acesso a arquivos, chamadas de sistema, rede e recursos. A regra prática é conceder somente o necessário e tornar explícitas as restrições relevantes.\n\n> **Siglas e termos deste capítulo**\n> - **UID/GID**: identificadores de usuário e grupo usados pelo sistema operacional.\n> - **Capability**: privilégio Linux específico, mais granular que conceder todas as capacidades de root.\n> - **Seccomp**: filtro de chamadas de sistema que restringe o que um processo pode solicitar ao kernel.\n> - **AppArmor/SELinux**: mecanismos de controle de acesso obrigatório que restringem ações por perfil ou rótulo.\n> - **Read-only root filesystem**: raiz do container montada sem escrita pelo processo.\n> - **HostPath**: volume que expõe um caminho do sistema de arquivos do nó ao Pod.\n\n### Identidade e privilégios mínimos\n\nExecute o processo como usuário não root sempre que possível e configure UID/GID coerentes com permissões dos arquivos. No Kubernetes, runAsNonRoot exige execução não root, enquanto runAsUser e runAsGroup especificam identidade. A configuração do container pode prevalecer sobre configuração equivalente do Pod quando houver sobreposição. Evite privileged: esse modo amplia muito o acesso do container ao host. Desative escalada de privilégios com allowPrivilegeEscalation false quando compatível.\n\nLinux capabilities dividem alguns poderes tradicionalmente associados a root. Remova as que não forem necessárias e adicione somente a capacidade específica justificada. O perfil Restricted do Kubernetes exige remover ALL e admite apenas NET_BIND_SERVICE como adição. Seccomp pode usar RuntimeDefault ou perfil Localhost para restringir chamadas; AppArmor e SELinux acrescentam controles sobre operações e acesso a objetos. Esses controles atuam em camadas diferentes.\n\n### Arquivos, volumes e recursos\n\nTorne o sistema de arquivos raiz somente leitura quando a aplicação não precisar gravar nele. Se precisar gravar, direcione escrita a volumes específicos, com permissões e capacidade adequadas. Evite montar o host com hostPath; se inevitável, use caminho e modo estritamente necessários e não exponha socket do runtime. Dados persistentes devem ter permissões corretas e não devem ser compartilhados entre workloads sem necessidade.\n\nDefina requests e limits coerentes para CPU e memória. Limites evitam que um workload consuma recursos sem controle; limites de memória muito baixos podem causar encerramentos e limites de CPU podem afetar latência, então dimensione com observação. Cgroup não impede abuso de credenciais nem vulnerabilidade de aplicação: é controle de disponibilidade, não substituto de autorização.\n\n### Rede e superfície de ataque\n\nNão publique portas sem necessidade. Separe workloads por sensibilidade, limite tráfego entre serviços com políticas de rede disponíveis no ambiente e exponha apenas os pontos de entrada necessários. Evite hostNetwork, hostPID e hostIPC para workloads comuns porque compartilham namespaces do nó. Restrinja acesso administrativo ao runtime e ao plano de controle; API de orquestração é uma fronteira privilegiada.\n\n### Como cai na prova\n\n- Root dentro do container não é sempre root irrestrito no host, mas continua sendo privilégio excessivo e o risco cresce com capabilities, mounts e modo privilegiado.\n- readOnlyRootFilesystem não proíbe todo armazenamento: volumes separados ainda podem ser graváveis.\n- Seccomp filtra syscalls; capabilities controlam privilégios Linux específicos; AppArmor/SELinux aplicam políticas de acesso.\n- Requests e limits protegem capacidade e disponibilidade, não confidencialidade ou integridade."
+    },
+    {
+      "title": "4. Kubernetes e operação",
+      "markdown": "### O problema que este assunto resolve\n\nEm um cluster, muitas equipes criam Pods por meio de Deployments, Jobs e outros objetos. Uma política aplicada de modo uniforme evita que cada equipe precise lembrar individualmente todos os controles básicos. A política deve ser compatível com a necessidade do workload e acompanhada por monitoramento e resposta.\n\n> **Siglas e termos deste capítulo**\n> - **Pod**: menor unidade de execução agendada pelo Kubernetes, que pode conter um ou mais containers.\n> - **SecurityContext**: parâmetros de segurança aplicados ao Pod ou a um container.\n> - **Pod Security Standards (PSS)**: três níveis de política definidos pelo Kubernetes.\n> - **Pod Security Admission (PSA)**: controlador integrado que aplica esses padrões por namespace.\n> - **RBAC**: controle de autorização baseado em papéis para ações na API.\n> - **Admission**: etapa do servidor de API que pode aceitar, rejeitar ou registrar objetos solicitados.\n\n### Níveis e modos de Pod Security\n\nOs níveis são cumulativos em rigor: Privileged não impõe restrições do padrão; Baseline bloqueia configurações conhecidas por facilitar escalada, como compartilhamento de namespaces do host e containers privilegiados; Restricted aplica endurecimento mais rigoroso, incluindo execução não root, seccomp permitido e remoção de capabilities. Esses padrões não substituem RBAC nem políticas de rede.\n\nO Pod Security Admission configura modos por namespace usando labels. enforce rejeita Pods que violem o nível; audit permite a criação e registra anotação de auditoria; warn permite a criação e apresenta aviso ao usuário. Um namespace pode usar níveis distintos por modo. Para workloads criados por Deployment ou Job, audit e warn também ajudam a apontar problemas no template; enforce é aplicado ao Pod resultante. Uma implantação gradual pode começar com avisos e auditoria, corrigir workloads e depois exigir enforce.\n\n### Acesso à API, contas de serviço e dados\n\nUse ServiceAccount específica para cada workload quando necessário, conceda somente permissões RBAC indispensáveis e não monte token automaticamente se o processo não acessa a API. Criar, alterar ou apagar workloads pode dar capacidade indireta de executar código nos nós; por isso essas permissões devem ser concedidas cuidadosamente. Restrinja quem pode ler Secrets e registre operações administrativas.\n\n### Monitoramento e resposta\n\nColete eventos do orquestrador, logs da aplicação e do runtime, alterações de configuração, decisões de admissão e alertas de imagem. Preserve horário e contexto para investigação. Em suspeita de comprometimento, contenha o workload (por exemplo, removendo tráfego ou isolando o namespace conforme o plano), preserve evidências necessárias, revogue credenciais expostas, reconstrua a partir de fonte confiável, implante imagem corrigida e verifique persistência ou movimento lateral. Reiniciar sozinho pode apagar sinais sem corrigir a causa.\n\n### Como cai na prova\n\n- Confundir os três níveis com os três modos é erro: níveis definem rigor; modos definem ação diante da violação.\n- PSA atua na admissão de Pods; RBAC decide quem pode chamar ações da API.\n- A segurança continua após o deploy: monitoramento, correção e resposta fecham o ciclo."
+    }
+  ],
+  "summary": "Containers Linux compartilham o kernel do host e dependem de camadas de isolamento e configuração. Proteja host e runtime, trate imagens como artefatos da cadeia de fornecimento, remova privilégios desnecessários, restrinja filesystem, syscalls, capabilities, rede e recursos, e aplique políticas coerentes no orquestrador. Em Kubernetes, SecurityContext configura o workload, Pod Security Standards definem níveis e Pod Security Admission aplica modos por namespace; RBAC controla ações na API. Combine prevenção, varredura, atualização, logging e resposta.",
+  "flashcards": [
+    { "front": "Containers Linux tradicionais compartilham o quê com o host?", "back": "O kernel. Namespaces e outros controles isolam visões e recursos, mas não fornecem um kernel convidado próprio." },
+    { "front": "Qual a diferença central entre namespace e cgroup?", "back": "Namespace isola a visão de recursos; cgroup contabiliza e limita consumo de recursos." },
+    { "front": "Por que o socket do daemon Docker é sensível?", "back": "Quem o controla pode pedir operações privilegiadas, inclusive montar diretórios do host em containers." },
+    { "front": "O que muda entre tag de imagem e digest?", "back": "Tag é referência que pode ser movida; digest identifica o conteúdo específico da imagem." },
+    { "front": "Por que não inserir segredo no Dockerfile?", "back": "O segredo pode persistir em camadas ou no histórico mesmo após remoção numa camada posterior." },
+    { "front": "O que um SBOM registra?", "back": "Um inventário de componentes de software presentes no artefato." },
+    { "front": "A varredura de imagem prova que ela não tem vulnerabilidades?", "back": "Não. Encontra problemas conhecidos e precisa ser combinada com revisão, atualização e outros controles." },
+    { "front": "Para que serve runAsNonRoot?", "back": "Exigir que o processo do container execute sem identidade root." },
+    { "front": "O que faz readOnlyRootFilesystem?", "back": "Impede escrita no filesystem raiz; volumes separados podem continuar graváveis." },
+    { "front": "O que são Linux capabilities?", "back": "Privilégios específicos que podem ser concedidos ou removidos sem entregar todo o conjunto tradicional de root." },
+    { "front": "Qual o papel de seccomp?", "back": "Filtrar chamadas de sistema que o processo pode fazer ao kernel." },
+    { "front": "O que fazem AppArmor e SELinux?", "back": "Aplicam políticas de controle de acesso obrigatório por perfil ou rótulo." },
+    { "front": "O que implica privileged em um container?", "back": "Concede acesso ampliado ao host e contorna controles usuais de isolamento; deve ser evitado em workloads comuns." },
+    { "front": "O que é hostPath no Kubernetes?", "back": "Volume que expõe caminho do sistema de arquivos do nó ao Pod." },
+    { "front": "Quais são os três níveis Pod Security?", "back": "Privileged, Baseline e Restricted, do mais permissivo ao mais restritivo." },
+    { "front": "O que faz o modo enforce do PSA?", "back": "Rejeita Pods que violam o nível de política configurado no namespace." },
+    { "front": "O que faz o modo audit do PSA?", "back": "Permite a criação e registra anotação de auditoria para violações." },
+    { "front": "O que faz o modo warn do PSA?", "back": "Permite a criação e apresenta aviso ao usuário sobre violações." },
+    { "front": "O que o RBAC governa no cluster?", "back": "Quais identidades podem executar ações sobre recursos da API Kubernetes." },
+    { "front": "Quando desabilitar automontagem de token da ServiceAccount?", "back": "Quando o workload não precisa acessar a API Kubernetes." },
+    { "front": "Para que servem requests e limits?", "back": "Requests participam de agendamento e reserva esperada; limits restringem consumo máximo configurado." },
+    { "front": "Por que atualizar o host além da imagem?", "back": "Porque containers compartilham o kernel do host; atualizar pacotes da imagem não corrige falha do kernel." }
+  ],
+  "tips": [
+    "Memorize: namespaces isolam visões; cgroups limitam recursos; ambos usam o kernel compartilhado.",
+    "Na cadeia da imagem, pense em origem, digest, atualização, varredura, inventário e política de implantação.",
+    "No hardening, procure identidade não root, capabilities mínimas, seccomp, filesystem somente leitura e ausência de modo privilegiado.",
+    "Separe os termos Kubernetes: SecurityContext configura; PSS define níveis; PSA aplica por namespace; RBAC autoriza chamadas à API.",
+    "Para risco de indisponibilidade, procure requests, limits e cgroups; para acesso ao host, procure privileged, namespaces e mounts.",
+    "Segredos devem chegar em runtime por mecanismo controlado, com acesso mínimo, logs protegidos e rotação."
+  ],
+  "traps": [
+    "Dizer que container possui kernel isolado: container tradicional compartilha o kernel do host.",
+    "Tratar tag como identificação imutável: tags podem mudar de destino; digest fixa o conteúdo.",
+    "Afirmar que scanner torna imagem segura: scanner identifica vulnerabilidades conhecidas e tem limites.",
+    "Confundir filesystem raiz somente leitura com todos os volumes: volumes próprios podem continuar graváveis.",
+    "Trocar níveis PSS por modos PSA: Privileged/Baseline/Restricted são níveis; enforce/audit/warn são modos.",
+    "Achar que RBAC substitui admissão: RBAC autoriza identidades e PSA aplica restrições ao Pod.",
+    "Tratar root no container como automaticamente inofensivo: capabilities, mounts e acesso ao daemon podem ampliar o impacto.",
+    "Supor que apagar senha numa camada elimina seu histórico: camadas anteriores podem continuar contendo o segredo."
+  ],
+  "activeRecall": [
+    { "question": "Explique por que containers não oferecem o mesmo isolamento de kernel que uma VM.", "answer": "Containers Linux tradicionais compartilham o kernel do host; isolam processos e recursos com mecanismos como namespaces, enquanto uma VM executa kernel convidado próprio sobre hipervisor." },
+    { "question": "Diferencie namespace e cgroup com um exemplo de risco.", "answer": "Namespace dá visão isolada de rede ou processos; cgroup limita CPU ou memória. Isolar a rede não impede um container de consumir memória sem limite." },
+    { "question": "Por que conceder socket Docker a um container de aplicação é perigoso?", "answer": "O cliente pode controlar o daemon e solicitar mounts e criação de containers privilegiados, alcançando recursos do host." },
+    { "question": "Descreva um fluxo de imagem mais confiável.", "answer": "Use base mantida, fixe digest, atualize dependências, construa em pipeline confiável, inventarie e varra componentes, valide origem e permita somente artefato aprovado." },
+    { "question": "Como entregar credencial sem incorporá-la à imagem?", "answer": "Use mecanismo de segredo em runtime, restrinja leitura, evite logs e faça rotação; não a grave em Dockerfile, argumentos ou camadas." },
+    { "question": "Explique como reduzir privilégios no Kubernetes.", "answer": "Execute como não root, impeça escalada, evite privileged, remova capabilities desnecessárias e configure seccomp e controles AppArmor/SELinux compatíveis." },
+    { "question": "O que permanece gravável quando a raiz do container é somente leitura?", "answer": "A raiz não aceita escrita pelo processo, mas volumes montados separadamente podem ser graváveis conforme sua configuração." },
+    { "question": "Diferencie PSS, PSA e RBAC.", "answer": "PSS define níveis de segurança para Pods; PSA aplica esses padrões por namespace na admissão; RBAC autoriza quem realiza ações na API." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Container confundido com máquina virtual", "summary": "Container tradicional compartilha kernel; namespaces e cgroups ajudam no isolamento e na limitação, mas não criam kernel próprio. Runtime, daemon e host são fronteiras críticas." },
+    { "key": "e2", "title": "Imagem considerada confiável só por ter sido publicada", "summary": "Imagens precisam de proveniência, digest, inventário, varredura e atualização. Tag pode mudar e segredo gravado em camada pode persistir." },
+    { "key": "e3", "title": "Privilégio excessivo no runtime", "summary": "Root, privileged, capabilities amplas, host namespaces, hostPath e socket do daemon aumentam o impacto. Aplique menor privilégio e restrinja filesystem e syscalls." },
+    { "key": "e4", "title": "Controles Kubernetes trocados", "summary": "SecurityContext define parâmetros; PSS tem níveis Privileged, Baseline e Restricted; PSA tem modos enforce, audit e warn; RBAC controla acesso à API." },
+    { "key": "e5", "title": "Segurança encerrada no deploy", "summary": "Imagem e workload exigem monitoramento, revisão de eventos, atualização, gestão de credenciais e resposta com contenção, preservação e reconstrução confiável." }
+  ],
+  "questions": [
+    {
+      "statement": "Por que a segurança de um container Linux tradicional depende também da atualização do host?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Porque compartilham o kernel do host, cuja falha pode afetar o isolamento.", "correct": true },
+        { "key": "B", "text": "Porque cada container contém uma cópia do kernel que o host atualiza por sincronização.", "correct": false },
+        { "key": "C", "text": "Porque o kernel só é usado para agendar imagens antes da criação do container.", "correct": false },
+        { "key": "D", "text": "Porque atualizar o host substitui automaticamente todos os pacotes das imagens.", "correct": false },
+        { "key": "E", "text": "Porque namespaces mantêm cópias separadas do kernel para cada aplicação.", "correct": false }
+      ],
+      "explanation": "Containers Linux tradicionais executam processos sobre o kernel do host; namespaces isolam visões, mas não criam kernels independentes. Atualizar somente a imagem não corrige vulnerabilidade do kernel.",
+      "section": "1. O que o container isola",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em relação a namespaces e cgroups usados por containers, assinale a opção correta.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Namespaces medem CPU e cgroups isolam a visão dos processos do host.", "correct": false },
+        { "key": "B", "text": "Namespaces controlam apenas imagens e cgroups verificam suas assinaturas.", "correct": false },
+        { "key": "C", "text": "Ambos criam kernel convidado próprio, dispensando atualizações do host.", "correct": false },
+        { "key": "D", "text": "Cgroups criptografam o tráfego e namespaces armazenam senhas de execução.", "correct": false },
+        { "key": "E", "text": "Namespaces isolam visões de recursos; cgroups contabilizam e limitam consumo.", "correct": true }
+      ],
+      "explanation": "Namespaces oferecem isolamento de visão, como processos, rede e montagens; cgroups organizam contabilização e limites de recursos. Não substituem criptografia, assinatura nem kernel do host.",
+      "section": "1. O que o container isola",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática reduz o risco de um usuário controlar o daemon Docker e alcançar arquivos do host?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Compartilhar o socket com todos os containers para evitar credenciais locais.", "correct": false },
+        { "key": "B", "text": "Executar o daemon dentro de um container com acesso irrestrito ao host.", "correct": false },
+        { "key": "C", "text": "Restringir quem controla o socket/API e revisar operações que montam diretórios.", "correct": true },
+        { "key": "D", "text": "Permitir o socket apenas em modo leitura, mantendo chamadas administrativas abertas.", "correct": false },
+        { "key": "E", "text": "Desativar logs do daemon para que pedidos maliciosos não revelem caminhos.", "correct": false }
+      ],
+      "explanation": "O controle do daemon permite solicitar operações poderosas, como montar caminhos do host. Restringir a API e os usuários autorizados reduz essa via de escalada; ocultar logs ou compartilhar o socket amplia o risco.",
+      "section": "1. O que o container isola",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe compara container Linux tradicional e máquina virtual. Qual diferença deve orientar a análise de isolamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A VM sempre compartilha o kernel do host, enquanto o container carrega hipervisor.", "correct": false },
+        { "key": "B", "text": "O container oferece kernel próprio, mas a VM usa namespaces do host.", "correct": false },
+        { "key": "C", "text": "Ambos têm kernel próprio, mas apenas o container divide a memória física.", "correct": false },
+        { "key": "D", "text": "A VM costuma executar kernel convidado; o container tradicional usa o kernel do host.", "correct": true },
+        { "key": "E", "text": "A diferença é só o formato da imagem, sem impacto na fronteira de isolamento.", "correct": false }
+      ],
+      "explanation": "Uma VM normalmente executa seu kernel convidado sob um hipervisor; container tradicional compartilha o kernel do host e usa mecanismos de isolamento do sistema operacional. Isso muda a análise de falhas e contenção.",
+      "section": "1. O que o container isola",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma tag de imagem é imutável e um digest pode ser movido para apontar a outro conteúdo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A tag é uma referência nomeada que pode ser atualizada; o digest identifica o conteúdo específico. Fixar o digest ajuda a executar exatamente o artefato validado.",
+      "section": "2. Imagens e cadeia de fornecimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O Dockerfile grava uma senha numa camada e a remove numa camada posterior. A remoção posterior pode não eliminar o segredo das camadas da imagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Camadas anteriores podem continuar armazenando o conteúdo original. Segredos devem ser fornecidos por mecanismo apropriado em tempo de execução, com acesso mínimo e rotação.",
+      "section": "2. Imagens e cadeia de fornecimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O que um SBOM oferece à equipe que mantém imagens de containers?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Uma garantia jurídica de que o artefato não contém falhas exploráveis.", "correct": false },
+        { "key": "B", "text": "Um relatório que substitui a atualização das bibliotecas vulneráveis.", "correct": false },
+        { "key": "C", "text": "Uma lista de portas de rede abertas somente no container em execução.", "correct": false },
+        { "key": "D", "text": "Um mapa que registra credenciais e tokens embutidos em todas as camadas.", "correct": false },
+        { "key": "E", "text": "Um inventário dos componentes de software incluídos no artefato.", "correct": true }
+      ],
+      "explanation": "SBOM é um inventário de componentes de software. Ele auxilia a identificar onde uma dependência afetada está presente, mas não garante ausência de vulnerabilidades nem corrige componentes.",
+      "section": "2. Imagens e cadeia de fornecimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma imagem passou no scanner de vulnerabilidades conhecido. Qual conclusão é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O artefato está completamente seguro, inclusive contra falhas ainda desconhecidas.", "correct": false },
+        { "key": "B", "text": "A varredura não encontrou problemas conhecidos cobertos por sua base e configuração.", "correct": true },
+        { "key": "C", "text": "A aplicação não precisa de teste, pois o scanner verifica toda lógica de negócio.", "correct": false },
+        { "key": "D", "text": "O resultado prova que o registry autenticou o autor de cada dependência.", "correct": false },
+        { "key": "E", "text": "O resultado elimina a necessidade de atualizar o sistema operacional do host.", "correct": false }
+      ],
+      "explanation": "Scanners detectam vulnerabilidades conhecidas segundo suas fontes e regras. Não provam segurança total, não analisam necessariamente toda lógica da aplicação e não substituem atualização do host, revisão e controles de execução.",
+      "section": "2. Imagens e cadeia de fornecimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual fluxo trata melhor a cadeia de fornecimento de uma imagem de aplicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Usar base mantida, fixar digest, inventariar, varrer e aprovar antes de implantar.", "correct": true },
+        { "key": "B", "text": "Usar latest, permitir qualquer registry e varrer somente após encerrar a vida da imagem.", "correct": false },
+        { "key": "C", "text": "Construir direto em produção e substituir a imagem se algum usuário relatar problema.", "correct": false },
+        { "key": "D", "text": "Copiar pacotes manualmente para cada nó e manter o Dockerfile sem revisão.", "correct": false },
+        { "key": "E", "text": "Assinar qualquer imagem baixada e dispensar verificação de origem e conteúdo.", "correct": false }
+      ],
+      "explanation": "Um pipeline confiável parte de base mantida, fixa a identidade do artefato, registra componentes, busca vulnerabilidades e aplica política de aprovação antes do deploy. Assinatura sem verificação de origem ou conteúdo não basta.",
+      "section": "2. Imagens e cadeia de fornecimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma imagem deveria usar tag mutável porque ela garante que todos os ambientes executem exatamente o conteúdo previamente testado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Uma tag pode ser movida para outro conteúdo. Fixar o digest ajuda a preservar a identidade do artefato validado entre teste e implantação.",
+      "section": "2. Imagens e cadeia de fornecimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual ajuste de identidade é recomendado para um processo de aplicação que não precisa de privilégios administrativos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Executá-lo como root e remover o usuário somente após o primeiro acesso.", "correct": false },
+        { "key": "B", "text": "Usar usuário não root com permissões de arquivos compatíveis com a aplicação.", "correct": true },
+        { "key": "C", "text": "Compartilhar UID do host para que qualquer container acesse os mesmos arquivos.", "correct": false },
+        { "key": "D", "text": "Usar usuário root apenas no manifesto, mantendo processos com identidade indefinida.", "correct": false },
+        { "key": "E", "text": "Desabilitar grupos e permissões para simplificar o controle do filesystem.", "correct": false }
+      ],
+      "explanation": "Executar com identidade não root reduz o impacto de falhas e deve ser acompanhado por permissões adequadas nos arquivos. No Kubernetes, runAsNonRoot pode exigir essa condição para o container.",
+      "section": "3. Endurecimento do runtime",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O campo readOnlyRootFilesystem impede qualquer escrita em todo volume montado no container, independentemente da configuração do volume.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O campo torna o filesystem raiz somente leitura. Volumes montados separadamente podem permitir escrita, conforme o tipo, montagem e permissões configurados.",
+      "section": "3. Endurecimento do runtime",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Como reduzir privilégios sem conceder o conjunto amplo associado ao modo privilegiado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Ativar todas as capabilities e limitar somente o número de processos.", "correct": false },
+        { "key": "B", "text": "Montar o socket do runtime e remover permissões de rede do Pod.", "correct": false },
+        { "key": "C", "text": "Usar hostPID com usuário não root, pois isso substitui as demais restrições.", "correct": false },
+        { "key": "D", "text": "Remover capabilities desnecessárias e adicionar somente a específica justificada.", "correct": true },
+        { "key": "E", "text": "Executar como root com filesystem gravável e confiar apenas no scanner de imagem.", "correct": false }
+      ],
+      "explanation": "Capabilities permitem conceder privilégios Linux específicos. Remover as desnecessárias e adicionar somente a necessária segue o menor privilégio; limitar processos ou verificar imagem não substitui essa configuração.",
+      "section": "3. Endurecimento do runtime",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No perfil Restricted do Pod Security Standards, containers Linux devem remover ALL capabilities e podem readicionar somente NET_BIND_SERVICE.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O padrão Restricted requer descarte de todas as capabilities e permite readicionar somente NET_BIND_SERVICE, conforme as restrições Linux desse perfil.",
+      "section": "3. Endurecimento do runtime",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Que controle restringe chamadas de sistema que um processo pode solicitar ao kernel?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Seccomp, usando perfil RuntimeDefault ou perfil local configurado.", "correct": true },
+        { "key": "B", "text": "RBAC, que filtra chamadas de sistema feitas por processos Linux.", "correct": false },
+        { "key": "C", "text": "SBOM, que bloqueia diretamente chamadas não listadas no inventário.", "correct": false },
+        { "key": "D", "text": "Digest, que limita syscalls de acordo com o identificador da imagem.", "correct": false },
+        { "key": "E", "text": "Cgroup, que traduz cada chamada de sistema para uma versão autorizada.", "correct": false }
+      ],
+      "explanation": "Seccomp filtra chamadas de sistema. RBAC controla ações na API Kubernetes, SBOM inventaria componentes, digest identifica conteúdo e cgroups gerenciam consumo de recursos.",
+      "section": "3. Endurecimento do runtime",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "AppArmor e SELinux podem acrescentar controles de acesso sobre operações do processo, em camadas distintas de capabilities.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. AppArmor e SELinux aplicam políticas de controle de acesso obrigatório por perfis ou rótulos; capabilities controlam privilégios específicos do processo. Os mecanismos se complementam.",
+      "section": "3. Endurecimento do runtime",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um Pod precisa apenas receber tráfego por uma porta publicada. Que revisão adicional de rede é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Habilitar hostNetwork para evitar regras de firewall entre todos os Pods.", "correct": false },
+        { "key": "B", "text": "Permitir todas as portas e filtrar conexões somente nos logs da aplicação.", "correct": false },
+        { "key": "C", "text": "Publicar somente a porta necessária e limitar comunicações entre workloads.", "correct": true },
+        { "key": "D", "text": "Compartilhar hostIPC com o serviço para separar seus pacotes de rede.", "correct": false },
+        { "key": "E", "text": "Desabilitar namespaces de rede e confiar na imagem para restringir conexões.", "correct": false }
+      ],
+      "explanation": "Exponha apenas os pontos de entrada necessários e limite tráfego entre serviços por controles disponíveis, como políticas de rede. hostNetwork compartilha a rede do nó e não é uma forma de restringir portas.",
+      "section": "3. Endurecimento do runtime",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Definir limite de memória para um workload é suficiente para proteger a confidencialidade de seus dados e impedir acesso não autorizado à API.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Limites de recursos reduzem consumo descontrolado e ajudam a disponibilidade; não controlam permissões de leitura de dados nem autorização à API, que exigem controles próprios.",
+      "section": "3. Endurecimento do runtime",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O que o campo hostPath representa para a segurança de um Pod?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Um inventário dos arquivos da imagem armazenado no plano de controle.", "correct": false },
+        { "key": "B", "text": "Um volume que expõe ao Pod um caminho do sistema de arquivos do nó.", "correct": true },
+        { "key": "C", "text": "Uma política de rede que impede tráfego entre namespaces diferentes.", "correct": false },
+        { "key": "D", "text": "Um mecanismo que troca automaticamente root por UID aleatório.", "correct": false },
+        { "key": "E", "text": "Um modo de execução que separa o kernel do Pod do kernel do nó.", "correct": false }
+      ],
+      "explanation": "hostPath monta um caminho do nó dentro do Pod e pode expor arquivos sensíveis ou permitir alteração do host. Deve ser evitado em workloads comuns ou rigidamente limitado quando indispensável.",
+      "section": "3. Endurecimento do runtime",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O nível Baseline do Kubernetes é voltado a bloquear configurações conhecidas por facilitar escalada, embora seja menos restritivo que Restricted.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Baseline procura prevenir escaladas conhecidas mantendo adoção relativamente ampla. Restricted é mais rigoroso e Privileged não impõe as restrições do padrão.",
+      "section": "4. Kubernetes e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Quais são os níveis definidos pelos Pod Security Standards?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Enforce, Audit e Warn, aplicados em qualquer recurso do cluster.", "correct": false },
+        { "key": "B", "text": "ReadOnly, Rootless e Privileged, escolhidos para cada imagem.", "correct": false },
+        { "key": "C", "text": "Baseline, RuntimeDefault e Restricted, definidos pelo sistema operacional.", "correct": false },
+        { "key": "D", "text": "Privileged, Baseline e Restricted, com restrições progressivamente maiores.", "correct": true },
+        { "key": "E", "text": "Namespace, SecurityContext e RBAC, configurados como políticas equivalentes.", "correct": false }
+      ],
+      "explanation": "Os níveis são Privileged, Baseline e Restricted, do mais permissivo ao mais rigoroso. Enforce, audit e warn são modos do Pod Security Admission, não nomes de níveis.",
+      "section": "4. Kubernetes e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um namespace usa PSA com modo enforce. Um Pod viola o nível definido. Qual resultado se espera?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O Pod é aceito, mas recebe aviso apenas no terminal do nó.", "correct": false },
+        { "key": "B", "text": "O Pod é criado e a violação aparece somente no SBOM da imagem.", "correct": false },
+        { "key": "C", "text": "A requisição de criação do Pod é rejeitada pela política de admissão.", "correct": true },
+        { "key": "D", "text": "O objeto é aceito e a violação é ignorada até a próxima atualização do cluster.", "correct": false },
+        { "key": "E", "text": "O controlador altera automaticamente toda a imagem para remover a configuração.", "correct": false }
+      ],
+      "explanation": "No modo enforce, violações da política causam rejeição do Pod. O modo audit permite a criação e anota o evento de auditoria; warn permite e apresenta aviso ao usuário.",
+      "section": "4. Kubernetes e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um namespace pode configurar warn e audit em níveis diferentes, e essas modalidades permitem a criação enquanto avisam ou registram a violação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O namespace pode definir qualquer combinação de modos e níveis. Warn apresenta aviso e audit adiciona anotação ao registro; ambos permitem a criação, ao contrário de enforce.",
+      "section": "4. Kubernetes e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Como reduzir a exposição de um token de ServiceAccount para um Pod que não chama a API Kubernetes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Desabilitar a automontagem do token e conceder permissões amplas por RBAC.", "correct": false },
+        { "key": "B", "text": "Montar o token em todos os containers para facilitar futuras integrações.", "correct": false },
+        { "key": "C", "text": "Usar uma ServiceAccount padrão com acesso de administrador em cada namespace.", "correct": false },
+        { "key": "D", "text": "Guardar o token em variável de imagem e removê-lo quando o Pod encerrar.", "correct": false },
+        { "key": "E", "text": "Desabilitar automontagem quando não houver necessidade de acessar a API.", "correct": true }
+      ],
+      "explanation": "A checklist oficial recomenda não montar automaticamente token quando a aplicação não precisa da API. Quando precisa, use ServiceAccount própria e permissões RBAC estritamente necessárias.",
+      "section": "4. Kubernetes e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "RBAC e Pod Security Admission executam o mesmo papel: ambos verificam se as configurações de segurança do Pod atendem a um perfil.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. RBAC decide quais ações uma identidade pode realizar na API; PSA aplica os padrões de segurança do Pod no processo de admissão. São controles complementares.",
+      "section": "4. Kubernetes e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um Deployment cria Pods que violam política configurada em enforce. Como o modo é aplicado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O Deployment é sempre rejeitado antes de qualquer aviso ou anotação.", "correct": false },
+        { "key": "B", "text": "O template pode ser salvo, mas a criação dos Pods resultantes é rejeitada.", "correct": true },
+        { "key": "C", "text": "O Deployment é aceito e o controlador remove a política do namespace.", "correct": false },
+        { "key": "D", "text": "O Pod é criado com privileged e recebe correção automática após iniciar.", "correct": false },
+        { "key": "E", "text": "O modo enforce é aplicado somente à imagem, nunca ao objeto Pod.", "correct": false }
+      ],
+      "explanation": "O modo enforce é aplicado aos objetos Pod resultantes, não aos recursos de workload que os geram. Audit e warn também são aplicados aos workloads para apontar violações antecipadamente.",
+      "section": "4. Kubernetes e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Permissão para criar ou alterar workloads pode permitir indiretamente a execução de código em nós e deve ser concedida com cuidado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Usuários capazes de criar workloads podem influenciar quais Pods são executados nos nós e que recursos acessam. RBAC para criar, atualizar, patch ou excluir workloads deve ser limitado.",
+      "section": "4. Kubernetes e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual abordagem ajuda a adotar gradualmente uma política de Pod sem bloquear imediatamente workloads legados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Começar com warn e audit, corrigir os achados e então exigir enforce.", "correct": true },
+        { "key": "B", "text": "Desativar RBAC, permitir privileged e ativar enforce apenas nos nós de produção.", "correct": false },
+        { "key": "C", "text": "Aplicar audit em todos os namespaces e presumir que ele rejeita os Pods inválidos.", "correct": false },
+        { "key": "D", "text": "Usar warn como substituto permanente de controle, pois ele altera os manifests.", "correct": false },
+        { "key": "E", "text": "Aplicar restricted sem observação e corrigir somente após falha de aplicação.", "correct": false }
+      ],
+      "explanation": "Warn e audit revelam incompatibilidades sem rejeitar a criação. Após revisar e corrigir workloads, enforce pode exigir o nível adequado e impedir novas violações.",
+      "section": "4. Kubernetes e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Após suspeita de comprometimento de um container, reiniciá-lo é suficiente para corrigir a causa e preservar todos os sinais necessários à investigação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Reiniciar pode apagar evidências e não corrige imagem, configuração ou credenciais comprometidas. A resposta deve conter, preservar evidências conforme o plano, revogar segredos, reconstruir e verificar persistência.",
+      "section": "4. Kubernetes e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa gravar arquivos temporários, mas não pode alterar executáveis e configurações da imagem. Que configuração atende melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Manter toda a raiz gravável e aplicar limites de CPU para proteger os arquivos.", "correct": false },
+        { "key": "B", "text": "Montar a raiz do host e limitar escrita por uma política de rede.", "correct": false },
+        { "key": "C", "text": "Tornar a raiz somente leitura e fornecer volume temporário com permissões restritas.", "correct": true },
+        { "key": "D", "text": "Ativar privileged e permitir gravação em qualquer caminho solicitado pela aplicação.", "correct": false },
+        { "key": "E", "text": "Executar como root e armazenar os arquivos temporários na camada da imagem.", "correct": false }
+      ],
+      "explanation": "Filesystem raiz somente leitura protege arquivos da imagem; volume separado pode fornecer escrita onde necessária. O volume deve ter permissões e capacidade apropriadas, sem expor caminhos do host.",
+      "section": "3. Endurecimento do runtime",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na resposta a um incidente, credenciais possivelmente expostas devem ser revogadas ou rotacionadas, além da reconstrução do workload a partir de fonte confiável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Reconstruir sem tratar credenciais deixa o acesso obtido pelo atacante válido. A resposta deve conter o incidente, preservar evidências úteis, revogar segredos e confirmar que versões comprometidas não continuam ativas.",
+      "section": "4. Kubernetes e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação dá defesa em profundidade ao proteger um workload que processa dados sensíveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Confiar no digest e remover logs, limites, política de rede e revisão de acesso.", "correct": false },
+        { "key": "B", "text": "Usar somente imagem mínima, mantendo token automático e permissões administrativas.", "correct": false },
+        { "key": "C", "text": "Habilitar enforce e ignorar atualização, observabilidade e autorização da API.", "correct": false },
+        { "key": "D", "text": "Combinar imagem aprovada, baixo privilégio, acesso restrito e monitoramento.", "correct": true },
+        { "key": "E", "text": "Usar filesystem somente leitura como substituto de RBAC e gestão de segredos.", "correct": false }
+      ],
+      "explanation": "Defesa em profundidade combina controles em camadas: procedência e atualização de imagem, configuração não privilegiada, autorização mínima, restrição de comunicação e observabilidade. Nenhuma medida isolada substitui as demais.",
+      "section": "4. Kubernetes e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O Pod define runAsUser 1000 e seu container define runAsUser 2000. Qual identidade vale para esse container quando o campo se sobrepõe?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A identidade do Pod sempre prevalece, pois é avaliada depois do container.", "correct": false },
+        { "key": "B", "text": "O container usa UID 2000, que sobrepõe a configuração do Pod nesse campo.", "correct": true },
+        { "key": "C", "text": "O runtime soma os valores e cria processo com UID 3000.", "correct": false },
+        { "key": "D", "text": "O Kubernetes escolhe um UID aleatório e ignora ambos os valores.", "correct": false },
+        { "key": "E", "text": "O Pod inicia como root porque os valores estão definidos em níveis diferentes.", "correct": false }
+      ],
+      "explanation": "Quando há sobreposição, a configuração de segurança no container prevalece para esse container. A documentação demonstra runAsUser do container substituindo o valor do Pod.",
+      "section": "3. Endurecimento do runtime",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja que qualquer container criado num namespace execute sem UID zero. Qual opção expressa diretamente esse requisito no SecurityContext?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "runAsGroup: 0, que converte automaticamente o usuário root em usuário comum.", "correct": false },
+        { "key": "B", "text": "allowPrivilegeEscalation: true, que impede o processo de iniciar como root.", "correct": false },
+        { "key": "C", "text": "readOnlyRootFilesystem: true, que altera a identidade efetiva do processo.", "correct": false },
+        { "key": "D", "text": "runAsNonRoot: true, que exige uma identidade não root para execução.", "correct": true },
+        { "key": "E", "text": "hostPID: false, que muda o UID do processo para o usuário do nó.", "correct": false }
+      ],
+      "explanation": "runAsNonRoot: true expressa que o container deve executar como usuário não root. Filesystem somente leitura, compartilhamento de PID e escalada de privilégio tratam de outras propriedades.",
+      "section": "3. Endurecimento do runtime",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição diferencia corretamente os modos audit e warn do Pod Security Admission?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Audit registra anotação no log; warn apresenta aviso ao usuário; ambos permitem o Pod.", "correct": true },
+        { "key": "B", "text": "Audit rejeita o Pod; warn aceita somente se o namespace também usar enforce.", "correct": false },
+        { "key": "C", "text": "Audit altera a imagem; warn remove capabilities antes de criar o container.", "correct": false },
+        { "key": "D", "text": "Audit concede permissões RBAC; warn aplica política de rede ao namespace.", "correct": false },
+        { "key": "E", "text": "Audit e warn são níveis de rigor que substituem Baseline e Restricted.", "correct": false }
+      ],
+      "explanation": "Audit permite a operação e adiciona anotação ao evento de auditoria; warn também permite, mas fornece aviso ao usuário. A rejeição corresponde ao modo enforce.",
+      "section": "4. Kubernetes e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um container precisa acessar a API Kubernetes para consultar somente objetos de configuração do próprio namespace. Como limitar a autorização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Usar a ServiceAccount padrão com papel de administrador para evitar falhas de consulta.", "correct": false },
+        { "key": "B", "text": "Montar o token manualmente e conceder permissão de leitura em todos os namespaces.", "correct": false },
+        { "key": "C", "text": "Desabilitar RBAC, pois o Pod Security Admission filtra cada chamada de API.", "correct": false },
+        { "key": "D", "text": "Compartilhar a credencial do nó e confiar no namespace de execução do processo.", "correct": false },
+        { "key": "E", "text": "Usar ServiceAccount própria e conceder por RBAC somente a leitura necessária no namespace.", "correct": true }
+      ],
+      "explanation": "A ServiceAccount identifica o workload perante a API; RBAC pode conceder apenas leitura dos recursos necessários no namespace pertinente. PSA avalia políticas de Pod e não autoriza chamadas posteriores à API.",
+      "section": "4. Kubernetes e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Por que um limite de memória deve ser acompanhado de dimensionamento e observação da aplicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Porque o limite cifra os dados e sua quantidade determina a força da cifra.", "correct": false },
+        { "key": "B", "text": "Porque um limite inadequado pode encerrar processos ou afetar desempenho e disponibilidade.", "correct": true },
+        { "key": "C", "text": "Porque o limite ativa automaticamente o perfil seccomp apropriado para a aplicação.", "correct": false },
+        { "key": "D", "text": "Porque o Kubernetes ajusta o limite em produção com base no conteúdo da imagem.", "correct": false },
+        { "key": "E", "text": "Porque todo limite de CPU e memória deve ser igual para qualquer tipo de workload.", "correct": false }
+      ],
+      "explanation": "Limites ajudam a conter consumo, mas valores inadequados podem encerrar processos por falta de memória ou reduzir desempenho. O dimensionamento deve considerar comportamento observado e requisitos do serviço.",
+      "section": "3. Endurecimento do runtime",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Como reduzir a chance de um workload chamar o kernel com operações desnecessárias sem remover todos os privilégios do processo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Aplicar digest à imagem e confiar que o identificador bloqueia syscalls perigosas.", "correct": false },
+        { "key": "B", "text": "Usar RBAC para autorizar cada syscall conforme o usuário Linux do container.", "correct": false },
+        { "key": "C", "text": "Configurar seccomp com perfil adequado e manter capabilities no mínimo necessário.", "correct": true },
+        { "key": "D", "text": "Ativar hostNetwork para que o kernel encaminhe apenas operações da aplicação.", "correct": false },
+        { "key": "E", "text": "Executar como root e limitar somente a memória disponível ao processo.", "correct": false }
+      ],
+      "explanation": "Seccomp filtra chamadas de sistema, enquanto capabilities controlam privilégios Linux específicos. Em conjunto, podem reduzir a superfície disponível ao processo sem depender de mecanismos de identidade da API.",
+      "section": "3. Endurecimento do runtime",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O modo Privileged do Pod Security Standards é apropriado como padrão para aplicações comuns porque oferece a política mais restritiva.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Privileged é deliberadamente permissivo e não impõe as restrições do padrão, podendo admitir configurações que contornem mecanismos usuais de isolamento. Baseline ou Restricted são opções de restrição.",
+      "section": "4. Kubernetes e operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao usar seccomp com perfil Localhost, o perfil precisa existir previamente no nó e ser indicado na configuração do workload.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O tipo Localhost referencia arquivo de perfil previamente configurado no nó, relativo ao diretório de perfis do kubelet. RuntimeDefault usa o perfil padrão do runtime.",
+      "section": "3. Endurecimento do runtime",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O acesso a hostNetwork, hostPID e hostIPC amplia o compartilhamento de namespaces do nó e deve ser avaliado como privilégio elevado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Esses campos compartilham namespaces de rede, processos ou IPC com o host. O nível Baseline proíbe tal compartilhamento para Pods comuns, salvo exceções previstas na política.",
+      "section": "3. Endurecimento do runtime",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma senha foi usada como argumento de build e depois removida do Dockerfile. O histórico e as camadas antigas ainda podem expô-la.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Argumentos e camadas podem deixar o segredo no histórico do build ou no artefato. Use mecanismos seguros de build e entrega em runtime, e faça rotação se houve exposição.",
+      "section": "2. Imagens e cadeia de fornecimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao identificar uma imagem vulnerável em uso, a equipe deve apenas apagar o alerta do scanner e manter o artefato até o próximo ciclo regular.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. É necessário avaliar exposição, identificar workloads afetados, reconstruir com dependências corrigidas, implantar o novo artefato e confirmar que a versão antiga deixou de executar. Exceções devem ser justificadas e temporárias.",
+      "section": "2. Imagens e cadeia de fornecimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual ajuste impede que um processo obtenha privilégios adicionais por meio de certos mecanismos de escalada no container?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Definir requests de CPU, que removem automaticamente privilégios de processo.", "correct": false },
+        { "key": "B", "text": "Usar digest, que altera as permissões do usuário dentro do container.", "correct": false },
+        { "key": "C", "text": "Ativar hostPID para que o nó intercepte qualquer mudança de identidade.", "correct": false },
+        { "key": "D", "text": "Habilitar automontagem de token, que restringe chamadas locais ao kernel.", "correct": false },
+        { "key": "E", "text": "Definir allowPrivilegeEscalation como false quando o workload permitir.", "correct": true }
+      ],
+      "explanation": "allowPrivilegeEscalation controla se o processo pode obter privilégios adicionais, e o checklist Kubernetes recomenda defini-lo como false quando compatível. Requests, digest e token tratam de outros aspectos.",
+      "section": "3. Endurecimento do runtime",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer detectar alterações inesperadas em manifests e ações administrativas no cluster. Qual fonte de evidência deve incluir na observabilidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Somente as métricas de CPU, pois elas registram a identidade de quem alterou objetos.", "correct": false },
+        { "key": "B", "text": "Apenas o conteúdo atual do filesystem raiz, sem histórico de eventos do cluster.", "correct": false },
+        { "key": "C", "text": "Somente os resultados de varredura de imagem, que incluem todas as requisições à API.", "correct": false },
+        { "key": "D", "text": "O mapa de namespaces isolados, que substitui os logs do runtime e de auditoria.", "correct": false },
+        { "key": "E", "text": "Eventos da API, mudanças de configuração e logs de auditoria e runtime.", "correct": true }
+      ],
+      "explanation": "Eventos do orquestrador, registros de auditoria, alterações de configuração e logs do runtime ajudam a reconstruir quem fez o quê e quando. Métricas ou scanners não substituem essas evidências.",
+      "section": "4. Kubernetes e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "NIST SP 800-190 — Application Container Security Guide",
+      "publisher": "National Institute of Standards and Technology",
+      "reference": "Riscos e recomendações de segurança ao longo do uso de containers de aplicação",
+      "url": "https://csrc.nist.gov/pubs/sp/800/190/final",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Docker Engine security",
+      "publisher": "Docker",
+      "reference": "Namespaces, cgroups, superfície do daemon e controles de endurecimento",
+      "url": "https://docs.docker.com/engine/security/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Pod Security Standards",
+      "publisher": "Kubernetes",
+      "reference": "Níveis Privileged, Baseline e Restricted e campos de segurança permitidos",
+      "url": "https://kubernetes.io/docs/concepts/security/pod-security-standards/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Pod Security Admission",
+      "publisher": "Kubernetes",
+      "reference": "Configuração por namespace dos modos enforce, audit e warn",
+      "url": "https://kubernetes.io/docs/concepts/security/pod-security-admission/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Configure a Security Context for a Pod or Container",
+      "publisher": "Kubernetes",
+      "reference": "Identidade de processo, capabilities, seccomp, filesystem e volumes",
+      "url": "https://kubernetes.io/docs/tasks/configure-pod-container/security-context/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Application Security Checklist",
+      "publisher": "Kubernetes",
+      "reference": "Recomendações de runAsNonRoot, ServiceAccount, privilégios, capabilities e filesystem",
+      "url": "https://kubernetes.io/docs/concepts/security/application-security-checklist/",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

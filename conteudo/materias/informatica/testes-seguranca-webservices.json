@@ -1,0 +1,1788 @@
+{
+  "id": "informatica.testes-seguranca-webservices",
+  "subject": "Informática",
+  "title": "Controles e testes de segurança para Web Services",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Controles de segurança para Web Services",
+    "Testes de segurança em Web Services",
+    "Segurança de Web Services e APIs",
+    "Testes de segurança para serviços web",
+    "Avaliação de segurança de APIs REST",
+    "Avaliação de segurança de APIs SOAP",
+    "Segurança de serviços web SOAP e REST",
+    "Testes de autorização em APIs web",
+    "Proteção de Web Services contra ataques",
+    "OWASP WSTG para testes de APIs",
+    "Segurança de interfaces de serviços web",
+    "Controles e testes de segurança para Web Services"
+  ],
+  "scope": {
+    "covers": "Controles e testes de segurança para Web Services e APIs REST e SOAP: escopo e metodologia de avaliação; inventário de endpoints e métodos; autenticação, autorização por função, objeto e propriedade; gestão de tokens; transporte TLS; validação de entrada e saída; XML, XXE e processamento SOAP; erros, configuração e exposição de metadados; limitação de recursos, abuso de fluxo de negócio e SSRF; registro, correção e reteste de achados.",
+    "excludes": "Exploração de alvos sem autorização, segurança de redes em geral, implementação detalhada de protocolos criptográficos, configuração específica de fornecedores, exploração de GraphQL, gRPC e WebSockets, e auditoria de conformidade legal."
+  },
+  "theoryTitle": "Como avaliar e proteger Web Services",
+  "chapters": [
+    {
+      "title": "1. Escopo, superfície de ataque e método de teste",
+      "markdown": "### O problema que este assunto resolve\n\nWeb Services conectam sistemas automaticamente e frequentemente expõem dados e operações de negócio. Um endpoint aparentemente simples pode aceitar vários métodos, parâmetros, formatos de corpo e identidades. O teste de segurança precisa descobrir essa superfície e verificar se cada caminho aplica os controles esperados. A OWASP WSTG é um guia de metodologia e técnicas para aplicações e serviços web; ela organiza verificações de configuração, identidade, autenticação, autorização, sessão, validação, erros, criptografia, lógica de negócio e APIs.\n\n> **Siglas e termos deste capítulo**\n> - **API**: interface que permite a sistemas trocar dados e solicitar operações.\n> - **Endpoint**: endereço e operação expostos por um serviço.\n> - **WSTG**: OWASP Web Security Testing Guide, guia de testes de segurança web.\n> - **Ativo**: dado, função ou recurso que precisa de proteção.\n> - **BOLA**: falha de autorização em nível de objeto, quando o cliente acessa objeto alheio.\n\n### Preparar e executar uma avaliação\n\nAntes de enviar requisições, documente autorização, ambiente, contas de teste, dados permitidos, horários, limites de carga e contatos para interrupção. Faça inventário de hosts, versões, rotas, métodos HTTP, parâmetros, tipos de conteúdo, esquemas e dependências. Compare a documentação publicada com o comportamento observado: rotas antigas, operações administrativas e versões esquecidas também fazem parte da superfície.\n\nUse uma linha de base: registre a resposta válida de cada operação e repita testes mudando uma variável por vez. Compare usuário anônimo, usuário comum e usuário privilegiado. Mantenha os testes de carga em limites acordados; a finalidade é verificar controles sem causar indisponibilidade. Cada achado deve conter endpoint, pré-condição, requisição reproduzível, impacto, evidência e correção sugerida.\n\n| Fase | Ação concreta | Resultado esperado |\n| --- | --- | --- |\n| Planejar | Delimitar sistemas, contas, dados e limites | Testes autorizados e reproduzíveis |\n| Descobrir | Enumerar rotas, métodos, parâmetros e versões | Inventário comparável à documentação |\n| Testar | Executar casos positivos e negativos por identidade | Evidência de aplicação ou falha de controle |\n| Corrigir | Priorizar por impacto e alcance | Causa raiz removida |\n| Retestar | Repetir o caso e verificar regressões | Falha não reproduzida e funções legítimas mantidas |\n\n### Como cai na prova\n\n- Uma avaliação começa com autorização e escopo definidos, não com varredura indiscriminada.\n- Inventário deve abranger endpoints esquecidos e versões antigas, não apenas a documentação atual.\n- Um scanner ajuda a identificar padrões, mas não substitui testes de autorização e lógica de negócio com diferentes identidades."
+    },
+    {
+      "title": "2. Identidade, autenticação e autorização",
+      "markdown": "### O problema que este assunto resolve\n\nAutenticar responde quem está fazendo a chamada; autorizar responde o que essa identidade pode fazer sobre aquele recurso. Uma API pode autenticar corretamente um usuário e ainda permitir que ele leia o pedido de outra pessoa ao trocar um identificador. O OWASP API Security Top 10 separa falhas de autorização por objeto, autenticação, propriedade e função, pois cada uma exige verificações próprias.\n\n> **Siglas e termos deste capítulo**\n> - **JWT**: formato de token que pode transportar declarações; sua assinatura não concede autorização automaticamente.\n> - **OAuth 2.0**: estrutura de autorização delegada baseada em tokens e escopos.\n> - **MFA**: autenticação multifator, combinando fatores independentes.\n> - **BFLA**: falha de autorização em nível de função, permitindo operação destinada a papel superior.\n> - **Menor privilégio**: conceder só as permissões necessárias à tarefa.\n\n### Testes concretos de autorização\n\nCrie pelo menos duas contas comuns, A e B, e uma conta privilegiada. A cria um objeto; B tenta consultar, alterar, excluir e executar ações sobre o mesmo identificador. Refaça o teste com identificadores numéricos, UUIDs e IDs em corpo, caminho e query. Um identificador difícil de adivinhar não é controle de acesso. Verifique também propriedades: envie campos como `ownerId`, `role`, `price` ou `isAdmin` em criação e atualização; o servidor deve rejeitar ou ignorar campos não autorizados e filtrar campos sensíveis nas respostas.\n\nTeste cada função diretamente, sem confiar que a interface oculta o botão. Para tokens, verifique assinatura, emissor, audiência, expiração, escopo e revogação conforme o desenho do sistema; altere o token e confira rejeição. Credenciais devem trafegar por canal protegido, não aparecer em URL ou logs. Respostas de autenticação não devem revelar se determinado usuário existe.\n\n| Controle | Teste | Sinal de falha |\n| --- | --- | --- |\n| Autenticação | Chamada sem credencial, com credencial inválida ou expirada | Operação protegida executada |\n| Autorização por objeto | Usuário B troca ID de objeto de A | Dados ou ação de A ficam acessíveis |\n| Autorização por função | Usuário comum chama operação administrativa | Operação privilegiada concluída |\n| Autorização por propriedade | Cliente envia campo privilegiado ou lê campo interno | Campo alterado ou exposto sem permissão |\n| Token | Modificar declaração ou usar token fora do contexto | Serviço aceita identidade ou escopo adulterado |\n\n### Como cai na prova\n\n- Login válido não prova que o usuário tem direito sobre todo objeto identificado na requisição.\n- UUID, CORS e ocultação de botões não substituem autorização no servidor.\n- A autorização deve ser verificada em cada operação e para cada objeto e propriedade sensível."
+    },
+    {
+      "title": "3. Dados, protocolos e configuração segura",
+      "markdown": "### O problema que este assunto resolve\n\nREST costuma transportar JSON por HTTP; SOAP estrutura mensagens XML e pode usar um contrato WSDL. As diferenças de formato alteram os casos de teste, mas não eliminam requisitos de confidencialidade, integridade, autenticação e autorização. A publicação NIST SP 800-95 descreve esses mecanismos no contexto de Web Services e SOA.\n\n> **Siglas e termos deste capítulo**\n> - **TLS**: protocolo que protege a comunicação em trânsito e autentica o servidor por certificado.\n> - **SOAP**: protocolo de mensagens estruturadas, normalmente em XML.\n> - **WSDL**: descrição de operações, mensagens e endpoints de um serviço SOAP.\n> - **XXE**: exploração de entidades externas XML para acessar recursos ou provocar requisições.\n> - **XXE/DTD**: entidades e declarações XML que podem fazer o parser buscar conteúdo externo se essa função estiver habilitada.\n\n### Validar mensagens e reduzir exposição\n\nTeste tipos de conteúdo aceitos, campos ausentes, campos extras, valores fora do intervalo, strings longas, caracteres de controle, arrays aninhados e estruturas inesperadas. A validação deve ocorrer no servidor, conforme esquema e regras de negócio, com limites de tamanho, profundidade e quantidade. Codificar ou escapar a saída de acordo com o contexto evita que dados retornados sejam interpretados como conteúdo ativo por consumidores.\n\nPara SOAP, compare operações e tipos do WSDL com o que o endpoint realmente aceita. Envie XML malformado, namespaces inesperados, elementos duplicados, payloads grandes e referências a entidades externas em ambiente controlado; o parser não deve buscar arquivos locais nem fazer chamadas externas inesperadas. Desabilite DTD e entidades externas quando não forem necessárias, limite tamanho e profundidade e valide a estrutura. Para REST, confira se métodos não documentados, métodos alternativos e tipos de conteúdo inesperados são recusados.\n\nUse TLS para proteger dados em trânsito e verifique que configurações obsoletas não são aceitas. TLS não corrige autorização nem validação da aplicação. Mensagens com dados sensíveis não devem ser expostas em logs, mensagens de erro, cabeçalhos desnecessários ou caches compartilhados. Erros devem ser úteis ao cliente sem revelar stack traces, consultas, segredos ou detalhes internos.\n\n### Como cai na prova\n\n- Desabilitar entidades externas no parser XML mitiga XXE; bloquear apenas uma palavra no corpo não é solução robusta.\n- WSDL é informação útil para inventário e teste, e sua exposição não substitui autenticação e autorização nas operações.\n- TLS protege o canal em trânsito, mas não impede um usuário autenticado de acessar objeto de outro usuário."
+    },
+    {
+      "title": "4. Abuso, disponibilidade, evidência e reteste",
+      "markdown": "### O problema que este assunto resolve\n\nUm serviço pode estar protegido contra acesso direto indevido e ainda falhar por consumo excessivo, fluxo de negócio automatizado ou integração insegura. A avaliação verifica limites e regras do processo sem exceder o escopo autorizado. A lista OWASP API Security 2023 inclui consumo irrestrito de recursos, acesso irrestrito a fluxos sensíveis, SSRF, configuração insegura, inventário inadequado e consumo inseguro de APIs.\n\n> **Siglas e termos deste capítulo**\n> - **DoS**: negação de serviço por esgotamento ou bloqueio de recursos.\n> - **SSRF**: falsificação de requisição do lado do servidor; a aplicação busca um destino controlado indiretamente por entrada.\n> - **Rate limit**: limite de chamadas por identidade, recurso ou intervalo.\n> - **Idempotência**: repetição de uma operação não duplica seu efeito, quando a operação foi desenhada assim.\n> - **Reteste**: repetição controlada do caso após a correção.\n\n### Limites e lógica de negócio\n\nTeste limites de paginação, tamanho de corpo, número de itens, frequência de chamadas, concorrência e custo de operações caras. A resposta deve aplicar cotas e limites consistentes, retornar erro controlado e não consumir recursos sem controle. Rate limiting precisa considerar identidade e operação; um limite global pode ser contornado distribuindo chamadas entre contas.\n\nExamine fluxos de negócio como emissão de segunda via, reserva, cupom, transferência e redefinição de senha. Tente repetir, pular etapas, alterar ordem, usar concorrência ou reutilizar um identificador de idempotência; confirme que regras de elegibilidade e limites são aplicados no servidor. Para SSRF, teste entradas que fazem a aplicação buscar URL somente em ambiente autorizado; a aplicação deve validar destino e esquema, impedir acesso a redes internas e tratar redirecionamentos com cautela.\n\nRegistre requisições e respostas sanitizadas, horário, identidade de teste, endpoint, resultado esperado e observado. Não inclua segredos ou dados pessoais desnecessários no relatório. Explique impacto e pré-condições, recomende correção na causa raiz e reteste o mesmo caso, além de casos relacionados. Monitore erros e chamadas anômalas, preservando trilha de auditoria com controle de acesso e retenção apropriada.\n\n### Como cai na prova\n\n- Limites devem abranger tamanho, frequência e custo; rate limit é parte da defesa, não substitui controles de autorização.\n- Um teste de fluxo de negócio verifica repetição, sequência e limites de uso, além de payloads malformados.\n- O relatório útil permite reproduzir o problema e confirmar a correção sem registrar credenciais em claro."
+    }
+  ],
+  "summary": "A segurança de Web Services depende de controles aplicados no servidor e verificados por testes com diferentes identidades, objetos, funções, propriedades, formatos e condições de uso. Uma avaliação começa com autorização e inventário de rotas e operações, usa casos positivos e negativos e registra evidências reproduzíveis. Para REST e SOAP, os testes cobrem autenticação, autorização, validação, erros, configuração e exposição de metadados; em XML, também se verificam entidades externas e limites do parser. TLS protege o transporte, mas não substitui autorização. Limites de tamanho, frequência e custo reduzem consumo abusivo, e testes de lógica avaliam repetição e sequência de operações. Cada correção deve ser retestada.",
+  "flashcards": [
+    {
+      "front": "O que a autenticação verifica?",
+      "back": "A identidade ou credencial apresentada pelo cliente; ela não decide sozinha quais objetos ou operações esse cliente pode acessar."
+    },
+    {
+      "front": "O que a autorização por objeto impede?",
+      "back": "Que uma identidade acesse, altere ou exclua objeto de outra apenas trocando o identificador enviado."
+    },
+    {
+      "front": "Por que UUID não substitui autorização?",
+      "back": "O identificador difícil de adivinhar reduz descoberta casual, mas não prova que o usuário pode acessar o objeto."
+    },
+    {
+      "front": "Como testar autorização por objeto?",
+      "back": "Criar objeto com conta A e tentar, com conta B, ler, editar e excluir o objeto usando seu identificador."
+    },
+    {
+      "front": "Como testar autorização por função?",
+      "back": "Chamar diretamente operações privilegiadas usando uma conta comum, sem depender dos controles da interface."
+    },
+    {
+      "front": "O que é autorização por propriedade?",
+      "back": "Controle de quais campos o cliente pode definir ou consultar em um objeto, como role, preço ou dados internos."
+    },
+    {
+      "front": "Qual papel tem TLS em um Web Service?",
+      "back": "Proteger confidencialidade e integridade da comunicação em trânsito e autenticar o servidor conforme certificados."
+    },
+    {
+      "front": "TLS substitui autorização?",
+      "back": "Não. O canal pode estar protegido enquanto a aplicação permite acesso indevido a objetos ou funções."
+    },
+    {
+      "front": "O que deve ser inventariado numa API?",
+      "back": "Hosts, versões, rotas, métodos, parâmetros, tipos de conteúdo, esquemas, operações e dependências."
+    },
+    {
+      "front": "O que é BOLA?",
+      "back": "Broken Object Level Authorization: falha que permite a um cliente acessar objeto de outro usuário ou contexto."
+    },
+    {
+      "front": "O que é BFLA?",
+      "back": "Broken Function Level Authorization: falha que deixa usuário executar função destinada a papel mais privilegiado."
+    },
+    {
+      "front": "Por que testar campos extras em JSON?",
+      "back": "Para detectar atribuição indevida de propriedades privilegiadas e validação insuficiente no servidor."
+    },
+    {
+      "front": "O que é XXE?",
+      "back": "Exploração de processamento XML com entidades externas habilitadas, podendo acessar recursos ou gerar requisições externas."
+    },
+    {
+      "front": "Como reduzir risco de XXE?",
+      "back": "Desabilitar DTD e entidades externas quando não forem necessárias, validar XML e impor limites de tamanho e profundidade."
+    },
+    {
+      "front": "Que função tem o WSDL?",
+      "back": "Descrever operações, mensagens, tipos e endpoints de um serviço SOAP; ajuda a inventariar e testar a interface."
+    },
+    {
+      "front": "Expor WSDL significa que o serviço é inseguro?",
+      "back": "Não por si só; é metadado que facilita conhecer a interface, mas cada operação ainda precisa de controles de acesso."
+    },
+    {
+      "front": "O que é rate limiting?",
+      "back": "Limitar quantidade de chamadas por identidade, recurso ou intervalo para reduzir abuso e esgotamento de recursos."
+    },
+    {
+      "front": "O que significa SSRF?",
+      "back": "Server-Side Request Forgery: entrada induz o servidor a buscar um destino que o cliente não acessaria diretamente."
+    },
+    {
+      "front": "O que um teste de lógica de negócio verifica?",
+      "back": "Se regras de elegibilidade, sequência, repetição e limites são aplicadas no servidor em fluxos reais."
+    },
+    {
+      "front": "Quais dados tornam um achado reproduzível?",
+      "back": "Endpoint, pré-condições, identidade de teste, requisição sanitizada, resposta, impacto e resultado esperado."
+    },
+    {
+      "front": "Por que retestar após a correção?",
+      "back": "Para confirmar que a causa foi removida e verificar que operações legítimas continuam funcionando."
+    },
+    {
+      "front": "O que fazer antes de um teste de segurança?",
+      "back": "Definir autorização, escopo, ambiente, contas, dados permitidos, limites e contatos de interrupção."
+    }
+  ],
+  "tips": [
+    "Compare a resposta da mesma operação com conta anônima, comum e privilegiada.",
+    "Ao testar BOLA, reutilize um identificador válido de outra conta e tente leitura, alteração e exclusão separadamente.",
+    "Teste campos não documentados em criação e atualização para detectar autorização por propriedade deficiente.",
+    "No SOAP, use o WSDL para inventariar operações e confira se o endpoint aplica os mesmos controles descritos.",
+    "Teste limites de corpo, paginação, concorrência e custo com cargas pequenas e autorizadas.",
+    "Guarde evidência sanitizada e reteste o mesmo cenário após a correção."
+  ],
+  "traps": [
+    "A prova pode tratar autenticação bem-sucedida como autorização: são decisões diferentes e devem ser testadas separadamente.",
+    "Um identificador imprevisível reduz adivinhação, mas não impede acesso indevido quando o ID é obtido por outro meio.",
+    "TLS protege dados no canal; não valida regras de negócio nem impede um cliente autenticado de agir além de sua permissão.",
+    "Ocultar uma operação na interface não bloqueia chamada direta à API; o servidor deve aplicar autorização.",
+    "Bloquear uma string como DOCTYPE não substitui configuração segura do parser XML contra entidades externas.",
+    "Rate limiting reduz abuso de frequência, mas não corrige BOLA, BFLA ou exposição de propriedade sensível."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva um teste prático para descobrir BOLA.",
+      "answer": "A conta A cria um objeto; a conta B recebe ou conhece o identificador e tenta ler, alterar e excluir o mesmo objeto. A autorização deve impedir acesso indevido em cada operação."
+    },
+    {
+      "question": "Como diferenciar falha de autenticação de falha de autorização?",
+      "answer": "Autenticação inadequada permite estabelecer identidade sem credencial válida; autorização inadequada permite à identidade autenticada operar sobre função, objeto ou propriedade fora de seu direito."
+    },
+    {
+      "question": "O que compõe um escopo de teste seguro?",
+      "answer": "Alvos autorizados, ambiente, contas, dados permitidos, janela, limites de carga, contatos e atividades proibidas."
+    },
+    {
+      "question": "Quais casos XML ajudam a avaliar um parser SOAP?",
+      "answer": "XML malformado, namespaces e elementos inesperados, payload grande, profundidade excessiva e referências externas, sempre em ambiente autorizado; verificar rejeição segura e ausência de busca externa."
+    },
+    {
+      "question": "Como testar autorização por função?",
+      "answer": "Invocar diretamente endpoints privilegiados com conta comum e verificar que o servidor nega a operação, inclusive quando se altera método ou rota."
+    },
+    {
+      "question": "Por que documentação e inventário observado devem ser comparados?",
+      "answer": "Versões antigas, rotas esquecidas e operações administrativas podem continuar ativas mesmo sem constar na documentação atual."
+    },
+    {
+      "question": "Cite quatro dimensões de consumo abusivo a testar.",
+      "answer": "Tamanho de corpo, paginação, frequência de chamadas, concorrência e custo de operações são exemplos de limites a verificar."
+    },
+    {
+      "question": "O que torna um relatório de achado útil para correção?",
+      "answer": "Endpoint e pré-condições, requisição e resposta sanitizadas, impacto, evidência reproduzível, causa provável e recomendação, seguidos de reteste."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Autenticação confundida com autorização",
+      "summary": "Credencial válida apenas identifica o cliente; o serviço ainda precisa verificar função, objeto e propriedades em cada operação."
+    },
+    {
+      "key": "e2",
+      "title": "Identificador tratado como controle de acesso",
+      "summary": "IDs sequenciais ou UUIDs não são autorização. O servidor precisa vincular a identidade ao objeto solicitado."
+    },
+    {
+      "key": "e3",
+      "title": "Confiança excessiva no transporte e na interface",
+      "summary": "TLS e controles visuais não corrigem falhas de autorização, validação ou lógica implementadas no servidor."
+    },
+    {
+      "key": "e4",
+      "title": "Parser XML vulnerável e limites ausentes",
+      "summary": "Entidades externas e mensagens sem limites podem levar a acesso indevido a recursos ou consumo excessivo; configure o parser e valide estrutura e tamanho."
+    },
+    {
+      "key": "e5",
+      "title": "Teste sem escopo ou sem reteste",
+      "summary": "Avaliação sem autorização e limites pode causar impacto; achado sem reprodução e reteste não demonstra correção efetiva."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe vai avaliar uma API de pagamentos em homologação. Qual providência deve anteceder os testes ativos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir por escrito alvos, contas, dados, limites e autorização para o teste.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar primeiro um teste de carga para medir a capacidade máxima do serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar contas reais de clientes para reproduzir operações com maior fidelidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Varredura de todos os domínios da organização sem delimitar ambientes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar logs de segurança para que as requisições não interfiram na avaliação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Autorização, escopo, contas, dados e limites reduzem risco e tornam a avaliação reproduzível. Carga máxima, dados reais e varredura sem delimitação podem causar impacto fora do objetivo; logs devem ser preservados e tratados com cuidado.",
+      "section": "1. Escopo, superfície de ataque e método de teste",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O inventário de uma API deve considerar apenas as rotas presentes na documentação atual, pois endpoints antigos já não fazem parte da superfície de ataque.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Versões antigas, rotas esquecidas e operações administrativas podem continuar acessíveis. A avaliação compara documentação e comportamento observado para localizar a superfície efetivamente publicada.",
+      "section": "1. Escopo, superfície de ataque e método de teste",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O guia OWASP WSTG organiza testes que abrangem autenticação, autorização, validação de entrada, configuração e APIs.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O WSTG fornece metodologia e técnicas para testar diferentes domínios de segurança de aplicações e serviços web, incluindo APIs.",
+      "section": "1. Escopo, superfície de ataque e método de teste",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço tem uma rota administrativa que não aparece na interface do usuário comum. Qual teste verifica se há controle efetivo no servidor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar que o botão administrativo não aparece na página inicial.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tentar diretamente a rota administrativa com uma conta comum.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Verificar se a rota responde mais rápido que as rotas públicas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar o tema visual da página e repetir a navegação pelo menu.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Comparar somente o tamanho dos arquivos JavaScript enviados ao navegador.",
+          "correct": false
+        }
+      ],
+      "explanation": "A chamada direta com conta comum testa autorização no ponto que protege o recurso. Ocultar o botão é apenas controle de interface e não impede uma requisição construída pelo cliente.",
+      "section": "1. Escopo, superfície de ataque e método de teste",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma avaliação deve registrar requisições e respostas sanitizadas, identidade de teste, endpoint e resultado observado para permitir reprodução do achado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Evidência sanitizada e contexto reproduzível ajudam a confirmar o impacto e retestar a correção sem divulgar credenciais ou dados pessoais desnecessários.",
+      "section": "1. Escopo, superfície de ataque e método de teste",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar o inventário da documentação com as rotas observadas, um testador encontra uma versão antiga ainda ativa. Qual conclusão é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A versão antiga deve ser avaliada e administrada como parte da superfície exposta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A versão antiga pode ser ignorada porque a documentação atual substitui sua exposição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A versão antiga deve ser testada apenas se usar o mesmo esquema de autenticação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A versão antiga deixa de ser risco quando a rota nova aplica TLS corretamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A versão antiga só precisa ser inventariada depois que houver exploração confirmada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma versão acessível continua exposta, mesmo fora da documentação. Ela precisa de controles, manutenção ou desativação planejada, pois pode preservar operações e falhas que a versão atual já corrigiu.",
+      "section": "1. Escopo, superfície de ataque e método de teste",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API autentica corretamente o usuário, mas permite que ele leia um pedido de outra conta ao trocar o identificador na URL. Qual controle falhou?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Negociação TLS entre o cliente e o servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Codificação do corpo JSON na resposta do serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Autorização sobre o objeto pedido.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Resolução DNS do nome público do endpoint.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Compressão da resposta enviada ao cliente autenticado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O serviço reconhece a identidade, mas não verifica se ela tem direito sobre aquele pedido específico. Essa falha de autorização por objeto pode ocorrer mesmo com transporte protegido e login válido.",
+      "section": "2. Identidade, autenticação e autorização",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um identificador UUID é imprevisível e, por isso, substitui a autorização por objeto no servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O identificador pode ser obtido por outros meios ou compartilhado. O serviço deve verificar a relação entre identidade e objeto em cada chamada.",
+      "section": "2. Identidade, autenticação e autorização",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência de teste é mais apropriada para verificar autorização por objeto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conta A cria um objeto; conta B tenta lê-lo, alterá-lo e excluí-lo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conta A cria objetos; a mesma conta A repete apenas a leitura autorizada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conta B solicita apenas uma rota inexistente sem informar identificador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conta privilegiada lê seu próprio objeto usando um identificador aleatório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cliente anônimo consulta a página inicial pública do serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "A comparação entre proprietário e outra identidade revela se o serviço associa autorização ao objeto. Leitura, alteração e exclusão devem ser verificadas separadamente porque cada ação pode ter uma regra própria.",
+      "section": "2. Identidade, autenticação e autorização",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada com token expirado deve ser aceita quando o identificador do usuário ainda existe no banco de dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O serviço deve validar a condição do token conforme o mecanismo adotado, incluindo validade temporal quando aplicável; a existência do usuário não torna credencial expirada válida.",
+      "section": "2. Identidade, autenticação e autorização",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente envia `isAdmin=true` no corpo de atualização de perfil e o servidor grava o campo. Que falha esse caso evidencia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Falha de resolução de endpoint causada pelo WSDL desatualizado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uso de certificado TLS incompatível com o cliente de teste.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Excesso de paginação ao consultar uma coleção de recursos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Autorização insuficiente sobre a propriedade privilegiada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Erro de codificação de caracteres durante a compactação do corpo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Campos privilegiados não devem ser controlados livremente pelo cliente. O servidor precisa aceitar somente propriedades autorizadas e também evitar expor campos internos na resposta.",
+      "section": "2. Identidade, autenticação e autorização",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Autenticação verifica a identidade apresentada; autorização decide se essa identidade pode executar a ação sobre o recurso solicitado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. São verificações distintas. Um usuário autenticado ainda pode não ter permissão para uma operação, objeto ou propriedade específica.",
+      "section": "2. Identidade, autenticação e autorização",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação retorna corretamente 401 para token ausente, mas permite que qualquer usuário autenticado invoque a operação de reembolso de administrador. Qual é o problema central?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autorização por função não restringe a operação privilegiada ao papel permitido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Autenticação está ausente porque o cliente precisa fornecer uma senha em cada rota.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Autorização por objeto falha porque todo reembolso deve usar UUID.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "TLS está mal configurado porque a operação altera dados financeiros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Validação de entrada está ausente porque o token tem formato compacto.",
+          "correct": false
+        }
+      ],
+      "explanation": "O serviço distingue ausência de credencial, mas não limita a função de reembolso por papel ou permissão. A resposta 401 não demonstra que a autorização para usuários autenticados esteja correta.",
+      "section": "2. Identidade, autenticação e autorização",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma API usa TLS, pode dispensar a verificação de autorização porque o canal já autentica o servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. TLS protege o canal e pode autenticar o servidor, mas não determina quais dados ou operações cada cliente pode acessar dentro da aplicação.",
+      "section": "2. Identidade, autenticação e autorização",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste de token deve avaliar assinatura e contexto de uso, além de verificar se a identidade autenticada pode acessar cada objeto solicitado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A validação do token verifica sua autenticidade e condições aplicáveis; a autorização por objeto continua necessária depois da autenticação.",
+      "section": "2. Identidade, autenticação e autorização",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço SOAP aceita XML com referência a entidade externa e retorna o conteúdo de um arquivo local de teste. Qual medida reduz diretamente essa classe de risco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ocultar a URL do WSDL no menu de documentação pública.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desabilitar DTD e entidades externas no parser XML.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aceitar somente chamadas de clientes com navegador atualizado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Compactar o XML antes de encaminhá-lo ao parser do serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o identificador do endpoint para uma sequência não previsível.",
+          "correct": false
+        }
+      ],
+      "explanation": "O comportamento caracteriza processamento perigoso de entidade externa. Configurar o parser para desabilitar DTD e referências externas elimina a busca que permite alcançar arquivos ou serviços não pretendidos.",
+      "section": "3. Dados, protocolos e configuração segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O WSDL descreve operações e mensagens SOAP e pode ajudar a inventariar a interface que será testada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O contrato ajuda a conhecer tipos, mensagens, operações e endpoints, mas não comprova que controles de acesso estejam implementados.",
+      "section": "3. Dados, protocolos e configuração segura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual teste verifica validação robusta de entrada em uma API JSON?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enviar apenas o exemplo válido da documentação sem alterar seus campos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Repetir a mesma chamada válida até a resposta ficar mais rápida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Consultar somente os cabeçalhos de cache da página institucional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o nome DNS do cliente sem modificar a requisição enviada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Enviar campos ausentes, extras e valores fora do intervalo.",
+          "correct": true
+        }
+      ],
+      "explanation": "Variações controladas revelam se o servidor aplica esquema, tipos e regras de negócio. A aplicação não pode confiar somente na validação do cliente ou no exemplo documentado.",
+      "section": "3. Dados, protocolos e configuração segura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem de erro que revela stack trace, caminho interno e consulta do banco facilita a exploração e pode expor detalhes sensíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O serviço deve retornar mensagens controladas ao cliente e manter detalhes técnicos em registros protegidos, com sanitização adequada.",
+      "section": "3. Dados, protocolos e configuração segura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint SOAP documenta três operações no WSDL, mas aceita uma quarta operação desconhecida e sem autenticação. Qual avaliação é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A operação adicional amplia a superfície e deve ser inventariada, controlada ou removida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O WSDL é a única fonte de verdade, então a operação extra não existe para fins de segurança.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Operações SOAP não precisam de autenticação quando não estão listadas no contrato.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A operação extra só é risco se usar um método HTTP de leitura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A operação pode ficar sem controle se o servidor exige TLS para todas as rotas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O comportamento observado define a superfície real. Operação não documentada pode ser interface esquecida e ainda assim acessível; deve receber controles compatíveis ou ser desativada.",
+      "section": "3. Dados, protocolos e configuração segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A validação somente no navegador é suficiente quando o servidor recebe JSON com Content-Type correto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Clientes podem ser modificados e requisições construídas diretamente. O servidor deve validar estrutura, tamanho, tipos e regras de negócio em toda entrada.",
+      "section": "3. Dados, protocolos e configuração segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um parser SOAP não usa entidades externas, mas ainda aceita XML aninhado sem limites e corpos de tamanho ilimitado. Qual controle complementar é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Impor limites de tamanho e profundidade e validar a estrutura da mensagem.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Publicar o WSDL em outro hostname para distribuir as requisições.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permitir mais métodos HTTP para que os clientes escolham o formato.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar autenticação nos métodos de leitura para reduzir custo do parser.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Retornar mensagens de erro completas para que o cliente ajuste o XML.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mesmo sem XXE, mensagens grandes ou profundamente aninhadas podem consumir recursos. Limites de tamanho e profundidade e validação de estrutura controlam a carga imposta ao parser.",
+      "section": "3. Dados, protocolos e configuração segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os testes de entrada devem incluir tipos de conteúdo inesperados e métodos não documentados para verificar se o serviço os trata de forma controlada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Aceitação implícita de formatos ou métodos amplia a superfície e pode contornar validações planejadas. O serviço deve aceitar somente o que suporta e rejeitar o restante com comportamento controlado.",
+      "section": "3. Dados, protocolos e configuração segura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rota de exportação produz arquivos muito grandes e não aplica limite de frequência. Qual controle reduz o risco de consumo abusivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir exportação ilimitada desde que o endpoint use TLS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover autenticação para reduzir o processamento de cada requisição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Limitar frequência, volume e custo das exportações.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ocultar a rota da página de documentação sem alterar seu comportamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o tamanho máximo de resposta para reduzir chamadas repetidas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Limites coerentes sobre frequência, tamanho e custo reduzem esgotamento de recursos. TLS protege o transporte e não controla a quantidade de trabalho executada pelo serviço.",
+      "section": "4. Abuso, disponibilidade, evidência e reteste",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Rate limiting pode ajudar contra consumo excessivo, mas não substitui autorização por objeto ou função.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Rate limiting controla volume de chamadas; a autorização decide se o cliente pode executar uma ação ou acessar um objeto específico.",
+      "section": "4. Abuso, disponibilidade, evidência e reteste",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação de compra pode ser repetida pelo cliente após timeout e gerar cobranças duplicadas. O que o teste deve avaliar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente se o corpo da resposta usa um campo JSON chamado status.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Se o certificado TLS contém o nome da pessoa compradora.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se o WSDL lista a operação em ordem alfabética.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificar repetição e duplicação da compra.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Se o servidor aceita consultas sem autenticação durante o timeout.",
+          "correct": false
+        }
+      ],
+      "explanation": "Fluxos sensíveis devem ser testados quanto a chamadas repetidas e concorrentes. Chaves de idempotência ou mecanismos equivalentes podem impedir que a repetição produza efeitos duplicados, conforme o desenho do serviço.",
+      "section": "4. Abuso, disponibilidade, evidência e reteste",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "SSRF ocorre quando uma entrada pode induzir o servidor a buscar um destino de rede que o cliente não acessaria diretamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Como a requisição parte do servidor, uma validação fraca de URL pode expor redes internas ou serviços não pretendidos. Testes devem ser autorizados e controlados.",
+      "section": "4. Abuso, disponibilidade, evidência e reteste",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API de cupons permite aplicar repetidamente um benefício destinado a uma única compra. Qual teste é mais pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Testar somente se o nome do endpoint está descrito em inglês.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Verificar apenas se a resposta inclui cabeçalho de cache público.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Confirmar que o navegador esconde o botão após a primeira chamada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar a frequência até causar indisponibilidade para comprovar o risco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Testar repetição e concorrência do fluxo, verificando a regra de elegibilidade no servidor.",
+          "correct": true
+        }
+      ],
+      "explanation": "O problema envolve fluxo sensível e regra de negócio: elegibilidade e uso único devem ser mantidos no servidor, inclusive sob repetição e concorrência. Não é necessário causar indisponibilidade para demonstrar a falha.",
+      "section": "4. Abuso, disponibilidade, evidência e reteste",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste de carga sem limites acordados é apropriado porque a equipe de segurança deve descobrir a capacidade máxima real do serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Testes de disponibilidade precisam de autorização, ambiente e limites acordados. A avaliação deve verificar controles sem provocar impacto não planejado.",
+      "section": "4. Abuso, disponibilidade, evidência e reteste",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação aceita URL de callback e o servidor segue redirecionamentos para destinos internos. Qual controle ajuda a mitigar SSRF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Codificar a URL em Base64 antes de registrá-la nos logs.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Validar esquema e destino, restringir redes alcançáveis e reavaliar redirecionamentos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Permitir qualquer destino, mas limitar o tamanho da resposta recebida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exigir que o cliente use um token assinado sem validar o destino acessado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Publicar uma lista de exemplos de URLs aceitas sem validação no servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "O servidor que busca a URL deve controlar esquema e destino e impedir acesso a redes internas; redirecionamentos podem alterar o destino depois da validação inicial e também precisam ser tratados.",
+      "section": "4. Abuso, disponibilidade, evidência e reteste",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após corrigir um achado de autorização, o reteste deve repetir o cenário original e verificar casos relacionados sem ampliar o escopo autorizado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Reproduzir o caso confirma a correção; casos relacionados ajudam a verificar a causa raiz. O reteste permanece sujeito ao mesmo escopo e aos limites definidos.",
+      "section": "4. Abuso, disponibilidade, evidência e reteste",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço corrigiu o endpoint de leitura, mas o mesmo identificador ainda pode ser usado para alterar ou excluir o objeto de outra conta. Como avaliar o achado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A correção é incompleta; autorização por objeto deve cobrir cada operação relevante.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A correção é completa porque leitura era a única operação que exigia autorização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O risco foi eliminado ao trocar o identificador por um UUID não sequencial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A falha restante pertence apenas ao transporte e se resolve ativando TLS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A exclusão deve ser liberada para qualquer usuário para preservar consistência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada operação pode revelar ou alterar estado e precisa verificar a relação entre identidade e objeto. Corrigir apenas leitura deixa alteração e exclusão vulneráveis; trocar o formato do ID não aplica autorização.",
+      "section": "4. Abuso, disponibilidade, evidência e reteste",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O registro de segurança deve guardar credenciais completas e tokens em claro para que toda chamada possa ser reproduzida sem perda de informação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Evidências e logs devem ser sanitizados para evitar exposição de segredos e dados pessoais. A reprodução pode usar contas e tokens de teste controlados, sem manter credenciais reais em claro.",
+      "section": "4. Abuso, disponibilidade, evidência e reteste",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual registro é mais útil para comunicar um achado sem expor segredos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Endpoint, pré-condições, identidade de teste, evidência sanitizada, impacto e reteste.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Token real completo, dados pessoais de terceiros e uma captura sem contexto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas o nome do produto, sem indicar rota, método ou comportamento observado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma lista de ferramentas usadas, sem requisição reproduzível ou resultado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma estimativa de risco sem indicar a condição que permite reproduzir a falha.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um relatório deve ser reproduzível e demonstrar impacto, mas não precisa divulgar credenciais reais. Contexto, evidência sanitizada e resultado do reteste orientam a correção e sua confirmação.",
+      "section": "4. Abuso, disponibilidade, evidência e reteste",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação protegida responde com dados diferentes para usuário válido e inexistente, permitindo enumerar contas. Qual ajuste é mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter respostas distintas para cada caso e apenas ocultar a mensagem na interface do cliente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Retornar mensagens equivalentes e aplicar controles contra tentativas automatizadas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Expor mais detalhes sobre a conta para facilitar a depuração do cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover autenticação da operação para que não exista diferença de resposta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenar a senha enviada na resposta para confirmar a identidade informada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Respostas externas equivalentes reduzem enumeração, e controles de tentativas dificultam automação. A equipe ainda pode manter registros internos protegidos; revelar detalhes ou segredos agrava o risco.",
+      "section": "2. Identidade, autenticação e autorização",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada sem token acessa uma operação que deveria exigir identidade. Qual evidência indica falha de autenticação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O serviço executa a operação protegida sem credencial válida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O serviço responde com erro controlado e não executa a operação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O servidor rejeita credencial expirada e registra o evento com segurança.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O cliente recebe documentação pública da interface sem dados restritos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O serviço exige credencial válida antes de processar a operação protegida.",
+          "correct": true
+        }
+      ],
+      "explanation": "A exigência de uma credencial válida antes da operação é o comportamento esperado. A execução sem token indicaria falha; respostas controladas e documentação pública não demonstram por si sós uma falha.",
+      "section": "2. Identidade, autenticação e autorização",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço aceita um campo `ownerId` arbitrário na criação de registros. Qual verificação é prioritária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar se a interface apresenta o campo com rótulo traduzido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Comparar o tamanho da resposta com o arquivo de esquema local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Confirmar que o servidor deriva ou valida o proprietário pela identidade autorizada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Verificar se o endpoint responde somente por conexão TLS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o formato do identificador para uma sequência aleatória.",
+          "correct": false
+        }
+      ],
+      "explanation": "O proprietário de um objeto não deve ser definido livremente por um campo controlado pelo cliente. O servidor deve associar o objeto à identidade autenticada ou validar a permissão correspondente.",
+      "section": "2. Identidade, autenticação e autorização",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma API REST, qual evidência demonstra que o servidor restringe adequadamente um método HTTP não suportado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A documentação lista o método mais comum para o recurso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A interface não mostra um botão associado ao método.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O método alternativo retorna o mesmo conteúdo da página inicial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A chamada não autorizada ou não suportada é recusada sem executar a ação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O servidor aceita qualquer método e depende do cliente para ignorar a resposta.",
+          "correct": false
+        }
+      ],
+      "explanation": "O comportamento deve ser imposto pelo servidor: método não suportado ou não autorizado não pode executar a ação. Documentação e interface não impedem uma chamada HTTP direta.",
+      "section": "3. Dados, protocolos e configuração segura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um consumidor terceirizado envia dados inválidos e a API os processa sem verificar formato ou regra de negócio. Qual controle deve ser aplicado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Validar no servidor o esquema, os limites e as regras antes de processar os dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Confiar no consumidor porque ele pertence a uma organização conhecida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover o registro do consumidor para evitar futuras requisições inválidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir os dados e corrigir inconsistências apenas em relatórios posteriores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Validar somente os dados exibidos em uma página web do consumidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Dados externos devem ser validados no limite de confiança do serviço, mesmo quando a integração é conhecida. A validação deve abranger estrutura, tamanho, tipos e regras de negócio.",
+      "section": "3. Dados, protocolos e configuração segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O servidor retorna um erro 500 com stack trace e credenciais de conexão. Como deve ser tratado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter o erro detalhado para todos os clientes autenticados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ocultar a resposta de erro e continuar expondo os detalhes no cabeçalho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Enviar o stack trace ao cliente apenas em chamadas TLS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover o tratamento de erro para que a conexão seja encerrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Retornar erro controlado e manter detalhe sanitizado em registro restrito.",
+          "correct": true
+        }
+      ],
+      "explanation": "A resposta ao cliente não deve revelar caminhos internos, stack traces ou credenciais. Detalhes necessários à investigação podem ser registrados em ambiente protegido e sem segredos desnecessários.",
+      "section": "3. Dados, protocolos e configuração segura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API permite paginação com tamanho arbitrário e consultas muito custosas. Qual combinação reduz o consumo descontrolado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Limitar somente a duração do token e manter paginação sem teto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir teto de página, cotas de uso e limites para consultas caras.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Exigir TLS, mas permitir qualquer volume de resposta por chamada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar logs e métricas para evitar carga durante as consultas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aceitar páginas ilimitadas e restringir apenas o endereço IP do cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tamanho máximo de página, cotas e controles de custo limitam o trabalho por chamada e por identidade. TLS protege o trânsito, mas não limita recursos, e uma única restrição de IP pode ser insuficiente.",
+      "section": "4. Abuso, disponibilidade, evidência e reteste",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma correção foi implantada para impedir que usuários consultem objetos alheios. Qual procedimento confirma melhor o resultado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir o cenário com as mesmas contas e também verificar alteração e exclusão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Confirmar somente que a tela de erro mudou de cor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover a conta de teste antes de executar qualquer nova chamada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Repetir o caso original e cobrir operações relacionadas dentro do escopo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Concluir que a correção funcionou porque o código foi revisado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O reteste deve repetir o caso que demonstrou a falha e cobrir operações relacionadas, mantendo o escopo acordado. Revisão de código ou mudança visual não confirma o comportamento efetivo do serviço.",
+      "section": "4. Abuso, disponibilidade, evidência e reteste",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço aplica limite global de chamadas, mas um cliente pode alternar entre várias contas para exceder a cota de uma operação sensível. O que a avaliação deve verificar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se o serviço registra o nome das contas no WSDL.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Se o limite global impede qualquer chamada acima da capacidade total.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se cotas e regras de abuso consideram identidade, operação e fluxo sensível.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Se cada conta tem um identificador UUID em vez de número sequencial.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se a conexão usa TLS para todas as contas alternadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Limites globais isolados podem ser contornados distribuindo chamadas. O desenho deve considerar identidade e operação, e aplicar controles de abuso adequados ao fluxo sensível.",
+      "section": "4. Abuso, disponibilidade, evidência e reteste",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe resolveu uma falha removendo a mensagem de erro detalhada, mas a aplicação ainda retorna dados privados de outra conta. A correção eliminou o problema de autorização?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Reduzir detalhes de erro é uma medida separada. A exposição de dados de outra conta continua exigindo correção de autorização por objeto e reteste.",
+      "section": "4. Abuso, disponibilidade, evidência e reteste",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A avaliação de autorização deve considerar separadamente operações de leitura, alteração e exclusão, pois cada uma pode ter uma regra própria.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Permissão para consultar um objeto não implica permissão para alterá-lo ou excluí-lo. Os testes devem verificar cada operação sensível com identidades e objetos de controle.",
+      "section": "2. Identidade, autenticação e autorização",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma API usa SOAP, os testes de autenticação e autorização não são necessários porque o envelope XML define quem pode executar cada operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. SOAP define o formato da mensagem e pode transportar informações de segurança, mas o serviço ainda precisa autenticar o cliente e aplicar autorização a cada operação e recurso.",
+      "section": "3. Dados, protocolos e configuração segura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "OWASP Web Security Testing Guide — API Testing Overview",
+      "publisher": "OWASP Foundation",
+      "reference": "Visão geral de tecnologias de API e princípios de testes de APIs REST e SOAP",
+      "url": "https://wstg.owasp.org/latest/4-Web_Application_Security_Testing/12-API_Testing/00-API_Testing_Overview/",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OWASP Web Security Testing Guide",
+      "publisher": "OWASP Foundation",
+      "reference": "Metodologia e domínios de teste de aplicações e serviços web",
+      "url": "https://wstg.owasp.org/",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OWASP API Security Top 10 2023",
+      "publisher": "OWASP Foundation",
+      "reference": "Riscos de autorização por objeto, autenticação, propriedade, consumo de recursos, SSRF, configuração, inventário e consumo de APIs",
+      "url": "https://api-security.owasp.org/editions/2023/en/0x00-header/",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NIST SP 800-95 — Guide to Secure Web Services",
+      "publisher": "National Institute of Standards and Technology",
+      "reference": "Controles de autenticação, autorização, confidencialidade, integridade e ameaças a Web Services baseados em XML e SOAP",
+      "url": "https://csrc.nist.gov/pubs/sp/800/95/final",
+      "accessedAt": "2026-10-31"
+    }
+  ]
+}

@@ -1,0 +1,1719 @@
+{
+  "id": "redes-computadores.sdn-nfv-vlan-vxlan-datacenter",
+  "subject": "Informática",
+  "title": "SDN, NFV, VLAN, VXLAN e redes modernas de data center",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Conceitos de SDN, NFV, VLAN, VXLAN e redes modernas de data center",
+    "Redes definidas por software SDN",
+    "Virtualização de funções de rede NFV",
+    "Rede local virtual VLAN IEEE 802.1Q",
+    "Rede virtual extensível VXLAN e VNI",
+    "Arquitetura de rede leaf spine em data center",
+    "Overlay e underlay em redes de data center",
+    "Control plane e data plane de rede",
+    "NFV MANO, VNFM, NFVO e VIM",
+    "Encapsulamento VXLAN sobre rede IP",
+    "Segmentação lógica de redes Ethernet",
+    "Fabric escalável para centro de dados moderno"
+  ],
+  "scope": {
+    "covers": "Conceitos e diferenças entre SDN e NFV; planos de controle e encaminhamento; controlador e interfaces SDN; VLAN, tagging IEEE 802.1Q, domínio de broadcast e limites de identificação; VXLAN, VNI, VTEP, encapsulamento Ethernet sobre UDP/IP e relação overlay-underlay; arquitetura moderna de data center, leaf-spine/Clos, ECMP, BGP, escalabilidade, mobilidade de cargas e segmentação.",
+    "excludes": "Configuração específica de fabricante, comandos de equipamentos, cálculo detalhado de MTU, configuração completa de EVPN, regras comerciais de produtos e projeto físico de cabeamento."
+  },
+  "theoryTitle": "Virtualização e arquitetura de redes de data center",
+  "chapters": [
+    {
+      "title": "1. SDN: separar decisões do encaminhamento",
+      "markdown": "### O problema que este assunto resolve\n\nEm uma rede tradicional, cada roteador ou switch participa de decisões de controle e também encaminha pacotes. Fazer uma política mudar em muitos equipamentos pode exigir configurações repetidas e produzir estados inconsistentes. **Software-Defined Networking (SDN)** organiza a rede para que a lógica de controle seja programável e opere com uma visão coordenada, enquanto os dispositivos continuam encaminhando os pacotes.\n\n> **Siglas e termos deste capítulo**\n> - **Control plane (plano de controle)**: calcula caminhos, mantém estado de rede e decide políticas de encaminhamento.\n> - **Data plane (plano de dados ou encaminhamento)**: recebe quadros e pacotes e os encaminha conforme regras instaladas.\n> - **Controlador SDN**: software que coordena decisões de controle para um conjunto de dispositivos.\n> - **OpenFlow**: protocolo associado historicamente à programação de tabelas de fluxo em equipamentos SDN; não é sinônimo de SDN.\n> - **API northbound / southbound**: interfaces, respectivamente, entre aplicações e controlador, e entre controlador e dispositivos.\n\nA definição da Open Networking Foundation caracteriza SDN pela separação física do plano de controle do plano de encaminhamento e por um plano de controle que controla vários dispositivos. O controlador pode ter implementação distribuída para disponibilidade, mas a visão e a política podem ser **logicamente centralizadas**. Centralização lógica não significa necessariamente um único servidor físico.\n\n### Como a decisão chega ao pacote\n\nUma aplicação ou política de rede informa uma intenção ao controlador por uma interface northbound. O controlador traduz essa intenção em regras apropriadas e as instala nos dispositivos por mecanismos southbound. O switch aplica as regras no tráfego; o controlador pode receber eventos e atualizar decisões. A rede fica programável, mas o encaminhamento dos pacotes não precisa atravessar o controlador.\n\n| Elemento | Responsabilidade típica | Exemplo\n| --- | --- | --- |\n| Aplicação de rede | Expressa política ou serviço | Priorizar tráfego de uma aplicação\n| Controlador | Coordena estado e traduz política | Instalar regras em diversos switches\n| Dispositivo de rede | Executa encaminhamento local | Selecionar porta de saída para um pacote\n\n### SDN não é uma marca nem exige OpenFlow\n\nOpenFlow é um protocolo importante na história e nos primeiros sistemas SDN, mas SDN é uma arquitetura. Existem controladores e dispositivos que se comunicam por outras APIs, protocolos ou modelos de configuração. Também não se deve confundir controle centralizado logicamente com encaminhamento centralizado: em geral, os dispositivos de rede encaminham o tráfego localmente.\n\n### Como cai na prova\n\n- Se o item disser que SDN separa controle e encaminhamento e permite programar a rede por software, descreve a ideia central.\n- Se disser que todo pacote precisa passar pelo controlador, confunde plano de controle com plano de dados.\n- Se tratar OpenFlow como obrigatório em qualquer solução SDN, transforma um protocolo conhecido em requisito universal que a arquitetura não impõe."
+    },
+    {
+      "title": "2. NFV: funções de rede executadas como software",
+      "markdown": "### O problema que este assunto resolve\n\nFirewall, roteador, balanceador e outras funções de rede costumavam depender de appliances dedicados. **Network Functions Virtualisation (NFV)** propõe implementar funções de rede em software, executadas sobre infraestrutura virtualizada ou computacional apropriada. Isso permite instanciar, dimensionar, atualizar ou mover funções sem que cada serviço exija necessariamente um equipamento proprietário dedicado. NFV não elimina os equipamentos físicos: eles continuam compondo a infraestrutura que oferece computação, armazenamento e rede.\n\n> **Siglas e termos deste capítulo**\n> - **NF (Network Function)**: função de rede, como firewall, NAT ou balanceamento.\n> - **VNF**: implementação virtualizada de uma função de rede.\n> - **PNF**: função de rede implementada em equipamento físico.\n> - **NFVI**: infraestrutura de virtualização de funções de rede, incluindo recursos computacionais, armazenamento e conectividade.\n> - **MANO**: gestão e orquestração de NFV.\n> - **VNFM / NFVO / VIM**: gerente do ciclo de vida de VNF, orquestrador de serviços NFV e gerente da infraestrutura virtualizada.\n\nNa arquitetura ETSI NFV-MANO, os blocos centrais incluem **NFVO**, **VNFM** e **VIM**; a especificação consultada também contempla **WIM**, que gerencia infraestrutura de rede de longa distância. O VNFM cuida do ciclo de vida de instâncias VNF, seguindo requisitos descritos no VNF Descriptor (VNFD). O VIM administra recursos da infraestrutura virtualizada. O NFVO coordena serviços de rede e recursos, incluindo a composição e orquestração do serviço. Um serviço NFV (NS) pode combinar VNFs, funções físicas (PNFs), serviços aninhados e links virtuais.\n\n| Bloco | Papel resumido | Não confundir com\n| --- | --- | --- |\n| NFVO | Orquestrar serviços e recursos NFV | Executor de cada pacote de tráfego\n| VNFM | Gerenciar ciclo de vida de VNFs | Gerenciador geral do hardware\n| VIM | Administrar recursos virtualizados da NFVI | Especificação da função firewall\n| WIM | Gerenciar infraestrutura WAN | VNF Manager\n\n### NFV e SDN podem trabalhar juntos\n\nNFV virtualiza a implementação de funções; SDN programa e coordena conectividade e encaminhamento. Um serviço pode encadear tráfego entre firewall virtual, balanceador virtual e outros componentes usando conectividade configurada por SDN. Uma tecnologia pode ser usada sem a outra: virtualizar um firewall não torna automaticamente a rede SDN, e um controlador SDN pode controlar switches sem implantar VNFs.\n\n### Como cai na prova\n\n- VNF é software que realiza função de rede; NFVI fornece infraestrutura; MANO coordena gestão e orquestração.\n- A associação usual é VNFM com ciclo de vida da VNF, VIM com recursos de infraestrutura e NFVO com orquestração de serviços.\n- NFV não significa abolir servidores, switches ou funções físicas; uma composição pode incluir PNF e VNF."
+    },
+    {
+      "title": "3. VLAN: segmentação Ethernet por identificador",
+      "markdown": "### O problema que este assunto resolve\n\nUma LAN física pode ser dividida em redes locais lógicas. **Virtual LAN (VLAN)** agrupa portas e estações em domínios de camada 2 separados, ainda que compartilhem switches. Por padrão, quadros de broadcast de uma VLAN não são encaminhados para outra VLAN como se fossem o mesmo domínio; comunicação entre VLANs exige roteamento de camada 3 ou um mecanismo equivalente. Isso ajuda a separar departamentos, tipos de serviço e domínios de broadcast, mas não substitui sozinho controles completos de segurança.\n\n> **Siglas e termos deste capítulo**\n> - **LAN**: rede local.\n> - **VLAN**: LAN virtual identificada logicamente em Ethernet.\n> - **IEEE 802.1Q**: padrão de tagging VLAN em quadros Ethernet.\n> - **Access port**: porta configurada para uma VLAN de acesso, em geral ligada a um terminal não tagueado.\n> - **Trunk**: enlace que transporta tráfego de múltiplas VLANs, identificando-as por tags.\n> - **Domínio de broadcast**: conjunto em que um broadcast de camada 2 é propagado.\n\nO IEEE 802.1Q insere um campo de tag no quadro Ethernet para identificar a VLAN e carregar prioridade. O identificador VLAN tem 12 bits no campo VID; os valores 0 e 4095 têm uso reservado, portanto os identificadores configuráveis convencionais vão de 1 a 4094. A tag aumenta o tamanho do quadro Ethernet; interfaces e enlaces precisam estar preparados para o formato tagueado. Em um trunk, cada quadro tagueado permite ao switch manter a associação com a VLAN ao longo do enlace. Uma VLAN nativa pode ser transportada sem tag em algumas configurações, mas essa convenção precisa ser consistente nas duas pontas.\n\nUma VLAN é uma segmentação de camada 2. A existência de VLANs diferentes não cria, por si, comunicação IP entre elas. Para comunicação entre segmentos, configura-se roteamento inter-VLAN, normalmente em um roteador ou switch de camada 3, com políticas de acesso quando necessárias.\n\n### VLAN não é VXLAN\n\n| Característica | VLAN | VXLAN\n| --- | --- | --- |\n| Identificador | VID de 12 bits no padrão 802.1Q | VNI de 24 bits no cabeçalho VXLAN\n| Alcance típico | Segmentação Ethernet em enlaces comutados | Overlay de camada 2 sobre uma rede IP de camada 3\n| Encapsulamento | Tag integrada ao quadro Ethernet | Quadro Ethernet interno encapsulado em UDP/IP\n\n### Como cai na prova\n\n- Uma VLAN separa domínios de broadcast de camada 2; entre VLANs, a comunicação requer roteamento.\n- Um trunk transporta várias VLANs, normalmente por tags 802.1Q; uma porta access atende uma VLAN de acesso.\n- O VID de 12 bits não permite 4096 VLANs de uso comum: os valores extremos são reservados.\n- VLAN organiza segmentação; não é sinônimo de criptografia nem de firewall."
+    },
+    {
+      "title": "4. VXLAN: overlay Ethernet sobre underlay IP",
+      "markdown": "### O problema que este assunto resolve\n\nData centers com muitas máquinas virtuais podem precisar de mais segmentos lógicos do que os identificadores VLAN tradicionais comportam, além de estender redes de camada 2 sobre uma malha roteada de camada 3. **VXLAN (Virtual eXtensible LAN)** encapsula um quadro Ethernet original dentro de UDP/IP, formando túneis entre pontos de terminação VXLAN. O tráfego encapsulado atravessa a rede IP física como tráfego de camada 3.\n\n> **Siglas e termos deste capítulo**\n> - **Overlay**: rede lógica criada sobre outra rede de transporte.\n> - **Underlay**: rede física IP que transporta os pacotes encapsulados.\n> - **VNI**: VXLAN Network Identifier, identificador de 24 bits do segmento overlay.\n> - **VTEP**: VXLAN Tunnel End Point, ponto que encapsula e desencapsula quadros VXLAN.\n> - **BUM**: tráfego broadcast, unknown unicast e multicast, que requer mecanismo de distribuição no overlay.\n> - **UDP**: transporte usado pelo encapsulamento VXLAN.\n\nO RFC 7348 especifica um cabeçalho VXLAN de 8 octetos e VNI de 24 bits; com esse campo, há cerca de 16 milhões de identificadores possíveis. O pacote externo inclui cabeçalhos Ethernet, IP e UDP; no destino, o VTEP remove a encapsulação e entrega o quadro Ethernet interno. O VTEP pode estar no hipervisor, em servidor ou em switch físico. A máquina virtual normalmente não precisa conhecer os cabeçalhos externos. O RFC atribui a porta UDP de destino 4789 como valor padrão recomendado.\n\nO VNI define o contexto lógico do quadro interno. Quadros de VNIs distintos permanecem isolados no overlay, ainda que compartilhem os mesmos links e roteadores do underlay. A rede underlay precisa oferecer conectividade IP entre os endereços dos VTEPs; ela não precisa estender o mesmo domínio Ethernet de cada máquina virtual por todo o data center. A encapsulação adiciona bytes ao pacote, portanto o projeto do MTU deve considerar o overhead para evitar fragmentação ou descarte.\n\n| Etapa | Ação\n| --- | --- |\n| Entrada no VTEP | Identifica o segmento e encapsula o quadro com VNI em UDP/IP\n| Underlay | Roteia o pacote externo pelo endereço IP do VTEP de destino\n| Saída no VTEP | Remove cabeçalhos externos e entrega o quadro Ethernet ao segmento correto\n\n### VXLAN não substitui todos os protocolos\n\nVXLAN define encapsulamento e identificação de segmentos, mas não especifica sozinho toda a distribuição de endereços MAC, descoberta de VTEPs ou política de roteamento. Pode-se usar flooding e multicast em certos projetos; EVPN com BGP é uma forma amplamente usada de distribuir informação de alcance para overlays, mas não é a mesma coisa que VXLAN. O VNI também não cifra o tráfego: isolamento lógico não equivale a confidencialidade criptográfica.\n\n### Como cai na prova\n\n- VXLAN carrega quadro Ethernet interno em UDP/IP e conecta VTEPs através do underlay roteado.\n- VNI tem 24 bits; VID VLAN tem 12 bits. Não troque VNI pelo endereço IP do VTEP.\n- O underlay entrega pacotes externos; o overlay representa a rede lógica dos endpoints.\n- O VTEP executa encapsulamento na origem e desencapsulamento na extremidade remota."
+    },
+    {
+      "title": "5. Redes modernas de data center: fabric, leaf-spine e automação",
+      "markdown": "### O problema que este assunto resolve\n\nAplicações distribuídas comunicam entre servidores e racks com tráfego intenso entre leste-oeste, isto é, entre sistemas dentro do próprio data center. Uma hierarquia tradicional em árvore pode concentrar tráfego em camadas superiores e deixar links redundantes bloqueados por protocolos de prevenção de loop. Uma fabric moderna procura múltiplos caminhos ativos, expansão horizontal e menor impacto de falhas.\n\n> **Siglas e termos deste capítulo**\n> - **Clos / leaf-spine**: topologia de múltiplos estágios; folhas conectam servidores e cada spine conecta-se às folhas.\n> - **ToR**: top-of-rack, switch de acesso no rack.\n> - **ECMP**: Equal-Cost Multipath, uso de múltiplos caminhos de mesmo custo.\n> - **BGP**: protocolo de roteamento que pode trocar rotas entre switches da fabric.\n> - **East-west / north-south**: tráfego entre cargas internas / tráfego entre data center e redes externas.\n> - **Automação declarativa**: configuração expressa como estado desejado e aplicada por software.\n\nEm uma leaf-spine, servidores conectam-se às folhas (leaf); cada leaf liga-se a todos ou a um conjunto de spines. Para tráfego entre folhas, existem caminhos de custo semelhante, que podem ser usados com ECMP. A topologia Clos pode crescer horizontalmente adicionando switches e enlaces compatíveis. O RFC 7938 descreve Clos dobrada, também chamada leaf-and-spine, e discute uso de BGP em data centers de grande escala. O grau de oversubscription e o número de caminhos dependem da quantidade e da velocidade dos uplinks; leaf-spine não garante automaticamente banda sem bloqueio.\n\nBGP pode distribuir alcançabilidade entre dispositivos e ECMP pode repartir fluxos por caminhos de mesmo custo. Se um link falha, os demais caminhos podem continuar encaminhando, embora a capacidade disponível diminua e a convergência dependa da detecção da falha e dos protocolos. Redundância não significa ausência de congestionamento ou de domínio de falha.\n\nA combinação de redes roteadas na infraestrutura física com overlays VXLAN permite transportar segmentos lógicos entre racks sem estender uma única LAN física por todo o local. SDN automatiza políticas e configuração; NFV oferece funções de rede virtualizadas; telemetria e automação ajudam a observar estado, implantar alterações repetíveis e detectar desvios. São conceitos complementares, não nomes diferentes para a mesma tecnologia.\n\n### Como cai na prova\n\n- Leaf conecta servidores; spine interliga folhas e oferece caminhos de trânsito.\n- ECMP usa caminhos de mesmo custo; não é sinônimo de balancear sempre cada pacote individualmente.\n- Underlay IP roteado e overlay VXLAN combinam escalabilidade física com segmentação lógica.\n- SDN automatiza controle; NFV virtualiza funções; VLAN e VXLAN segmentam redes em camadas e escalas distintas."
+    }
+  ],
+  "summary": "SDN separa logicamente controle e encaminhamento, permitindo programar políticas de vários dispositivos por um controlador; OpenFlow é um protocolo possível, não requisito de toda SDN. NFV implementa funções de rede como software sobre infraestrutura virtualizada; na ETSI NFV-MANO, NFVO orquestra serviços, VNFM gerencia ciclo de vida das VNFs e VIM administra recursos da NFVI. VLAN divide uma LAN Ethernet em domínios lógicos de camada 2; IEEE 802.1Q marca quadros com VID de 12 bits, com identificadores convencionais de 1 a 4094. VXLAN encapsula Ethernet dentro de UDP/IP entre VTEPs e identifica o overlay por VNI de 24 bits; o underlay IP transporta o pacote externo. Redes leaf-spine/Clos conectam servidores às folhas e folhas aos spines; ECMP aproveita caminhos de mesmo custo e BGP pode distribuir rotas. SDN, NFV, VLAN, VXLAN e fabric são tecnologias complementares.",
+  "flashcards": [
+    {
+      "front": "O que caracteriza SDN na definição da ONF?",
+      "back": "Separação do plano de controle do plano de encaminhamento e controle de vários dispositivos por um plano de controle programável."
+    },
+    {
+      "front": "O que faz o plano de controle?",
+      "back": "Mantém estado e decide políticas e caminhos que orientam o encaminhamento."
+    },
+    {
+      "front": "O que faz o plano de dados?",
+      "back": "Aplica regras nos dispositivos para encaminhar quadros e pacotes."
+    },
+    {
+      "front": "Controlador SDN implica um servidor físico único?",
+      "back": "Não. A centralização é lógica; a implementação pode ser distribuída."
+    },
+    {
+      "front": "OpenFlow é sinônimo ou requisito obrigatório de SDN?",
+      "back": "Não. É um protocolo associado a algumas soluções; SDN é uma arquitetura."
+    },
+    {
+      "front": "O que é NFV?",
+      "back": "Implementação de funções de rede em software sobre infraestrutura computacional virtualizada."
+    },
+    {
+      "front": "O que é uma VNF?",
+      "back": "Implementação virtualizada de uma função de rede, como firewall ou balanceador."
+    },
+    {
+      "front": "Que recursos compõem a NFVI?",
+      "back": "Recursos de computação, armazenamento e conectividade que suportam funções virtualizadas."
+    },
+    {
+      "front": "Qual é o papel do VNFM?",
+      "back": "Gerenciar o ciclo de vida das instâncias VNF conforme os requisitos descritos no VNFD."
+    },
+    {
+      "front": "Qual é o papel do NFVO?",
+      "back": "Orquestrar serviços e recursos NFV, incluindo composições de funções e conectividade."
+    },
+    {
+      "front": "Qual é o papel do VIM?",
+      "back": "Administrar recursos da infraestrutura virtualizada, como computação, armazenamento e rede."
+    },
+    {
+      "front": "O que uma VLAN separa?",
+      "back": "Segmentos lógicos de camada 2 e seus domínios de broadcast em uma infraestrutura Ethernet."
+    },
+    {
+      "front": "Que padrão marca VLANs em quadros Ethernet?",
+      "back": "IEEE 802.1Q."
+    },
+    {
+      "front": "Qual o tamanho do VID 802.1Q e sua faixa comum?",
+      "back": "12 bits; identificadores convencionais de 1 a 4094, com 0 e 4095 reservados."
+    },
+    {
+      "front": "Uma VLAN permite comunicação IP direta com outra VLAN?",
+      "back": "Não por si só; é necessário roteamento de camada 3 ou mecanismo equivalente."
+    },
+    {
+      "front": "O que transporta um trunk Ethernet?",
+      "back": "Tráfego de várias VLANs, identificadas por tags 802.1Q conforme a configuração."
+    },
+    {
+      "front": "O que é VXLAN?",
+      "back": "Encapsulamento de quadros Ethernet internos em UDP/IP para formar segmentos overlay sobre uma rede IP."
+    },
+    { "front": "Quantos bits tem o VNI de VXLAN?", "back": "24 bits." },
+    {
+      "front": "O que é um VTEP?",
+      "back": "Ponto de terminação VXLAN que encapsula e desencapsula quadros Ethernet."
+    },
+    {
+      "front": "Qual é a relação entre overlay e underlay?",
+      "back": "O overlay é a rede lógica; o underlay IP transporta os pacotes externos que conectam os VTEPs."
+    },
+    {
+      "front": "Qual porta UDP o RFC 7348 recomenda como destino padrão para VXLAN?",
+      "back": "4789."
+    },
+    {
+      "front": "O VNI cifra o tráfego?",
+      "back": "Não. O VNI identifica um segmento lógico, mas não fornece criptografia."
+    },
+    {
+      "front": "Em leaf-spine, onde se conectam os servidores?",
+      "back": "Nas folhas (leaf), que por sua vez se conectam aos switches spine."
+    },
+    {
+      "front": "Para que serve ECMP numa fabric Clos?",
+      "back": "Usar múltiplos caminhos de mesmo custo para distribuir fluxos e aproveitar enlaces paralelos."
+    },
+    {
+      "front": "Como SDN e NFV diferem?",
+      "back": "SDN programa e coordena controle/conectividade; NFV implementa funções de rede como software."
+    }
+  ],
+  "tips": [
+    "Associe SDN a controle programável e separação do encaminhamento; o controlador não é o caminho obrigatório de cada pacote.",
+    "Memorize os papéis ETSI: NFVO orquestra, VNFM gerencia ciclo de vida de VNF, VIM administra recursos da NFVI.",
+    "Lembre a escala: VID 802.1Q tem 12 bits; VNI VXLAN tem 24 bits.",
+    "Em VXLAN, VTEP encapsula/decapsula; underlay IP leva o pacote externo e overlay carrega a rede lógica.",
+    "Em leaf-spine, servidores conectam-se às folhas e folhas aos spines; ECMP usa caminhos de custo equivalente.",
+    "Não prometa segurança por segmentação: VLAN/VNI separam contextos lógicos, mas não cifram automaticamente o tráfego."
+  ],
+  "traps": [
+    "Tratar OpenFlow como obrigatório em toda implantação SDN confunde um protocolo com a arquitetura.",
+    "Dizer que NFV elimina hardware físico ignora a NFVI e a possibilidade de funções físicas na composição do serviço.",
+    "Supor que VLANs distintas se comunicam sem roteamento ignora que VLAN é segmentação de camada 2.",
+    "Trocar VID de 12 bits por VNI de 24 bits confunde tagging local 802.1Q com overlay VXLAN.",
+    "Afirmar que VXLAN substitui o roteamento IP é erro: o underlay roteia os pacotes encapsulados entre VTEPs.",
+    "Concluir que leaf-spine sempre é não bloqueante ignora oversubscription, capacidade dos links e falhas."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o caminho de uma política SDN até o encaminhamento de um pacote.",
+      "answer": "Uma aplicação expressa a política ao controlador por interface northbound; o controlador traduz a intenção e instala regras nos dispositivos por mecanismos southbound; os dispositivos aplicam as regras localmente no plano de dados."
+    },
+    {
+      "question": "Diferencie NFVO, VNFM e VIM.",
+      "answer": "NFVO coordena e orquestra serviços e recursos; VNFM gerencia o ciclo de vida de instâncias VNF; VIM administra recursos virtualizados da NFVI."
+    },
+    {
+      "question": "Explique o que ocorre entre duas VLANs diferentes quando um host envia um pacote IP.",
+      "answer": "A VLAN delimita o domínio de camada 2; para alcançar outra VLAN, o tráfego precisa de um gateway e roteamento de camada 3, sujeito às políticas configuradas."
+    },
+    {
+      "question": "Compare o campo de identificação de VLAN com o identificador VXLAN.",
+      "answer": "802.1Q carrega VID de 12 bits em tag Ethernet; VXLAN carrega VNI de 24 bits em cabeçalho de encapsulamento e distingue redes overlay."
+    },
+    {
+      "question": "Quais cabeçalhos formam o transporte VXLAN entre VTEPs?",
+      "answer": "O quadro Ethernet original é interno; ele recebe cabeçalho VXLAN e é transportado por UDP/IP e pelo enlace Ethernet do underlay."
+    },
+    {
+      "question": "Explique a divisão de trabalho entre overlay VXLAN e underlay IP.",
+      "answer": "O overlay dá conectividade lógica aos endpoints e usa VNI; o underlay encaminha pacotes IP externos até o VTEP remoto."
+    },
+    {
+      "question": "Descreva a topologia leaf-spine e a vantagem de ECMP.",
+      "answer": "Servidores conectam-se a leafs e leafs conectam-se a múltiplos spines; caminhos de custo igual podem ser usados em paralelo, ampliando capacidade e redundância."
+    },
+    {
+      "question": "Como SDN, NFV e VXLAN podem coexistir num data center?",
+      "answer": "SDN automatiza controle e políticas; NFV executa funções de rede em software; VXLAN conecta segmentos overlay sobre o underlay IP. Podem integrar-se, mas são conceitos distintos."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confundir plano de controle com plano de dados",
+      "summary": "Controlador e aplicações decidem políticas e regras; os dispositivos encaminham o tráfego. Centralização lógica não significa que cada pacote passe por um controlador único."
+    },
+    {
+      "key": "e2",
+      "title": "Trocar os componentes NFV-MANO",
+      "summary": "VNFM cuida do ciclo de vida de VNF, VIM gerencia recursos da infraestrutura virtualizada e NFVO orquestra serviços e recursos. Uma VNF é a função implementada como software."
+    },
+    {
+      "key": "e3",
+      "title": "Misturar VLAN e VXLAN",
+      "summary": "VLAN usa tag 802.1Q e VID de 12 bits para segmentação Ethernet; VXLAN usa encapsulamento UDP/IP, VTEPs e VNI de 24 bits para overlay."
+    },
+    {
+      "key": "e4",
+      "title": "Confundir overlay e underlay",
+      "summary": "O overlay é a rede lógica identificada por VNI; o underlay IP roteia os pacotes externos entre os endpoints VTEP. VXLAN não elimina a necessidade de conectividade IP."
+    },
+    {
+      "key": "e5",
+      "title": "Superestimar garantias de fabric e segmentação",
+      "summary": "Leaf-spine pode usar ECMP e crescer horizontalmente, mas oversubscription e falhas limitam capacidade. VLAN e VNI oferecem segmentação, não criptografia automática."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em uma arquitetura SDN, a separação entre controle e encaminhamento permite que um software coordene regras de diversos dispositivos, que então encaminham pacotes localmente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. SDN torna o controle programável e separa suas decisões do encaminhamento executado pelos equipamentos. O controlador coordena regras, mas o tráfego de usuário costuma ser encaminhado no próprio plano de dados.",
+      "section": "1. SDN: separar decisões do encaminhamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para que uma rede seja SDN, todos os pacotes devem ser enviados ao controlador central para que ele escolha a porta de saída de cada um.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. SDN separa controle e encaminhamento; o controlador instala ou coordena regras e os dispositivos encaminham os pacotes. A separação não exige que o controlador esteja no caminho de cada pacote.",
+      "section": "1. SDN: separar decisões do encaminhamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "OpenFlow é um protocolo associado a algumas soluções SDN, mas a arquitetura SDN não se reduz a esse protocolo nem o exige em toda implantação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A ONF aponta OpenFlow como elemento fundacional de soluções SDN, mas SDN é a arquitetura de controle programável e separação dos planos. Outras interfaces e protocolos também podem ser usados.",
+      "section": "1. SDN: separar decisões do encaminhamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A centralização lógica do controle SDN obriga que exista apenas um controlador físico, sem redundância ou distribuição entre servidores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Centralização lógica descreve a visão coordenada da rede, não uma restrição de implantação física. Controladores podem ser distribuídos ou redundantes mantendo uma visão lógica coerente.",
+      "section": "1. SDN: separar decisões do encaminhamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "NFV permite implementar funções como firewall ou balanceador em software sobre infraestrutura virtualizada, sem tornar desnecessária a infraestrutura física que executa esse software.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. NFV virtualiza a implementação das funções de rede. A NFVI continua fornecendo computação, armazenamento e conectividade, e serviços NFV podem inclusive incluir funções físicas.",
+      "section": "2. NFV: funções de rede executadas como software",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na arquitetura NFV-MANO, o VNFM administra os recursos físicos e virtuais gerais da NFVI, enquanto o VIM gerencia o ciclo de vida de cada VNF.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Os papéis estão invertidos: o VNFM gerencia o ciclo de vida da VNF; o VIM administra os recursos da infraestrutura virtualizada. O NFVO coordena a orquestração de serviços e recursos.",
+      "section": "2. NFV: funções de rede executadas como software",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço de rede NFV pode combinar VNFs, funções físicas, serviços aninhados e links virtuais na sua composição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A especificação ETSI NFV-MANO descreve o serviço de rede como composição que pode incluir VNF, PNF, serviços aninhados e links virtuais. Portanto, NFV não exclui componentes físicos.",
+      "section": "2. NFV: funções de rede executadas como software",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VLAN é um mecanismo de camada 2 que separa domínios lógicos; para comunicação entre VLANs distintas, normalmente é necessário roteamento de camada 3.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. VLAN segmenta a LAN Ethernet e os broadcasts de camada 2. A comunicação IP entre VLANs requer um gateway ou função de roteamento inter-VLAN, possivelmente com políticas de acesso.",
+      "section": "3. VLAN: segmentação Ethernet por identificador",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O campo VID do padrão 802.1Q tem 24 bits e oferece a mesma capacidade de identificação que o VNI usado por VXLAN.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O VID 802.1Q tem 12 bits, enquanto o VNI VXLAN tem 24 bits. São identificadores usados em mecanismos e escalas diferentes.",
+      "section": "3. VLAN: segmentação Ethernet por identificador",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um trunk Ethernet, quadros de múltiplas VLANs podem atravessar o enlace com identificação por tags 802.1Q, conforme a configuração das duas pontas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O trunk transporta tráfego de várias VLANs e a tag 802.1Q identifica o segmento lógico. Configurações como VLANs permitidas e VLAN nativa precisam ser compatíveis nas extremidades.",
+      "section": "3. VLAN: segmentação Ethernet por identificador",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um VTEP encapsula o quadro Ethernet original em VXLAN na origem e remove os cabeçalhos externos na extremidade de destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Os VTEPs terminam o túnel VXLAN: o ponto de entrada encapsula o quadro interno com cabeçalhos VXLAN/UDP/IP e o ponto de saída os remove para entregar o quadro ao segmento apropriado.",
+      "section": "4. VXLAN: overlay Ethernet sobre underlay IP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O underlay IP do VXLAN representa o segmento lógico Ethernet identificado pelo VNI, enquanto o overlay é a rede física que encaminha os pacotes externos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Os conceitos foram invertidos. Overlay é a rede lógica identificada por VNI; underlay é a rede física IP que transporta os pacotes externos entre VTEPs.",
+      "section": "4. VXLAN: overlay Ethernet sobre underlay IP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O VNI de 24 bits permite identificar mais segmentos VXLAN que o VID de 12 bits usado em uma tag VLAN 802.1Q.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O VNI possui 24 bits e possibilita cerca de 16 milhões de identificadores; o VID possui 12 bits e os identificadores comuns vão de 1 a 4094.",
+      "section": "4. VXLAN: overlay Ethernet sobre underlay IP",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "VXLAN fornece criptografia do quadro Ethernet por incluir o VNI no cabeçalho, dispensando mecanismos próprios de confidencialidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O VNI identifica o segmento overlay e promove separação lógica, mas não cifra o quadro. Confidencialidade exige mecanismos criptográficos próprios, como proteção aplicada ao tráfego no transporte.",
+      "section": "4. VXLAN: overlay Ethernet sobre underlay IP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma topologia leaf-spine, os servidores conectam-se às folhas e estas se conectam aos switches spine, oferecendo múltiplos caminhos entre folhas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Leaf-spine é uma forma de Clos: as folhas conectam endpoints e os spines interligam folhas. Os caminhos paralelos podem ser aproveitados com ECMP, conforme o desenho e a configuração.",
+      "section": "5. Redes modernas de data center: fabric, leaf-spine e automação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A topologia leaf-spine garante por si só uma fabric sem bloqueio, independentemente da quantidade de uplinks, da velocidade dos enlaces e da oversubscription.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A capacidade depende da relação entre portas e velocidades de subida e descida. O RFC 7938 descreve condições para uma Clos não bloqueante e reconhece oversubscription quando os uplinks não oferecem capacidade equivalente.",
+      "section": "5. Redes modernas de data center: fabric, leaf-spine e automação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+
+    {
+      "statement": "Uma rede VXLAN pode funcionar sem endereçamento IP no underlay, pois o VNI encaminha diretamente os quadros entre todos os switches físicos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. VXLAN encapsula quadros em UDP/IP, e o underlay precisa encaminhar os pacotes externos entre os endereços IP dos VTEPs. O VNI identifica o segmento overlay, mas não substitui o encaminhamento IP físico.",
+      "section": "4. VXLAN: overlay Ethernet sobre underlay IP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual característica define melhor uma arquitetura SDN segundo a definição da ONF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Exigir que a rede use exclusivamente switches Ethernet sem camada IP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir todos os roteadores por um servidor que encaminha cada pacote.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar apenas roteamento estático e impedir políticas automatizadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Separar controle e encaminhamento, com controle programável de vários dispositivos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Eliminar o plano de dados e manter somente aplicações de gerenciamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "SDN separa funções de controle e encaminhamento e permite programar o controle de vários equipamentos. O encaminhamento continua sendo executado nos dispositivos; não se elimina IP ou o plano de dados.",
+      "section": "1. SDN: separar decisões do encaminhamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer aplicar uma política de tráfego em dezenas de switches por software. Qual componente SDN coordena as regras a instalar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A tag VLAN, que calcula caminhos e instala políticas em todos os switches.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O servidor DNS, que distribui portas de saída para cada pacote IP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O VNI, que substitui as tabelas de encaminhamento da rede física.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O controlador SDN, que traduz políticas em regras para os dispositivos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O protocolo UDP, que centraliza as decisões de caminho da fabric.",
+          "correct": false
+        }
+      ],
+      "explanation": "O controlador SDN mantém uma visão coordenada e converte políticas em regras que os dispositivos aplicam. VLAN e VNI identificam segmentos; DNS resolve nomes e UDP transporta dados, sem assumir esse papel de controle.",
+      "section": "1. SDN: separar decisões do encaminhamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que OpenFlow não deve ser tratado como sinônimo obrigatório de SDN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque OpenFlow é uma técnica de cabeamento usada em redes sem controladores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque OpenFlow atua somente no plano elétrico dos enlaces físicos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque OpenFlow é o nome oficial do plano de controle da Internet.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque SDN se aplica somente a redes sem tabelas de encaminhamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque OpenFlow é um protocolo possível, enquanto SDN é uma arquitetura.",
+          "correct": true
+        }
+      ],
+      "explanation": "OpenFlow é um protocolo associado a soluções SDN e à programação de fluxos, mas SDN descreve uma arquitetura de controle programável separada do encaminhamento. Outras interfaces podem ser usadas.",
+      "section": "1. SDN: separar decisões do encaminhamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente o encaminhamento em uma arquitetura SDN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "As aplicações substituem fisicamente as portas e interfaces dos switches.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O controlador recebe todos os quadros e retransmite cada um ao destino.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O plano de dados deixa de existir após ativação de uma aplicação SDN.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os pacotes normalmente são encaminhados pelos dispositivos conforme regras instaladas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Cada host passa a escolher a tabela de fluxo de todos os roteadores.",
+          "correct": false
+        }
+      ],
+      "explanation": "O plano de dados continua nos dispositivos e aplica as regras que o controle coordena. SDN não transforma o controlador em um retransmissor obrigatório de todo o tráfego.",
+      "section": "1. SDN: separar decisões do encaminhamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa associa corretamente componentes centrais do NFV-MANO aos seus papéis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "VIM orquestra serviços; VNFM encaminha pacotes; NFVO cifra as VNFs.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "NFVO administra apenas discos; VIM descreve funções; VNFM roteia a WAN.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "VNFM fornece hardware; NFVO implementa o kernel; VIM define políticas de usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "NFVO orquestra serviços; VNFM gerencia ciclo de vida de VNF; VIM administra recursos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "NFVO substitui a NFVI; VNFM cria VLANs; VIM executa toda função de rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na arquitetura ETSI, NFVO coordena a orquestração de serviços e recursos, VNFM gerencia o ciclo de vida de instâncias VNF e VIM administra recursos virtualizados da NFVI.",
+      "section": "2. NFV: funções de rede executadas como software",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um firewall implementado como software e implantado em infraestrutura virtualizada é exemplo de qual conceito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um controlador SDN que substitui a função de firewall no tráfego.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um VIM que administra todos os recursos físicos do operador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma tag VLAN que transporta quadros sobre enlaces IP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um VTEP que converte regras de segurança em rotas BGP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma VNF que implementa uma função de rede em software.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma VNF é uma implementação virtualizada de uma função de rede, como firewall. VIM gerencia recursos, VTEP termina túneis VXLAN, e SDN controla políticas e conectividade, papéis distintos.",
+      "section": "2. NFV: funções de rede executadas como software",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na arquitetura ETSI consultada, qual artefato descreve requisitos de implantação e comportamento operacional de uma VNF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O VID, que determina o plano de implantação dos serviços virtuais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O cabeçalho UDP, que transporta a descrição da VNF aos switches.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O VNI, que especifica recursos computacionais da infraestrutura NFVI.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O trunk 802.1Q, que descreve as funções virtuais do serviço NFV.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O VNFD, que registra atributos e requisitos do ciclo de vida da VNF.",
+          "correct": true
+        }
+      ],
+      "explanation": "O VNF Descriptor (VNFD) captura atributos e requisitos necessários para realizar uma instância VNF, inclusive requisitos para sua gestão de ciclo de vida. VID, VNI, trunk e UDP têm funções diferentes.",
+      "section": "2. NFV: funções de rede executadas como software",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção exemplifica uma combinação possível em um serviço de rede NFV?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente circuitos físicos, sem funções virtuais, links virtuais ou composição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente VNFs isoladas, proibida qualquer função física ou serviço aninhado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "VNF, PNF, serviço aninhado e link virtual numa composição de serviço.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Apenas tabelas MAC, pois NFV não representa conectividade entre funções.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somente controladores SDN, pois cada serviço NFV é um protocolo de roteamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ETSI descreve serviço NFV composto por VNF, PNF, serviços aninhados e links virtuais. A composição permite combinar funções virtuais e físicas e modelar sua conectividade.",
+      "section": "2. NFV: funções de rede executadas como software",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a finalidade típica de uma VLAN em uma rede Ethernet comutada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Separar logicamente domínios de camada 2 numa infraestrutura compartilhada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cifrar quadros Ethernet para impedir sua leitura nos enlaces físicos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir o roteamento IP entre redes remotas de data centers.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Encapsular todos os quadros em túneis UDP entre servidores virtuais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atribuir endereços IP públicos a cada porta de switch de acesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "VLANs segmentam logicamente uma LAN em domínios de camada 2. Não fornecem criptografia, não substituem o roteamento e não são um mecanismo de encapsulamento UDP como VXLAN.",
+      "section": "3. VLAN: segmentação Ethernet por identificador",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual padrão é associado à inserção de tags VLAN em quadros Ethernet?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "IEEE 802.1Q, que carrega identificação de VLAN no quadro Ethernet.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "RFC 7348, que define a tag VID de 12 bits para cada trunk.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "BGP, que insere o identificador VLAN dentro de cada rota IP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "UDP, que reserva uma porta de transporte para cada VLAN Ethernet.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "OpenFlow, que define o padrão elétrico de todos os enlaces tagueados.",
+          "correct": false
+        }
+      ],
+      "explanation": "IEEE 802.1Q especifica o tagging VLAN em quadros Ethernet. RFC 7348 trata de VXLAN; BGP troca rotas, UDP transporta datagramas e OpenFlow é um protocolo associado a controle SDN.",
+      "section": "3. VLAN: segmentação Ethernet por identificador",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual faixa corresponde aos identificadores VLAN convencionais utilizáveis no campo VID de 12 bits?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "De 0 a 4095, com todos os valores livres para atribuição normal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "De 4096 a cerca de dezesseis milhões, como no campo VNI.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "De 1 a 65534, porque o VID possui dezesseis bits úteis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "De 1 a 4094, pois os valores extremos têm usos reservados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "De 2 a 16777214, pois o campo VLAN tem vinte e quatro bits.",
+          "correct": false
+        }
+      ],
+      "explanation": "O campo VID possui 12 bits, mas os valores 0 e 4095 são reservados. Assim, a faixa convencional de identificadores VLAN é de 1 a 4094.",
+      "section": "3. VLAN: segmentação Ethernet por identificador",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um host de uma VLAN precisa acessar um servidor situado em outra VLAN. Qual função de rede normalmente viabiliza essa comunicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um trunk de camada 2 que mistura os domínios de broadcast sem roteamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma porta access que converte automaticamente endereços MAC em IP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Roteamento de camada 3 entre as interfaces ou gateways das VLANs.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Um VNI igual nas duas VLANs, mesmo sem qualquer gateway ou rota.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um servidor DHCP que encaminha diretamente quadros Ethernet entre VLANs.",
+          "correct": false
+        }
+      ],
+      "explanation": "VLAN separa domínios Ethernet de camada 2. Comunicação entre sub-redes/VLANs é feita por roteamento inter-VLAN, com gateway e, se necessário, políticas de filtragem.",
+      "section": "3. VLAN: segmentação Ethernet por identificador",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição distingue corretamente uma porta access de um trunk?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Access encaminha apenas pacotes IP; trunk encaminha apenas quadros não tagueados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Access costuma atender uma VLAN; trunk pode transportar várias VLANs identificadas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Access cria VNIs; trunk converte os VTEPs em controladores SDN.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Access sempre conecta dois roteadores; trunk conecta exclusivamente servidores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Access cifra uma VLAN; trunk descriptografa o tráfego de todas as demais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma porta access costuma ligar um terminal a uma VLAN de acesso, frequentemente recebendo quadros não tagueados. Um trunk transporta múltiplas VLANs e usa tags para distingui-las conforme configuração.",
+      "section": "3. VLAN: segmentação Ethernet por identificador",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência descreve o transporte básico de um quadro por VXLAN entre dois servidores?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O roteador substitui o quadro por uma sessão BGP e a folha recria o datagrama.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O switch converte o quadro em consulta DNS e o destino reconstrói o cabeçalho Ethernet.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O controlador transmite o quadro ao VIM, que o cifra e cria o VNI remoto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A VLAN é removida, e o underlay transporta apenas um número VNI sem pacote IP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O VTEP encapsula o quadro em VXLAN/UDP/IP e o destino remove a encapsulação.",
+          "correct": true
+        }
+      ],
+      "explanation": "Na origem, o VTEP encapsula o quadro Ethernet interno com cabeçalho VXLAN e transporte UDP/IP. O underlay encaminha o pacote externo ao VTEP remoto, que desencapsula e entrega o quadro.",
+      "section": "4. VXLAN: overlay Ethernet sobre underlay IP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual identificador distingue um segmento overlay VXLAN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O VID de 12 bits inserido pelo campo de prioridade do cabeçalho IP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O número de sistema autônomo de 16 bits no cabeçalho Ethernet interno.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O endereço MAC do controlador, transportado no campo UDP de destino.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O VNI de 24 bits incluído no cabeçalho VXLAN.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A porta TCP 443, que individualiza cada rede lógica no underlay.",
+          "correct": false
+        }
+      ],
+      "explanation": "O VNI de 24 bits identifica o segmento overlay VXLAN e delimita o contexto lógico do quadro interno. VID é usado por VLAN 802.1Q e não substitui o VNI.",
+      "section": "4. VXLAN: overlay Ethernet sobre underlay IP",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual papel pode ser exercido por um VTEP numa implantação VXLAN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Distribuir endereços IP públicos e remover políticas de segmentação da rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cifrar obrigatoriamente os quadros e autenticar cada pacote Ethernet.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir todos os switches spine e calcular o protocolo BGP global.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Administrar exclusivamente discos e memória da infraestrutura NFVI.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atuar como ponto que encapsula ou desencapsula quadros VXLAN.",
+          "correct": true
+        }
+      ],
+      "explanation": "VTEP é o ponto de terminação de túneis VXLAN. Pode residir em hipervisor, servidor físico ou switch e executa encapsulamento e desencapsulamento; criptografia não é função inerente ao VNI.",
+      "section": "4. VXLAN: overlay Ethernet sobre underlay IP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual endereço ou informação a rede underlay usa principalmente para encaminhar um pacote VXLAN até seu destino?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A identidade do VNI, roteada como se fosse um prefixo IP global.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O endereço MAC interno da máquina virtual, sem cabeçalho externo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O nome DNS da aplicação, encapsulado no campo de flags VXLAN.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O VID interno, usado como rota para alcançar os switches spines.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O endereço IP externo do VTEP de destino, transportado no underlay.",
+          "correct": true
+        }
+      ],
+      "explanation": "O pacote VXLAN possui cabeçalho IP externo. A rede underlay roteia esse pacote com base no endereço IP do VTEP de destino; o VNI identifica o segmento lógico no overlay e o MAC interno pertence ao quadro encapsulado.",
+      "section": "4. VXLAN: overlay Ethernet sobre underlay IP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a porta UDP de destino que o RFC 7348 recomenda como padrão para VXLAN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "4789, atribuída para uso padrão de destino nos datagramas VXLAN.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "443, reservada exclusivamente para todos os túneis de camada 2.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "179, definida para transportar quadros Ethernet em sessões BGP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "53, pois o encapsulamento VXLAN é uma extensão do serviço DNS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "67, atribuída para que DHCP identifique o segmento lógico remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "O RFC 7348 registra 4789 como porta UDP atribuída e recomenda seu uso como porta de destino padrão para VXLAN. A porta de origem pode ser selecionada pelo VTEP para apoiar distribuição de carga.",
+      "section": "4. VXLAN: overlay Ethernet sobre underlay IP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que cuidado de projeto decorre dos cabeçalhos adicionais inseridos pelo encapsulamento VXLAN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reduzir o número de VTEPs, pois qualquer encapsulamento elimina a necessidade de MTU.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Considerar o overhead no MTU para evitar fragmentação ou descarte de pacotes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Configurar o VID para 24 bits para compensar o cabeçalho UDP acrescentado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar roteamento IP, já que o quadro Ethernet permanece sem encapsulamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o TTL do quadro Ethernet, campo que substitui o tamanho do enlace.",
+          "correct": false
+        }
+      ],
+      "explanation": "VXLAN acrescenta cabeçalhos ao quadro transportado, reduzindo a carga útil disponível num MTU fixo. O projeto deve acomodar o overhead no MTU da rede ou tratar adequadamente os pacotes maiores.",
+      "section": "4. VXLAN: overlay Ethernet sobre underlay IP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma fabric leaf-spine, qual equipamento conecta diretamente servidores e oferece uplinks para a camada spine?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A folha (leaf), que atende hosts e se liga aos switches spine.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O spine, que conecta diretamente cada porta de todos os servidores finais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O NFVO, que recebe enlaces físicos e encaminha quadros Ethernet.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O VIM, que substitui switches de acesso por recursos de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O VTEP, que é sempre o switch central de trânsito da fabric.",
+          "correct": false
+        }
+      ],
+      "explanation": "Folhas conectam servidores ou outros endpoints e ligam-se aos spines. Spines fornecem caminhos de trânsito entre folhas. VTEP é uma função de terminação VXLAN e pode estar na folha, mas não define por si a camada spine.",
+      "section": "5. Redes modernas de data center: fabric, leaf-spine e automação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual mecanismo permite que uma leaf utilize vários caminhos de custo igual através de spines numa topologia Clos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "STP, que obriga a manter todos os caminhos redundantes bloqueados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ECMP, que distribui tráfego por próximos saltos de custo equivalente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "DHCP, que divide cada fluxo entre servidores de endereçamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "NAT, que converte todos os caminhos físicos em uma VLAN comum.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "VIM, que calcula rotas físicas com base em imagens de máquinas virtuais.",
+          "correct": false
+        }
+      ],
+      "explanation": "ECMP é o mecanismo de multipath de custo igual usado em Clos para aproveitar caminhos paralelos. STP evita loops em camada 2 e pode bloquear links; DHCP e NAT têm outras funções.",
+      "section": "5. Redes modernas de data center: fabric, leaf-spine e automação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa quer expandir horizontalmente uma fabric Clos mantendo switches de características semelhantes. Qual abordagem é coerente com esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar camadas centrais cada vez maiores e concentrar todos os enlaces num único equipamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar todos os enlaces por VLANs e eliminar a infraestrutura de roteamento IP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Acrescentar equipamentos e enlaces em estágios compatíveis da topologia.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Instalar uma única máquina virtual que substitua toda a fabric física.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Bloquear novos caminhos com STP para manter a expansão sem alterar a topologia.",
+          "correct": false
+        }
+      ],
+      "explanation": "Topologias Clos podem escalar horizontalmente com adição de dispositivos e enlaces em estágios, sem depender de um único elemento central cada vez maior. O dimensionamento precisa considerar capacidade, portas e oversubscription.",
+      "section": "5. Redes modernas de data center: fabric, leaf-spine e automação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede quer aplicar conectividade lógica entre máquinas virtuais em racks diferentes sobre uma malha IP roteada. Qual combinação atende diretamente a esse desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "VLAN nativa em cada rack, sem encaminhamento de camada 3 entre os switches.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DHCP central e portas access, sem mecanismo de encapsulamento entre racks.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "OpenFlow isolado, que transporta quadros sem endereçamento IP externo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "VXLAN entre VTEPs sobre underlay IP, com segmentação pelo VNI.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "NFVO conectado às interfaces de usuário, substituindo a malha IP física.",
+          "correct": false
+        }
+      ],
+      "explanation": "VXLAN permite construir overlay Ethernet sobre underlay IP. VTEPs encapsulam os quadros, a rede roteia os pacotes externos e o VNI identifica o segmento lógico comum aos endpoints.",
+      "section": "4. VXLAN: overlay Ethernet sobre underlay IP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual tecnologia identifica o segmento de um quadro interno VXLAN e pode manter redes lógicas distintas sobre os mesmos enlaces físicos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O VNI, que separa contextos de overlay transportados pela mesma rede IP.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O checksum UDP, que escolhe o domínio de broadcast do quadro interno.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O ASN BGP, que substitui os cabeçalhos Ethernet de cada máquina virtual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A VLAN nativa, que cifra cada pacote e identifica o VTEP remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A tabela ARP, que define os endereços de todos os spines físicos.",
+          "correct": false
+        }
+      ],
+      "explanation": "VNI identifica a rede overlay VXLAN. Ele possibilita segmentar tráfego lógico sobre uma infraestrutura física compartilhada, mas não cifra quadros nem substitui endereços de transporte do underlay.",
+      "section": "4. VXLAN: overlay Ethernet sobre underlay IP",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente a relação entre SDN e NFV num serviço de data center?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "SDN e NFV são dois nomes para a mesma função de encapsulamento Ethernet.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SDN programa controle e conectividade; NFV implementa funções de rede como software.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "NFV substitui o controlador SDN e torna desnecessário qualquer roteamento IP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SDN define o ciclo de vida VNF e NFV define o campo de prioridade 802.1Q.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "NFV cria exclusivamente VLANs físicas e SDN instala máquinas virtuais de firewall.",
+          "correct": false
+        }
+      ],
+      "explanation": "SDN trata de controle programável e coordenação do encaminhamento; NFV virtualiza funções de rede. Podem ser combinadas para conectar funções virtuais, mas têm objetivos e componentes diferentes.",
+      "section": "2. NFV: funções de rede executadas como software",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe planeja crescimento da rede e assume que leaf-spine remove toda possibilidade de congestionamento após uma falha de enlace. Qual avaliação é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A conclusão é correta, pois ECMP mantém a capacidade total mesmo após perder enlaces.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A conclusão é correta, desde que exista pelo menos uma VLAN configurada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A conclusão é incorreta: caminhos redundantes ajudam, mas falhas reduzem capacidade disponível.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A conclusão é incorreta apenas porque VXLAN impede qualquer uso de caminhos paralelos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A conclusão é correta, pois BGP reserva largura de banda para cada fluxo automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Redundância e ECMP mantêm caminhos alternativos, mas a perda de links pode reduzir capacidade e aumentar utilização ou congestionamento. A topologia precisa ser dimensionada para o estado de falha esperado.",
+      "section": "5. Redes modernas de data center: fabric, leaf-spine e automação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador afirma que VLAN e VNI fornecem confidencialidade criptográfica porque isolam segmentos lógicos. Qual correção é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A afirmação está correta, pois qualquer identificador de segmento cifra os quadros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A afirmação está correta quando o VNI é maior que o VID da VLAN.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A afirmação está errada: segmentação lógica não substitui criptografia do tráfego.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A afirmação está errada porque VLAN e VXLAN não permitem nenhuma separação lógica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A afirmação está correta se o underlay usar BGP e ECMP simultaneamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "VLAN e VNI identificam domínios lógicos e ajudam a separar tráfego, mas não cifram o conteúdo. Confidencialidade deve ser provida por mecanismo criptográfico independente e configurado para o tráfego relevante.",
+      "section": "4. VXLAN: overlay Ethernet sobre underlay IP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer aplicar a mesma política de segmentação a aplicações em diferentes racks, sem depender de um único domínio Ethernet físico estendido. Qual desenho é mais coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar overlay VXLAN com VNI comum e VTEPs alcançáveis pelo underlay IP.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Estender apenas uma porta access entre racks e dispensar a camada IP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Instalar o VNFM nos servidores e usá-lo como gateway Ethernet dos hosts.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover os endereços dos VTEPs e propagar quadros sem encapsulamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Configurar uma VLAN nativa e esperar que ela roteie os pacotes entre racks.",
+          "correct": false
+        }
+      ],
+      "explanation": "VXLAN cria segmentos overlay identificados por VNI e transporta quadros encapsulados entre VTEPs por um underlay IP. A solução separa a rede lógica da extensão física de uma única LAN; portas access e VLAN nativa não fornecem esse roteamento overlay.",
+      "section": "4. VXLAN: overlay Ethernet sobre underlay IP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fabric leaf-spine perdeu um dos enlaces entre folha e spine. Qual resultado é compatível com o uso de ECMP e caminhos redundantes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os fluxos podem usar caminhos remanescentes, embora a capacidade disponível diminua.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A rota torna-se uma função VNF e o controlador substitui automaticamente o enlace.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os caminhos de custo igual podem continuar ativos, mas há menos capacidade agregada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A VLAN nativa converte o enlace restante em caminho sem congestionamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O VNI absorve o tráfego perdido e mantém a mesma largura de banda física.",
+          "correct": true
+        }
+      ],
+      "explanation": "ECMP pode aproveitar caminhos de custo igual e a redundância mantém alternativas após uma falha. Porém, o enlace perdido reduz a capacidade total e pode elevar utilização ou congestionamento; redundância não garante banda invariável.",
+      "section": "5. Redes modernas de data center: fabric, leaf-spine e automação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Software-Defined Networking (SDN) Definition",
+      "publisher": "Open Networking Foundation",
+      "reference": "Separação dos planos de controle e encaminhamento; controlador logicamente centralizado; papel do OpenFlow.",
+      "url": "https://opennetworking.org/sdn-definition/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ETSI GS NFV 006 V5.2.1 — Management and orchestration; Architectural Framework Specification",
+      "publisher": "ETSI",
+      "reference": "NFV-MANO; NFVO, VNFM, VIM, WIM; VNF, VNFD, serviço de rede e links virtuais.",
+      "url": "https://www.etsi.org/deliver/etsi_gs/NFV/001_099/006/05.02.01_60/gs_NFV006v050201p.pdf",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 7348: Virtual eXtensible Local Area Network (VXLAN)",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Cabeçalho VXLAN, VNI de 24 bits, VTEP, encapsulamento UDP/IP e porta de destino padrão.",
+      "url": "https://www.rfc-editor.org/rfc/rfc7348.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "IEEE 802.1Q-2022 — Bridges and Bridged Networks",
+      "publisher": "IEEE Standards Association",
+      "reference": "Padrão de bridging Ethernet e identificação de VLAN/tagging 802.1Q.",
+      "url": "https://standards.ieee.org/ieee/802.1Q/10323/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 7938: Use of BGP for Routing in Large-Scale Data Centers",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Topologia Clos/leaf-spine, expansão horizontal, roteamento BGP e uso de ECMP em data centers.",
+      "url": "https://www.rfc-editor.org/rfc/rfc7938.html",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

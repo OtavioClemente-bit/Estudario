@@ -1,0 +1,2155 @@
+{
+  "id": "informatica.microprofile-java-microservices",
+  "subject": "Informática",
+  "title": "MicroProfile para microsserviços Java",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "MicroProfile para microsserviços Java",
+    "Eclipse MicroProfile e Java",
+    "Plataforma MicroProfile Java",
+    "Especificações Eclipse MicroProfile",
+    "MicroProfile Config e configuração externa",
+    "MicroProfile Health e verificações de saúde",
+    "MicroProfile Fault Tolerance em Java",
+    "MicroProfile Rest Client tipado",
+    "MicroProfile OpenAPI para APIs REST",
+    "MicroProfile Telemetry e observabilidade"
+  ],
+  "scope": {
+    "covers": "Propósito e composição do Eclipse MicroProfile para microsserviços Java; relação com Jakarta EE; configuração externa com Config; verificações de saúde; tolerância a falhas; cliente REST tipado; documentação OpenAPI; observabilidade com Telemetry; segurança JWT; mensagens reativas; diferenças entre versões, APIs e implementações.",
+    "excludes": "Tutorial completo de um servidor específico, detalhes de Kubernetes, sintaxe integral de Jakarta REST, administração de infraestrutura e APIs proprietárias de fornecedores."
+  },
+  "theoryTitle": "Microsserviços Java com Eclipse MicroProfile",
+  "chapters": [
+    {
+      "title": "1. O papel do MicroProfile no ecossistema Java",
+      "markdown": "### O problema que este assunto resolve\n\nUm microsserviço precisa conversar com outros serviços, receber configuração do ambiente, informar se está pronto e sobreviver a falhas de rede. Se cada equipe resolver isso de um jeito, aplicações Java ficam difíceis de operar e migrar entre runtimes. **Eclipse MicroProfile** reúne especificações abertas para padronizar essas necessidades em aplicações Java voltadas a ambientes cloud native.\n\n> **Siglas e termos deste capítulo**\n> - **API**: contrato de programação usado pela aplicação.\n> - **Runtime**: servidor ou ambiente que executa a aplicação.\n> - **Especificação**: contrato público que define comportamento e interfaces.\n> - **Implementação**: produto que realiza esse contrato.\n> - **Cloud native**: desenho que considera implantação automatizada, configuração externa e operação distribuída.\n\n### Plataforma não é um servidor\n\nMicroProfile não é, por si só, um servidor de aplicações nem uma biblioteca única que implementa tudo. O projeto Eclipse MicroProfile mantém especificações e versões coordenadas; runtimes compatíveis fornecem as implementações. A aplicação usa APIs padronizadas e pode ser executada em runtimes diferentes que implementem as mesmas especificações, respeitadas as versões e dependências.\n\nMicroProfile surgiu para atender à evolução rápida dos microsserviços Java e se integra ao ecossistema Jakarta EE. Uma versão da plataforma pode declarar dependência de um perfil do Jakarta EE e reunir versões específicas das APIs MicroProfile. Logo, dizer apenas “usa MicroProfile” não determina sozinho quais pacotes, recursos ou versões estão disponíveis: é preciso verificar a versão da plataforma e as especificações que ela inclui.\n\n| Conceito | Significado prático |\n| --- | --- |\n| Plataforma | Conjunto coordenado de especificações |\n| Especificação | Regras e APIs que aplicações podem usar |\n| Implementação | Runtime que fornece as APIs e executa o contrato |\n| Aplicação | Código que usa as APIs sem depender, em princípio, de detalhes internos do fornecedor |\n\n### Módulos e mudanças entre versões\n\nEntre as especificações conhecidas estão **Config**, **Fault Tolerance**, **Health**, **Rest Client**, **OpenAPI**, **JWT Authentication**, **Reactive Messaging** e **Telemetry**. A composição varia conforme a versão. MicroProfile 7.0 substituiu MicroProfile Metrics na plataforma por MicroProfile Telemetry 2.0; Metrics passou a ter situação independente, como especificação standalone. Portanto, não se deve afirmar que Metrics compõe toda versão da plataforma.\n\nA mudança de `javax.*` para `jakarta.*` em APIs alinhadas ao Jakarta EE também pode exigir ajustes no código ao atualizar versões. O número da versão é parte importante do contrato: conferir a documentação da versão alvo evita presumir que uma anotação, dependência ou endpoint existe em todas as edições.\n\n### Como cai na prova\n\n- MicroProfile é um conjunto de especificações abertas, não um produto de servidor único.\n- A implementação é fornecida pelo runtime compatível; a especificação define o contrato.\n- A lista de APIs muda entre versões. MicroProfile 7 retirou Metrics da plataforma e adotou Telemetry.\n- Uma aplicação portável depende de APIs padronizadas e evita acoplamento desnecessário a recursos proprietários."
+    },
+    {
+      "title": "2. Configuração, saúde e tolerância a falhas",
+      "markdown": "### O problema que este assunto resolve\n\nEndereços de serviços, limites de tempo e credenciais mudam entre desenvolvimento e produção. Colocar cada valor no código obriga recompilar para trocar ambiente e pode expor segredos. Em sistemas distribuídos, chamadas remotas ainda falham por lentidão ou indisponibilidade. Config e Fault Tolerance tratam partes distintas desses problemas; Health expõe avaliações úteis para operadores e plataformas.\n\n> **Siglas e termos deste capítulo**\n> - **ConfigSource**: origem que fornece propriedades de configuração.\n> - **CDI**: Contexts and Dependency Injection, mecanismo de injeção e contexto.\n> - **Retry**: repetição controlada de uma operação que falhou.\n> - **Circuit breaker**: mecanismo que interrompe chamadas temporariamente após falhas.\n> - **Liveness**: indica se o processo deve continuar em execução.\n> - **Readiness**: indica se a instância está apta a receber tráfego.\n\n### Config: valores externos e conversão\n\nMicroProfile Config agrega valores de várias fontes numa visão única. Fontes usuais incluem propriedades empacotadas com a aplicação, propriedades do sistema e variáveis de ambiente; implementações também podem oferecer fontes adicionais. A aplicação pode injetar valores com `@ConfigProperty`, incluindo tipos convertidos, e pode fornecer um valor padrão. A prioridade das fontes permite substituir a configuração padrão sem alterar o artefato implantado.\n\nA configuração externa não significa que todo dado deva ser colocado em variável de ambiente: o ponto é separar parâmetros do ambiente do código e tratar segredos segundo os mecanismos de segurança da implantação. Propriedade ausente sem padrão e conversão inválida são situações que precisam ser tratadas, não presumidas como valores válidos.\n\n### Health: duas perguntas operacionais\n\nMicroProfile Health permite declarar verificações que retornam estados `UP` ou `DOWN`, normalmente como respostas JSON nos endpoints padronizados do runtime. `@Liveness` responde se o processo está vivo o suficiente para continuar; `@Readiness` responde se está pronto para receber solicitações. Há também verificações de startup em versões que as suportam. Uma dependência externa indisponível pode tornar uma instância não pronta, mas marcar todo problema transitório como falha de liveness pode causar reinícios em cascata. A decisão depende do significado da verificação.\n\nOs endpoints são consumidos por sistemas de operação, mas Health não reinicia contêineres nem substitui monitoramento: informa estado. O orquestrador decide o que fazer com essa informação.\n\n### Fault Tolerance: políticas declarativas\n\nA especificação oferece anotações para políticas como `@Retry`, `@Timeout`, `@CircuitBreaker`, `@Fallback`, `@Bulkhead` e `@Asynchronous`. Por exemplo, Retry limita tentativas conforme parâmetros; Timeout limita o tempo de execução observado; CircuitBreaker deixa de chamar uma dependência considerada instável por um intervalo; Fallback seleciona uma resposta alternativa; Bulkhead limita concorrência para isolar recursos.\n\nEssas políticas não tornam a operação automaticamente correta. Repetir uma operação que já produziu efeito pode duplicar uma cobrança; por isso, repetição segura depende de idempotência ou de desenho que detecte duplicatas. Fallback deve representar uma resposta válida e não esconder silenciosamente falhas críticas. Valores de configuração podem ajustar políticas sem recompilar, conforme a especificação e a implementação.\n\n### Como cai na prova\n\n- Config agrega fontes e permite substituir valores externos; não é banco de segredos por definição.\n- Liveness e readiness não são sinônimos: continuar vivo é diferente de poder receber tráfego.\n- Health reporta estado; a plataforma de execução toma decisões operacionais.\n- Retry, timeout, circuit breaker e bulkhead têm efeitos distintos e não eliminam a necessidade de desenhar operações seguras."
+    },
+    {
+      "title": "3. Integração entre serviços e contratos REST",
+      "markdown": "### O problema que este assunto resolve\n\nUma chamada HTTP escrita com strings e tratamento manual repetido espalha endereços, cabeçalhos e conversões por toda a aplicação. MicroProfile Rest Client permite declarar uma interface Java que representa o serviço remoto e pedir ao runtime que forneça sua implementação. MicroProfile OpenAPI documenta contratos HTTP para pessoas e ferramentas.\n\n> **Siglas e termos deste capítulo**\n> - **REST**: estilo arquitetural usado com frequência em APIs HTTP.\n> - **JAX-RS / Jakarta REST**: APIs Java para recursos e clientes REST.\n> - **DTO**: objeto de transferência de dados entre fronteiras.\n> - **OpenAPI**: formato padronizado para descrever APIs HTTP.\n> - **Provider**: componente que estende ou adapta comportamento do cliente.\n\n### Rest Client: interface tipada\n\nUma interface de cliente pode usar anotações de Jakarta REST, como `@Path`, `@GET`, `@POST` e `@PathParam`, para descrever o recurso remoto. `@RegisterRestClient` marca a interface para uso como cliente registrado; sua injeção e configuração dependem da integração CDI e do identificador do cliente. A URL base é configurada externamente, frequentemente com uma propriedade associada ao nome da interface. O método Java representa a chamada HTTP e seu tipo de retorno representa o conteúdo esperado.\n\nO cliente reduz código repetitivo, mas não elimina falhas de DNS, conexão, HTTP ou conversão. Políticas de timeout e tolerância a falhas continuam relevantes. Mapeamento de erros HTTP, autenticação e propagação de cabeçalhos também precisam ser definidos com cuidado. Um cliente não deve presumir que toda resposta remota é bem-sucedida.\n\n### OpenAPI: descrição legível por máquina\n\nMicroProfile OpenAPI permite produzir uma descrição OpenAPI da API REST da aplicação. O runtime pode combinar metadados inferidos de recursos Jakarta REST e anotações de OpenAPI com informações fornecidas por configuração. A especificação define uma forma padronizada de disponibilizar o documento; caminho e detalhes operacionais podem variar por versão ou implementação.\n\nAnotações como `@Operation`, `@APIResponse` e `@Schema` enriquecem a descrição: resumem a operação, documentam respostas e descrevem estruturas. O documento pode alimentar ferramentas de documentação e clientes, mas não implementa a lógica do endpoint nem garante que o código cumpra o contrato descrito. A documentação deve acompanhar os comportamentos reais, inclusive erros e códigos HTTP.\n\n### Segurança e comunicação assíncrona\n\nMicroProfile JWT Authentication define suporte a tokens JWT no contexto de autenticação e autorização de serviços, incluindo validação de claims e papéis conforme a especificação. JWT é um formato de token assinado, não uma criptografia automática do conteúdo. A comunicação ainda deve proteger o transporte e as chaves.\n\nMicroProfile Reactive Messaging padroniza APIs para mensagens e conectores em aplicações reativas. Anotações como `@Incoming` e `@Outgoing` expressam recebimento e publicação em canais; a conexão concreta com broker é fornecida por conector. Isso não é sinônimo de uma chamada REST síncrona nem garante entrega exatamente uma vez para qualquer broker.\n\n### Como cai na prova\n\n- Rest Client descreve chamadas remotas por interface tipada e anotações REST; ainda pode falhar.\n- OpenAPI descreve a API, não executa nem valida por si só a lógica do endpoint.\n- JWT assinado não torna secretos os dados do payload.\n- Reactive Messaging separa lógica de mensagens da integração com conectores específicos."
+    },
+    {
+      "title": "4. Telemetria, integração e escolha de versão",
+      "markdown": "### O problema que este assunto resolve\n\nEm produção, uma resposta lenta pode envolver várias chamadas entre serviços. Logs isolados não mostram necessariamente a jornada completa, e métricas sem contexto não apontam a operação que falhou. MicroProfile Telemetry padroniza instrumentação alinhada ao OpenTelemetry para métricas, rastreamento distribuído e logs, conforme a versão da especificação.\n\n> **Siglas e termos deste capítulo**\n> - **OpenTelemetry (OTel)**: projeto e APIs para instrumentação e exportação de telemetria.\n> - **Métrica**: medida agregada, como quantidade ou duração de solicitações.\n> - **Trace**: percurso de uma operação por componentes distribuídos.\n> - **Span**: trecho de trabalho dentro de um trace.\n> - **Exporter**: componente que envia dados de telemetria a um destino.\n\n### Telemetry e observabilidade\n\nMétricas ajudam a observar tendências agregadas; traces conectam spans de uma operação distribuída; logs registram eventos detalhados. Correlation context permite associar partes da mesma solicitação entre serviços quando propagado corretamente. Instrumentação automática pode cobrir integrações suportadas, e a aplicação também pode criar instrumentação própria. Exportação, amostragem, atributos e retenção devem ser configurados para o ambiente e para os requisitos de privacidade.\n\nMicroProfile 7.0 adotou Telemetry e retirou Metrics do conjunto da plataforma. Isso não significa que métricas deixaram de existir: a instrumentação de métricas integra Telemetry, enquanto MicroProfile Metrics permanece como especificação independente. Em versões anteriores, Metrics pode aparecer como componente da plataforma. A resposta correta depende da versão mencionada no enunciado.\n\n### Portabilidade e dependências\n\nPara usar uma API MicroProfile, o projeto precisa da dependência de API correspondente no escopo adequado e de um runtime que implemente a especificação. Em aplicações empacotadas para runtime compatível, APIs fornecidas pelo servidor costumam ser marcadas como dependências fornecidas em execução, evitando empacotar uma cópia conflitante. O mecanismo exato depende do build e do runtime.\n\nPortabilidade é uma meta, não garantia de que todos os runtimes se comportam igual em cada detalhe operacional. Conferir a matriz de compatibilidade, a versão da especificação, as APIs Jakarta EE relacionadas e as extensões do fornecedor é parte da migração. Os testes devem usar a versão-alvo, especialmente quando namespaces ou versões de APIs mudam.\n\n### Como cai na prova\n\n- Métricas, traces e logs oferecem perspectivas diferentes e complementares.\n- Telemetry integra métricas, rastreamento e logging; Metrics foi removida da plataforma a partir da linha 7, mas continua como especificação standalone.\n- API disponível no código não basta: o runtime precisa implementar a especificação compatível.\n- Verifique a versão para responder sobre componentes, namespaces e endpoints."
+    }
+  ],
+  "summary": "Eclipse MicroProfile é um conjunto aberto de especificações para microsserviços Java. A versão e o runtime determinam quais APIs estão disponíveis. Config agrega fontes de propriedades externas; Health publica verificações de liveness e readiness; Fault Tolerance define políticas de resiliência; Rest Client cria clientes HTTP tipados; OpenAPI descreve contratos; JWT Authentication trata tokens e papéis; Reactive Messaging padroniza canais; Telemetry aborda métricas, traces e logs. MicroProfile 7.0 substituiu Metrics na plataforma por Telemetry, mantendo Metrics como especificação standalone.",
+  "flashcards": [
+    {
+      "front": "O que é Eclipse MicroProfile?",
+      "back": "Conjunto aberto de especificações para aplicações Java cloud native, especialmente microsserviços."
+    },
+    {
+      "front": "MicroProfile é um servidor?",
+      "back": "Não. É um conjunto de especificações; runtimes fornecem implementações."
+    },
+    {
+      "front": "O que define uma especificação?",
+      "back": "O contrato público de APIs e comportamentos esperados."
+    },
+    {
+      "front": "Para que serve MicroProfile Config?",
+      "back": "Agregar propriedades de várias fontes e disponibilizá-las à aplicação."
+    },
+    {
+      "front": "O que faz @ConfigProperty?",
+      "back": "Injeta uma propriedade de configuração, com conversão compatível e possível valor padrão."
+    },
+    {
+      "front": "O que faz MicroProfile Health?",
+      "back": "Expõe resultados padronizados de verificações de saúde da aplicação."
+    },
+    {
+      "front": "Liveness responde a qual pergunta?",
+      "back": "Se o processo continua vivo o suficiente para permanecer em execução."
+    },
+    {
+      "front": "Readiness responde a qual pergunta?",
+      "back": "Se a instância está pronta para receber tráfego."
+    },
+    {
+      "front": "O que faz @Retry?",
+      "back": "Repete uma operação segundo limites e condições configurados."
+    },
+    {
+      "front": "O que faz @Timeout?",
+      "back": "Limita o tempo permitido para uma execução observada."
+    },
+    {
+      "front": "O que faz CircuitBreaker?",
+      "back": "Interrompe temporariamente chamadas a uma dependência após padrão de falhas."
+    },
+    {
+      "front": "O que faz @Fallback?",
+      "back": "Seleciona comportamento alternativo quando a execução principal falha conforme a política."
+    },
+    {
+      "front": "Para que serve Bulkhead?",
+      "back": "Limitar concorrência para isolar recursos e conter falhas."
+    },
+    {
+      "front": "O que padroniza Rest Client?",
+      "back": "Clientes REST tipados declarados por interfaces Java e anotações."
+    },
+    {
+      "front": "Qual o papel de @RegisterRestClient?",
+      "back": "Registrar uma interface para uso como cliente REST gerenciado pelo runtime."
+    },
+    {
+      "front": "O que produz MicroProfile OpenAPI?",
+      "back": "Descrição de API REST em formato OpenAPI."
+    },
+    {
+      "front": "OpenAPI implementa o endpoint?",
+      "back": "Não. Documenta a API e seus contratos."
+    },
+    {
+      "front": "JWT assinado oculta o payload?",
+      "back": "Não. Assinatura protege integridade e origem; não implica criptografia."
+    },
+    {
+      "front": "O que padroniza Reactive Messaging?",
+      "back": "APIs de canais de entrada e saída para comunicação por mensagens."
+    },
+    {
+      "front": "O que mede um trace?",
+      "back": "A trajetória de uma operação através de componentes distribuídos."
+    },
+    {
+      "front": "O que é um span?",
+      "back": "Um trecho de trabalho dentro de um trace distribuído."
+    },
+    {
+      "front": "O que mudou na plataforma MicroProfile 7.0?",
+      "back": "Telemetry substituiu Metrics na plataforma; Metrics passou a standalone."
+    },
+    {
+      "front": "O que é um runtime compatível?",
+      "back": "Ambiente que implementa as especificações MicroProfile usadas pela aplicação."
+    },
+    {
+      "front": "Por que confirmar a versão da plataforma?",
+      "back": "A composição das especificações, namespaces e recursos varia por versão."
+    }
+  ],
+  "tips": [
+    "Separe especificação, implementação e runtime: são conceitos diferentes.",
+    "Ao ler um enunciado, identifique a versão do MicroProfile antes de listar módulos.",
+    "Associe liveness à continuidade do processo e readiness à entrada de tráfego.",
+    "Distinga Retry, Timeout, CircuitBreaker, Fallback e Bulkhead pelo efeito de cada política.",
+    "Lembre que documentação OpenAPI descreve o contrato, mas não executa a operação.",
+    "Em MicroProfile 7.0, Telemetry está na plataforma; Metrics é standalone."
+  ],
+  "traps": [
+    "Chamar MicroProfile de servidor único confunde especificação com implementação.",
+    "Tratar liveness e readiness como equivalentes pode provocar reinícios indevidos.",
+    "Supor que Retry torna qualquer operação segura ignora efeitos duplicados.",
+    "Achar que JWT assinado criptografa seu conteúdo confunde assinatura com sigilo.",
+    "Presumir que Metrics integra toda versão ignora a mudança da plataforma 7.0.",
+    "Supor que interface Rest Client elimina falhas de rede confunde abstração com disponibilidade."
+  ],
+  "activeRecall": [
+    "Explique a diferença entre plataforma, especificação e implementação.",
+    "Descreva como Config combina propriedades e como uma fonte externa substitui um padrão.",
+    "Dê um exemplo em que readiness falha, mas liveness permanece saudável.",
+    "Compare Retry e CircuitBreaker em uma chamada a serviço instável.",
+    "Explique por que repetir uma operação de pagamento pode ser perigoso.",
+    "Descreva como uma interface Java pode representar um cliente REST remoto.",
+    "Explique o que OpenAPI documenta e o que não faz pela aplicação.",
+    "Compare métrica, trace e log e descreva a mudança de Metrics para Telemetry na versão 7.0."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "MicroProfile versus runtime",
+      "summary": "A especificação define contratos; servidores e runtimes implementam esses contratos.",
+      "description": "A especificação define contratos; servidores e runtimes implementam esses contratos."
+    },
+    {
+      "key": "e2",
+      "title": "Liveness versus readiness",
+      "summary": "A aptidão para tráfego é diferente da sobrevivência do processo em execução.",
+      "description": "Uma verificação de disponibilidade para tráfego não é igual a uma verificação de sobrevivência do processo."
+    },
+    {
+      "key": "e3",
+      "title": "Políticas de resiliência",
+      "summary": "Políticas distintas limitam falhas, mas não garantem correção das operações de negócio.",
+      "description": "Retry, Timeout, CircuitBreaker, Fallback e Bulkhead têm semânticas próprias e não garantem correção de negócio."
+    },
+    {
+      "key": "e4",
+      "title": "Metrics versus Telemetry",
+      "summary": "A plataforma MicroProfile 7.0 inclui Telemetry e mantém Metrics fora do conjunto coordenado.",
+      "description": "Metrics pode ser componente de versões antigas; MicroProfile 7.0 o substitui na plataforma por Telemetry."
+    },
+    {
+      "key": "e5",
+      "title": "Contrato versus comportamento",
+      "summary": "Clientes e documentos ajudam a integrar, mas não asseguram disponibilidade nem conformidade.",
+      "description": "Rest Client e OpenAPI facilitam integração e descrição, sem eliminar falhas remotas ou assegurar que a implementação cumpra a documentação."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "MicroProfile é uma especificação única de servidor que determina um produto específico para hospedar microsserviços Java.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. MicroProfile reúne especificações; diferentes runtimes podem implementar os contratos. A especificação não determina um único servidor ou fornecedor.",
+      "section": "1. O papel do MicroProfile no ecossistema Java",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma especificação MicroProfile define contratos que podem ser implementados por runtimes diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A especificação define APIs e comportamento esperado; cada runtime compatível fornece uma implementação executável.",
+      "section": "1. O papel do MicroProfile no ecossistema Java",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "MicroProfile Config agrega propriedades de fontes diferentes para que a aplicação leia uma visão combinada da configuração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Config integra fontes, como propriedades empacotadas, propriedades do sistema e variáveis de ambiente, segundo prioridades definidas.",
+      "section": "2. Configuração, saúde e tolerância a falhas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "MicroProfile Health reinicia automaticamente um processo quando uma verificação declara estado DOWN.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Health publica o resultado das verificações. Uma plataforma externa pode usar essa informação para tomar decisões, mas a especificação Health não reinicia por si só o processo.",
+      "section": "2. Configuração, saúde e tolerância a falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma verificação de readiness informa se a instância está pronta para receber tráfego.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Readiness indica aptidão para atender solicitações; liveness avalia se o processo continua vivo o suficiente para permanecer em execução. Por isso uma instância ainda inicializando pode estar viva sem estar pronta para receber tráfego.",
+      "section": "2. Configuração, saúde e tolerância a falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Retry deve ser aplicado sem considerar se repetir a chamada pode duplicar efeitos de negócio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Uma nova tentativa pode repetir um efeito já realizado antes de a resposta se perder. É preciso idempotência ou mecanismo equivalente para evitar duplicidades.",
+      "section": "2. Configuração, saúde e tolerância a falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "CircuitBreaker interrompe temporariamente chamadas a uma dependência que apresenta um padrão de falhas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Quando as falhas alcançam o critério configurado, o circuito aberto evita insistir numa dependência instável por determinado período. Depois, a política pode permitir uma tentativa de teste para avaliar se o serviço remoto se recuperou.",
+      "section": "2. Configuração, saúde e tolerância a falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A anotação Fallback documenta a API remota em formato OpenAPI.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Fallback define comportamento alternativo diante de falhas conforme a política. OpenAPI é a especificação de descrição de APIs HTTP.",
+      "section": "2. Configuração, saúde e tolerância a falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "MicroProfile Rest Client pode representar uma chamada HTTP remota por uma interface Java com anotações REST.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A interface tipada descreve o caminho e os métodos HTTP por anotações Jakarta REST, enquanto o runtime cria o cliente gerenciado para a invocação. Configuração de URL, autenticação e tratamento de respostas continuam necessários.",
+      "section": "3. Integração entre serviços e contratos REST",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma interface Rest Client garante que o serviço remoto estará disponível sempre que o método Java for chamado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A interface padroniza a invocação, mas a chamada continua sujeita a falhas de rede, timeout, respostas de erro e indisponibilidade remota.",
+      "section": "3. Integração entre serviços e contratos REST",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "MicroProfile OpenAPI descreve uma API HTTP, mas não implementa a lógica de negócio de seus endpoints.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. OpenAPI produz uma descrição estruturada do contrato, que pode ser usada por pessoas e ferramentas para conhecer operações e respostas. A implementação do recurso REST e suas regras de negócio continuam sendo responsabilidade do código da aplicação.",
+      "section": "3. Integração entre serviços e contratos REST",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um JWT assinado tem necessariamente seu conteúdo criptografado e ilegível para quem o recebe.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A assinatura permite verificar que o token não foi alterado e que foi emitido por uma parte confiável, de acordo com a chave usada. Ela não esconde o payload: para manter dados confidenciais é necessário criptografá-los com mecanismo próprio e proteger as chaves. Assim, claims comuns não devem carregar informação secreta só por estarem num token assinado.",
+      "section": "3. Integração entre serviços e contratos REST",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Reactive Messaging permite expressar recebimento e publicação em canais por meio de APIs padronizadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A aplicação descreve fluxos de mensagens em canais e conectores integram os canais a tecnologias concretas. Assim, a lógica da aplicação trabalha com uma API padronizada, enquanto o conector faz a ligação com o sistema de mensageria escolhido.",
+      "section": "3. Integração entre serviços e contratos REST",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "MicroProfile 7.0 manteve Metrics como componente da plataforma e retirou Telemetry do conjunto de especificações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A linha 7 substituiu Metrics na plataforma por Telemetry; Metrics passou a ser tratada como especificação standalone. Portanto, a mudança afeta a composição da plataforma, mas não extingue a especificação independente.",
+      "section": "4. Telemetria, integração e escolha de versão",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Telemetry, um trace pode relacionar spans de uma operação distribuída que atravessa mais de um serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O trace representa o percurso distribuído e seus spans registram trechos de trabalho, permitindo correlacionar chamadas quando o contexto é propagado.",
+      "section": "4. Telemetria, integração e escolha de versão",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A inclusão da dependência de uma API MicroProfile basta para executar seu recurso em qualquer JVM, mesmo sem implementação no runtime.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A dependência torna tipos acessíveis à compilação, mas o runtime precisa fornecer uma implementação compatível para realizar o contrato em execução.",
+      "section": "4. Telemetria, integração e escolha de versão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa mudar o endereço de um serviço entre teste e produção sem recompilar o mesmo artefato. Qual recurso se ajusta melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "MicroProfile Telemetry registra o endereço em cada trace exportado e o publica como fonte prioritária para substituir propriedades antes da inicialização da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "MicroProfile Health, convertendo o endereço em estado UP ou DOWN.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MicroProfile OpenAPI, publicando o endereço como resposta documentada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MicroProfile JWT, armazenando o endereço em uma claim assinada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MicroProfile Config, lendo o endereço de uma propriedade externa ao código.",
+          "correct": true
+        }
+      ],
+      "explanation": "Config agrega valores externos e permite variar a propriedade por ambiente mantendo o artefato. Health reporta verificações; OpenAPI descreve contratos; JWT trata tokens; Telemetry observa execução.",
+      "section": "2. Configuração, saúde e tolerância a falhas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância executa normalmente, mas ainda está carregando seu catálogo e não deve receber tráfego. Qual verificação representa esse estado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Liveness, pois indica que a aplicação já está pronta para responder a clientes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Readiness, pois expressa se a instância pode receber solicitações neste momento.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "CircuitBreaker, pois bloqueia a entrada até o catálogo terminar de carregar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Retry, pois repete a verificação até liberar as requisições recebidas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Bulkhead, pois informa se o processo precisa ser reiniciado pelo orquestrador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Readiness representa aptidão para receber tráfego e pode permanecer negativa durante a inicialização funcional. Liveness avalia a continuidade do processo; os demais recursos não têm essa finalidade.",
+      "section": "2. Configuração, saúde e tolerância a falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada remota demora além do limite aceitável, e a aplicação deve interromper a espera. Qual política aborda diretamente esse limite?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fallback, que substitui a descrição OpenAPI pela resposta de documentação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Bulkhead, que define o tempo máximo de cada tentativa de rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Timeout, que limita a duração observada da execução da chamada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "CircuitBreaker, que repete a chamada até o serviço responder com sucesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Retry, que encerra imediatamente a chamada depois de uma única espera.",
+          "correct": false
+        }
+      ],
+      "explanation": "Timeout limita o tempo permitido para a execução. Retry repete; CircuitBreaker interrompe chamadas após padrão de falhas; Bulkhead limita concorrência; Fallback oferece alternativa.",
+      "section": "2. Configuração, saúde e tolerância a falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma dependência falha repetidamente; a equipe quer parar de chamá-la durante uma janela para evitar sobrecarga. Qual política atende melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retry, que mantém todas as tentativas simultâneas até a dependência se recuperar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Fallback, que altera o endereço da dependência em cada solicitação executada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Timeout, que documenta a falha e a publica em um contrato OpenAPI.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CircuitBreaker, que abre o circuito e suspende chamadas temporariamente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Bulkhead, que repete operações com falha sem limite de concorrência configurável.",
+          "correct": false
+        }
+      ],
+      "explanation": "CircuitBreaker evita chamadas contínuas a um destino instável durante o período configurado. Retry aumenta tentativas; Timeout limita duração; Fallback define alternativa; Bulkhead isola concorrência.",
+      "section": "2. Configuração, saúde e tolerância a falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição distingue corretamente Retry de Fallback?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retry repete a operação segundo uma política; Fallback seleciona uma resposta ou execução alternativa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Retry documenta respostas HTTP; Fallback converte propriedades externas em tipos Java.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Retry isola limites concorrentes; Fallback encerra o processo quando uma chamada falha.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Retry mede a duração de traces; Fallback impede que métricas sejam exportadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Retry registra estado de prontidão; Fallback autentica usuários por token JWT.",
+          "correct": false
+        }
+      ],
+      "explanation": "Retry tenta novamente a operação sob condições e limites definidos; Fallback fornece comportamento alternativo após falha. São estratégias diferentes e podem ser combinadas conforme o desenho.",
+      "section": "2. Configuração, saúde e tolerância a falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço remoto envia resposta válida, mas o consumidor precisa documentar operações e códigos de resposta em formato legível por ferramentas. Qual especificação ajuda?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "MicroProfile Health, que lista operações HTTP e seus esquemas de entrada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "MicroProfile Fault Tolerance, que produz o contrato navegável do serviço remoto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MicroProfile OpenAPI, que descreve operações, respostas e modelos da API.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "MicroProfile Config, que transforma cada resposta em variável de ambiente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MicroProfile Reactive Messaging, que expõe métodos REST como canais de entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "OpenAPI descreve operações HTTP, respostas e estruturas de dados em formato padronizado. As outras especificações tratam saúde, resiliência, configuração e mensagens.",
+      "section": "3. Integração entre serviços e contratos REST",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa chamar um recurso REST com métodos Java tipados e integração com injeção de dependência. Qual componente é mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "MicroProfile OpenAPI, que gera diretamente os métodos Java para o servidor remoto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "MicroProfile Rest Client, que define uma interface de cliente REST gerenciada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "MicroProfile Telemetry, que converte spans em chamadas HTTP tipadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MicroProfile Health, que injeta respostas de prontidão no cliente HTTP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MicroProfile JWT Authentication, que substitui os métodos REST por claims.",
+          "correct": false
+        }
+      ],
+      "explanation": "Rest Client padroniza interfaces Java de cliente REST com integração ao ambiente de injeção. OpenAPI documenta; Telemetry observa; Health reporta; JWT autentica e autoriza.",
+      "section": "3. Integração entre serviços e contratos REST",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O código de um endpoint foi alterado, mas o documento OpenAPI permaneceu antigo. Qual afirmação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "OpenAPI corrige automaticamente a lógica para obedecer ao documento que já foi publicado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O endpoint deixa de aceitar requisições porque OpenAPI bloqueia código divergente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A especificação de saúde atualiza o contrato e traduz o endpoint em estado DOWN.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O documento pode deixar de refletir o comportamento real e precisa ser mantido coerente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O runtime converte o documento antigo em um cliente REST e substitui o recurso publicado.",
+          "correct": false
+        }
+      ],
+      "explanation": "OpenAPI descreve a API, mas não impõe que a lógica de negócio obedeça à descrição. Documentação desatualizada cria divergência contratual e precisa ser corrigida junto ao código.",
+      "section": "3. Integração entre serviços e contratos REST",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma claim de papel em JWT validado é usada para restringir acesso a operações do serviço. Qual especificação MicroProfile trata desse contexto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "MicroProfile JWT Authentication, voltada à autenticação e autorização baseada em token.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "MicroProfile Config, voltada à conversão de claims em variáveis do ambiente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MicroProfile OpenAPI, voltada à assinatura criptográfica do documento de operações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MicroProfile Health, voltada à verificação de papéis e permissões do usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MicroProfile Metrics, voltada à emissão de tokens para cada chamada REST.",
+          "correct": false
+        }
+      ],
+      "explanation": "JWT Authentication define suporte MicroProfile para tokens JWT e controle de acesso associado a claims e papéis. Config, OpenAPI e Health têm finalidades distintas.",
+      "section": "3. Integração entre serviços e contratos REST",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação consome eventos por canal e publica mensagens de saída usando APIs que não dependem diretamente da lógica do broker. Qual especificação se encaixa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "MicroProfile Rest Client, pois canais são sempre recursos HTTP solicitados pelo consumidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "MicroProfile OpenAPI, pois operações publicadas são descritas como eventos de saída.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MicroProfile Reactive Messaging, que padroniza canais e integrações por conectores.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "MicroProfile Health, pois cada mensagem recebida se converte em uma verificação UP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MicroProfile Config, pois propriedades substituem o transporte de mensagens em execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Reactive Messaging abstrai canais de entrada e saída; conectores ligam os canais a sistemas concretos. REST Client é voltado a chamadas HTTP, e as demais APIs têm outros papéis.",
+      "section": "3. Integração entre serviços e contratos REST",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação distribuída passa por três serviços e precisa ser correlacionada entre eles. Qual sinal de telemetria registra esse percurso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma propriedade Config, que agrega as durações de cada fonte de execução usada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um trace, que agrupa spans relacionados ao percurso distribuído da operação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma readiness, que associa cada rota HTTP a uma instância pronta para tráfego.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um fallback, que mantém a sequência de respostas após a dependência falhar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um schema OpenAPI, que armazena a ordem temporal de todas as chamadas efetuadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Trace representa o percurso de uma operação entre componentes; spans registram trechos individuais. Métricas agregam medidas e logs registram eventos, mas não substituem essa estrutura.",
+      "section": "4. Telemetria, integração e escolha de versão",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização está atualizando sua plataforma para MicroProfile 7.0 e quer determinar se Metrics integra esse conjunto. Qual conclusão corresponde à composição da versão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Metrics integra a plataforma e Telemetry permanece como extensão exclusiva de fornecedor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Metrics e Telemetry são nomes intercambiáveis para o mesmo módulo em todas as versões.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Metrics foi removida da plataforma em favor de Telemetry, mas continua standalone.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Telemetry foi removida e Metrics passou a ser obrigatória no Jakarta Core Profile.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A versão 7 não possui observabilidade padronizada e exige APIs proprietárias de cada runtime.",
+          "correct": false
+        }
+      ],
+      "explanation": "MicroProfile 7.0 substituiu Metrics por Telemetry na plataforma. Metrics não desapareceu do ecossistema: permaneceu como especificação independente (standalone).",
+      "section": "4. Telemetria, integração e escolha de versão",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao compilar uma aplicação, os tipos de uma API MicroProfile são encontrados, mas em execução surge ausência de implementação. Qual explicação é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A API expõe contratos, mas é necessário um runtime que implemente a especificação usada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A especificação deveria compilar os métodos de negócio dentro da JVM automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O endpoint OpenAPI precisa ser acessado antes que qualquer classe MicroProfile carregue.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A implementação só existe quando as propriedades Config são definidas em código Java.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A plataforma não permite aplicações executadas em servidores ou runtimes Java.",
+          "correct": false
+        }
+      ],
+      "explanation": "A API fornece tipos e contratos, enquanto uma implementação executável é necessária no runtime. A disponibilidade de classes na compilação não garante que o ambiente forneça os serviços correspondentes.",
+      "section": "4. Telemetria, integração e escolha de versão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário mostra um uso coerente de Config sem confundir configuração com segredo ou lógica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Codificar a URL de produção na classe e duplicar o build para cada ambiente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Colocar senhas em mensagens de log e usar Config para filtrar os registros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Injetar o endereço do serviço como propriedade externa com padrão local apropriado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Armazenar código Java inteiro em uma variável e executá-lo como propriedade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar OpenAPI para mudar o endereço remoto depois de publicar o serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "Config é adequado para valores de ambiente, como endereço de serviço, mantendo configuração fora do código. Segredos requerem tratamento seguro específico, e OpenAPI documenta contratos.",
+      "section": "2. Configuração, saúde e tolerância a falhas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer limitar o número de execuções concorrentes de uma operação para impedir que ela consuma todos os recursos. Qual política é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retry, que limita a quantidade de chamadas concorrentes por meio de novas tentativas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Fallback, que suspende a operação até o serviço externo retornar estado UP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Timeout, que limita concorrência ao cancelar métodos depois de um prazo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Bulkhead, que isola recursos e pode restringir a concorrência admitida.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "OpenAPI, que impõe limite de execução a partir do esquema publicado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bulkhead isola recursos e permite limitar concorrência, reduzindo o impacto de uma operação sobre o restante da aplicação. Timeout trata duração, e as outras alternativas não regulam esse limite.",
+      "section": "2. Configuração, saúde e tolerância a falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente a relação entre MicroProfile e Jakarta EE?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "MicroProfile substitui integralmente Jakarta EE e impede o uso de suas APIs corporativas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "MicroProfile integra-se ao ecossistema Jakarta EE, e versões podem depender de perfis Jakarta específicos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Jakarta EE implementa obrigatoriamente todos os módulos MicroProfile em qualquer runtime.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MicroProfile e Jakarta EE são nomes de uma única especificação sem versões próprias.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As APIs MicroProfile funcionam apenas em ambientes que não oferecem Jakarta REST.",
+          "correct": false
+        }
+      ],
+      "explanation": "MicroProfile complementa o ecossistema Java empresarial e pode declarar alinhamento ou dependência de versões do Jakarta EE. Isso não significa que todo runtime Jakarta implemente cada API MicroProfile.",
+      "section": "1. O papel do MicroProfile no ecossistema Java",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante a atualização, uma aplicação deixa de compilar após a troca de namespace de APIs Java EE para Jakarta. Qual ação é tecnicamente pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter dependências e código antigos, pois o runtime sempre converte namespaces automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir todas as APIs MicroProfile por Telemetry, pois namespaces só afetam observabilidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Verificar versões compatíveis e ajustar imports e dependências para o namespace da versão alvo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Remover o runtime e executar diretamente as anotações Jakarta dentro da JVM padrão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Renomear os pacotes no OpenAPI, pois o documento controla classes carregadas pelo compilador.",
+          "correct": false
+        }
+      ],
+      "explanation": "A transição de `javax.*` para `jakarta.*` é uma mudança de namespace que pode exigir atualização de código e dependências. A compatibilidade precisa ser conferida para a combinação de APIs e runtime escolhida.",
+      "section": "1. O papel do MicroProfile no ecossistema Java",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa associa corretamente sinais de observabilidade a seus usos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Métricas substituem todos os logs, traces armazenam configuração e logs definem tentativas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Métricas descrevem esquemas REST, traces autenticam tokens e logs controlam a readiness.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Métricas mostram medidas agregadas, traces conectam trechos distribuídos e logs registram eventos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Métricas indicam somente liveness, traces publicam OpenAPI e logs alteram o circuito.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Métricas são propriedades externas, traces são conectores e logs implementam clientes REST.",
+          "correct": false
+        }
+      ],
+      "explanation": "Métricas ajudam a acompanhar agregados; traces registram percursos com spans; logs guardam eventos. Os sinais são complementares, não substitutos perfeitos.",
+      "section": "4. Telemetria, integração e escolha de versão",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação usa Telemetry, mas não propaga o contexto de rastreamento ao chamar outro serviço. Qual consequência é plausível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O serviço remoto torna-se automaticamente indisponível porque falta um cabeçalho obrigatório.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O Config deixa de agregar fontes até o runtime receber o trace completo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A chamada REST é convertida em mensagem com garantia de entrega exatamente uma vez.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A correlação do percurso entre os serviços pode ficar incompleta ou fragmentada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A anotação Liveness assume a propagação do contexto e reinicia a aplicação cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A propagação do contexto conecta spans de componentes diferentes. Sem ela, a instrumentação pode registrar trechos sem vínculo claro, mesmo que a chamada de negócio continue funcionando.",
+      "section": "4. Telemetria, integração e escolha de versão",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer registrar uma verificação de saúde baseada em dependência externa. Qual cuidado operacional é mais sensato?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Marcar liveness como DOWN em qualquer falha transitória para forçar reinícios imediatos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Avaliar se a dependência afeta prontidão e evitar transformar todo problema em falha de liveness.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar OpenAPI para converter automaticamente a resposta de erro em estado de prontidão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Repetir o teste sem limite, pois Health não interfere em decisões de orquestração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar todas as verificações, pois somente o processo Java pode informar seu estado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma falha externa pode impedir atendimento e justificar readiness negativa, mas uma liveness agressiva pode causar reinícios em cascata. Health informa; a política operacional precisa refletir o impacto real.",
+      "section": "2. Configuração, saúde e tolerância a falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe configurou Retry para uma operação de criação de pedido. A resposta se perdeu após o servidor gravar o pedido. Qual risco deve ser considerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A nova tentativa pode criar outro pedido se a operação não for idempotente ou deduplicada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A política converterá a chamada em uma mensagem de saída sem passar pelo servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A execução seguinte será sempre cancelada pelo OpenAPI antes de chegar ao endpoint.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O circuito impedirá qualquer nova tentativa mesmo quando Retry estiver configurado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O runtime removerá o primeiro pedido automaticamente ao detectar resposta perdida.",
+          "correct": false
+        }
+      ],
+      "explanation": "O servidor pode ter concluído a criação apesar de a resposta não ter chegado ao cliente. Repetir sem chave idempotente ou deduplicação pode produzir efeito duplicado; Retry não desfaz a primeira execução.",
+      "section": "2. Configuração, saúde e tolerância a falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao configurar uma interface Rest Client, a equipe precisa que a URL base mude por implantação e não fique presa a um endereço no fonte. Qual abordagem é coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descrever a URL apenas em OpenAPI e esperar que o documento altere o transporte.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar uma propriedade de configuração associada ao cliente para fornecer sua URL base.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Armazenar a URL como claim de usuário no JWT recebido de cada consumidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Publicar a URL no endpoint Health e deixar o cliente inferir o destino remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar um span com o endereço e deixar Telemetry configurar a chamada seguinte.",
+          "correct": false
+        }
+      ],
+      "explanation": "A configuração do cliente pode fornecer externamente sua URL base e variar por implantação. OpenAPI documenta, JWT autentica, Health informa estado e Telemetry observa chamadas.",
+      "section": "3. Integração entre serviços e contratos REST",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint REST precisa especificar esquemas de dados e respostas de erro para consumidores automatizados. Qual uso de OpenAPI contribui para isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar metadados e anotações para descrever operações, respostas e modelos expostos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ativar Retry em cada método para gerar esquemas conforme as tentativas concluídas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Injetar Config em todos os consumidores e substituir a semântica dos códigos HTTP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Registrar métricas como tipos Java para que o runtime gere endpoints de negócio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar readiness para serializar todas as estruturas de entrada da aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "OpenAPI descreve operações HTTP, respostas e esquemas de dados. A descrição auxilia consumidores e ferramentas, mas não substitui a implementação nem o tratamento correto dos erros.",
+      "section": "3. Integração entre serviços e contratos REST",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre conectores em Reactive Messaging está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conectores fazem a ligação entre canais declarados e tecnologias concretas de mensageria.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conectores são documentos OpenAPI que convertem cada método HTTP em evento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conectores reiniciam produtores e consumidores quando uma verificação liveness falha.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conectores substituem qualquer broker e garantem entrega exatamente uma vez por padrão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conectores guardam propriedades Config e as compilam dentro do artefato Java.",
+          "correct": false
+        }
+      ],
+      "explanation": "Conectores integram os canais da API reativa com sistemas concretos de mensageria. Garantias de entrega dependem da especificação, do conector e do broker; não se deve presumir exatamente uma vez em qualquer cenário.",
+      "section": "3. Integração entre serviços e contratos REST",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a distinção correta entre uma métrica e um log em observabilidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Métricas agregam medidas numéricas; logs registram eventos com detalhes contextuais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Métricas autenticam usuários; logs definem políticas de circuit breaker em execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Métricas são contratos REST; logs representam os canais reativos de saída publicados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Métricas verificam somente readiness; logs indicam se a JVM deve ser reiniciada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Métricas substituem configuração externa; logs fazem conversão de propriedades Java.",
+          "correct": false
+        }
+      ],
+      "explanation": "Métricas oferecem séries e agregados úteis para tendências; logs registram eventos detalhados. Ambos podem complementar traces, que representam percursos distribuídos.",
+      "section": "4. Telemetria, integração e escolha de versão",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um candidato afirma que toda aplicação MicroProfile 7 inclui a especificação Metrics porque a versão anterior a incluía. Como avaliar a afirmação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Correta, pois a plataforma nunca altera seus componentes entre versões principais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Incorreta, pois a versão 7 substitui Metrics por Telemetry na plataforma.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Correta, pois Telemetry é apenas o nome do exporter de Metrics em todos os runtimes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Incorreta, pois Metrics foi extinta e não existe como especificação independente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Correta, desde que o serviço use Jakarta REST e não utilize clientes remotos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A composição de plataforma é versionada. MicroProfile 7 substituiu Metrics por Telemetry, enquanto Metrics permaneceu como especificação standalone; não se deve extrapolar a composição anterior.",
+      "section": "4. Telemetria, integração e escolha de versão",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação MicroProfile precisa ser movida para outro runtime compatível. Qual prática favorece portabilidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar somente variáveis de ambiente, pois isso elimina diferenças entre contratos de runtime.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Empacotar implementações incompatíveis de todos os servidores e deixar o classloader escolher.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover a versão da especificação e confiar que os runtimes fornecem sempre APIs idênticas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir as APIs por scripts proprietários que executam somente no servidor de origem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar apenas APIs padronizadas compatíveis e conferir a versão e a implementação de destino.",
+          "correct": true
+        }
+      ],
+      "explanation": "A portabilidade melhora ao depender de APIs padronizadas e versões compatíveis, mas ainda exige conferir o suporte concreto do runtime e testar a aplicação no destino.",
+      "section": "4. Telemetria, integração e escolha de versão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema distribuído, qual recurso é mais adequado para limitar concorrência de uma função lenta e proteger outros recursos do serviço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma propriedade OpenAPI que descreve o número máximo de solicitações concorrentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma política Bulkhead configurada para isolar e limitar execuções concorrentes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma verificação de startup usada como mecanismo de bloqueio das requisições futuras.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma anotação ConfigProperty que transforma o método lento em fila persistente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um JWT Authentication que distribui permissões conforme a latência da função.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bulkhead isola recursos e controla concorrência, evitando que uma operação consuma toda a capacidade compartilhada. OpenAPI descreve; Config fornece valores; Health verifica estado; JWT controla acesso.",
+      "section": "2. Configuração, saúde e tolerância a falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe criou verificação que confirma se o processo ainda responde, mas a dependência de leitura está indisponível. Qual interpretação pode ser correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Liveness pode continuar UP enquanto readiness fica DOWN se o serviço não puder atender tráfego.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Readiness deve permanecer UP sempre que o processo Java estiver alocado na memória.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Health obriga a transformar toda dependência indisponível em reinicialização imediata.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CircuitBreaker é o nome do endpoint que publica estado liveness e readiness em JSON.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "OpenAPI deve assumir a dependência e retirar o serviço do balanceador de carga.",
+          "correct": false
+        }
+      ],
+      "explanation": "As verificações respondem perguntas diferentes. Um processo pode estar vivo e ainda não estar apto a atender solicitações que dependem de um componente indisponível.",
+      "section": "2. Configuração, saúde e tolerância a falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao configurar uma implementação de MicroProfile Telemetry, qual objetivo corresponde a um exporter?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter os dados de telemetria em operações REST disponíveis aos clientes do serviço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Enviar dados instrumentados para um destino de coleta ou observação configurado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Autenticar cada usuário final com token JWT antes de gerar qualquer métrica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar scripts de migração de banco antes de publicar os logs da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir as implementações de Config e escolher a origem prioritária de propriedades.",
+          "correct": false
+        }
+      ],
+      "explanation": "Exporter envia métricas, traces ou logs instrumentados a um destino de telemetria. Ele não executa rotas de negócio, autentica usuários nem gerencia configuração ou migração de banco.",
+      "section": "4. Telemetria, integração e escolha de versão",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação utiliza uma anotação de MicroProfile que não existe na versão fornecida pelo runtime de destino. Qual resposta de migração é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar a versão e o suporte do runtime, então ajustar dependências ou selecionar uma API compatível.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ignorar o erro, porque qualquer especificação publicada passa a integrar todas as versões anteriores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Renomear a anotação e manter o mesmo pacote para que o classloader crie sua implementação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mover a anotação ao documento OpenAPI, que a transforma em comportamento Java executável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar um endpoint Health, que instala automaticamente módulos ausentes no servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "As APIs disponíveis dependem da versão e implementação do runtime. A migração exige verificar compatibilidade e fornecer uma combinação de dependências e runtime que implemente o recurso.",
+      "section": "4. Telemetria, integração e escolha de versão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação com fallback retorna um valor padrão após falha remota. Qual cuidado evita mascarar um problema grave?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retornar sempre sucesso HTTP, mesmo quando o valor substituto não é válido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover logs e traces, inclusive durante a falha, para que a ausência de sinais esconda do operador a indisponibilidade parcial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir uma alternativa semanticamente segura e manter visibilidade da falha original.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Repetir o fallback indefinidamente até a dependência restabelecer a conexão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter fallback em liveness para reiniciar o consumidor quando houver erro.",
+          "correct": false
+        }
+      ],
+      "explanation": "Fallback deve fornecer comportamento alternativo válido para o caso de negócio, e a falha precisa continuar observável. Um valor enganoso ou sucesso falso pode ocultar defeitos e prejudicar consumidores.",
+      "section": "2. Configuração, saúde e tolerância a falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma interface Rest Client usa métodos e anotações tipadas. Onde o runtime obtém o endereço base do serviço remoto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "De configuração associada ao cliente, normalmente fornecida fora do código da interface.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Do código de status HTTP que o endpoint OpenAPI retorna ao ser consultado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Da claim obrigatória que o usuário inclui no token JWT da aplicação cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Do resultado UP publicado pelo Health do serviço consumidor de mensagens.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Do nome de cada span enviado ao exporter na primeira chamada executada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A URL base é um parâmetro de configuração do cliente, permitindo variar por implantação. A interface descreve o caminho e os métodos, enquanto a configuração aponta o destino.",
+      "section": "3. Integração entre serviços e contratos REST",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção descreve uma vantagem e um limite do cliente REST declarativo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substitui documentação OpenAPI e armazena todas as respostas em cache persistente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Garante sucesso de qualquer chamada e remove a necessidade de timeout e autenticação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gera automaticamente o serviço remoto e mantém ambos os sistemas no mesmo processo JVM.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reduz código repetitivo e tipa chamadas, mas não elimina falhas HTTP nem de rede.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Converte chamadas síncronas em mensagens com garantia universal de entrega única.",
+          "correct": false
+        }
+      ],
+      "explanation": "O cliente declarativo fornece interface tipada e reduz boilerplate, mas continua realizando comunicação remota sujeita a erros, timeout, indisponibilidade e necessidades de segurança.",
+      "section": "3. Integração entre serviços e contratos REST",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual consequência decorre de usar várias fontes de configuração com prioridades distintas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma fonte prioritária pode sobrepor o padrão empacotado sem mudar o código da aplicação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todas as fontes são concatenadas em uma string, sem conversão ou regra de precedência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A fonte de menor prioridade apaga sempre os valores fornecidos pelo ambiente de execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A aplicação deixa de poder definir valores padrão quando usa qualquer fonte externa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Config transforma propriedades em endpoints Health antes que o runtime as injete.",
+          "correct": false
+        }
+      ],
+      "explanation": "Config resolve propriedades considerando origens e prioridades, permitindo que valores externos substituam padrões empacotados. A conversão depende do tipo solicitado e pode falhar se o conteúdo for inválido.",
+      "section": "2. Configuração, saúde e tolerância a falhas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual associação entre anotações ou recursos e seu papel está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "@Liveness e @Readiness definem os esquemas de entrada e saída da API REST.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "@Incoming e @Outgoing expressam canais de entrada e saída em Reactive Messaging.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "@Retry e @Timeout são mecanismos de documentação para gerar arquivos OpenAPI.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "@ConfigProperty e @RegisterRestClient verificam se o processo Java está vivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "@Operation e @APIResponse controlam concorrência de métodos de serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "Reactive Messaging usa canais de entrada e saída. Health contém verificações; Fault Tolerance define políticas; Config injeta propriedades; Rest Client registra clientes; OpenAPI documenta operações e respostas.",
+      "section": "3. Integração entre serviços e contratos REST",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma implantação, uma falha na readiness deve retirar uma instância do balanceamento, enquanto uma falha de liveness pode levar a reinício conforme a orquestração. Qual leitura é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Health executa diretamente o balanceador e reinicia a JVM sem integração externa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Readiness e liveness são aliases, portanto qualquer falha produz exatamente a mesma ação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os sinais têm propósitos distintos e o componente externo decide ações a partir deles.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A aplicação deve usar Retry para publicar os estados como códigos HTTP padronizados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "OpenAPI escolhe quais instâncias entram no balanceador com base nos esquemas registrados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Health distingue condições de prontidão e liveness; orquestradores ou balanceadores podem usar os resultados conforme suas políticas. Health não executa sozinho essas ações externas.",
+      "section": "2. Configuração, saúde e tolerância a falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação possui timeout e retry. Qual interpretação evita presumir um comportamento que a especificação não garante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É preciso considerar a interação e os limites configurados; retry não significa duração ilimitada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Timeout deixa de valer sempre que Retry está presente em qualquer método Java.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Retry garante que toda tentativa ocorrerá antes do prazo total definido pelo cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A combinação converte a operação em transação distribuída com rollback automático.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As anotações mudam a resposta OpenAPI, mas não afetam a execução da operação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Políticas combinadas precisam ser configuradas e compreendidas em conjunto. Timeout e Retry têm semânticas próprias; não fornecem transação distribuída ou garantia de duração total sem limites.",
+      "section": "2. Configuração, saúde e tolerância a falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço precisa medir volume total e latência agregada por operação, além de investigar uma solicitação específica entre serviços. Qual combinação de sinais é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Métricas para agregados e traces para seguir a solicitação distribuída específica.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Readiness para volume e claims JWT para visualizar duração entre serviços.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "OpenAPI para latência e Config para associar todas as chamadas de uma solicitação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fallback para volume agregado e Bulkhead para armazenar a trajetória das chamadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reactive Messaging para métricas e Retry para reconstruir spans já exportados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Métricas são apropriadas a agregados como volume e latência; traces permitem examinar spans de uma solicitação distribuída. Logs também podem complementar a investigação com eventos detalhados.",
+      "section": "4. Telemetria, integração e escolha de versão",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um time quer usar MicroProfile em um produto comercial. Qual elemento determina se as APIs usadas pela aplicação terão suporte em execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A implementação oferecida pelo runtime e sua compatibilidade com as versões utilizadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O fato de o código possuir nomes de pacotes que começam por org.eclipse.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A existência de um documento OpenAPI publicado pelo servidor em qualquer endereço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A quantidade de propriedades configuradas por variáveis de ambiente na implantação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A presença de um token JWT válido na primeira solicitação recebida pelo serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "O runtime precisa implementar as especificações e versões requeridas. Prefixo de pacote, documentação, configuração ou token não substituem suporte de implementação.",
+      "section": "1. O papel do MicroProfile no ecossistema Java",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "MicroProfile Specifications",
+      "publisher": "Eclipse Foundation / MicroProfile",
+      "reference": "Catálogo das especificações da plataforma e standalone",
+      "url": "https://microprofile.io/specifications/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MicroProfile Releases",
+      "publisher": "Eclipse Foundation / MicroProfile",
+      "reference": "Composição e mudanças entre versões; MicroProfile 7.0 e Telemetry",
+      "url": "https://microprofile.io/releases/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MicroProfile Config",
+      "publisher": "Eclipse Foundation / MicroProfile",
+      "reference": "Agregação de fontes e injeção de configuração",
+      "url": "https://microprofile.io/specifications/config/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MicroProfile Health",
+      "publisher": "Eclipse Foundation / MicroProfile",
+      "reference": "Verificações de saúde e estado de aplicações",
+      "url": "https://microprofile.io/specifications/health/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MicroProfile Fault Tolerance",
+      "publisher": "Eclipse Foundation / MicroProfile",
+      "reference": "Políticas Retry, Timeout, CircuitBreaker, Fallback, Bulkhead e execução assíncrona",
+      "url": "https://microprofile.io/specifications/microprofile-fault-tolerance/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MicroProfile Rest Client",
+      "publisher": "Eclipse Foundation / MicroProfile",
+      "reference": "Interfaces tipadas para invocação de serviços REST",
+      "url": "https://microprofile.io/specifications/rest-client/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MicroProfile OpenAPI",
+      "publisher": "Eclipse Foundation / MicroProfile",
+      "reference": "Descrição OpenAPI de APIs REST",
+      "url": "https://microprofile.io/specifications/open-api/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MicroProfile Telemetry",
+      "publisher": "Eclipse Foundation / MicroProfile",
+      "reference": "Instrumentação e observabilidade em aplicações MicroProfile",
+      "url": "https://microprofile.io/specifications/telemetry/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MicroProfile JWT Authentication",
+      "publisher": "Eclipse Foundation / MicroProfile",
+      "reference": "Autenticação e autorização baseadas em JWT",
+      "url": "https://microprofile.io/specifications/jwt-auth/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MicroProfile Reactive Messaging",
+      "publisher": "Eclipse Foundation / MicroProfile",
+      "reference": "APIs de mensagens reativas e conectores",
+      "url": "https://microprofile.io/specifications/reactive-messaging/",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

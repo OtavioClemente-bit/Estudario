@@ -1,0 +1,2513 @@
+{
+  "id": "engenharia-eletrica.filtros-digitais-fir-iir",
+  "subject": "Engenharia Elétrica",
+  "title": "Filtros digitais FIR e IIR: análise, projeto e implementação",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Filtros digitais FIR e IIR: análise e projeto",
+    "Projeto de filtros digitais FIR e IIR",
+    "Análise de filtros digitais FIR e IIR",
+    "Estruturas para filtros de resposta ao impulso",
+    "Filtros de resposta finita ao impulso",
+    "Filtros de resposta infinita ao impulso",
+    "Técnicas de projeto de filtros digitais",
+    "Implementação de filtros digitais FIR e IIR",
+    "Aspectos práticos de filtros digitais",
+    "Filtros digitais de resposta ao impulso FIR e IIR",
+    "Filtros digitais: análise, estruturas e técnicas de projeto",
+    "Filtros digitais FIR IIR em Engenharia Elétrica"
+  ],
+  "scope": {
+    "covers": "Análise e implementação de filtros digitais de resposta ao impulso finita (FIR) e infinita (IIR): equações de diferenças, funções de transferência, resposta em frequência, polos e zeros, estabilidade, fase e atraso; estruturas direta, transposta, em cascata e paralela; projeto FIR por janelamento, mínimos quadrados e equiripple; projeto IIR por protótipos clássicos e transformação bilinear; especificações de bandas, ordem e compromisso entre desempenho e custo; quantização, saturação, overflow, precisão finita e validação prática.",
+    "excludes": "Projeto de filtros analógicos como objetivo principal, processamento multirrate avançado, filtros adaptativos, síntese de circuitos analógicos e implementação em plataforma específica."
+  },
+  "theoryTitle": "Análise, projeto e realização de filtros FIR e IIR",
+  "chapters": [
+    {
+      "title": "1. Modelo, análise e propriedades de FIR e IIR",
+      "markdown": "### O problema que este assunto resolve\n\nUm filtro digital transforma uma sequência amostrada x[n] em outra sequência y[n], reforçando ou atenuando componentes de frequência. O projeto parte de uma especificação — por exemplo, deixar passar uma banda e limitar a ondulação na banda de rejeição — e busca coeficientes que realizem esse comportamento com custo, atraso e precisão aceitáveis.\n\n> **Siglas e termos deste capítulo**\n> - **FIR**: resposta ao impulso finita; a saída depende de uma quantidade finita de amostras da entrada.\n> - **IIR**: resposta ao impulso infinita; a realimentação pode manter resposta não nula por tempo indefinido.\n> - **LTI**: sistema linear e invariante no tempo.\n> - **H(z)**: função de transferência, razão entre as transformadas Z da saída e da entrada sob condições iniciais nulas.\n> - **Resposta ao impulso**: saída do sistema quando a entrada é δ[n].\n> - **Resposta em frequência**: valor de H(z) sobre o círculo unitário, z=e^{jω}.\n\n### Equações de diferenças e função de transferência\n\nUma forma geral, com coeficientes reais e a[0] normalizado para 1, é\n\n**y[n] = Σ(k=0..M) b[k]x[n−k] − Σ(k=1..N) a[k]y[n−k].**\n\nOs termos b multiplicam a entrada presente e atrasada; os termos a multiplicam saídas passadas. Se N=0, não há realimentação e o filtro é FIR: **y[n]=Σ b[k]x[n−k]**. Se há termos de saída passada, a realização é recursiva e, em geral, IIR. Sob repouso inicial, **H(z) = (Σ b[k]z⁻ᵏ)/(1+Σ a[k]z⁻ᵏ)**. Assim, FIR tem somente zeros finitos na forma polinomial usual; IIR tem polos determinados pelo denominador, além dos zeros do numerador.\n\nA resposta ao impulso de um FIR de comprimento L é formada pelos coeficientes b[0] a b[L−1] e depois é nula. Um IIR estável pode responder indefinidamente a um impulso, com amplitude decrescente. A palavra “infinita” descreve a duração teórica, não que a memória ou a execução em cada instante sejam infinitas.\n\n### Resposta em frequência e estabilidade\n\nPara analisar seletividade, avalia-se H(e^{jω}). Seu módulo descreve ganho por frequência; sua fase descreve rotação de fase; o atraso de grupo é **−dφ/dω**, onde φ é a fase desenrolada. Para frequência em hertz, ω=2πf/Fs, com taxa de amostragem Fs. A frequência de Nyquist é Fs/2; frequências digitais distintas não podem ser especificadas acima dela sem considerar aliasing.\n\nUm FIR causal com coeficientes finitos é BIBO estável: sua resposta ao impulso é absolutamente somável. Um IIR racional causal é BIBO estável quando todos os polos, após cancelamentos válidos considerados com cuidado, ficam estritamente dentro do círculo unitário. Polos sobre ou fora dele tornam a estabilidade não garantida. Zeros moldam nulos e atenuações; polos próximos ao círculo unitário produzem ressonâncias mais estreitas e decaimento mais lento.\n\n| Propriedade | FIR típico | IIR típico |\n| --- | --- | --- |\n| Realimentação | Não | Sim |\n| Estabilidade BIBO | Garantida para coeficientes finitos | Depende dos polos |\n| Fase linear exata | Possível com simetria antissimetria dos coeficientes | Em geral não, salvo casos especiais |\n| Ordem para uma dada transição | Pode ser maior | Frequentemente menor |\n| Efeito de erro aritmético | Não se propaga recursivamente | Pode retornar pelo laço de realimentação |\n\n### Fase linear e atraso\n\nEm um FIR real de fase linear, os coeficientes são simétricos ou antissimétricos. A simetria permite combinar produtos espelhados e conduz a atraso de grupo constante, em condições usuais, de metade do grau do filtro. Isso preserva a forma temporal de componentes que atravessam a banda, apenas as atrasa e escala. O custo é que a ordem necessária pode ser elevada. Um IIR pode atender módulo com ordem menor, mas sua fase normalmente curva; em sinais nos quais a forma de onda ou temporização importam, essa distorção precisa entrar na especificação.\n\n### Como cai na prova\n\n- Separe “finito/infinito” pela duração da resposta ao impulso, e “recursivo/não recursivo” pela presença de saídas passadas na equação.\n- A estabilidade do IIR é lida nos polos; a do FIR causal com coeficientes finitos é garantida.\n- Amplitude, fase e atraso de grupo são medidas diferentes: atender ao módulo não garante fase adequada.\n- Converta hertz em frequência digital usando Fs e respeite Nyquist."
+    },
+    {
+      "title": "2. Estruturas de realização e eficiência",
+      "markdown": "### O problema que este assunto resolve\n\nUma mesma função de transferência admite diferentes diagramas de blocos. A estrutura escolhida determina armazenamento de estados, número e ordem de operações, facilidade de saturação e sensibilidade a arredondamentos. Coeficientes matematicamente equivalentes não garantem comportamento idêntico em aritmética finita.\n\n> **Siglas e termos deste capítulo**\n> - **Atraso unitário z⁻¹**: memória de uma amostra.\n> - **Forma direta**: implementação que liga atrasos e multiplicadores segundo os coeficientes da equação.\n> - **Forma transposta**: grafo obtido pela transposição do fluxo de sinais da estrutura direta.\n> - **SOS**: seção de segunda ordem, ou biquad, com numerador e denominador de grau até dois.\n> - **Estado**: valor interno armazenado entre amostras para continuar o cálculo recursivo.\n> - **Acumulador**: registrador de precisão ampliada usado para somar produtos.\n\n### Forma direta, transposta e estruturas FIR\n\nA forma direta I, por vezes chamada forma canônica quando minimiza atrasos de estado para a equação, usa uma linha de atrasos compartilhada por numerador e denominador. A forma direta II separa a recursão interna e a combinação de saída; em sua versão canônica usa, em condições usuais, max(M,N) atrasos, contra M+N atrasos em uma direta I não reduzida. A forma transposta inverte o fluxo do grafo e troca posições relativas de somadores, multiplicadores e atrasos. Em ponto flutuante ideal as representações correspondem à mesma H(z); em ponto fixo, escalas e pontos de saturação mudam os resultados.\n\nUm FIR pode ser implementado como linha de atrasos com uma multiplicação por coeficiente e soma de produtos. Se os coeficientes forem simétricos, x[n−k] e x[n−(L−1−k)] podem ser somados antes de uma única multiplicação, reduzindo aproximadamente pela metade o número de multiplicadores, sem mudar a resposta ideal. O estado contém amostras anteriores. Em processamento por blocos, o estado final de um bloco precisa ser preservado como estado inicial do próximo para evitar descontinuidade.\n\n### Cascata e paralelo em filtros recursivos\n\nEm cascata, a função total é o produto das funções das seções. Em paralelo, é a soma de ramos parciais. Um denominador de alta ordem pode ser fatorado em seções de primeira ou segunda ordem; pares de polos complexos conjugados dão coeficientes reais em biquads. Seção de segunda ordem reduz problemas numéricos em comparação a um único polinômio de alta ordem, porque evita calcular e quantizar um conjunto longo de coeficientes sensíveis. Ainda é preciso escolher ordenação das seções e ganhos internos para controlar picos de amplitude.\n\nA forma direta II transposta é uma realização comum em rotinas de filtragem. Bibliotecas científicas recomendam, para muitos IIRs, representação em seções de segunda ordem em vez de um único vetor de coeficientes, pois isso reduz problemas numéricos. “SOS” não torna qualquer projeto estável por si só: os polos e a quantização continuam precisando de análise.\n\n| Implementação | Vantagem usual | Cuidado prático |\n| --- | --- | --- |\n| FIR direto | Estrutura simples e estado de entrada explícito | Ordem alta custa multiplicações e memória |\n| FIR simétrico | Menos multiplicadores quando há simetria | A condição de fase linear precisa ser preservada |\n| IIR direto em alta ordem | Poucos coeficientes na descrição | Sensibilidade numérica e de quantização |\n| IIR em SOS | Melhor condicionamento numérico em muitos casos | Dimensionar escalas e estados por seção |\n\n### Causalidade, inicialização e blocos\n\nUma implementação causal calcula y[n] usando entrada e estado atual ou passado; não pode depender de amostras futuras. O início em repouso atribui zero aos atrasos e pode causar transitório inicial quando o sinal real já estava em regime. Se há estado inicial conhecido, ele pode ser fornecido para continuidade. Filtrar blocos independentes sempre zerando estados reinicia artificialmente o sistema a cada bloco e cria artefatos nas fronteiras. Filtragem para frente e para trás pode cancelar fase em processamento offline, mas usa dados futuros, altera a ordem efetiva e não é uma implementação causal em tempo real.\n\n### Como cai na prova\n\n- Forma direta I e II implementam a mesma equação ideal, mas têm organização e número de estados diferentes.\n- Coeficientes simétricos permitem compartilhar produtos num FIR linear em fase.\n- Seções SOS são úteis para IIR de ordem alta; não dispensam análise de estabilidade nem escalonamento.\n- Estado precisa atravessar blocos consecutivos; zerá-lo a cada bloco reinicia a resposta."
+    },
+    {
+      "title": "3. Especificações e técnicas de projeto FIR",
+      "markdown": "### O problema que este assunto resolve\n\nO algoritmo de projeto precisa transformar requisitos de engenharia em coeficientes. Antes de escolher uma técnica, registre taxa de amostragem, bordas das bandas, ganho desejado, ondulação máxima, atenuação mínima, atraso admissível e precisão de implementação. Uma resposta “passa-baixas” sem tolerâncias de banda de transição e rejeição não define um filtro verificável.\n\n> **Siglas e termos deste capítulo**\n> - **Banda passante**: faixa em que o ganho deve seguir o valor desejado dentro de uma tolerância.\n> - **Banda de rejeição**: faixa em que se exige atenuação mínima.\n> - **Banda de transição**: intervalo entre as bordas passante e de rejeição.\n> - **Ondulação (ripple)**: desvio do módulo em relação ao ganho-alvo dentro de uma banda.\n> - **dB**: escala logarítmica; razão de amplitude usa 20 log₁₀.\n> - **Equiripple**: erro máximo oscilatório de mesma magnitude em regiões especificadas.\n\n### Janelamento da resposta ideal\n\nUma resposta ideal de corte abrupto tem resposta ao impulso infinita e, em geral, não causal. O método da janela trunca essa sequência e multiplica seus coeficientes por uma janela finita. Isso torna o filtro realizável; o corte introduz ondulação e uma banda de transição. A janela retangular concentra a transição estreita, mas produz lóbulos laterais relativamente altos; janelas mais suaves, como Hamming ou Kaiser ajustável, reduzem lóbulos laterais à custa de transição mais larga para comprimento comparável. Para especificação apertada, aumenta-se o comprimento ou escolhe-se outro método.\n\nUm FIR por janelamento pode ter fase linear quando se retém uma sequência simétrica em torno do centro e se usa a organização apropriada. A ordem n corresponde a n+1 coeficientes; comprimento e ordem não são sinônimos. Alguns projetos baseados em janela definem a frequência de corte como ponto de meia amplitude, aproximadamente −6 dB, enquanto funções e métodos diferentes podem adotar outra convenção; não se deve misturar a borda especificada com a interpretação de corte de outra ferramenta.\n\n### Mínimos quadrados e Parks–McClellan\n\nO método de mínimos quadrados minimiza uma integral ou soma ponderada do erro quadrático entre resposta desejada e resposta obtida. Grandes erros contam muito por serem elevados ao quadrado, mas o critério minimiza erro global e não garante, sozinho, menor erro máximo em toda frequência. A ponderação permite atribuir importância relativa a bandas.\n\nO método de Parks–McClellan (Remez) projeta FIR de fase linear com erro de módulo equiripple nas bandas especificadas: busca controlar o pior desvio, distribuindo picos alternados. Costuma produzir ordem econômica para determinada especificação de erro máximo. Janelamento, mínimos quadrados e equiripple resolvem critérios diferentes; nenhum elimina a necessidade de inspecionar a resposta calculada.\n\n| Técnica FIR | Critério ou mecanismo | Consequência típica |\n| --- | --- | --- |\n| Janelamento | Trunca e suaviza a resposta ao impulso ideal | Simples; largura de transição e lóbulos dependem da janela |\n| Mínimos quadrados | Minimiza erro quadrático integrado, possivelmente ponderado | Bom erro médio; pico pode ser maior |\n| Parks–McClellan | Minimiza erro máximo com ondulação equiripple | Controle do pior erro e boa economia de ordem |\n\n### Roteiro de especificação e validação\n\n1. Expresse todas as frequências na mesma unidade e em relação a Fs; a banda digital termina em Nyquist.\n2. Separe borda passante de borda de rejeição: a distância entre elas define a transição.\n3. Traduza ripple e atenuação para tolerâncias de módulo; se usar dB, converta sem confundir amplitude com potência.\n4. Escolha critério coerente: transição fácil e projeto simples pode favorecer janelamento; erro médio favorece mínimos quadrados; erro máximo controlado favorece equiripple.\n5. Aumente ordem ou ajuste pesos/janela se a resposta não cumprir especificações.\n6. Confira módulo, fase, atraso de grupo, polos/zeros, resposta ao impulso e resposta ao degrau no filtro final, inclusive após quantizar coeficientes.\n\n### Como cai na prova\n\n- Janelamento resulta de truncar e ponderar uma resposta ideal; a troca usual é entre largura de transição e nível de lóbulos.\n- Mínimos quadrados controla erro agregado; equiripple controla erro máximo nas bandas definidas.\n- Uma janela não “remove” a banda de transição: ela modifica compromisso entre transição e ondulação.\n- Enunciado sem tolerâncias e bordas não especifica completamente desempenho."
+    },
+    {
+      "title": "4. Projeto IIR e aspectos práticos de precisão",
+      "markdown": "### O problema que este assunto resolve\n\nQuando o custo de um FIR longo ou seu atraso é excessivo, um IIR pode atingir seletividade semelhante com ordem menor, usando realimentação. Esse ganho vem com deveres: verificar polos, controlar fase, evitar estados internos excessivos e testar efeitos de arredondamento e saturação.\n\n> **Siglas e termos deste capítulo**\n> - **Butterworth**: resposta de módulo maximamente plana na banda passante, sem ripple equiripple.\n> - **Chebyshev I**: ripple na banda passante e resposta monotônica na rejeição.\n> - **Chebyshev II**: banda passante monotônica e ripple na rejeição.\n> - **Elíptico (Cauer)**: ripple nas bandas passante e de rejeição; transição acentuada para dada ordem.\n> - **Transformação bilinear**: mapeia o plano s ao plano z e preserva estabilidade do semiplano esquerdo no interior do círculo unitário.\n> - **Quantização**: representação de coeficientes e sinais com número finito de bits.\n\n### Protótipos e transformação bilinear\n\nNo projeto clássico, especificações de banda e tolerâncias levam à escolha de ordem e família de protótipo analógico. Butterworth oferece módulo suave; Chebyshev I troca ripple passante por transição mais seletiva; Chebyshev II coloca ripple na rejeição; elíptico aceita ripple em ambas para obter transição geralmente ainda mais estreita com mesma ordem. A escolha é uma troca, não uma escala absoluta de qualidade.\n\nUm caminho comum é projetar protótipo analógico, transformar para passa-baixas, passa-altas, passa-faixa ou rejeita-faixa e discretizar pela transformação bilinear. A substituição bilinear mapeia o eixo imaginário em torno do círculo unitário sem aliasing espectral do tipo da invariância ao impulso, mas distorce a escala de frequências (warping); pré-distorcer as bordas desejadas compensa esse efeito na frequência crítica. A invariância ao impulso amostra a resposta temporal analógica e pode causar aliasing quando há conteúdo acima de Nyquist, por isso não é apropriada indistintamente para toda resposta, em particular filtros passa-altas e rejeita-faixa.\n\n### Polos, realização SOS e fase\n\nApós obter H(z), examine polos no plano z: margem até o círculo unitário informa estabilidade e decaimento. Raízes próximas da unidade podem ser especialmente sensíveis a perturbações numéricas. Para ordem alta, converta a função em cascata de SOS e compare forma direta de alta ordem com seções; evite formar e quantizar polinômios globais de grau elevado sem análise. Reordene e escale seções para limitar níveis de pico internos e assegurar margem no acumulador.\n\nO IIR recursivo pode oferecer atraso menor e menor contagem de operações, mas fase não linear é frequente. Filtragem para frente e para trás é opção offline para fase de fase zero (com bordas e transitórios tratados), não solução de tempo real causal. Se fase linear é requisito duro, o FIR simétrico costuma ser a escolha natural, após confirmar custo e atraso.\n\n### Precisão finita: arredondamento, overflow e ciclos limite\n\nEm ponto fixo, coeficientes são aproximados; polos efetivos mudam e um IIR projetado estável pode perder margem ou até estabilidade se a quantização deslocar polos para fora do círculo unitário. Arredondar cada produto ou soma introduz ruído de quantização; o ruído numa estrutura com realimentação pode se reciclar. Overflow pode ser tratado por saturação (limita ao extremo representável) ou wrap-around (retorna modularmente, produzindo salto grande). Um acumulador mais largo reduz risco de overflow intermediário. Escalonamento de entrada e das seções reserva headroom. Estados internos podem persistir mesmo com entrada nula em certas realizações quantizadas, fenômeno chamado ciclo limite.\n\nEm FIR, o erro aritmético de uma amostra não volta por uma realimentação de saída, mas saturações ainda distorcem o resultado e a resposta pode exceder o intervalo representável. “FIR é sempre estável” refere-se à estabilidade BIBO do sistema linear de precisão ideal, não à ausência de overflow em hardware.\n\n### Procedimento prático de aceitação\n\nDocumente Fs, bandas, ripple, atenuação, fase e atraso. Projete e confira ordem e coeficientes; analise magnitude, fase, atraso de grupo, impulso, degrau e polos; simule a estrutura e precisão reais; teste amplitude máxima, sinais próximos das bordas, transientes, silêncio após excitação e continuidade entre blocos. Em IIR quantizado, confira novamente localização dos polos e limites de estados. Só então compare desempenho com custo de multiplicações, memória, latência e margem numérica.\n\n### Como cai na prova\n\n- Butterworth é maximamente plano; Chebyshev I e II põem ripple em bandas diferentes; elíptico tem ripple em ambas.\n- Bilinear não produz aliasing espectral, mas faz warping; pré-distorção corrige frequências críticas.\n- SOS reduz problemas numéricos comuns de polinômios IIR de alta ordem, porém exige escalar estados e avaliar estabilidade.\n- Saturação e wrap-around são respostas diferentes a overflow; ponto fixo requer teste após quantização."
+    }
+  ],
+  "summary": "FIR não realimentado tem resposta ao impulso finita, estabilidade BIBO garantida em precisão ideal e pode obter fase linear exata com coeficientes simétricos, ao custo frequente de ordem e atraso maiores. IIR recursivo usa saídas passadas; sua estabilidade depende dos polos internos ao círculo unitário, e costuma obter seletividade com menor ordem, mas pode apresentar fase não linear e maior sensibilidade a quantização. Analise H(e^{jω}), módulo, fase, atraso de grupo, polos e zeros. Em FIR, janelamento, mínimos quadrados e Parks–McClellan representam critérios diferentes. Em IIR, famílias Butterworth, Chebyshev e elíptica trocam ripple e seletividade; transformação bilinear causa warping e pode ser pré-distorcida. Estruturas diretas, transpostas e SOS mudam estados e comportamento numérico; precisão finita exige dimensionar acumuladores, escalonar sinais, cuidar de saturação/overflow, propagar estado entre blocos e validar o filtro já quantizado.",
+  "flashcards": [
+    {
+      "front": "O que diferencia FIR de IIR pela resposta ao impulso?",
+      "back": "O FIR tem resposta ao impulso nula após número finito de amostras; o IIR recursivo pode manter cauda não nula indefinidamente."
+    },
+    {
+      "front": "Que termos aparecem na equação de diferenças de um IIR?",
+      "back": "Produtos de amostras de entrada presentes/passadas e produtos de saídas passadas; a realimentação distingue a forma recursiva."
+    },
+    {
+      "front": "Como se expressa a resposta em frequência de um filtro discreto?",
+      "back": "Avalia-se H(z) no círculo unitário: H(e^{jω}), com ω em radianos por amostra."
+    },
+    {
+      "front": "Como converter frequência f em hertz para ω digital?",
+      "back": "ω=2πf/Fs, sendo Fs a frequência de amostragem; Nyquist corresponde a Fs/2."
+    },
+    {
+      "front": "Qual condição de estabilidade vale para um FIR causal finito?",
+      "back": "É BIBO estável em precisão ideal, pois sua resposta ao impulso tem soma absoluta finita."
+    },
+    {
+      "front": "Qual condição de estabilidade BIBO vale para IIR racional causal?",
+      "back": "Todos os polos devem estar estritamente dentro do círculo unitário, consideradas as reduções válidas da função."
+    },
+    {
+      "front": "O que os polos próximos do círculo unitário costumam indicar?",
+      "back": "Ressonância mais estreita e decaimento temporal mais lento, além de maior sensibilidade numérica."
+    },
+    {
+      "front": "Como obter fase linear exata em FIR real?",
+      "back": "Usar coeficientes com simetria ou antissimetria apropriada, sob as condições usuais de comprimento e estrutura."
+    },
+    {
+      "front": "Qual é o atraso de grupo de FIR linear em fase de grau n?",
+      "back": "Em condições usuais é constante e igual a n/2 amostras."
+    },
+    {
+      "front": "O que significa ordem n e comprimento em FIR?",
+      "back": "A ordem n corresponde a n+1 coeficientes; comprimento e ordem não são iguais."
+    },
+    {
+      "front": "O que faz a forma direta II canônica?",
+      "back": "Compartilha uma linha de estados entre partes recursiva e não recursiva, normalmente minimizando os atrasos de estado."
+    },
+    {
+      "front": "Por que usar seções de segunda ordem em IIR de alta ordem?",
+      "back": "Cascatas SOS tendem a reduzir problemas numéricos em relação a um polinômio global de alto grau."
+    },
+    {
+      "front": "O que é estado de filtro ao processar blocos?",
+      "back": "Memória dos atrasos necessária para continuar a recursão; o estado final de um bloco deve inicializar o seguinte."
+    },
+    {
+      "front": "Como a simetria pode economizar operações num FIR?",
+      "back": "Amostras espelhadas podem ser somadas antes do produto por um coeficiente compartilhado."
+    },
+    {
+      "front": "Qual efeito pode ter zerar estado antes de cada bloco?",
+      "back": "Reinicia o filtro em cada bloco e cria transitórios artificiais nas fronteiras."
+    },
+    {
+      "front": "Como funciona FIR por janelamento?",
+      "back": "Trunca a resposta ao impulso ideal e a multiplica por uma janela finita, controlando compromisso entre transição e lóbulos."
+    },
+    {
+      "front": "Qual critério minimiza o método de mínimos quadrados?",
+      "back": "Erro quadrático integrado ou somado, possivelmente ponderado, entre a resposta desejada e a realizada."
+    },
+    {
+      "front": "O que controla Parks–McClellan?",
+      "back": "Erro máximo em bandas de projeto, produzindo resposta FIR equiripple sob as hipóteses do projeto."
+    },
+    {
+      "front": "O que significa banda de transição?",
+      "back": "Intervalo entre a borda da banda passante e a da banda de rejeição."
+    },
+    {
+      "front": "Qual é a vantagem típica de uma janela mais suave?",
+      "back": "Reduz lóbulos laterais, normalmente alargando a transição para comprimento comparável."
+    },
+    {
+      "front": "Qual perfil de magnitude caracteriza Butterworth?",
+      "back": "Resposta maximamente plana na banda passante, sem ripple equiripple."
+    },
+    {
+      "front": "Em que banda Chebyshev I aceita ripple?",
+      "back": "Na banda passante; a banda de rejeição é monotônica."
+    },
+    {
+      "front": "Em que banda Chebyshev II aceita ripple?",
+      "back": "Na banda de rejeição; a banda passante é monotônica."
+    },
+    {
+      "front": "Onde o filtro elíptico aceita ripple?",
+      "back": "Tanto na banda passante quanto na banda de rejeição, favorecendo transição estreita para dada ordem."
+    },
+    {
+      "front": "Qual distorção a transformação bilinear introduz?",
+      "back": "Warpling não linear da escala de frequência, que pode ser compensado por pré-distorção das bordas críticas."
+    }
+  ],
+  "tips": [
+    "Comece identificando se a equação usa saídas passadas: isso revela a realimentação e aponta para IIR.",
+    "Desenhe no plano z o círculo unitário e os polos; para IIR causal estável, os polos ficam dentro dele.",
+    "Não escolha algoritmo antes de fixar bordas, ripple, atenuação, fase, atraso e Fs.",
+    "Compare janelamento (simples), mínimos quadrados (erro médio quadrático) e Remez (erro máximo equiripple).",
+    "Em IIR de ordem alta, confira saída em SOS, ganhos de seção e estados internos após quantização.",
+    "Valide o mesmo formato numérico e fluxo por blocos que será usado no equipamento; coeficientes ideais não bastam."
+  ],
+  "traps": [
+    "A prova associa FIR a estabilidade absoluta em hardware. A garantia é BIBO no modelo linear ideal; overflow e saturação ainda distorcem.",
+    "Dizer que IIR é estável porque tem poucos polos. A estabilidade depende de sua localização no plano z.",
+    "Confundir mínimos quadrados com minimização do pior erro. Ele reduz erro quadrático agregado; equiripple controla o pico especificado.",
+    "Tratar frequência de corte de qualquer algoritmo como a mesma convenção. Métodos distintos podem definir o ponto de corte de modos diferentes.",
+    "Supor que SOS garante estabilidade após quantização. A representação ajuda a precisão, mas polos e estados ainda precisam ser avaliados.",
+    "Zerar atrasos a cada bloco de uma transmissão contínua. Isso reinicia estados e gera transitórios artificiais."
+  ],
+  "activeRecall": [
+    {
+      "question": "Compare a equação de diferenças FIR e IIR e explique de onde vem a duração da resposta ao impulso.",
+      "answer": "FIR soma amostras atrasadas de entrada e não usa saída passada; com número finito de coeficientes sua resposta termina. IIR inclui saídas atrasadas na realimentação, que pode sustentar resposta por tempo indefinido."
+    },
+    {
+      "question": "Quais grandezas examinar para analisar um filtro além da magnitude?",
+      "answer": "Fase, atraso de grupo, resposta ao impulso e degrau, polos e zeros e estabilidade; para aplicações práticas também latência e headroom."
+    },
+    {
+      "question": "Como a estabilidade de FIR e IIR é decidida?",
+      "answer": "FIR causal de coeficientes finitos é BIBO estável no modelo ideal. IIR racional causal requer polos estritamente dentro do círculo unitário."
+    },
+    {
+      "question": "Explique a diferença entre forma direta I, forma direta II e SOS.",
+      "answer": "Direta I mantém linhas de atraso associadas a entrada e saída; direta II compartilha estados e reduz atrasos em forma canônica; SOS fatoram IIR em blocos de até segunda ordem em cascata ou paralelo para melhorar comportamento numérico."
+    },
+    {
+      "question": "Como o método de janelamento constrói um FIR?",
+      "answer": "Trunca uma resposta ideal não realizável e pondera o trecho por uma janela, gerando duração finita e o compromisso entre transição e lóbulos laterais."
+    },
+    {
+      "question": "Diferencie mínimos quadrados e Parks–McClellan.",
+      "answer": "Mínimos quadrados minimiza erro quadrático agregado; Parks–McClellan busca minimizar erro máximo e produz ripples equioscilantes nas bandas determinadas."
+    },
+    {
+      "question": "Compare Butterworth, Chebyshev I, Chebyshev II e elíptico.",
+      "answer": "Butterworth é maximamente plano; Chebyshev I tem ripple passante; Chebyshev II, ripple na rejeição; elíptico tem ripple em ambas e costuma alcançar transição mais estreita para a mesma ordem."
+    },
+    {
+      "question": "O que deve ser reavaliado quando coeficientes IIR são quantizados?",
+      "answer": "Localização dos polos, estabilidade, resposta em frequência, limites de estados internos, overflow, ruído de arredondamento e ciclos limite."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Duração e realimentação confundidas",
+      "summary": "FIR tem duração finita da resposta ao impulso e não precisa realimentar a saída. IIR recursivo pode responder indefinidamente, e sua estabilidade depende dos polos."
+    },
+    {
+      "key": "e2",
+      "title": "Módulo tratado como análise completa",
+      "summary": "Resposta em frequência inclui módulo e fase; atraso de grupo, impulso, degrau, localização de polos e estabilidade também podem determinar adequação."
+    },
+    {
+      "key": "e3",
+      "title": "Critérios FIR trocados",
+      "summary": "Janelamento trunca e pondera a resposta ideal; mínimos quadrados minimiza erro quadrático; Parks–McClellan busca erro máximo equiripple."
+    },
+    {
+      "key": "e4",
+      "title": "Representação numérica ignorada",
+      "summary": "Forma direta, transposta e SOS têm estruturas internas distintas. Quantização, arredondamento, saturação, escalonamento e estado entre blocos afetam o resultado real."
+    },
+    {
+      "key": "e5",
+      "title": "Famílias IIR e discretização confundidas",
+      "summary": "Butterworth é maximamente plano; Chebyshev I e II distribuem ripple em bandas diferentes; elíptico tem ripple nas duas. Bilinear causa warping, mas evita aliasing espectral da invariância ao impulso."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma aplicação precisa de atraso de grupo constante na banda útil e aceita aumentar o número de operações. Qual escolha inicial é mais coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um IIR de alta ordem, pois a realimentação torna sua fase exatamente linear e qualquer resposta passa-baixas apresenta atraso de grupo nulo em todas as frequências úteis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um FIR com coeficientes simétricos, verificando ordem, atraso e tolerâncias da banda.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um IIR com polos próximos da unidade, pois isso fixa atraso constante em toda banda.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Qualquer filtro passa-baixas, pois o tipo de magnitude determina a fase sem outra condição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um FIR de coeficientes aleatórios, pois a duração finita garante fase linear automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um FIR real com simetria ou antissimetria apropriada pode ter fase linear exata e atraso de grupo constante. A ordem e o custo podem ser maiores, e a fase não decorre apenas de selecionar uma resposta passa-baixas. IIR costuma ter fase não linear; coeficientes aleatórios não criam simetria.",
+      "section": "1. Modelo, análise e propriedades de FIR e IIR",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um filtro racional causal tem um polo em módulo maior que um após a análise de H(z). Qual conclusão é defensável para o modelo linear ideal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O filtro é estável, desde que o numerador tenha ordem menor que o denominador, mesmo que algum polo permaneça fora do círculo unitário e gere crescimento impulsivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A estabilidade depende apenas de a resposta em magnitude não ter ondulação visível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A estabilidade BIBO não está assegurada, pois o polo não fica dentro do círculo unitário.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O filtro passa a ser FIR, pois um polo externo encerra a resposta ao impulso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O filtro é estável se a entrada tiver média nula e largura de banda limitada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para um IIR racional causal, a estabilidade BIBO exige polos estritamente dentro do círculo unitário. Grau do numerador, ondulação do módulo e média da entrada não alteram esse critério; um polo externo não converte o filtro em FIR.",
+      "section": "1. Modelo, análise e propriedades de FIR e IIR",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sinal amostrado a Fs=20 kHz será analisado até sua frequência de Nyquist. Qual valor corresponde a essa frequência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "2 kHz, que é um décimo da taxa de amostragem por definição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "5 kHz, que corresponde a um quarto da taxa de amostragem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "20 kHz, pois a frequência digital máxima coincide com Fs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "10 kHz, metade da taxa de amostragem do conversor.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "40 kHz, pois é preciso dobrar Fs para alcançar Nyquist; o limite digital sempre fica acima da taxa de amostragem e não depende da convenção espectral.",
+          "correct": false
+        }
+      ],
+      "explanation": "A frequência de Nyquist é Fs/2; com Fs de 20 kHz, resulta em 10 kHz. A frequência digital é periódica e especificações usuais de filtros amostrados se limitam a essa metade do espectro sem aliasing adicional.",
+      "section": "1. Modelo, análise e propriedades de FIR e IIR",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um engenheiro compara filtros com a mesma magnitude na banda passante para preservar a forma temporal de pulsos. Que outra medida deve examinar com prioridade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas a ordem do numerador, pois ela determina toda a distorção temporal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A fase e o atraso de grupo, pois variação de atraso entre frequências deforma pulsos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Somente a localização dos zeros, pois polos não afetam sinais dentro da banda.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A taxa de amostragem média da saída, pois a filtragem muda o número de amostras e toda atenuação altera o relógio do conversor na mesma proporção do ganho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O ripple da banda de rejeição, que define de modo exclusivo a fase passante.",
+          "correct": false
+        }
+      ],
+      "explanation": "A magnitude não determina sozinha a forma temporal. Fase não linear e atraso de grupo variável fazem componentes dentro da banda chegarem com atrasos distintos, deformando pulsos. Polos, zeros e rejeição importam em outras análises, mas não substituem avaliar fase e atraso.",
+      "section": "1. Modelo, análise e propriedades de FIR e IIR",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um FIR causal com número finito de coeficientes e aritmética ideal, qual propriedade decorre diretamente da duração de sua resposta ao impulso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A resposta deve ser oscilatória, embora seus polos fiquem dentro do círculo unitário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O filtro é estável apenas se cada coeficiente tiver módulo menor que um; basta essa restrição individual mesmo que a soma absoluta da resposta ao impulso diverja sem limite.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sua estabilidade BIBO é garantida, porque a soma absoluta da resposta é finita.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A estabilidade exige um polo real estritamente entre zero e um.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A saída nunca pode exceder a amplitude instantânea da entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um FIR finito tem resposta ao impulso absolutamente somável, condição suficiente e necessária de estabilidade BIBO para sistemas LTI. Isso não restringe cada coeficiente a módulo menor que um nem limita a saída à amplitude de uma única amostra; somas ponderadas e overflow prático continuam possíveis.",
+      "section": "1. Modelo, análise e propriedades de FIR e IIR",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao escrever a equação y[n]=b0x[n]+b1x[n−1]−a1y[n−1], qual elemento torna a realização recursiva?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A presença de x[n], pois qualquer entrada atual cria um laço de realimentação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A presença do termo y[n−1], que realimenta uma saída passada no cálculo atual.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O uso de b1, pois todo atraso aplicado à entrada torna o filtro recursivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O sinal negativo diante de a1, pois o sinal algébrico define a duração do impulso e qualquer coeficiente negativo cria uma cauda infinita, ainda sem termos de saída passada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A existência de qualquer coeficiente diferente de zero, mesmo sem atrasos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O termo de saída passada y[n−1] fecha a realimentação, tornando a equação recursiva. Atrasos de entrada também aparecem em FIR não recursivos; sinal do coeficiente e presença de amostras atuais não determinam recursividade.",
+      "section": "1. Modelo, análise e propriedades de FIR e IIR",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois polos complexos conjugados de um IIR são movidos para mais perto do círculo unitário, sem cruzá-lo. Que tendência é esperada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A resposta ao impulso torna-se finita após exatamente duas amostras, pois a quantidade de polos complexos determina diretamente o comprimento FIR, mesmo que a realimentação permaneça ativa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A cauda impulsiva tende a decair mais lentamente e a ressonância pode se estreitar.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A fase fica necessariamente linear em toda a banda digital.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A taxa de amostragem efetiva cresce, pois os polos controlam Fs.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A banda de rejeição desaparece, pois os zeros deixam de influenciar o módulo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Polos mais próximos da unidade correspondem a modos com decaimento mais lento e frequentemente ressonância mais estreita. Ainda dentro do círculo, o sistema pode permanecer estável; isso não o torna FIR, de fase linear automaticamente nem altera Fs.",
+      "section": "1. Modelo, análise e propriedades de FIR e IIR",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema calcula H(e^{jω}) em um conjunto de frequências. O módulo dessa resposta informa diretamente qual aspecto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A quantidade exata de estados de memória usada pela forma de implementação escolhida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O ganho ou atenuação que o sistema aplica às componentes senoidais em cada frequência.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A resposta ao impulso completa, inclusive seu alinhamento temporal inicial, pode ser reconstruída exclusivamente do módulo sem fase nem informação adicional sobre os estados da realização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A margem de overflow do acumulador em uma arquitetura de ponto fixo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O erro de quantização dos coeficientes após conversão para inteiros.",
+          "correct": false
+        }
+      ],
+      "explanation": "O módulo de H(e^{jω}) mede ganho por frequência. A fase e respostas temporais são outras análises; quantidade de estados depende da estrutura, e overflow e quantização exigem conhecer a aritmética efetiva.",
+      "section": "1. Modelo, análise e propriedades de FIR e IIR",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um IIR causal estável, que configuração de polos é compatível com estabilidade BIBO do modelo racional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todos os polos em qualquer posição, desde que haja zeros no círculo unitário, pois zeros anulam universalmente qualquer modo instável, inclusive quando não coincidem com os polos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Polos estritamente no interior do círculo unitário, após simplificações válidas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Todos os polos no eixo real, mesmo que tenham módulo superior à unidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Polos estritamente no exterior, desde que a resposta ao impulso inicial seja pequena.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Polos na circunferência unitária, pois seus módulos ficam limitados a um.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para a realização causal racional estável, os polos relevantes ficam estritamente dentro do círculo unitário. Zeros em outro lugar não corrigem genericamente polos instáveis; polos na borda não satisfazem a condição estrita e podem sustentar oscilações não decrescentes.",
+      "section": "1. Modelo, análise e propriedades de FIR e IIR",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A relação entre atraso de grupo e fase de um filtro é qual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A derivada do módulo em relação à taxa de amostragem, medida em hertz.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A derivada negativa da fase desenrolada em relação à frequência angular.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O módulo do polo de maior frequência, convertido diretamente em segundos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A razão entre ripple passante e atenuação de rejeição, em decibéis, pois os níveis de magnitude definem por si sós a derivada da fase para todo filtro digital.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O inverso da frequência de Nyquist, independentemente de H(z).",
+          "correct": false
+        }
+      ],
+      "explanation": "O atraso de grupo é −dφ/dω, usando a fase desenrolada. Ele descreve atraso de componentes de banda estreita em função da frequência; não é uma razão entre parâmetros de magnitude nem depende somente de Fs.",
+      "section": "1. Modelo, análise e propriedades de FIR e IIR",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um filtro FIR de ordem 40 é descrito em forma transversal. Quantos coeficientes de numerador são necessários?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "20, pois cada coeficiente representa um par simétrico de amostras e a simetria sempre reduz pela metade o vetor matemático, ainda que o filtro não tenha coeficientes simétricos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "40, pois ordem e comprimento do vetor sempre coincidem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "41, pois a ordem n corresponde a n+1 coeficientes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "42, pois as duas extremidades exigem coeficientes adicionais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "80, pois cada atraso precisa de coeficiente de entrada e de saída.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um FIR de ordem n tem comprimento n+1. A simetria pode reduzir multiplicações na implementação, mas não altera o vetor de coeficientes matemático nem transforma ordem em comprimento.",
+      "section": "1. Modelo, análise e propriedades de FIR e IIR",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em condições usuais, um FIR de fase linear tem grau 18. Qual atraso de grupo constante ele apresenta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "18 amostras, pois o atraso coincide com a ordem do polinômio e a fase linear elimina qualquer necessidade de dividir o grau por dois em uma realização causal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "9 amostras, metade do grau do FIR linear em fase.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "1 amostra, pois todo filtro digital contém um atraso unitário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "0 amostras, pois fase linear elimina qualquer latência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "36 amostras, pois a ordem deve ser multiplicada pelo número de bandas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para FIR linear em fase sob as condições usuais, o atraso é metade do grau, logo 9 amostras. Fase linear significa atraso constante, não atraso nulo.",
+      "section": "1. Modelo, análise e propriedades de FIR e IIR",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um polo e um zero se cancelam algebricamente em H(z), mas a implementação mantém ambos como estados internos. Qual cautela é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cancelamento sempre elimina qualquer estado e prova estabilidade em aritmética finita, mesmo se o polo e o zero não coincidirem exatamente após a quantização dos coeficientes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A estabilidade interna pode não seguir a simplificação entrada-saída, portanto a realização precisa ser examinada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O zero passa a determinar sozinho a estabilidade, mesmo após o cancelamento formal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A resposta torna-se necessariamente FIR, independentemente dos demais polos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sistema deixa de ser causal, porque as raízes coincidentes usam tempo futuro.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cancelamentos podem ocultar modos internos de uma realização, especialmente se forem instáveis ou numericamente imperfeitos. A estabilidade entrada-saída da função reduzida e a estabilidade interna da implementação não devem ser confundidas; a quantização pode desfazer o cancelamento exato.",
+      "section": "1. Modelo, análise e propriedades de FIR e IIR",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe aceita maior custo de cálculo para preservar a forma de pulsos, enquanto outra prioriza seletividade com poucas operações. Qual comparação é tecnicamente mais equilibrada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "FIR e IIR têm a mesma fase e custo se as magnitudes forem iguais em cada frequência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "IIR sempre tem fase linear e menor custo, enquanto FIR é instável quando a ordem aumenta e não consegue especificar uma banda de rejeição em projeto algum.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "FIR pode favorecer fase linear e robustez; IIR pode exigir menor ordem, mas pede análise de fase e polos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "FIR não pode controlar rejeição, enquanto apenas IIR permite especificar bandas passantes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "IIR elimina a necessidade de estado, pois a resposta ao impulso é infinita.",
+          "correct": false
+        }
+      ],
+      "explanation": "FIR simétrico pode obter fase linear e é estável no modelo ideal, embora uma ordem alta custe mais. IIR frequentemente alcança seletividade com menor ordem, mas sua fase e estabilidade dependem de projeto e polos. Magnitude igual não implica mesma fase, custo ou estrutura.",
+      "section": "1. Modelo, análise e propriedades de FIR e IIR",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um FIR usa coeficientes reais simétricos em torno do centro. Que efeito de implementação é possível sem mudar a função ideal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Eliminar todos os atrasos, pois as amostras espelhadas são simultâneas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir a soma por um denominador recursivo e converter o filtro em IIR.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Combinar pares de amostras espelhadas antes do multiplicador e reduzir produtos distintos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Duplicar a frequência de amostragem na entrada sem usar conversor adicional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cancelar polos próximos da unidade, que surgem obrigatoriamente no FIR simétrico e controlam sua realimentação mesmo quando a equação contém apenas amostras de entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com coeficientes espelhados iguais, os produtos de duas amostras simétricas podem ser fatorados como um coeficiente vezes a soma do par. Isso economiza multiplicações, mantendo atraso e estrutura FIR; não cria realimentação nem remove memória.",
+      "section": "2. Estruturas de realização e eficiência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma realização canônica, que vantagem de armazenamento a forma direta II costuma oferecer sobre a forma direta I?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Garante fase linear mesmo quando os coeficientes do denominador são assimétricos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remove todos os multiplicadores sem alterar coeficientes nem resposta de frequência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Compartilha atrasos da parte recursiva e não recursiva e pode usar menos estados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Transforma qualquer filtro instável em estável por reordenar os atrasos, pois a localização dos polos depende somente da sequência visual dos somadores no diagrama.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substitui amostras passadas por amostras futuras, permitindo execução não causal.",
+          "correct": false
+        }
+      ],
+      "explanation": "A forma direta II canônica compartilha a cadeia de atrasos e normalmente reduz a quantidade de estados em relação à direta I. A função de transferência permanece a mesma no modelo ideal, mas operações não desaparecem e estabilidade ou fase não são corrigidas pela troca de diagrama.",
+      "section": "2. Estruturas de realização e eficiência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina processa continuamente blocos consecutivos de um sinal por um IIR. Como deve tratar os estados ao final de cada bloco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descartar a saída do bloco e reprocessar todas as amostras desde o início.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Zerar todos os atrasos antes de cada bloco para garantir continuidade da saída.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar os estados finais e fornecê-los como estados iniciais do bloco seguinte.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ordenar as amostras do bloco por amplitude antes de calcular a recursão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar os coeficientes do denominador por zeros após cada chamada da rotina.",
+          "correct": false
+        }
+      ],
+      "explanation": "O estado final resume atrasos necessários para continuar a recursão. Ele deve prosseguir para o próximo bloco; zerar os estados reinicializa o filtro e causa transitórios de fronteira.",
+      "section": "2. Estruturas de realização e eficiência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma cascata de seções de segunda ordem costuma ser preferida a um polinômio IIR de alta ordem em ponto flutuante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada biquad contém somente zeros, por isso não precisa verificar polos do sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A cascata anula qualquer erro de arredondamento produzido em seus multiplicadores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada seção limitada a grau baixo tende a reduzir problemas numéricos de coeficientes globais sensíveis.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O número de operações passa a zero quando todas as seções têm ordem par.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A cascata força resposta linear em fase, mesmo quando cada seção é recursiva.",
+          "correct": false
+        }
+      ],
+      "explanation": "Representar IIR de ordem alta como seções de segunda ordem reduz problemas numéricos comuns à forma polinomial global. Isso não zera arredondamento nem elimina polos; o ganho e os estados de cada seção continuam sujeitos a escalonamento e análise.",
+      "section": "2. Estruturas de realização e eficiência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise mostra forma direta II transposta em uma biblioteca de sinais. Qual afirmação descreve corretamente essa escolha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É uma organização de atrasos e somadores equivalente à equação ideal, sem tornar o filtro automaticamente estável.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É um método de projeto que seleciona janelas e calcula a ordem mínima do FIR.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É uma transformação que converte polos do plano z em zeros sem alterar a magnitude.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É um procedimento offline que filtra para frente e para trás sem estados armazenados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É uma arquitetura que dispensa coeficientes e usa somente atrasos de entrada, de modo que a saída reproduz qualquer entrada sem multiplicações nem dependência da função de transferência.",
+          "correct": false
+        }
+      ],
+      "explanation": "A forma transposta reorganiza o fluxo do diagrama de blocos e é uma realização da equação de diferenças. Ela não é algoritmo de projeto, não modifica polos para garantir estabilidade e ainda mantém estados e coeficientes.",
+      "section": "2. Estruturas de realização e eficiência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um IIR implementado como SOS, todas as seções são estáveis isoladamente. Qual precaução adicional pode ser necessária em ponto fixo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover as memórias de estado, pois estabilidade elimina a necessidade de atrasos e uma SOS estável calcula amostras futuras sem guardar qualquer valor entre instantes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir cada denominador por um polinômio de grau alto para reduzir estados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Forçar cada coeficiente a ser inteiro positivo sem recalcular a resposta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Zerar a saída de cada seção antes de cada amostra para evitar realimentação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Escalonar ganhos e ordenar seções para que picos internos não excedam a faixa numérica.",
+          "correct": true
+        }
+      ],
+      "explanation": "Mesmo com seções estáveis, ganhos internos e ordenação podem gerar picos que estouram acumuladores ou estados em ponto fixo. Escalonamento reserva headroom; eliminar estados ou alterar coeficientes arbitrariamente destrói a realização pretendida.",
+      "section": "2. Estruturas de realização e eficiência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema offline usa filtragem para frente e para trás de um IIR e observa fase aproximadamente nula. Por que essa técnica não substitui uma solução causal em tempo real?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela transforma todos os polos em zeros e remove por completo a resposta de magnitude, independentemente dos coeficientes, além de permitir emitir a saída antes de receber a entrada futura usada no processamento reverso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela exige coeficientes sem denominador, o que torna o filtro necessariamente FIR.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela só funciona quando a frequência de amostragem é igual à frequência de corte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela aumenta o atraso de grupo sem alterar a fase, por isso serve apenas a áudio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela precisa de amostras futuras e, portanto, não pode produzir cada saída causalmente no instante de entrada.",
+          "correct": true
+        }
+      ],
+      "explanation": "A passagem reversa usa a sequência futura em relação a cada amostra, logo é uma operação offline não causal. Ela também modifica a resposta efetiva e requer tratamento de bordas; não converte o projeto em FIR nem remove magnitude.",
+      "section": "2. Estruturas de realização e eficiência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transmissão foi dividida em blocos e cada bloco começa com estado nulo. Que sintoma pode surgir mesmo quando os coeficientes estão corretos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A resposta em frequência global passa automaticamente de passa-baixas para passa-altas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Todos os polos são refletidos no círculo unitário a cada chamada da rotina.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A taxa de amostragem muda a cada bloco, mesmo sem reconfigurar o conversor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A saída se torna independente da entrada e igual ao estado inicial nulo, pois reiniciar a memória em cada bloco apaga também o efeito das novas amostras e altera a resposta em frequência de modo permanente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Descontinuidades ou transitórios repetidos nas fronteiras, devido ao reinício da memória do filtro.",
+          "correct": true
+        }
+      ],
+      "explanation": "Estados nulos reiniciados em cada bloco fazem o filtro responder repetidamente a uma inicialização artificial. Deve-se transferir o estado final entre blocos; a resposta em frequência e Fs não mudam por uma simples reinicialização.",
+      "section": "2. Estruturas de realização e eficiência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No método de janelamento, por que se multiplica a resposta ao impulso ideal por uma janela finita?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para truncar e suavizar a sequência ideal e obter um FIR realizável com compromisso espectral controlável.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Para acrescentar polos recursivos e tornar a resposta ao impulso infinita.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para aumentar a taxa de amostragem sem inserir novas amostras no sinal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para eliminar qualquer banda de transição independentemente do comprimento escolhido, mantendo corte abrupto ideal e resposta impulsiva finita mesmo com uma janela curta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para forçar a saída a coincidir com a entrada em todas as frequências digitais.",
+          "correct": false
+        }
+      ],
+      "explanation": "A resposta ideal de corte abrupto é infinita e não causal. A janela retém duração finita e molda os lóbulos, tornando possível implementar o filtro, mas deixa compromisso entre largura da transição e atenuação lateral.",
+      "section": "3. Especificações e técnicas de projeto FIR",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto FIR por mínimos quadrados foi ponderado para reduzir mais o erro em uma banda passante do que em outra. O que a ponderação altera?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A localização dos polos do filtro, que se deslocam segundo o peso atribuído.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A taxa de amostragem, que passa a ser maior na banda mais importante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O número de bits do conversor, que é calculado diretamente pelo peso espectral.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A duração do sinal de entrada, que é encurtada na banda menos ponderada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A contribuição relativa das bandas para o erro quadrático minimizado pelo projeto.",
+          "correct": true
+        }
+      ],
+      "explanation": "Na formulação ponderada, erros em bandas com maior peso contribuem mais ao objetivo quadrático, orientando a aproximação. FIR não precisa de polos recursivos e ponderar não muda Fs, comprimento do sinal nem resolução do conversor por si só.",
+      "section": "3. Especificações e técnicas de projeto FIR",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um filtro tem borda passante em 3 kHz e borda de rejeição em 4 kHz. Qual é a largura da banda de transição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "1 kHz, diferença entre as bordas passante e de rejeição especificadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "3 kHz, pois só a borda passante define a transição do filtro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "4 kHz, pois a banda começa na frequência zero por definição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "7 kHz, soma das duas bordas expressas na mesma unidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "0,75 kHz, razão entre a borda passante e a de rejeição.",
+          "correct": false
+        }
+      ],
+      "explanation": "A largura da transição é a distância entre as duas bordas: 4−3=1 kHz. Frequência zero é relevante para a forma da banda, mas não altera esse intervalo local.",
+      "section": "3. Especificações e técnicas de projeto FIR",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual método FIR busca controlar diretamente o maior desvio de resposta nas bandas especificadas, em vez do erro quadrático integrado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Parks–McClellan, que busca uma solução de erro máximo equiripple nas bandas de projeto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Janelamento retangular, que minimiza sempre a energia do erro em todas as frequências.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mínimos quadrados, que garante igualdade exata entre todos os picos do erro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformação bilinear, que procura o maior erro entre bandas digitais especificadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Invariância ao impulso, que projeta ripple uniforme diretamente no domínio z.",
+          "correct": false
+        }
+      ],
+      "explanation": "Parks–McClellan é uma técnica minimax para FIR de fase linear e procura erro máximo equiripple conforme bandas e pesos. Mínimos quadrados minimiza erro quadrático; janelamento é uma construção distinta; bilinear e invariância ao impulso são discretizações de protótipos analógicos.",
+      "section": "3. Especificações e técnicas de projeto FIR",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Mantendo comprimento de FIR comparável, o projetista troca uma janela retangular por uma janela mais suave. Que compromisso espectral típico deve prever?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Lóbulos laterais maiores, com transição necessariamente mais estreita.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Lóbulos laterais menores, com banda de transição geralmente mais larga.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Polos mais internos, com estabilidade IIR automaticamente garantida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fase aleatória, pois a janela destrói sempre a simetria dos coeficientes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A mesma resposta em todo aspecto, pois janelas só alteram o ganho constante.",
+          "correct": false
+        }
+      ],
+      "explanation": "Janelas mais suaves reduzem descontinuidades na truncagem e tendem a baixar lóbulos laterais, mas para comprimento comparável alargam a transição. A simetria pode ser preservada; janelas não introduzem polos recursivos.",
+      "section": "3. Especificações e técnicas de projeto FIR",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um filtro passa-baixas digital deve operar com Fs=48 kHz e rejeitar a partir de 30 kHz. Qual problema existe antes mesmo de escolher o algoritmo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O filtro necessariamente será estável, pois 30 kHz é menor que Fs.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A banda passante precisa ser expressa como número de polos e não em hertz.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A borda pretendida excede Nyquist, que é 24 kHz para essa taxa de amostragem.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A ordem já está definida, pois a taxa Fs determina quantos coeficientes usar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O ripple só pode ser especificado em fase, não em módulo de resposta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Nyquist é Fs/2=24 kHz. Uma borda digital de 30 kHz não é representável nessa amostragem como frequência independente sem aliasing; deve-se elevar Fs ou reformular a aquisição e especificação.",
+      "section": "3. Especificações e técnicas de projeto FIR",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ferramenta de projeto por janela informa um corte perto do ponto de meia amplitude, enquanto outra especifica bordas de banda passante e rejeição. Qual cuidado evita comparação enganosa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar hertz por radianos sem incluir a taxa de amostragem na conversão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Assumir que toda frequência de corte representa o ponto de meia potência em qualquer método.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Comparar somente a ordem, pois duas ordens iguais têm magnitude idêntica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conferir a convenção de corte e comparar a resposta final nas mesmas bordas e tolerâncias.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar o valor de corte como frequência de Nyquist, independentemente de Fs.",
+          "correct": false
+        }
+      ],
+      "explanation": "Métodos e funções de projeto podem definir corte em pontos distintos, inclusive meia amplitude (−6 dB) em alguns projetos de janela. A comparação válida usa as mesmas bandas, unidades e limites de ripple/atenuação na resposta real; ordem isolada não basta.",
+      "section": "3. Especificações e técnicas de projeto FIR",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto minimiza erro quadrático integrado e apresenta uma pequena região com desvio máximo maior que o de uma solução minimax. Isso é contraditório?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar o valor de corte como frequência de Nyquist, independentemente de Fs.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim; qualquer minimização de erro quadrático também minimiza o pior desvio ponto a ponto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sim; o método de mínimos quadrados produz ripple uniforme por definição matemática.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não; o erro máximo só é definido para filtros com polos fora do círculo unitário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não; erro quadrático agregado e erro máximo são objetivos diferentes e podem levar a respostas distintas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Mínimos quadrados reduz a integral ou soma ponderada do quadrado do erro. Pode tolerar um pico local para reduzir erro total; minimax, como Parks–McClellan em FIR de fase linear, concentra-se no maior desvio. Os objetivos não são intercambiáveis.",
+      "section": "3. Especificações e técnicas de projeto FIR",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um requisito de rejeição melhora, mas a banda de transição permanece fixa e o FIR por janela não atende à atenuação. Qual ajuste é tecnicamente plausível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover a frequência de amostragem das especificações para reduzir a ordem calculada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Diminuir o número de coeficientes, pois filtros mais curtos sempre rejeitam melhor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adicionar polos instáveis ao FIR sem alterar a forma da resposta ao impulso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Testar uma janela com menor nível de lóbulos ou aumentar o comprimento e validar a nova resposta.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Substituir a banda de rejeição por fase linear, que aumenta a atenuação automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma janela com lóbulos laterais menores pode melhorar rejeição, geralmente ao custo de transição mais larga; aumentar comprimento também oferece mais graus de liberdade e costuma estreitar transição. Deve-se reprojetar e medir a resposta. FIR não recebe polos recursivos por esse ajuste.",
+      "section": "3. Especificações e técnicas de projeto FIR",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto escolhe maior peso para a banda de rejeição no método de mínimos quadrados. Qual interpretação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O denominador ganha polos extras, pois peso de banda só atua em filtros recursivos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A atenuação torna-se infinita em cada frequência rejeitada, qualquer que seja a ordem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O algoritmo penaliza mais o erro nessa banda, sem prometer por si só um limite máximo rígido.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A frequência de amostragem passa a acompanhar o peso e muda entre as bandas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O erro da banda passante passa a zero exato, sem depender das demais restrições.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ponderação aumenta a contribuição da banda de rejeição ao erro quadrático do projeto. Isso direciona a solução, mas não estabelece necessariamente um limite minimax rígido; ordem e compatibilidade entre requisitos ainda importam.",
+      "section": "3. Especificações e técnicas de projeto FIR",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um protótipo IIR deve ter banda passante sem ripple equiripple e transição monotônica, ainda que não seja a família mais econômica em ordem. Qual família combina melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Chebyshev I, que introduz ripple controlado na banda passante.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Butterworth, cuja magnitude é maximamente plana na banda passante.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Chebyshev II, que introduz ripple controlado na banda de rejeição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Elíptico, que admite ripple tanto na banda passante como na rejeição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Parks–McClellan, que é família de protótipo IIR analógico com ripple nulo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Butterworth tem resposta maximamente plana na banda passante e sem ripple equiripple. Chebyshev I e elíptico admitem ripple passante; Chebyshev II tem ripple na rejeição; Parks–McClellan é método FIR minimax.",
+      "section": "4. Projeto IIR e aspectos práticos de precisão",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma dada ordem, o projetista aceita ripple na banda passante e quer transição mais seletiva que a resposta suave de Butterworth. Qual família IIR deve considerar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Chebyshev tipo I, que troca ripple passante por maior seletividade possível sob a especificação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Butterworth, que por definição possui ripple passante equiripple ajustável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Chebyshev tipo II, cujo ripple aparece exclusivamente na banda passante.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Elíptico, que mantém as duas bandas monotônicas e sem ondulação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Janela Kaiser, que é uma família IIR com polos e zeros ajustáveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Chebyshev I aceita ripple na banda passante e apresenta resposta monotônica na rejeição, oferecendo maior seletividade que Butterworth para dada ordem sob as especificações usuais. Chebyshev II põe ripple na rejeição; Kaiser é janela FIR.",
+      "section": "4. Projeto IIR e aspectos práticos de precisão",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual família clássica IIR permite ripple tanto na banda passante quanto na banda de rejeição e costuma obter transição estreita para uma dada ordem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Elíptica, também chamada Cauer, com ripple nas duas bandas especificadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Butterworth, cuja característica principal é ripple igual em ambas as bandas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Chebyshev I, que reserva ripple somente para a banda de rejeição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Chebyshev II, cuja banda passante sempre contém ripple equiripple.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "FIR retangular, que introduz polos analógicos em ambas as bandas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O filtro elíptico admite ripple passante e de rejeição e, por isso, costuma alcançar uma transição particularmente estreita para dada ordem. Os dois Chebyshev colocam ripple em uma banda específica; Butterworth é maximamente plano.",
+      "section": "4. Projeto IIR e aspectos práticos de precisão",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao converter protótipo analógico em IIR pela transformação bilinear, qual efeito deve ser considerado nas bordas de frequência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A escala sofre warping não linear, compensável por pré-distorção das frequências críticas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A frequência digital se torna linear para todas as frequências analógicas sem qualquer ajuste.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O método cria aliasing espectral inevitável igual à amostragem do impulso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A transformação mantém todos os polos no semiplano esquerdo do plano z.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O método remove as bandas passante e rejeitada para preservar somente a fase.",
+          "correct": false
+        }
+      ],
+      "explanation": "A transformação bilinear mapeia o eixo imaginário ao círculo unitário e distorce não linearmente a escala de frequências. A pré-distorção pode alinhar as bordas críticas; não se deve confundir esse warping com aliasing da invariância ao impulso.",
+      "section": "4. Projeto IIR e aspectos práticos de precisão",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um filtro analógico com conteúdo relevante acima de metade da taxa de amostragem é discretizado por invariância ao impulso. Qual risco específico merece atenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Componentes acima de Nyquist podem se dobrar para frequências menores por aliasing.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A fase analógica transforma-se automaticamente em fase linear FIR.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Todos os zeros analógicos são descartados e o sistema deixa de ser causal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O ripple passante é convertido em resolução adicional do conversor A/D.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O filtro resultante não pode ter resposta ao impulso infinita por construção.",
+          "correct": false
+        }
+      ],
+      "explanation": "A invariância ao impulso amostra a resposta temporal e conteúdo analógico acima de Nyquist pode aliasar para a faixa digital. É necessário avaliar o espectro do protótipo; essa técnica não cria FIR de fase linear automaticamente.",
+      "section": "4. Projeto IIR e aspectos práticos de precisão",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um IIR é estável em ponto flutuante, mas após quantização de coeficientes um par de polos cruza o círculo unitário. Qual conclusão prática segue?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A implementação quantizada perdeu a condição de estabilidade e requer reprojeto ou maior precisão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O filtro permanece estável, pois a estabilidade do projeto ideal independe dos coeficientes usados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O filtro se tornou FIR, uma vez que polos quantizados não podem gerar realimentação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A resposta passa a ter fase linear, pois os polos agora estão fora do círculo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A quantização altera somente a frequência de corte, sem afetar a duração do impulso.",
+          "correct": false
+        }
+      ],
+      "explanation": "A quantização altera coeficientes e, portanto, as raízes efetivas. Se polos saem do círculo unitário, a implementação quantizada não atende ao critério de estabilidade IIR, mesmo que o projeto de precisão ideal fosse estável.",
+      "section": "4. Projeto IIR e aspectos práticos de precisão",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação excede a faixa representável em uma implementação de ponto fixo. Como saturação difere de wrap-around?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Saturação limita ao valor extremo representável; wrap-around retorna modularmente e pode criar salto grande.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Saturação descarta todos os bits e wrap-around aumenta automaticamente a largura do acumulador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Saturação preserva o valor exato; wrap-around arredonda sempre para o inteiro mais próximo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os dois métodos são idênticos para sinais com qualquer quantidade de bits.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Wrap-around elimina a recursão, enquanto saturação adiciona polos ao filtro.",
+          "correct": false
+        }
+      ],
+      "explanation": "Saturação trava a representação no máximo ou mínimo; wrap-around implementa aritmética modular, podendo transformar um grande positivo em negativo. Ambos alteram o sinal quando há overflow, mas de modos diferentes.",
+      "section": "4. Projeto IIR e aspectos práticos de precisão",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em ponto fixo, uma seção IIR tem picos internos maiores que a saída final. Qual medida ajuda a evitar overflow sem alterar arbitrariamente a função total?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escalonar ganhos entre seções e reservar headroom no sinal e no acumulador.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Zerar o denominador e confiar que as seções restantes preservem a mesma recursão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reduzir Fs até que os picos internos fiquem abaixo de um por definição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar os coeficientes de feedback até cancelar todo arredondamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar o estado passado pelo próximo valor de entrada futuro.",
+          "correct": false
+        }
+      ],
+      "explanation": "Escalonamento de ganhos e headroom controlam amplitudes intermediárias; um acumulador mais largo também reduz overflow durante somas. Modificar o denominador sem redesenhar altera a função e não resolve Fs ou arredondamento.",
+      "section": "4. Projeto IIR e aspectos práticos de precisão",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma realização IIR quantizada continua produzindo oscilação pequena mesmo após a entrada virar zero. Qual fenômeno pode explicar o comportamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ciclo limite, sustentado por não linearidades de quantização na realimentação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aliasing de frequência, que cria necessariamente novas amostras de entrada após o silêncio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Janela retangular, que acrescenta polos ao denominador durante o processamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Atraso de grupo constante, que transforma silêncio em uma senoide permanente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Estado nulo, que por definição mantém toda recursão oscilando sem coeficientes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quantização não linear em uma estrutura com realimentação pode sustentar oscilações de amplitude pequena chamadas ciclos limite. Não são causadas por janela FIR nem por atraso de grupo; depuram-se avaliando precisão, estrutura e estados internos.",
+      "section": "4. Projeto IIR e aspectos práticos de precisão",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste de aceitação avaliou apenas a resposta em precisão dupla. Que complemento é indispensável antes de embarcar um IIR em DSP de ponto fixo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Simular coeficientes e aritmética quantizados, medindo polos, resposta, estados e overflow em casos de pior amplitude.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Repetir somente o cálculo em precisão dupla, pois o hardware executará os mesmos números reais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Verificar a cor dos coeficientes e dispensar a análise das saídas passadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Testar uma única senoide na frequência zero, suficiente para cobrir todos os transientes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter o filtro em passa-altas sem recalcular, para aumentar a margem de estado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A implementação de ponto fixo altera coeficientes, arredonda operações e pode saturar estados. Devem-se verificar polos e resposta quantizados, sinais de amplitude alta, transientes, silence-tail e continuidade por blocos no formato real, não apenas repetir análise em precisão dupla.",
+      "section": "4. Projeto IIR e aspectos práticos de precisão",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer reduzir operações mantendo atenuação e transição especificadas; aceita fase não linear e possui recursos para validar estabilidade. Qual candidato merece avaliação inicial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um IIR de ordem menor, verificando polos, fase, realização SOS e margens numéricas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um FIR muito longo, pois sua ordem é sempre menor que a de qualquer IIR equivalente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um FIR de fase linear, ignorando o custo porque simetria remove todas as operações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um IIR com polos fora do círculo, desde que sua resposta de magnitude seja seletiva.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Qualquer estrutura de alta ordem em forma global, pois precisão não depende da realização.",
+          "correct": false
+        }
+      ],
+      "explanation": "IIR pode satisfazer seletividade com ordem e custo menores, mas a decisão requer verificar polos, fase, SOS e precisão finita. FIR simétrico economiza parte dos produtos, mas não necessariamente supera IIR em custo; polos externos não são aceitáveis por mera seletividade.",
+      "section": "4. Projeto IIR e aspectos práticos de precisão",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar Butterworth e elíptico com a mesma ordem, qual descrição do compromisso de magnitude é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Butterworth é maximamente plano; elíptico aceita ripple em ambas as bandas para obter transição mais abrupta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Butterworth tem ripple nas duas bandas; elíptico é plano e monotônico em todas elas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ambos têm ripple somente na banda passante e diferem apenas pela taxa de amostragem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Elíptico é um FIR de janela; Butterworth é uma transformação de fase linear.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Butterworth só rejeita frequências abaixo do corte; elíptico só opera em passa-faixa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Butterworth prioriza resposta maximamente plana sem ripple passante equiripple; elíptico permite ripple na passante e na rejeição, em troca de transição acentuada para mesma ordem. O tipo de banda pode ser baixo, alto, faixa ou rejeita-faixa após transformações apropriadas.",
+      "section": "4. Projeto IIR e aspectos práticos de precisão",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema embarcado possui largura de palavra limitada e o FIR projetado excede a memória disponível. Qual sequência de decisão é mais responsável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reexaminar tolerâncias e ordem, comparar IIR SOS se fase permitir e medir precisão e custo reais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover coeficientes do FIR até caber, sem recalcular módulo nem atraso de grupo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter todos os coeficientes em zero e manter a atenuação pelo estado inicial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar qualquer IIR global, pois recursão sempre consome menos memória e é estável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o ripple sem consultar o requisito, pois memória é a única especificação válida.",
+          "correct": false
+        }
+      ],
+      "explanation": "A decisão deve retornar às especificações e comparar alternativas: reduzir ordem pode violar desempenho; IIR em SOS pode economizar recursos se a fase for aceitável, mas exige verificar estabilidade, quantização e estados. Não se deve alterar coeficientes sem revalidar resposta nem presumir estabilidade automática.",
+      "section": "4. Projeto IIR e aspectos práticos de precisão",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um IIR com polos dentro da unidade é quantizado e um teste com impulso termina com valores nulos após algumas amostras. Isso prova que virou FIR?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não; valores arredondados a zero num teste finito não removem a realimentação nem provam duração finita exata.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Sim; qualquer resposta abaixo da resolução medida define matematicamente um FIR.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sim; IIR estáveis têm resposta finita sempre que os polos são reais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não; filtros FIR precisam de polos internos para manter a resposta após o impulso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim; o número de amostras do teste é automaticamente igual à ordem do denominador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um IIR continua sendo uma realização recursiva mesmo que a cauda fique abaixo da resolução ou seja arredondada para zero em um teste limitado. FIR implica resposta exatamente finita no modelo, não apenas pequena ou não observada; a dinâmica depende dos polos e coeficientes.",
+      "section": "4. Projeto IIR e aspectos práticos de precisão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O IIR de uma cadeia de medição deve atender às mesmas bordas, mas as frequências críticas foram definidas no domínio analógico antes da transformação bilinear. O que deve ser feito para alinhar os cortes digitais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pré-distorcer as frequências críticas segundo o mapeamento bilinear e validar a resposta digital final.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ignorar Fs, pois a transformação bilinear conserva numericamente qualquer frequência em hertz.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar invariância ao impulso para eliminar qualquer warping e também qualquer aliasing.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Deslocar os polos para fora do círculo até que o corte digital coincida com o analógico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Duplicar todos os zeros e manter a taxa de amostragem sem novo projeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "A bilinear faz warping não linear entre frequência analógica e digital. Pré-distorcer as bordas e depois avaliar a resposta digital permite alinhar frequências críticas. Invariância ao impulso tem outro compromisso e pode introduzir aliasing, não uma correção universal.",
+      "section": "4. Projeto IIR e aspectos práticos de precisão",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um FIR idealmente estável gera overflow em uma soma de produtos de hardware, e a saída satura. Como interpretar a afirmação “FIR é sempre estável”?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A garantia de estabilidade BIBO refere-se ao sistema linear de precisão ideal. Aritmética finita pode saturar ou dar wrap-around, causando distorção apesar da estabilidade matemática do FIR.",
+      "section": "1. Modelo, análise e propriedades de FIR e IIR",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A resposta em frequência complexa H(e^{jω}) contém informação de magnitude e fase do filtro em cada frequência avaliada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O módulo de H descreve ganho ou atenuação e seu argumento descreve fase. O atraso de grupo pode ser derivado da fase desenrolada.",
+      "section": "1. Modelo, análise e propriedades de FIR e IIR",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Todo IIR causal estável possui todos os seus polos sobre o círculo unitário, pois a borda limita a resposta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Para estabilidade BIBO de IIR causal racional, polos devem ficar estritamente dentro do círculo. Polos sobre a unidade não satisfazem a condição e podem produzir modos que não decaem.",
+      "section": "1. Modelo, análise e propriedades de FIR e IIR",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um FIR real pode apresentar fase linear exata quando seus coeficientes têm simetria ou antissimetria apropriada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. As relações de simetria entre coeficientes permitem fase linear sob as condições usuais de comprimento e tipo de resposta; a latência associada permanece e deve ser contabilizada.",
+      "section": "1. Modelo, análise e propriedades de FIR e IIR",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O módulo de resposta em frequência determina sozinho o atraso de grupo, de modo que examinar a fase é redundante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O atraso de grupo decorre da derivada da fase em relação à frequência angular. Dois filtros com módulos iguais podem ter fases e atrasos diferentes.",
+      "section": "1. Modelo, análise e propriedades de FIR e IIR",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O fator z⁻¹ representa um atraso de uma amostra em uma estrutura de filtro digital.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Um atraso unitário armazena a amostra anterior e é o elemento de memória básico de realizações em tempo discreto.",
+      "section": "2. Estruturas de realização e eficiência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Zerar o estado de um filtro recursivo antes de cada bloco garante continuidade de uma transmissão que foi dividida em blocos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Zerando estado, cada bloco reinicia a dinâmica e pode criar transitórios artificiais. Para continuidade, o estado final deve ser mantido e usado no bloco seguinte.",
+      "section": "2. Estruturas de realização e eficiência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um FIR com coeficientes simétricos, pares de amostras espelhadas podem ser somados antes de uma multiplicação compartilhada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Para coeficientes iguais em posições espelhadas, fatorar a soma das amostras reduz o número de multiplicações distintas sem modificar a função ideal.",
+      "section": "2. Estruturas de realização e eficiência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A forma direta II canônica normalmente usa mais atrasos de estado que a forma direta I para implementar a mesma equação de diferenças.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A forma direta II compartilha atrasos entre partes da equação e normalmente reduz o número de estados armazenados em relação à direta I canônica. A resposta ideal é equivalente, embora a aritmética real possa diferir.",
+      "section": "2. Estruturas de realização e eficiência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A representação IIR em SOS costuma reduzir problemas numéricos em relação à realização de alta ordem por um polinômio global.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Cascatas de seções de segunda ordem evitam parte da sensibilidade de coeficientes de um polinômio de ordem alta. Escalonamento e análise de polos continuam necessários.",
+      "section": "2. Estruturas de realização e eficiência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma realização transposta é um algoritmo de janelamento que escolhe os coeficientes de um FIR a partir de uma resposta ideal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Forma transposta é uma organização estrutural equivalente do grafo de realização, obtida pela inversão do fluxo. Janelamento é um método de projeto FIR distinto.",
+      "section": "2. Estruturas de realização e eficiência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Filtrar para frente e para trás uma sequência completa pode remover distorção de fase em processamento offline, mas não é realização causal em tempo real.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A passagem reversa usa amostras futuras em relação à saída que seria produzida em tempo real. É técnica offline e demanda cuidados de borda e resposta resultante.",
+      "section": "2. Estruturas de realização e eficiência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No janelamento, uma janela mais suave costuma baixar lóbulos laterais, mas pode alargar a transição para comprimento fixo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Reduzir descontinuidade da truncagem tende a reduzir lóbulos laterais; o preço usual, para comprimento comparável, é uma banda de transição mais ampla.",
+      "section": "3. Especificações e técnicas de projeto FIR",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O método de mínimos quadrados minimiza necessariamente o maior erro em todas as frequências de projeto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Ele minimiza erro quadrático agregado, possivelmente ponderado. O método minimax, como Parks–McClellan, é que busca controlar diretamente o erro máximo nas bandas especificadas.",
+      "section": "3. Especificações e técnicas de projeto FIR",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um projeto equiripple, os picos do erro nas regiões especificadas tendem a alternar com magnitudes máximas iguais conforme o critério minimax.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A característica equiripple representa a alternância de picos do erro máximo, conforme pesos e bandas do projeto. Isso não significa que qualquer resposta produzida em qualquer configuração terá ripple idêntico em toda frequência não especificada.",
+      "section": "3. Especificações e técnicas de projeto FIR",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma janela finita elimina a banda de transição de um passa-baixas ideal sem introduzir qualquer ondulação espectral.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A resposta ideal abrupta é não realizável como FIR; truncar e ponderar produz transição e ondulação cuja forma depende da janela e do comprimento. Não é possível manter simultaneamente corte abrupto ideal e resposta finita.",
+      "section": "3. Especificações e técnicas de projeto FIR",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A borda passante e a borda de rejeição, junto com as respectivas tolerâncias, ajudam a definir a largura da transição e a qualidade exigida do filtro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A distância entre bordas define a transição, enquanto ripple passante e atenuação de rejeição delimitam desvios admissíveis. Sem esses valores, a especificação não define completamente a qualidade requerida.",
+      "section": "3. Especificações e técnicas de projeto FIR",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Butterworth é a família IIR clássica associada a módulo maximamente plano na banda passante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A característica Butterworth prioriza uma resposta maximamente plana na banda passante; outras famílias aceitam ripple para melhorar seletividade em dada ordem.",
+      "section": "4. Projeto IIR e aspectos práticos de precisão",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Chebyshev tipo I admite ripple na banda passante, enquanto Chebyshev tipo II o admite na banda de rejeição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A distinção entre as duas famílias é a banda em que aparece ondulação; o outro lado é monotônico. O elíptico admite ripple em ambas.",
+      "section": "4. Projeto IIR e aspectos práticos de precisão",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A transformação bilinear mapeia frequências sem distorção e por isso nunca requer pré-distorção das bordas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O mapeamento bilinear é não linear em frequência e causa warping; pré-distorção pode alinhar frequências críticas especificadas. Sua vantagem é não introduzir aliasing espectral como pode ocorrer na invariância ao impulso.",
+      "section": "4. Projeto IIR e aspectos práticos de precisão",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Overflow por wrap-around e overflow por saturação produzem o mesmo resultado numérico em qualquer codificação de ponto fixo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Saturação limita a extremos representáveis; wrap-around retorna modularmente. Para valores fora da faixa, os resultados podem diferir muito e causar distorções diferentes.",
+      "section": "4. Projeto IIR e aspectos práticos de precisão",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "FIR Filter Design",
+      "publisher": "MathWorks",
+      "reference": "Vantagens e limitações FIR, janela, mínimos quadrados e Parks–McClellan",
+      "url": "https://www.mathworks.com/help/signal/ug/fir-filter-design.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "IIR Filter Design",
+      "publisher": "MathWorks",
+      "reference": "Famílias IIR, compromisso ordem/desempenho e métodos de projeto",
+      "url": "https://www.mathworks.com/help/signal/ug/iir-filter-design.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Special Topics in IIR Filter Design",
+      "publisher": "MathWorks",
+      "reference": "Transformação bilinear, warping e invariância ao impulso",
+      "url": "https://www.mathworks.com/help/signal/ug/special-topics-in-iir-filter-design.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "scipy.signal.lfilter",
+      "publisher": "SciPy",
+      "reference": "Equação de diferenças e realização direta II transposta; precisão numérica",
+      "url": "https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.lfilter.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "scipy.signal.sosfilt",
+      "publisher": "SciPy",
+      "reference": "Implementação IIR em cascata de seções de segunda ordem",
+      "url": "https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.sosfilt.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Application Report SPRA509: Overflow Considerations in Fixed-Point Digital Signal Processing",
+      "publisher": "Texas Instruments",
+      "reference": "Overflow, ponto fixo e diferença de propagação entre filtros FIR não recursivos e IIR recursivos",
+      "url": "https://www.ti.com/lit/an/spra509/spra509.pdf",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

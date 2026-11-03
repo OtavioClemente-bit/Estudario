@@ -1,0 +1,1826 @@
+{
+  "id": "informatica.automacao-python-terraform-api-rest",
+  "subject": "Informática",
+  "title": "Automação com Python, Terraform e APIs REST",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Automação de rotinas com Python",
+    "Scripts Python para infraestrutura",
+    "Python para tarefas automatizadas",
+    "Infraestrutura de redes com Terraform",
+    "Terraform como infraestrutura como código",
+    "Automação de redes com Terraform",
+    "Integração de sistemas por API REST",
+    "Consumo de serviços HTTP REST",
+    "Scripts Python consumindo API REST",
+    "Provisionamento de infraestrutura em nuvem",
+    "Automação Python Terraform e REST",
+    "Integração REST com infraestrutura"
+  ],
+  "scope": {
+    "covers": "Automação de tarefas com scripts Python: pathlib, subprocess, argumentos, códigos de saída, exceções, timeouts, arquivos e configuração segura; infraestrutura de redes como código com Terraform: HCL, providers, resources, data sources, variáveis, outputs, dependências, state, plan, apply, destroy e práticas para segredos e mudanças; integração por API REST sobre HTTP: recursos e URIs, métodos, representações JSON, cabeçalhos, códigos de status, autenticação, idempotência, paginação, limites, timeout, erros e retries seguros.",
+    "excludes": "Sintaxe completa da linguagem Python, algoritmos avançados, configuração detalhada de provedores de nuvem específicos, desenho de redes de um fabricante e implementação de servidores REST em um framework particular."
+  },
+  "theoryTitle": "Automatizar tarefas e infraestrutura com Python, Terraform e REST",
+  "chapters": [
+    {
+      "title": "1. Scripts Python",
+      "markdown": "### O problema que este assunto resolve\n\nUma rotina manual repetida — por exemplo, coletar dados de uma API, validar uma lista de equipamentos e chamar uma ferramenta de configuração — consome tempo e produz resultados inconsistentes. Um script Python transforma a sequência em passos repetíveis, observáveis e passíveis de revisão. Automação confiável não é apenas executar comandos: precisa validar entradas, tratar falhas, registrar o que ocorreu e terminar com um código de saída útil para quem chamou o processo.\n\n> **Siglas e termos deste capítulo**\n> - **CLI**: interface de linha de comando.\n> - **stdout / stderr**: saídas padrão para resultado e mensagens de diagnóstico.\n> - **Exit code**: código numérico de término; zero costuma indicar sucesso e valor diferente de zero, falha.\n> - **Timeout**: limite de espera por uma operação.\n> - **Idempotência**: repetir uma operação sem produzir efeitos adicionais além do primeiro resultado pretendido.\n\n### Estrutura de uma rotina robusta\n\nUm script de operação costuma seguir a ordem: ler configuração e argumentos; validar formato e limites; executar ações; verificar o resultado; apresentar resumo e encerrar. Separe valores por ambiente da lógica do programa, valide variáveis obrigatórias antes de alterar recursos e não registre senhas ou tokens. Para caminhos locais, `pathlib.Path` oferece operações de caminho adequadas ao sistema operacional e permite testar `exists()` e `is_file()`.\n\nPara chamar um programa externo, a documentação recomenda `subprocess.run()` nos casos comuns. Passar argumentos como lista, por exemplo `[\"terraform\", \"plan\", \"-input=false\"]`, evita depender da interpretação de uma linha de shell. `capture_output=True` captura stdout e stderr; `check=True` transforma retorno diferente de zero em `CalledProcessError`; `timeout` limita a espera e pode resultar em `TimeoutExpired`. Capturar o erro não substitui decidir se a rotina deve parar, tentar novamente ou informar falha.\n\n### Arquivos, segredos e execução repetida\n\nUse arquivos temporários e gravação controlada quando gerar configuração; não concatene dados externos em comandos de shell. Tokens devem vir de mecanismo de segredo ou variável protegida no ambiente, nunca ser gravados no repositório ou no log. Uma rotina de criação deve consultar o estado antes de criar: se o objeto já existe e está correto, a repetição deve convergir ao mesmo resultado, não duplicá-lo.\n\n| Situação | Tratamento adequado |\n| --- | --- |\n| Programa chamado terminou com erro | Conferir código e stderr; sinalizar falha ao chamador |\n| Resposta ou processo demorou demais | Usar timeout e tratar a exceção correspondente |\n| Arquivo de configuração ausente | Validar cedo e explicar qual entrada falta |\n| Token aparece no log | Remover o segredo e revisar a origem do vazamento |\n\n### Como cai na prova\n\n- `subprocess.run` espera o processo terminar e retorna um `CompletedProcess`; `check=True` não significa que o programa sempre terá sucesso, mas levanta exceção se o código for diferente de zero.\n- Um timeout é uma proteção contra espera indefinida, não uma garantia de que a ação remota não chegou a ocorrer.\n- Automação repetível verifica estado e resultado; executar cegamente um comando de criação toda vez pode duplicar recursos."
+    },
+    {
+      "title": "2. Terraform",
+      "markdown": "### O problema que este assunto resolve\n\nUma rede em nuvem reúne objetos relacionados: rede virtual, sub-redes, regras de roteamento, gateways e controles de acesso. Criá-los manualmente em cada ambiente tende a gerar diferenças difíceis de auditar. Terraform permite descrever recursos em arquivos declarativos e comparar a configuração desejada com o estado conhecido antes de aplicar mudanças.\n\n> **Siglas e termos deste capítulo**\n> - **IaC**: infraestrutura como código.\n> - **HCL**: linguagem de configuração usada nos arquivos Terraform.\n> - **Provider**: plugin que conversa com uma plataforma ou API e implementa recursos e fontes de dados.\n> - **Resource**: objeto que Terraform administra e pode criar, atualizar ou destruir.\n> - **Data source**: consulta informação existente sem declarar sua criação.\n> - **State**: registro que associa objetos reais aos endereços da configuração Terraform.\n\n### Da configuração ao plano\n\nUm bloco `terraform` define requisitos e configurações gerais; `provider` seleciona e configura o plugin; `resource` descreve um objeto administrado; `variable` recebe parâmetros; `output` publica valores úteis depois da execução. Em rede, uma configuração pode declarar uma rede virtual, duas sub-redes e regras associadas. Referências entre atributos, como o identificador de uma rede dentro da definição de uma sub-rede, criam dependência implícita e orientam a ordem. `depends_on` serve para dependência necessária que não aparece numa referência direta.\n\n`terraform init` prepara o diretório e inicializa providers e módulos. `terraform plan` calcula e mostra mudanças propostas sem as aplicar. `terraform apply` executa operações para aproximar o ambiente da configuração aprovada. `terraform destroy` propõe remover os objetos administrados pelo conjunto de configuração; não é um comando de limpeza inofensivo. Revise o plano com cuidado, especialmente exclusões e substituições.\n\n### State, colaboração e credenciais\n\nO state guarda o vínculo entre endereços Terraform e objetos reais, além de atributos necessários para planejar operações. Em equipe, um backend remoto com controle de acesso e bloqueio apropriado reduz divergência e evita que duas execuções concorrentes escrevam o mesmo state. State pode conter valores sensíveis: marcar uma variável como `sensitive` reduz sua exibição em certas saídas, mas não é criptografia nem remove o dado do state. Proteja backend, credenciais e artefatos de plano.\n\n| Bloco ou comando | Papel |\n| --- | --- |\n| `provider` | Seleciona a integração com uma API de plataforma |\n| `resource` | Declara infraestrutura sob gerenciamento |\n| `data` | Lê informação de infraestrutura existente |\n| `plan` | Exibe ações planejadas sem executá-las |\n| `apply` | Executa as ações aprovadas do plano |\n| `output` | Expõe valores calculados para usuários ou módulos |\n\n### Como cai na prova\n\n- Terraform não é uma ferramenta que “descobre e guarda toda a rede” sem configuração: recursos são declarados e relacionados ao state.\n- Um data source consulta; um resource administra ciclo de vida.\n- State local compartilhado por cópia manual é propenso a conflito. Segredos e state exigem controle de acesso e armazenamento protegido."
+    },
+    {
+      "title": "3. APIs REST",
+      "markdown": "### O problema que este assunto resolve\n\nSistemas precisam trocar dados sem depender da estrutura interna uns dos outros. Uma API REST organiza a interação em torno de recursos identificados por URI e usa a semântica do HTTP. Um cliente, como um script Python, envia uma requisição com método, URI, cabeçalhos e, quando aplicável, representação no corpo; o servidor responde com status, cabeçalhos e possivelmente uma representação JSON. REST é um estilo arquitetural, enquanto HTTP define a semântica das mensagens usadas aqui.\n\n> **Siglas e termos deste capítulo**\n> - **URI**: identificador de recurso, frequentemente usado como endereço da API.\n> - **HTTP**: protocolo de aplicação para transferência de mensagens entre cliente e servidor.\n> - **JSON**: formato textual de representação estruturada de dados.\n> - **Header**: metadado da requisição ou resposta, como `Content-Type` e `Authorization`.\n> - **Idempotente**: método cujo efeito pretendido de várias requisições idênticas equivale ao de uma só.\n\n### Métodos, recursos e respostas\n\n`GET` solicita uma representação; `POST` costuma submeter dados para processamento ou criação subordinada; `PUT` cria ou substitui o estado do recurso no URI indicado; `PATCH` aplica alteração parcial; `DELETE` solicita remoção. As propriedades do método importam para retries: `GET`, `PUT` e `DELETE` são idempotentes por semântica HTTP, mas isso não quer dizer que toda resposta será igual ou que um servidor mal implementado não terá defeitos. `POST` não é idempotente por padrão.\n\nOs status comunicam o resultado em classes: `2xx` indica sucesso; `3xx`, redirecionamento; `4xx`, problema atribuído à requisição do cliente; `5xx`, falha do servidor ao tentar atender. Exemplos úteis são `200 OK`, `201 Created`, `202 Accepted`, `204 No Content`, `400 Bad Request`, `401 Unauthorized`, `403 Forbidden`, `404 Not Found`, `409 Conflict`, `429 Too Many Requests` e `500 Internal Server Error`. `401` indica falta de credenciais válidas; `403` indica que o servidor entendeu a requisição, mas recusa autorizá-la.\n\nO cabeçalho `Content-Type` descreve o formato enviado; `Accept` expressa formatos que o cliente aceita. `Authorization` transporta credenciais conforme o esquema da API. Em JSON, valide campos e tipos: um status de sucesso não garante que a resposta contenha todos os dados esperados. Paginação pode usar cursor ou número de página; o cliente deve seguir os links ou metadados documentados, não presumir que a primeira resposta contém todos os registros.\n\n### Cache, limites e segurança\n\nRespostas podem ser armazenadas em cache segundo regras HTTP e cabeçalhos como `Cache-Control`, `ETag` e `Last-Modified`. Dados privados não devem ser reutilizados por cache compartilhado sem autorização adequada. APIs também impõem limites de taxa; `429` pode vir acompanhado de `Retry-After`. Use HTTPS, guarde tokens fora do código e aplique privilégio mínimo. Não repita automaticamente um `POST` após uma falha de rede ambígua sem idempotency key acordada ou outra forma segura de confirmar o resultado.\n\n### Como cai na prova\n\n- `401` e `403` não são sinônimos: autenticação ausente ou inválida versus autorização recusada.\n- HTTP define `PUT` como idempotente, mas a repetição ainda pode devolver status diferente e causar processamento de rede.\n- `Accept` fala do formato que o cliente aceita; `Content-Type` descreve a representação enviada."
+    },
+    {
+      "title": "4. Orquestração segura",
+      "markdown": "### O problema que este assunto resolve\n\nUma automação de ponta a ponta pode consultar uma API para obter parâmetros aprovados, validar a entrada em Python, gerar ou selecionar uma configuração Terraform, revisar o plano e então aplicar a infraestrutura. Dividir as etapas facilita auditoria e evita misturar coleta de dados com mudanças de rede. A saída da API é dado externo: precisa ser validada antes de influenciar recursos.\n\n> **Siglas e termos deste capítulo**\n> - **Retry**: nova tentativa após uma falha transitória.\n> - **Rate limit**: limite de chamadas aceitas por período.\n> - **Drift**: diferença entre configuração/state e infraestrutura real.\n> - **Least privilege**: conceder a identidade só as permissões necessárias.\n> - **Plan file**: arquivo que registra um plano Terraform calculado para aplicação posterior.\n\n### Fluxo operacional controlado\n\nUma sequência segura coleta dados com timeout; verifica status HTTP e esquema JSON; trata paginação e limites; valida valores contra regras locais; inicializa Terraform; cria e revisa um plano; aplica somente após aprovação definida pelo processo; por fim, registra identificadores e resultado sem segredos. Ao aplicar plano salvo, proteja o arquivo como artefato sensível e confirme que corresponde à configuração e ao estado esperados.\n\nRetentativas devem ser limitadas, espaçadas e seletivas. Erros de conexão e certos erros de servidor podem ser transitórios; `400`, `401` e `403` normalmente pedem correção de entrada ou credencial, não repetição imediata. Respeite `Retry-After` quando fornecido. Para chamadas que alteram recursos, use método idempotente quando apropriado ou chave de idempotência suportada pela API.\n\n### Concorrência e recuperação\n\nMudança de infraestrutura pode falhar parcialmente: a criação de um objeto pode concluir embora uma etapa posterior falhe. O state e um novo plano ajudam a reconhecer a situação; não presuma que repetir todo o script do início desfará os efeitos anteriores. Backend remoto com lock reduz duas execuções simultâneas sobre o mesmo state. Se a API aceitar pedido mas a conexão cair antes da resposta, consulte o recurso ou histórico da operação antes de reenviar uma criação não idempotente.\n\n### Como cai na prova\n\n- Uma execução que recebeu `429` deve tratar limite e eventual `Retry-After`, não aumentar a taxa de chamadas.\n- Python pode orquestrar o Terraform, mas não substitui o state nem a revisão do plano.\n- Credenciais, arquivos de state e planos podem revelar dados sensíveis; controle acesso e logs."
+    }
+  ],
+  "summary": "Scripts Python confiáveis validam entradas, usam caminhos portáveis, chamam programas com subprocess.run e tratam códigos de saída, exceções e timeouts; segredos não devem ir ao código ou log. Terraform descreve infraestrutura em HCL: providers integram APIs, resources administram objetos, data sources consultam objetos existentes, variables parametrizam e outputs expõem resultados. Init prepara o diretório, plan mostra mudanças, apply as executa e destroy remove objetos administrados. O state associa configuração a objetos reais e precisa de armazenamento e acesso protegidos; sensitive não cifra state. APIs REST usam recursos identificados por URI e métodos HTTP: GET consulta, POST submete/cria, PUT substitui, PATCH altera parcialmente, DELETE remove. Verifique status, cabeçalhos e esquema JSON; 401 é autenticação inválida/ausente, 403 é recusa de autorização e 429 indica limite. Use HTTPS, paginação documentada, timeout e retries limitados; não repita POST ambíguo sem garantia de idempotência. Um fluxo conjunto valida dados da API antes de planejar Terraform, revisa plano e protege state, plano e credenciais.",
+  "flashcards": [
+    {
+      "front": "O que retorna subprocess.run ao concluir?",
+      "back": "Um CompletedProcess com informações como argumentos e código de retorno."
+    },
+    {
+      "front": "O que faz check=True em subprocess.run?",
+      "back": "Levanta CalledProcessError se o processo termina com código diferente de zero."
+    },
+    {
+      "front": "Para que serve timeout em subprocess.run?",
+      "back": "Limita a espera pelo processo; o vencimento gera TimeoutExpired após encerrar e aguardar o processo filho."
+    },
+    {
+      "front": "Qual papel de pathlib.Path?",
+      "back": "Representa caminhos concretos do sistema em que o programa roda e oferece operações de caminho e arquivo."
+    },
+    {
+      "front": "O que é idempotência?",
+      "back": "Repetir uma operação produz o mesmo efeito pretendido que executá-la uma vez."
+    },
+    {
+      "front": "O que é um provider Terraform?",
+      "back": "Plugin que permite ao Terraform interagir com uma plataforma ou serviço."
+    },
+    {
+      "front": "Resource versus data source?",
+      "back": "Resource administra ciclo de vida; data source consulta informação existente."
+    },
+    {
+      "front": "O que terraform plan faz?",
+      "back": "Calcula e apresenta mudanças propostas sem executá-las."
+    },
+    {
+      "front": "Para que serve terraform apply?",
+      "back": "Executa as operações aprovadas para convergir ao estado descrito."
+    },
+    {
+      "front": "O que representa o state?",
+      "back": "Associa endereços da configuração aos objetos reais e guarda atributos para planejar mudanças."
+    },
+    {
+      "front": "Sensitive cifra o state?",
+      "back": "Não. Controla exposição em certas saídas, mas o state precisa ser protegido."
+    },
+    {
+      "front": "Qual função de uma variável Terraform?",
+      "back": "Parametriza configurações para reutilização entre ambientes e execuções."
+    },
+    {
+      "front": "Que método HTTP costuma consultar representação?",
+      "back": "GET."
+    },
+    {
+      "front": "PUT é idempotente na semântica HTTP?",
+      "back": "Sim; repetir tem o mesmo efeito pretendido, embora as respostas possam variar."
+    },
+    {
+      "front": "O que indica 401?",
+      "back": "A requisição carece de credenciais válidas para autenticação."
+    },
+    {
+      "front": "O que indica 403?",
+      "back": "O servidor entendeu, mas recusa autorizar a ação."
+    },
+    {
+      "front": "Accept versus Content-Type?",
+      "back": "Accept informa formatos aceitos pelo cliente; Content-Type descreve a representação enviada."
+    },
+    {
+      "front": "O que comunica 429?",
+      "back": "Limite de requisições excedido ou chamadas demais no período."
+    },
+    {
+      "front": "Para que serve Retry-After?",
+      "back": "Pode indicar quanto esperar antes de nova requisição."
+    },
+    {
+      "front": "Como tratar paginação de API?",
+      "back": "Seguir cursor, links ou metadados definidos pela API até obter as páginas necessárias."
+    }
+  ],
+  "tips": [
+    "Confira código de retorno e stderr de todo programa externo chamado pelo Python.",
+    "Use timeout nas chamadas remotas e trate separadamente erros transitórios e erros de entrada.",
+    "Leia terraform plan para identificar destruições, substituições e mudanças inesperadas.",
+    "Trate state e arquivos de plano como dados potencialmente sensíveis.",
+    "Interprete o status HTTP antes de tentar decodificar o corpo JSON.",
+    "Só faça retry automático quando a operação puder ser repetida com segurança."
+  ],
+  "traps": [
+    "check=True não retorna sucesso silencioso: código diferente de zero levanta exceção.",
+    "Timeout não prova que o serviço remoto deixou de executar a operação.",
+    "Data source lê recurso existente; não equivale a um resource administrado.",
+    "terraform plan apresenta ações; não altera por si só a infraestrutura.",
+    "Marcar variável sensitive não remove segredo do state.",
+    "401 trata de autenticação; 403 trata de autorização recusada.",
+    "POST não é idempotente por padrão; repetir pode criar duplicatas.",
+    "Accept e Content-Type descrevem lados diferentes da negociação da representação."
+  ],
+  "activeRecall": [
+    "Como você estruturaria um script Python para validar configuração antes de alterar infraestrutura?",
+    "Que informação útil fica disponível em CompletedProcess?",
+    "Como timeout e check=True mudam o tratamento de falhas em subprocess.run?",
+    "Por que passar argumentos de subprocess como lista é preferível a montar shell string?",
+    "Quais blocos Terraform aparecem numa configuração simples de rede?",
+    "Como referências entre recursos afetam a ordem de dependência?",
+    "Qual diferença prática entre plan, apply e destroy?",
+    "Por que state remoto precisa de controle de acesso e bloqueio?",
+    "Quais métodos HTTP são idempotentes e por que isso importa no retry?",
+    "Como diferenciar 401, 403, 404 e 429 num cliente de API?"
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Automação Python sem tratamento de falha",
+      "summary": "Validar entradas, configurar timeout e tratar código de saída, CalledProcessError e TimeoutExpired; não supor que executar um comando equivale a sucesso."
+    },
+    {
+      "key": "e2",
+      "title": "Resource, consulta e state confundidos",
+      "summary": "Resource administra, data source consulta; state vincula objetos reais e deve ser protegido e coordenado em execução concorrente."
+    },
+    {
+      "key": "e3",
+      "title": "Plan e apply tratados como equivalentes",
+      "summary": "Plan mostra ações sem executar; apply executa; destroy remove recursos sob gerenciamento e requer revisão cuidadosa."
+    },
+    {
+      "key": "e4",
+      "title": "Semântica HTTP e status trocados",
+      "summary": "401 é autenticação, 403 autorização recusada, 429 limite; Accept e Content-Type têm papéis diferentes."
+    },
+    {
+      "key": "e5",
+      "title": "Retry inseguro de operação não idempotente",
+      "summary": "POST não é idempotente por padrão; timeout de cliente não confirma que servidor não concluiu. Consultar resultado ou usar mecanismo idempotente documentado."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma rotina precisa executar um programa externo e interromper a espera caso ele trave. Qual configuração atende a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar subprocess.run com timeout e tratar TimeoutExpired no fluxo de erro.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar pathlib.Path com timeout para encerrar qualquer processo filho travado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar subprocess.run com check=True, que limita a duração do comando executado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar capture_output=True, que mata processos que não escrevem saída.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar text=True, que converte espera longa em término automático do processo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O argumento timeout de subprocess.run limita o tempo de espera e o vencimento gera TimeoutExpired. check=True trata código de saída diferente de zero; captura de saída e modo texto não impõem limite de duração.",
+      "section": "1. Scripts Python",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Com check=True, subprocess.run levanta CalledProcessError quando o processo termina com código de saída diferente de zero.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esse parâmetro transforma código não zero em exceção; atributos da exceção incluem dados da execução e, se capturadas, saídas do processo.",
+      "section": "1. Scripts Python",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como chamar terraform plan por um script Python sem depender de interpretação de shell?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Montar uma única string e passá-la sempre com shell=True.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Passar o executável e cada argumento como elementos de uma lista.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Escrever o comando em pathlib.Path e chamar o método exists().",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Salvar o texto do comando em stdout e aguardar o Terraform lê-lo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Passar os argumentos por variável global e omitir o executável da chamada.",
+          "correct": false
+        }
+      ],
+      "explanation": "subprocess.run aceita argumentos como sequência, separando executável e opções sem pedir ao shell que interprete metacaracteres. pathlib trata caminhos e não executa comandos.",
+      "section": "1. Scripts Python",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Pathlib oferece classes de caminho cuja classe Path representa um caminho concreto adequado à plataforma em execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Path instancia a variante concreta para o sistema atual e oferece operações de acesso ao sistema de arquivos, como consultar existência e abrir arquivo.",
+      "section": "1. Scripts Python",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script precisa distinguir resultado do comando e diagnóstico de falha. Qual uso de subprocess.run fornece os dois fluxos capturados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir apenas text=True, que captura stdout e stderr automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir timeout=0, que armazena o resultado em dois fluxos de texto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir capture_output=True e consultar stdout e stderr no CompletedProcess.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Definir check=False, que redireciona diagnóstico para o fluxo de resultado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir cwd para dois diretórios, um para cada fluxo da execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "capture_output=True configura stdout e stderr como pipes para captura, e CompletedProcess disponibiliza esses dados. text=True altera a representação para texto, não ativa captura sozinho.",
+      "section": "1. Scripts Python",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação pode manter token de API em arquivo versionado, desde que evite imprimi-lo no terminal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Retirar o token da saída não evita que ele fique no histórico do repositório ou seja lido por quem tem acesso ao arquivo. Use mecanismo de segredo ou variável protegida e limite permissões.",
+      "section": "1. Scripts Python",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script roda repetidamente para garantir que uma sub-rede esteja configurada. Qual estratégia reduz duplicações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar uma nova sub-rede toda vez e ignorar a resposta da plataforma.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Repetir a criação em paralelo até que uma chamada termine primeiro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar o state antes de cada execução para forçar criação limpa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Consultar o estado desejado e convergir sem recriar o que já está correto.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Tratar qualquer erro da API como confirmação de que o objeto existe e pular sua validação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Automação idempotente verifica o estado e faz a repetição convergir ao resultado desejado. Criar cegamente, remover state ou interpretar erro como sucesso pode duplicar ou perder recursos.",
+      "section": "1. Scripts Python",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se subprocess.run atingir timeout, é possível concluir que o serviço remoto não recebeu nem executou o pedido iniciado pelo processo filho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Timeout encerra a espera local e trata o processo filho, mas uma operação remota pode ter sido recebida ou concluída antes de a resposta chegar. Verifique o resultado remoto antes de repetir ações não idempotentes.",
+      "section": "1. Scripts Python",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o papel de um provider no Terraform?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazenar todo o state em texto dentro de cada resource declarado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Implementar a integração com uma plataforma ou serviço por meio de recursos e consultas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituir arquivos HCL por chamadas Python executadas em cada apply.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar automaticamente qualquer objeto de rede encontrado na conta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Garantir que qualquer credencial configurada fique criptografada no state.",
+          "correct": false
+        }
+      ],
+      "explanation": "Provider é o plugin que permite ao Terraform interagir com uma plataforma e fornece recursos e data sources. Ele não substitui HCL, não importa automaticamente tudo e não torna state automaticamente seguro.",
+      "section": "2. Terraform",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma declaração Terraform do tipo resource representa um objeto cujo ciclo de vida o Terraform administra.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um resource descreve um objeto sob gerenciamento, permitindo ao Terraform comparar atributos declarados e registrados para planejar criação, atualização ou remoção conforme necessário.",
+      "section": "2. Terraform",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe precisa consultar uma rede virtual que já existe sem declarar que o Terraform deve criá-la. Qual mecanismo é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um output, pois ele consulta recursos por nome durante o planejamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma variável sensitive, pois ela importa infraestrutura existente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um data source do provider que localize a rede existente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Um resource vazio, pois ele nunca participa do ciclo de vida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um backend, pois ele substitui qualquer consulta ao provider.",
+          "correct": false
+        }
+      ],
+      "explanation": "Data sources consultam dados existentes sem declarar sua criação. Resource administra ciclo de vida; outputs expõem valores computados; backend guarda state.",
+      "section": "2. Terraform",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "terraform plan calcula e apresenta ações propostas, mas não as aplica por si só à infraestrutura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Plan permite revisar operações planejadas; apply executa mudanças. Aprovar ou armazenar um plano não deve ser confundido com aplicá-lo.",
+      "section": "2. Terraform",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sub-rede precisa do identificador da rede virtual criada na mesma configuração. Como expressar essa relação normalmente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Referenciar o atributo da rede no argumento da sub-rede, criando dependência implícita.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Declarar dois outputs com o mesmo nome e esperar ordenação alfabética para definir a sequência de criação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adicionar um provider duplicado para executar primeiro a rede virtual e depois a sub-rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar apenas depends_on em todos os blocos sem referenciar atributos entre os objetos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Colocar o identificador futuro como texto fixo na configuração da sub-rede antes da criação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A referência ao atributo produzido pela rede cria dependência implícita e informa ao Terraform que a rede precisa estar disponível para configurar a sub-rede. depends_on é útil para dependências sem referência direta.",
+      "section": "2. Terraform",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "terraform init prepara o diretório de trabalho e inicializa providers e módulos necessários à configuração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A inicialização prepara os componentes declarados, como providers e módulos; ela não é o comando que aplica as mudanças planejadas.",
+      "section": "2. Terraform",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma equipe usa backend remoto com bloqueio para o state compartilhado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para impedir que os arquivos de configuração HCL sejam lidos pelo provider durante uma execução concorrente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Para trocar o state por outputs sem manter vínculo persistente com os objetos reais administrados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para assegurar que terraform plan nunca proponha destruição de recurso quando existe state compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para coordenar acesso ao state e reduzir gravações concorrentes conflitantes.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Para transformar automaticamente variáveis comuns em segredos criptografados no backend remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Backend remoto pode centralizar state e oferecer bloqueio para evitar operações concorrentes sobre o mesmo registro. Isso não garante que planos nunca destruam objetos nem cifra automaticamente todo segredo.",
+      "section": "2. Terraform",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A marca sensitive em uma variável Terraform impede que o valor correspondente seja armazenado no state.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Sensitive reduz a exposição em determinadas saídas, mas não é mecanismo de criptografia nem garante ausência do valor no state. Acesso e armazenamento do state precisam ser protegidos.",
+      "section": "2. Terraform",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um plano Terraform propõe destruir uma regra de firewall que ainda é necessária. Qual é a conduta correta antes de aplicar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar logo, pois o provider restaurará a regra removida automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Revisar configuração, state e plano, corrigindo a causa antes de executar a mudança.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar destroy para sincronizar state e configuração sem afetar recursos reais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar a diferença, porque plan nunca prevê exclusões de recursos reais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Marcar qualquer atributo sensitive para cancelar a destruição planejada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O plano é a oportunidade de revisar exclusões inesperadas. Investigue configuração, state e mudanças externas, corrija a causa e gere novo plano; sensitive não controla ciclo de vida.",
+      "section": "2. Terraform",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "terraform destroy é apenas uma leitura do state e não solicita remoção de recursos administrados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Destroy planeja e executa a remoção dos recursos gerenciados pelo conjunto de configuração, conforme confirmação e fluxo usados. Deve ser tratado como operação destrutiva.",
+      "section": "2. Terraform",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma configuração precisa parametrizar CIDR e região por ambiente sem duplicar a lógica dos recursos. Qual recurso da linguagem atende a isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Copiar o bloco resource inteiro para cada ambiente, trocando os valores no texto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar uma tabela de state diferente dentro de cada bloco resource.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Transformar todo argumento de rede em data source do provider.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar somente outputs, que recebem valores antes do planejamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir input variables para receber os parâmetros de cada ambiente.",
+          "correct": true
+        }
+      ],
+      "explanation": "Input variables permitem parametrizar a configuração com valores fornecidos por ambiente. Outputs expõem resultados calculados e data sources consultam dados existentes.",
+      "section": "2. Terraform",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma URI identifica o recurso com que uma API HTTP permite interagir, enquanto o método comunica a semântica da operação solicitada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A URI identifica o alvo da requisição, por exemplo uma coleção ou um equipamento específico. O método comunica a semântica desejada, como consultar, substituir ou remover o estado desse alvo.",
+      "section": "3. APIs REST",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente quer obter a representação atual de /equipamentos/17 sem solicitar alteração. Qual método é o mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "POST, para enviar dados ao servidor e solicitar processamento do recurso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DELETE, para solicitar a remoção do recurso indicado pela URI.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PATCH, para pedir alteração parcial da representação do recurso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "GET, para solicitar a representação do recurso identificado pela URI.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "PUT, para substituir o estado do recurso no URI indicado.",
+          "correct": false
+        }
+      ],
+      "explanation": "GET solicita uma representação sem pedir alteração do recurso. POST submete dados, DELETE solicita remoção, PATCH alteração parcial e PUT substituição do estado do alvo.",
+      "section": "3. APIs REST",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na semântica HTTP, PUT é idempotente: repetir requisições equivalentes tem o mesmo efeito pretendido que uma só.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Idempotência descreve efeito pretendido, não igualdade obrigatória de cada resposta; o servidor ainda pode responder de modo diferente em chamadas posteriores.",
+      "section": "3. APIs REST",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API responde que as credenciais não foram fornecidas ou não são válidas. Qual status representa diretamente essa situação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "403 Forbidden, que informa ausência de permissão apesar de identidade reconhecida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "401 Unauthorized, que indica desafio ou falha de autenticação do cliente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "404 Not Found, que informa que a URI não localizou o recurso solicitado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "409 Conflict, que informa incompatibilidade com o estado atual do recurso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "429 Too Many Requests, que informa excesso de chamadas em certo período.",
+          "correct": false
+        }
+      ],
+      "explanation": "401 trata de credenciais de autenticação ausentes ou inválidas. 403 indica que a requisição foi entendida, mas sua autorização foi recusada; os outros códigos descrevem condições distintas.",
+      "section": "3. APIs REST",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O cabeçalho Accept informa ao servidor os formatos de representação que o cliente consegue receber.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Accept expressa formatos aceitos pelo cliente. Content-Type descreve o formato da representação que está sendo enviada na mensagem.",
+      "section": "3. APIs REST",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API retornou uma representação JSON que o cliente enviou para criar um recurso subordinado. Qual método é normalmente usado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "GET, que envia a representação para processamento e criação no servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DELETE, que cria um recurso novo a partir do corpo recebido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PATCH, que sempre cria coleção subordinada sem URI prévia.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "POST, que submete a representação para processamento ou criação subordinada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "HEAD, que envia corpo JSON para substituir toda a coleção remota.",
+          "correct": false
+        }
+      ],
+      "explanation": "POST costuma submeter uma representação para processamento ou criação de recurso subordinado. A semântica exata do endpoint é documentada pela própria API.",
+      "section": "3. APIs REST",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um retorno 403 normalmente significa que o cliente deve renovar credenciais de autenticação, pois o servidor não identificou qualquer credencial válida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. 403 comunica recusa de autorização; 401 é o status ligado a credenciais ausentes ou inválidas. A causa concreta deve ser interpretada com a documentação da API.",
+      "section": "3. APIs REST",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint devolveu mais registros do que cabem numa resposta e inclui cursor para continuação. Como o cliente deve obter o restante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir sempre a primeira URI, pois HTTP combina automaticamente todas as páginas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Alterar o cursor manualmente por tentativa até receber o último registro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Seguir o cursor ou link de continuação conforme o contrato da API.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Trocar GET por DELETE para que o servidor libere registros adicionais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar os metadados, pois respostas JSON sempre contêm a coleção completa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Paginação é definida pela API. O cliente deve seguir cursor, link ou metadado documentado até completar a coleta; repetir a primeira página pode devolver os mesmos registros.",
+      "section": "3. APIs REST",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O método DELETE é idempotente na semântica HTTP, embora uma resposta subsequente possa diferir da primeira.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Repetir DELETE deve produzir o mesmo efeito final pretendido, ainda que a primeira resposta indique remoção e a seguinte informe que o recurso já não está presente.",
+      "section": "3. APIs REST",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada excedeu o limite de taxa e a resposta trouxe Retry-After. Como deve reagir um cliente bem comportado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aguardar o período indicado e limitar novas tentativas conforme a política do cliente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ignorar o cabeçalho e multiplicar imediatamente a frequência das chamadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar o token de autenticação e reenviar em laço sem intervalo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Interpretar o cabeçalho como confirmação de que a operação foi concluída.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reenviar a mesma chamada por todos os métodos HTTP disponíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "429 indica excesso de requisições; Retry-After pode informar quando tentar novamente. Respeite o limite e use número limitado de tentativas, sem multiplicar chamadas.",
+      "section": "3. APIs REST",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Usar HTTPS protege credenciais no trânsito, mas não dispensa controle de acesso ao token guardado pelo script ou pelos logs.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. HTTPS protege a comunicação em trânsito, enquanto armazenamento, permissões e exposição em log são controles separados que também precisam ser aplicados.",
+      "section": "3. APIs REST",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O cliente deseja atualizar apenas dois campos de um recurso sem enviar sua representação completa. Qual método costuma expressar alteração parcial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "GET, que envia campos para atualização parcial sem alterar o estado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "PUT, que em qualquer API altera sempre apenas campos presentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "POST, que tem semântica universal de substituição parcial do recurso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PATCH, que solicita aplicação de modificação parcial definida pelo contrato.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "HEAD, que atualiza os campos e retorna o corpo integral do recurso.",
+          "correct": false
+        }
+      ],
+      "explanation": "PATCH é usado para solicitar modificação parcial segundo o formato e contrato da API. PUT representa substituição do estado do recurso no URI indicado, não uma garantia universal de atualização parcial.",
+      "section": "3. APIs REST",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API responde 202 Accepted após receber solicitação para uma operação longa. O que esse status comunica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Que o recurso solicitado não existe e a URI deve ser removida da configuração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Que o servidor terminou a operação e não há motivo para consultar o resultado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que a solicitação foi aceita, embora o processamento possa ainda não ter terminado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Que o cliente não apresentou credencial válida para autenticar a solicitação enviada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Que o servidor recusou autorização e exige elevar o privilégio da identidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "202 Accepted indica que a requisição foi aceita para processamento, que pode não estar concluído. A API pode disponibilizar um identificador ou endereço para consultar o andamento e o resultado posterior.",
+      "section": "3. APIs REST",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API respondeu sucesso, mas o JSON não contém o campo obrigatório que o script usa para criar uma regra de rede. Qual etapa deve ocorrer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar o Terraform mesmo assim, pois qualquer status 2xx garante campos completos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Validar estrutura e tipos da representação e interromper antes da mudança se inválidos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Converter o campo ausente em token de autenticação e continuar com valor padrão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Repetir o POST até que o serviço passe a incluir todos os campos esperados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar o corpo e usar status HTTP como identificador da regra de rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Status de sucesso não garante que o corpo corresponde ao esquema que a automação espera. Validar campos e tipos antes de criar infraestrutura evita usar dado ausente ou malformado.",
+      "section": "4. Orquestração segura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fluxo Python pode validar dados recebidos da API antes de passá-los como entradas a uma configuração Terraform.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A resposta de API é entrada externa; validar estrutura, tipos e regras locais antes de planejar infraestrutura reduz alterações incorretas.",
+      "section": "4. Orquestração segura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma requisição POST para provisionar um firewall deu timeout após o envio, sem resposta. Qual é a reação mais segura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reenviar imediatamente várias vezes, pois timeout cancela toda execução no servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar DELETE no endpoint, presumindo que a criação ocorreu exatamente uma vez.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Consultar o estado ou histórico da operação antes de repetir a criação não idempotente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ignorar a incerteza e informar sucesso, pois o pedido foi enviado ao socket.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar POST por GET sem mudar a URI, pois GET repete a criação com segurança.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conexão pode falhar depois de o servidor executar a ação. Consulte o recurso ou a operação para confirmar o resultado; só repita uma criação não idempotente com garantia documentada, como chave de idempotência suportada.",
+      "section": "4. Orquestração segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um retry limitado deve distinguir falhas possivelmente transitórias de erros de entrada ou autorização que exigem correção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Falhas de conexão e alguns erros 5xx podem ser transitórios; 400, 401 e 403 normalmente pedem corrigir a requisição ou credencial, não reenviar sem mudança.",
+      "section": "4. Orquestração segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma execução de automação precisa coletar todos os projetos de uma API paginada, planejar redes e registrar o resultado. Qual fluxo é mais seguro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Coletar apenas a primeira página, aplicar logo e salvar token junto ao state local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ignorar status e esquema JSON, aplicar qualquer plano e registrar corpos completos no log.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar destroy antes de cada consulta para reduzir divergência do state remoto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Validar a primeira página e aplicar mudanças sem examinar as páginas seguintes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Paginar, validar dados, revisar plano, aplicar controladamente e proteger state e segredos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um fluxo correto completa a paginação documentada, valida entradas antes de usá-las, revisa o plano antes de apply e protege state e tokens. Aplicar com coleta incompleta ou registrar segredos torna a automação incorreta ou insegura.",
+      "section": "4. Orquestração segura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um backend remoto com lock impede qualquer alteração fora do Terraform e garante que todo plano esteja correto sem revisão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Lock ajuda a coordenar operações concorrentes sobre state, mas não impede toda mudança externa nem valida a intenção do plano. Revisão e controle operacional continuam necessários.",
+      "section": "4. Orquestração segura",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O plano salvo do Terraform contém mudanças de rede aprovadas para execução posterior. Como deve ser tratado o arquivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como artefato potencialmente sensível, com acesso controlado e correspondência verificada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Como arquivo público descartável, pois planos não contêm dados de infraestrutura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Como substituto permanente do state, que pode então ser apagado com segurança.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como segredo criptografado automaticamente só por ter extensão de plano.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como entrada não confiável que não precisa corresponder à configuração aprovada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O arquivo de plano pode conter valores de configuração e detalhes de infraestrutura; deve ser protegido e associado ao contexto aprovado. A extensão não o cifra, e ele não substitui o state nem dispensa verificação.",
+      "section": "4. Orquestração segura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se terraform apply falha após criar um recurso remoto, reiniciar o script inteiro garante que a criação anterior será desfeita antes da nova tentativa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Falha parcial não implica rollback de todos os efeitos externos. Inspecione state e infraestrutura, gere novo plano e só então decida como retomar.",
+      "section": "4. Orquestração segura",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao receber 429 numa consulta de API, qual comportamento evita piorar a limitação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar timeout e manter chamadas em paralelo até obter resposta 200.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar espera adequada, respeitar Retry-After e limitar novas tentativas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Repetir sem intervalo usando token diferente em cada requisição.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Converter 429 em sucesso e considerar completa a paginação restante.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar toda consulta por POST, que ignora os limites aplicados a GET.",
+          "correct": false
+        }
+      ],
+      "explanation": "429 informa excesso de chamadas. Respeite Retry-After se presente, faça poucas tentativas espaçadas e evite paralelismo que aumente a taxa.",
+      "section": "4. Orquestração segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma integração, o campo Authorization e o arquivo de state têm perfis de risco diferentes, mas ambos precisam de proteção contra acesso indevido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Authorization pode conter credenciais; state pode conter atributos sensíveis e detalhes de recursos. Ambos exigem controle de acesso, armazenamento apropriado e cuidado com logs.",
+      "section": "4. Orquestração segura",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um recurso de rede foi alterado manualmente fora do Terraform. Como a equipe deve avaliar o impacto antes de uma nova aplicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar os arquivos HCL e confiar que state descreve sozinho a intenção atual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar apply sem plano, porque mudanças externas são sempre preservadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar apenas data source para remover state e impedir qualquer mudança futura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gerar e revisar novo plano para comparar configuração e estado observado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Rodar destroy para sincronizar o state sem consultar a infraestrutura remota.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma mudança externa pode gerar drift entre configuração, state e infraestrutura. Um novo plano permite avaliar as ações propostas antes de aplicar; destroy não é sincronização inofensiva.",
+      "section": "4. Orquestração segura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O cabeçalho Content-Type descreve a representação que a mensagem está enviando, enquanto Accept expressa formatos aceitos pelo cliente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Content-Type informa o tipo de mídia do conteúdo enviado; Accept participa da negociação ao indicar tipos que o cliente aceita receber.",
+      "section": "3. APIs REST",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma execução deve entregar o identificador da rede criada para uma etapa de monitoramento posterior. Qual construção Terraform publica esse valor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um output que expõe o atributo calculado do recurso de rede.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um provider que converte atributo de rede em variável de ambiente automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um data source que grava no state a intenção de destruir a rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um bloco depends_on que imprime todos os atributos ao final do apply.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um timeout que transfere o identificador ao processo seguinte sem configuração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Outputs publicam valores calculados pela configuração, como identificador de um recurso, para uso por usuários ou módulos. Provider, dependência e timeout não têm esse papel.",
+      "section": "2. Terraform",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina Python usa subprocess.run com capture_output=True e check=True. Se o programa falhar, o erro e suas saídas capturadas podem ser consultados na exceção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. check=True levanta CalledProcessError em retorno não zero; quando saídas foram capturadas, a exceção pode carregar stdout e stderr para diagnóstico.",
+      "section": "1. Scripts Python",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente recebe 429 e o campo Retry-After informa quando a API aceita novas chamadas. Qual reação é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar imediatamente chamadas paralelas para concluir antes do bloqueio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tratar o status como falha de autenticação e substituir o token em cada tentativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reenviar a solicitação repetidamente, pois o limite só vale para respostas GET.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar o valor e mudar o método para POST para contornar o controle de taxa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aguardar o período indicado e limitar novas tentativas conforme a política da API.",
+          "correct": true
+        }
+      ],
+      "explanation": "429 indica excesso de requisições, e Retry-After pode indicar quando tentar novamente. Aguarde e limite retries; trocar método, token ou aumentar concorrência não resolve o limite e pode agravá-lo.",
+      "section": "3. APIs REST",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor reconhece a identidade do usuário, mas a política da API não permite que ele altere a rede solicitada. Qual situação descreve melhor a resposta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "401 Unauthorized, porque toda recusa de operação significa credencial inválida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "403 Forbidden, pois a autenticação pode ter sido válida e a autorização foi recusada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "404 Not Found, pois o servidor sempre oculta recursos sem permissão usando esse código.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "409 Conflict, pois qualquer falta de permissão decorre de estado concorrente do recurso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "429 Too Many Requests, pois a conta não tem permissão suficiente para a operação.",
+          "correct": false
+        }
+      ],
+      "explanation": "403 comunica recusa de autorização após o servidor entender a requisição; a identidade pode estar autenticada, mas não possuir a permissão necessária. 401 relaciona-se à autenticação, enquanto os demais códigos descrevem outras condições.",
+      "section": "3. APIs REST",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Python — subprocess — Subprocess management",
+      "publisher": "Python Software Foundation",
+      "reference": "run, CompletedProcess, captura de saídas, check e timeout",
+      "url": "https://docs.python.org/3/library/subprocess.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Python — pathlib — Object-oriented filesystem paths",
+      "publisher": "Python Software Foundation",
+      "reference": "Path concreto, operações e acesso a caminhos",
+      "url": "https://docs.python.org/3/library/pathlib.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Terraform — Configuration Language",
+      "publisher": "HashiCorp",
+      "reference": "Providers, resources, data sources, variables, outputs, modules, state e backends",
+      "url": "https://developer.hashicorp.com/terraform/language",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Terraform — resource block reference",
+      "publisher": "HashiCorp",
+      "reference": "Declaração e ciclo de vida de resources",
+      "url": "https://developer.hashicorp.com/terraform/language/block/resource",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 9110: HTTP Semantics",
+      "publisher": "IETF",
+      "reference": "Métodos, semântica, status, cabeçalhos e idempotência HTTP",
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 9111: HTTP Caching",
+      "publisher": "IETF",
+      "reference": "Cache HTTP e campos que controlam armazenamento e validade",
+      "url": "https://www.rfc-editor.org/rfc/rfc9111.html",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

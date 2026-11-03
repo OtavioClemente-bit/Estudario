@@ -1,0 +1,1668 @@
+{
+  "id": "informatica.sistemas-distribuidos",
+  "subject": "Informática",
+  "title": "Sistemas Distribuídos",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Sistemas Distribuídos",
+    "Arquitetura de sistemas distribuídos",
+    "Computação distribuída em rede",
+    "Processamento distribuído em nós",
+    "Comunicação entre processos distribuídos",
+    "Replicação em sistemas distribuídos",
+    "Consistência de dados distribuídos",
+    "Tolerância a falhas distribuídas",
+    "Consenso em clusters distribuídos",
+    "Teorema CAP em sistemas distribuídos"
+  ],
+  "scope": {
+    "covers": "Conceitos e objetivos de sistemas distribuídos; nós, comunicação por mensagens, latência e falhas parciais; escalabilidade horizontal, particionamento e replicação; consistência forte, eventual e causal; disponibilidade, tolerância a partições e teorema CAP; consenso, líder e quórum; mensageria, ordenação, entrega pelo menos uma vez e idempotência; redundância, detecção de falhas, isolamento e observabilidade.",
+    "excludes": "Configuração detalhada de produtos específicos, programação de protocolos, comandos de administração de nuvem, redes de computadores em profundidade e arquitetura de microsserviços além dos conceitos necessários para entender distribuição."
+  },
+  "theoryTitle": "Como computadores cooperam sem compartilhar a mesma memória",
+  "chapters": [
+    {
+      "title": "1. Nós, comunicação e falhas parciais",
+      "markdown": "### O problema que este assunto resolve\n\nUm **sistema distribuído** é formado por computadores independentes que se comunicam por uma rede e cooperam para oferecer um serviço. Cada computador é um **nó**: pode executar um processo, armazenar parte dos dados ou prestar uma função. Para quem usa o serviço, a intenção é que o conjunto pareça funcionar como um sistema único, mesmo que por dentro haja várias máquinas.\n\nOs nós não compartilham uma memória física nem um relógio perfeitamente sincronizado. Eles trocam mensagens, e uma mensagem pode atrasar, perder-se ou chegar depois de outra. Uma resposta lenta não permite concluir imediatamente que o servidor morreu: ele pode estar ocupado, isolado da rede ou processando uma operação válida. Esse cenário é chamado **falha parcial**: alguns componentes falham enquanto os demais continuam funcionando. Em um computador isolado, uma falha costuma ser mais evidente; em uma rede, distinguir falha de demora é difícil.\n\n> **Siglas e termos deste capítulo**\n> - **Nó**: computador ou processo participante do sistema.\n> - **Latência**: tempo entre o envio de uma operação e a obtenção de resposta.\n> - **Disponibilidade**: capacidade de responder a solicitações em determinado período.\n> - **Falha parcial**: falha de um componente sem parada simultânea de todo o conjunto.\n> - **Timeout**: limite de espera após o qual o cliente deixa de aguardar; não prova, sozinho, que o destino parou.\n\n### O que a rede muda\n\nUma chamada entre processos no mesmo computador pode parecer uma chamada local, mas uma chamada remota depende de serialização, transporte, roteamento e processamento em outro nó. Ela pode demorar muito mais e falhar por razões que não existem numa função local. Por isso, quem chama um serviço remoto precisa prever timeout, resposta de erro, repetição controlada e possíveis resultados duplicados. Repetir automaticamente uma operação de cobrança, por exemplo, pode cobrar duas vezes se a primeira solicitação foi executada e apenas a resposta se perdeu.\n\nRelógios de máquinas distintas também podem divergir. Um horário registrado em um nó não é uma ordem global confiável para todas as operações. Quando a ordem importa, protocolos podem definir sequência, usar um líder, registrar offsets ou associar dependências causais. Um **relógio lógico** ajuda a representar relações de precedência sem afirmar que a hora física de cada máquina é idêntica.\n\n| Propriedade | Significado operacional |\n| --- | --- |\n| Transparência | Esconder detalhes de distribuição quando isso não prejudica o uso. |\n| Abertura | Oferecer interfaces e protocolos definidos para interoperabilidade. |\n| Escalabilidade | Crescer em usuários, dados ou distância sem degradar além do aceitável. |\n| Tolerância a falhas | Continuar prestando funções previstas apesar de falhas limitadas. |\n\n### Como cai na prova\n\n- Uma resposta que não chegou até o timeout não demonstra que a operação não ocorreu; a solicitação pode ter sido processada e a resposta perdida.\n- Se um nó segue ativo enquanto outro está isolado ou indisponível, o caso ilustra falha parcial.\n- A rede torna latência, perda de mensagens, ordenação e duplicidade questões centrais da arquitetura distribuída.\n- Distribuição não elimina falhas: ela permite compartilhar carga e reduzir pontos únicos de falha, desde que haja redundância e tratamento apropriados."
+    },
+    {
+      "title": "2. Escala, particionamento e replicação",
+      "markdown": "### Crescer o sistema\n\n**Escalabilidade vertical** aumenta os recursos de uma máquina, como CPU e memória. **Escalabilidade horizontal** acrescenta nós e divide trabalho entre eles. A segunda pode ampliar capacidade e disponibilidade, mas exige coordenar dados, lidar com falhas e distribuir solicitações. Acrescentar servidores sem repartir carga ou sem considerar gargalos não garante melhora. Um serviço central, uma rede saturada ou um armazenamento compartilhado ainda pode limitar todo o conjunto.\n\n**Particionamento** (ou *sharding*) separa um conjunto de dados em partes menores atribuídas a nós diferentes. A chave de partição decide onde fica cada registro. Uma boa chave distribui solicitações e armazenamento; uma chave concentrada em poucos valores cria partições quentes e desequilíbrio. No Apache Kafka, por exemplo, eventos com a mesma chave podem ser encaminhados à mesma partição, permitindo manter ordem dentro daquela partição. Isso não equivale a uma ordem global entre todas as partições.\n\n> **Siglas e termos deste capítulo**\n> - **Escala vertical**: ampliar recursos de um nó existente.\n> - **Escala horizontal**: acrescentar nós para repartir trabalho ou cópias.\n> - **Partição / shard**: subconjunto lógico dos dados atribuído a uma parte do sistema.\n> - **Replicação**: manutenção de cópias do mesmo dado ou estado em mais de um nó.\n> - **Réplica líder**: cópia que recebe ou ordena operações em protocolos liderados.\n> - **Réplica seguidora**: cópia que acompanha as operações recebidas pelo líder.\n\n### Cópias e compromissos\n\nReplicar não é o mesmo que particionar. O particionamento distribui **partes diferentes** do conjunto; a replicação mantém **cópias** de uma mesma parte. É comum combinar ambos: dividir um tópico em partições e replicar cada partição em mais de um servidor. Cópias ajudam a continuar após perda de um nó, mas consomem armazenamento e precisam ser atualizadas.\n\nNa replicação **síncrona**, uma operação pode aguardar confirmação de réplicas antes de ser reconhecida, elevando a durabilidade ou a consistência percebida ao custo de latência e possível indisponibilidade quando não se obtém o quórum exigido. Na replicação **assíncrona**, o nó principal responde antes de todas as cópias receberem a atualização; isso reduz a espera, mas uma falha logo depois pode deixar cópias atrasadas e até perder uma atualização ainda não replicada. Esses rótulos descrevem quando se espera a confirmação, e os detalhes dependem do protocolo.\n\nA replicação pode ser **primário-seguidor** (um nó coordena escritas e distribui mudanças) ou **multi primária** (mais de um nó aceita escritas, exigindo detectar e resolver conflitos). Em leitura de réplica atrasada, o usuário pode não ver imediatamente sua própria gravação. Políticas como ler do líder, esperar propagação ou usar tokens de versão podem reduzir esse efeito, com custos diferentes.\n\n| Técnica | Divide o quê? | Ganho mais direto |\n| --- | --- | --- |\n| Particionamento | O conjunto de dados ou trabalho | Capacidade e processamento em paralelo |\n| Replicação | Cópias de dados ou estado | Tolerância a falha e, em alguns desenhos, escala de leitura |\n| Balanceamento | Solicitações entre destinos disponíveis | Melhor uso de capacidade e menor concentração de carga |\n\n### Como cai na prova\n\n- Várias cópias do mesmo banco representam replicação; dividir clientes por faixas de chave representa particionamento.\n- Replicação assíncrona permite atraso entre cópias; por isso, uma leitura numa réplica pode devolver um valor antigo.\n- Partições permitem paralelismo, mas a ordem garantida costuma ser local à partição, salvo mecanismo adicional.\n- Replicação e particionamento podem coexistir e resolvem problemas diferentes."
+    },
+    {
+      "title": "3. Consistência, CAP e consenso",
+      "markdown": "### O que significa ler o estado correto\n\nEm uma base única, o programador costuma imaginar que uma gravação fica visível de imediato para todas as leituras. Com réplicas, a atualização pode levar tempo para se propagar. **Consistência** descreve as garantias que clientes recebem sobre a ordem e a visibilidade das operações; não é sinônimo de integridade dos dados nem de cópia de segurança.\n\nNa **consistência forte** (frequentemente apresentada como linearizabilidade), uma leitura se comporta como se a operação tivesse ocorrido num único ponto entre seu início e seu término, respeitando a ordem observável das operações concluídas. É uma garantia útil para saldo ou reserva exclusiva, porém pode exigir coordenação entre nós. Na **consistência eventual**, se novas escritas cessarem e a comunicação se recuperar, as réplicas tendem a convergir para o mesmo valor; antes disso, leituras podem divergir. Consistência **causal** preserva a ordem de causa e efeito: se uma atualização depende de outra, observadores não devem ver o efeito antes da causa, embora operações sem relação causal possam aparecer em ordens diferentes.\n\n> **Siglas e termos deste capítulo**\n> - **CAP**: Consistency, Availability, Partition tolerance — consistência, disponibilidade e tolerância a partições.\n> - **Partição de rede**: perda ou atraso extremo de comunicação que separa grupos de nós.\n> - **Quórum**: quantidade mínima de participantes cuja resposta autoriza uma decisão.\n> - **Consenso**: acordo de nós sobre um valor, comando ou ordem de registro.\n> - **Linearizabilidade**: garantia de que operações parecem ocorrer atomicamente numa ordem real compatível com seu tempo.\n\n### CAP lido no cenário de partição\n\nO teorema CAP considera três propriedades: consistência, disponibilidade e tolerância a partições. Quando há partição de rede, um serviço distribuído que precisa tolerá-la enfrenta uma escolha para as operações afetadas: pode rejeitar ou bloquear solicitações para não devolver um estado incompatível, ou pode responder sem esperar todas as partes e aceitar que as respostas sejam temporariamente inconsistentes. A decisão é sobre o comportamento **durante a partição**, não uma regra de que todo sistema só pode possuir duas propriedades em qualquer situação.\n\nEm uma arquitetura **CP**, o serviço preserva consistência em operações coordenadas e pode deixar de responder em uma parte isolada que não tem quórum. Em uma arquitetura **AP**, componentes podem continuar respondendo durante a separação, aceitando convergência posterior e resolução de conflitos quando aplicável. Essas letras são simplificações didáticas: a garantia real depende da operação, do protocolo e da configuração.\n\nO consenso permite que réplicas concordem sobre uma sequência de comandos. Protocolos como Raft elegem um líder e replicam registros; para confirmar uma decisão, o líder precisa do quórum definido pelo grupo. Com três membros, maioria é dois; com cinco, é três. Um grupo que perde a maioria não deve aceitar escritas como se houvesse acordo, pois dois lados independentes poderiam criar histórias incompatíveis. A eleição de um líder organiza a coordenação, mas não torna a rede infalível nem remove o custo de latência.\n\n### Como cai na prova\n\n- CAP discute o compromisso entre consistência e disponibilidade quando existe uma partição, assumindo que o serviço tolera a partição.\n- Quórum é maioria ou limiar configurado no protocolo, não necessariamente unanimidade.\n- Consistência eventual admite leituras antigas temporárias; não significa que réplicas nunca convergem.\n- Líder e consenso estabelecem uma ordem comum para operações, mas a perda do quórum limita a capacidade de confirmar novas escritas."
+    },
+    {
+      "title": "4. Mensagens, resiliência e operação",
+      "markdown": "### Comunicação assíncrona e mensageria\n\nEm comunicação síncrona, um serviço chama outro e aguarda uma resposta. A dependência temporal entre chamador e chamado aumenta: se o destino demora, os recursos do chamador podem ficar ocupados. Em comunicação assíncrona, o produtor publica uma mensagem ou evento num intermediário e continua; um consumidor processa depois. O intermediário desacopla temporalmente as partes e pode armazenar mensagens durante uma indisponibilidade, desde que sua retenção e capacidade sejam adequadas.\n\nEm sistemas de fila, uma mensagem costuma ser entregue a um consumidor do grupo de trabalho. Em publicação/assinatura, vários grupos podem receber cópias lógicas do mesmo evento, cada qual mantendo seu próprio progresso. Em Kafka, tópicos são divididos em partições, consumidores de um mesmo grupo repartem partições e o offset registra a posição de leitura. Reprocessar mensagens é possível; por isso, consumidores devem considerar duplicatas e tornar operações repetíveis quando necessário.\n\n> **Siglas e termos deste capítulo**\n> - **Produtor**: componente que envia mensagens ou eventos.\n> - **Consumidor**: componente que lê e processa mensagens.\n> - **Broker**: serviço intermediário que recebe, mantém e encaminha mensagens.\n> - **Offset**: posição de um registro numa partição ordenada.\n> - **Idempotência**: repetir a mesma operação produz o mesmo efeito final que executá-la uma vez.\n> - **Backpressure**: mecanismo para reduzir ou controlar o envio quando o consumidor não acompanha o fluxo.\n\n### Entrega e repetição segura\n\nEntrega **no máximo uma vez** evita reentrega, mas uma falha pode fazer a mensagem não ser processada. Entrega **pelo menos uma vez** repete até haver confirmação, protegendo contra perda em certos fluxos, mas pode duplicar processamento se a confirmação se perder. “Exatamente uma vez” precisa ser delimitado: uma plataforma pode oferecer transação e deduplicação dentro de seu próprio fluxo, mas uma gravação externa, como enviar uma cobrança a outro sistema, exige que esse destino coopere ou que a aplicação implemente idempotência.\n\nUm identificador de operação pode ser registrado junto ao efeito para que uma repetição seja reconhecida. Outra técnica é confirmar o offset somente depois de persistir o resultado. A ordem entre efeito e confirmação define o risco: confirmar primeiro pode perder trabalho se houver falha; persistir primeiro pode repetir o efeito se a confirmação não ocorrer. Transações que agrupam saída e posição de leitura resolvem esse intervalo quando ambas pertencem ao mesmo sistema transacional.\n\n### Projetar para falhas e medir o serviço\n\n**Redundância** remove pontos únicos de falha, mas só ajuda se componentes redundantes não compartilharem a mesma dependência vulnerável. Réplicas na mesma zona, ligadas à mesma energia ou ao mesmo roteador, podem falhar juntas. **Isolamento de falhas** limita o alcance de um problema; limites de concorrência, filas, timeouts, circuit breakers e capacidade reservada ajudam a impedir que uma dependência lenta derrube serviços vizinhos. Retentativas devem ter limite e espera progressiva para não amplificar uma sobrecarga.\n\nMonitore latência, taxa de erro, volume, saturação e atraso de replicação ou de fila. Alta disponibilidade significa responder no tempo esperado com resultado correto; responder rapidamente com dado incorreto não é sucesso. Um objetivo de nível de serviço (SLO) traduz expectativa mensurável, por exemplo uma proporção de requisições bem-sucedidas sob determinado limite de latência.\n\n### Como cai na prova\n\n- Mensageria desacopla produtor e consumidor, mas não elimina duplicidade, atraso ou falha do broker.\n- “Pelo menos uma vez” permite reentrega; idempotência reduz o dano de processar de novo.\n- Réplica em domínio de falha distinto e monitoramento de dependências ajudam a continuidade; quantidade de nós sozinha não garante disponibilidade.\n- Retentativa ilimitada pode aumentar a carga justamente quando o serviço já está degradado."
+    }
+  ],
+  "summary": "Sistemas distribuídos reúnem nós independentes que cooperam por mensagens numa rede sujeita a atrasos e falhas parciais. A escala horizontal acrescenta capacidade; particionamento divide dados e replicação mantém cópias. Réplicas podem divergir temporariamente conforme o modelo de consistência. CAP descreve, durante uma partição de rede, o compromisso entre responder e preservar consistência; protocolos de consenso usam líderes e quóruns para ordenar decisões. Filas e logs desacoplam produtores e consumidores, mas reentregas exigem idempotência e confirmação cuidadosa. Redundância, isolamento, limites de retentativa e observabilidade sustentam resiliência.",
+  "flashcards": [
+    {
+      "front": "O que caracteriza um sistema distribuído?",
+      "back": "Nós independentes cooperam e trocam mensagens por uma rede para oferecer um serviço comum, sem memória compartilhada global."
+    },
+    {
+      "front": "O que é falha parcial?",
+      "back": "Um componente falha ou fica isolado enquanto outros componentes do sistema continuam operando."
+    },
+    {
+      "front": "Por que timeout não prova que o servidor falhou?",
+      "back": "A resposta pode estar atrasada, a rede pode ter perdido a mensagem ou o pedido pode ter sido processado sem a resposta chegar."
+    },
+    {
+      "front": "Qual a diferença entre escala vertical e horizontal?",
+      "back": "Vertical aumenta recursos de um nó; horizontal acrescenta nós para distribuir processamento, carga ou cópias."
+    },
+    {
+      "front": "O que faz o particionamento de dados?",
+      "back": "Divide o conjunto de dados em partes atribuídas a nós distintos, favorecendo capacidade e processamento paralelo."
+    },
+    {
+      "front": "O que faz a replicação?",
+      "back": "Mantém cópias do mesmo dado ou estado em mais de um nó para apoiar tolerância a falhas e, conforme o desenho, leituras."
+    },
+    {
+      "front": "Replicação e particionamento são equivalentes?",
+      "back": "Não. Particionamento separa partes diferentes; replicação mantém cópias de uma parte."
+    },
+    {
+      "front": "O que significa consistência eventual?",
+      "back": "Se as escritas cessarem e a comunicação se recuperar, as réplicas tendem a convergir, embora possam divergir temporariamente."
+    },
+    {
+      "front": "Em que situação CAP coloca o compromisso central?",
+      "back": "Durante uma partição de rede, para operações afetadas, entre responder e preservar consistência."
+    },
+    {
+      "front": "Para que serve um quórum?",
+      "back": "Define o limiar de participantes que precisa apoiar uma operação ou decisão para o protocolo confirmá-la."
+    },
+    {
+      "front": "O que é um offset num log de mensagens?",
+      "back": "A posição de um registro dentro de uma partição ordenada, usada pelo consumidor para acompanhar ou retomar a leitura."
+    },
+    {
+      "front": "Qual o risco de entrega pelo menos uma vez?",
+      "back": "Uma mensagem pode ser processada mais de uma vez quando a confirmação se perde ou o consumidor reinicia."
+    },
+    {
+      "front": "Como idempotência ajuda no consumo repetido?",
+      "back": "Faz com que repetir uma operação produza o mesmo efeito final, evitando duplicar o resultado de negócio."
+    },
+    {
+      "front": "O que é isolamento de falhas?",
+      "back": "Conter o impacto de uma falha num limite previsto, impedindo que uma dependência derrube partes não relacionadas."
+    },
+    {
+      "front": "Qual diferença entre mensagem e chamada síncrona?",
+      "back": "Uma mensagem pode ser armazenada e processada depois; a chamada síncrona aguarda resposta do destino."
+    },
+    {
+      "front": "Por que medir atraso de fila?",
+      "back": "Ele revela se os consumidores estão ficando para trás e ajuda a distinguir serviço disponível de processamento oportuno."
+    },
+    {
+      "front": "O que significa líder num protocolo de replicação?",
+      "back": "Nó que coordena ou ordena certas operações e cuja decisão precisa respeitar as regras de replicação e quórum."
+    },
+    {
+      "front": "Por que uma chave de partição mal escolhida é perigosa?",
+      "back": "Pode concentrar dados e solicitações em poucas partições, criando gargalos e desequilíbrio de carga."
+    },
+    {
+      "front": "O que é backpressure?",
+      "back": "Controle do ritmo de envio ou produção quando o consumidor não consegue acompanhar o volume recebido."
+    },
+    {
+      "front": "O que deve fazer uma retentativa segura?",
+      "back": "Ter limite e espera progressiva, evitando amplificar a sobrecarga, e proteger operações contra efeitos duplicados."
+    }
+  ],
+  "tips": [
+    "Separe as funções: particionar distribui subconjuntos; replicar duplica uma parte para outros nós.",
+    "Leia CAP no recorte certo: a tensão entre consistência e disponibilidade aparece durante uma partição de rede.",
+    "Se a resposta remota some, considere que o pedido pode ter sido executado; pense em chave de idempotência.",
+    "Garantia de ordem em log costuma ser por partição; não conclua que há ordem total entre partições distintas.",
+    "Para calcular quórum majoritário, use mais da metade dos membros: três exigem dois; cinco exigem três.",
+    "Ao avaliar alta disponibilidade, procure dependências compartilhadas e domínios de falha, não só a contagem de réplicas."
+  ],
+  "traps": [
+    "Timeout não é prova de falha do servidor: a rede ou a resposta também pode ter falhado.",
+    "Consistência eventual não quer dizer divergência permanente; prevê convergência quando as atualizações e a comunicação estabilizam.",
+    "Uma cópia de segurança não é a mesma coisa que uma réplica online; replicação pode copiar também exclusões ou corrupção.",
+    "Entrega pelo menos uma vez não garante processamento único; a mesma mensagem pode ser recebida de novo.",
+    "Um líder não pode confirmar sozinho qualquer operação num protocolo de quórum se os membros necessários estiverem inacessíveis.",
+    "Acrescentar nós não elimina gargalos se todos dependem do mesmo banco, rede ou serviço central."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o caminho de um pedido remoto e dois pontos em que ele pode falhar.",
+      "answer": "O cliente envia uma mensagem pela rede, o serviço remoto processa e devolve uma resposta. A solicitação ou a resposta pode se perder ou atrasar, e o processo remoto pode falhar antes ou depois do efeito."
+    },
+    {
+      "question": "Compare replicação síncrona e assíncrona no momento de confirmar uma escrita.",
+      "answer": "Na síncrona, a confirmação pode aguardar réplicas; isso aumenta coordenação e latência. Na assíncrona, o nó responde antes de todas as cópias acompanharem, podendo haver atraso ou perda de escrita recente numa falha."
+    },
+    {
+      "question": "Explique CAP usando uma rede que separa dois grupos de nós.",
+      "answer": "Com a partição, se o serviço precisa tolerar a separação, operações afetadas podem ser rejeitadas ou aguardadas para preservar consistência, ou podem receber resposta com risco de estado divergente para priorizar disponibilidade."
+    },
+    {
+      "question": "Um consumidor grava a saída e cai antes de confirmar o offset. O que pode ocorrer?",
+      "answer": "Após reiniciar, poderá reler a mensagem e repetir a saída. Confirmação transacional ou operação idempotente pode impedir que a repetição duplique o efeito."
+    },
+    {
+      "question": "Como redundância e isolamento atuam em falhas diferentes?",
+      "answer": "Redundância oferece outro componente capaz de assumir uma função; isolamento limita a propagação do defeito para outros componentes e usuários."
+    },
+    {
+      "question": "Por que consumidores do mesmo grupo podem processar partições em paralelo, mas não uma mesma partição simultaneamente como se fossem uma única sequência?",
+      "answer": "A atribuição de partições reparte o trabalho do grupo; cada partição mantém um log ordenado e seu progresso. A ordem entre partições independentes não é uma ordem global."
+    },
+    {
+      "question": "O que uma partição quente revela sobre a chave de distribuição?",
+      "answer": "Uma chave concentra muitos registros ou acessos num mesmo shard, causando desequilíbrio; rever a estratégia ou aumentar a granularidade pode distribuir melhor a carga."
+    },
+    {
+      "question": "Como explicar que uma plataforma tenha suporte a transações sem garantir exatamente uma vez em todo efeito externo?",
+      "answer": "A transação pode abranger apenas o log e o offset internos da plataforma. Um destino externo precisa participar da coordenação ou aceitar idempotência para evitar repetição fora daquele limite."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confundir particionamento com replicação",
+      "summary": "Particionamento entrega subconjuntos diferentes a nós distintos; replicação mantém cópias do mesmo dado. Uma arquitetura pode combinar os dois mecanismos."
+    },
+    {
+      "key": "e2",
+      "title": "Interpretar CAP como regra abstrata de duas propriedades",
+      "summary": "A decisão relevante ocorre quando existe partição: operações afetadas precisam escolher entre resposta disponível e garantia consistente, considerando que a rede partida deve ser tolerada."
+    },
+    {
+      "key": "e3",
+      "title": "Supor que repetição significa execução única",
+      "summary": "Repetir até obter confirmação tende a oferecer entrega pelo menos uma vez. Sem idempotência ou transação que cubra o efeito e a confirmação, duplicidades são possíveis."
+    },
+    {
+      "key": "e4",
+      "title": "Tratar timeout como falha confirmada",
+      "summary": "O cliente não sabe se o servidor recebeu e executou o pedido. A resposta pode ter sido perdida depois do efeito, exigindo consulta ou repetição segura."
+    },
+    {
+      "key": "e5",
+      "title": "Supor que disponibilidade decorre da quantidade de máquinas",
+      "summary": "Nós redundantes podem compartilhar rede, energia, região ou dependência central; domínios de falha e isolamento determinam se as cópias conseguem assumir o serviço."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma API recebe uma solicitação, o servidor executa a operação, mas a resposta se perde. O cliente observa timeout. Qual conclusão é tecnicamente segura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A operação pode ter sido concluída sem que a confirmação chegasse ao cliente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O servidor certamente caiu antes de executar qualquer instrução da solicitação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O timeout remove automaticamente o efeito da operação no servidor remoto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A rede garante que uma solicitação sem resposta nunca chegou ao destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O cliente pode repetir sem risco, pois pedidos remotos são sempre idempotentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O timeout limita a espera do cliente, mas não informa em que ponto a comunicação falhou. A execução pode ter ocorrido antes da perda da resposta; por isso, operações com efeitos precisam de consulta ou mecanismo idempotente antes de repetição cega.",
+      "section": "1. Nós, comunicação e falhas parciais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num sistema composto por vários processos independentes, um nó fica inacessível enquanto outros seguem atendendo solicitações. Qual conceito descreve melhor a situação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escala vertical, pois os processos ativos receberam mais memória local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Falha parcial, porque parte do conjunto falhou sem parada total.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Consistência causal, pois todas as mensagens chegaram na ordem original.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Particionamento de dados, pois todo registro foi copiado para cada processo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transparência de localização, pois o nó inacessível foi removido do código.",
+          "correct": false
+        }
+      ],
+      "explanation": "Falha parcial é característica relevante de sistemas distribuídos: um componente pode parar ou ficar isolado enquanto os demais ainda funcionam. Isso obriga a desenhar detecção, recuperação e limites para que o problema não se propague.",
+      "section": "1. Nós, comunicação e falhas parciais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização troca uma máquina por outra com mais memória e mais processadores, mantendo o mesmo número de nós. Que forma de expansão foi usada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Replicação, porque dados passaram a existir em duas regiões distintas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escala horizontal, porque mais servidores dividiram as solicitações recebidas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Particionamento, porque cada tabela foi atribuída a um nó diferente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escala vertical, porque foram ampliados recursos de uma máquina existente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Consenso, porque os processos agora elegem o servidor com maior memória.",
+          "correct": false
+        }
+      ],
+      "explanation": "Escala vertical consiste em ampliar CPU, memória ou outros recursos do próprio nó. Escala horizontal adicionaria nós ao conjunto; replicação e particionamento são estratégias de dados e não descrevem a troca por uma máquina mais potente.",
+      "section": "2. Escala, particionamento e replicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela de pedidos é dividida por faixa de identificadores entre quatro servidores, e cada servidor armazena um subconjunto distinto. Qual mecanismo foi aplicado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Consistência eventual, porque as cópias ainda não convergiram entre si.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Replicação síncrona, pois quatro nós confirmam cada atualização recebida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Particionamento, pois o conjunto foi separado em subconjuntos atribuídos a nós.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Balanceamento de leitura, pois todos os nós recebem os mesmos registros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Consenso distribuído, porque um líder ordena os identificadores da tabela.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada servidor guarda uma parte diferente da tabela, caracterizando particionamento ou sharding. Replicação seria manter cópias iguais de uma parte; o enunciado não informa cópias nem atraso de convergência.",
+      "section": "2. Escala, particionamento e replicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um tópico de eventos armazena cada registro numa partição ordenada. Uma aplicação usa várias partições independentes. Qual afirmação sobre ordem é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Há ordem garantida entre todos os registros de todas as partições do tópico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A ordem dentro de uma partição não depende do funcionamento dos consumidores.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A partição elimina a necessidade de identificar a posição de cada registro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eventos de partições diferentes sempre recebem o mesmo número de sequência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ordem local desaparece quando dois consumidores leem o mesmo tópico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um log de partição fornece sequência local, com offsets que identificam as posições. Partições diferentes avançam independentemente; sem coordenação adicional não se deve inferir uma ordem global entre seus registros.",
+      "section": "2. Escala, particionamento e replicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Várias instâncias mantêm cópias do mesmo estado para que uma possa assumir quando outra falhar. Que técnica descreve diretamente essa organização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Backpressure, com redução do ritmo de gravação de todos os clientes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sharding, com cada cópia contendo somente clientes diferentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escala vertical, com processadores adicionais dentro de um único servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Consistência causal, com eventos independentes guardados em filas separadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Replicação, com cópias do mesmo estado distribuídas entre nós.",
+          "correct": true
+        }
+      ],
+      "explanation": "Replicação mantém cópias de dados ou estado em nós diferentes, criando possibilidade de continuidade após falha. A disponibilidade efetiva ainda depende de atualização das cópias, detecção e mecanismo seguro de promoção.",
+      "section": "2. Escala, particionamento e replicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante uma partição de rede, um banco escolhe responder aos clientes de cada lado, ainda que as réplicas possam divergir temporariamente. Como essa escolha é usualmente descrita em CAP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "CP, pois cada lado rejeita operações sem um quórum comum.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "CA, pois partições deixam de ser consideradas pelo modelo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "AP, pois a prioridade é responder apesar da separação dos nós.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "AC, pois consistência e disponibilidade dispensam comunicação entre cópias.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Raft, pois o líder confirma escritas independentes em cada lado isolado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A descrição corresponde à prioridade de disponibilidade e tolerância à partição, resumida como AP, admitindo consistência mais relaxada como convergência eventual. A sigla simplifica as escolhas reais, que dependem das operações e do protocolo adotado.",
+      "section": "3. Consistência, CAP e consenso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um protocolo de consenso tem cinco membros e exige maioria estrita para confirmar um registro. Quantos votos, no mínimo, formam o quórum?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dois votos, pois metade dos membros basta quando há um líder eleito.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Três votos, porque o conjunto precisa superar metade de cinco membros.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Quatro votos, pois o quórum deve tolerar duas falhas simultaneamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cinco votos, já que todos os participantes devem confirmar cada registro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um voto, desde que o membro escolhido tenha recebido a última gravação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Maioria estrita de cinco é três. Esse quórum permite avançar mesmo com até dois membros indisponíveis, desde que os três restantes consigam comunicar-se e o protocolo continue válido.",
+      "section": "3. Consistência, CAP e consenso",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço responde às leituras usando réplicas que recebem gravações alguns instantes depois do nó principal. Qual efeito um cliente pode observar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cliente não poderá ler nada até que todas as réplicas sejam apagadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A leitura será sempre linearizável, pois toda réplica guarda os mesmos dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O atraso transforma automaticamente o particionamento em consistência causal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A replicação assíncrona faz cada cópia criar uma gravação independente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A leitura pode mostrar um valor antigo até a propagação alcançar a réplica.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma réplica atrasada ainda não recebeu necessariamente a atualização recente, portanto pode responder com estado obsoleto. Ler do líder ou esperar uma confirmação de propagação pode alterar a garantia e o custo percebido.",
+      "section": "2. Escala, particionamento e replicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem foi processada, mas o consumidor caiu antes de registrar o offset concluído. Ao reiniciar, ele pode receber o mesmo registro novamente. Qual característica reduz a duplicação do efeito de negócio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Particionar o tópico em mais unidades para separar o evento repetido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar operação idempotente, para que o reprocessamento não duplique o efeito.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Confirmar sempre o offset antes de processar qualquer conteúdo recebido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar comunicação assíncrona por chamada remota sem timeout configurado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar todas as réplicas do broker para impedir nova entrega.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando a mensagem pode ser relida, idempotência faz a repetição resultar no mesmo estado final, por exemplo usando uma chave única de operação. Confirmar antes de processar reduz duplicatas, mas abre risco de perder o trabalho se houver falha.",
+      "section": "4. Mensagens, resiliência e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço de fila permite que consumidores busquem registros quando têm capacidade, em vez de enviar cada registro diretamente no instante da produção. Qual benefício de projeto está mais associado a esse mecanismo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Eliminar atrasos de rede entre produtor e consumidor em qualquer cenário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar uma ordem global obrigatória entre tópicos e grupos independentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desacoplar temporalmente produtores e consumidores e suavizar picos de carga.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Garantir que cada evento externo seja processado uma única vez sem cooperação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dispensar monitoramento de capacidade porque a fila é ilimitada por definição.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fila pode armazenar trabalho até que o consumidor esteja pronto, desacoplando o ritmo do produtor do ritmo de processamento. Ela não elimina falhas nem tem capacidade ilimitada; tamanho, retenção e atraso precisam ser acompanhados.",
+      "section": "4. Mensagens, resiliência e operação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação de compra recebe um identificador único. Se a mesma solicitação for reenviada, o sistema consulta o identificador e evita criar uma segunda compra. Que propriedade foi implementada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Disponibilidade, porque qualquer nó isolado pode confirmar a compra.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Replicação, porque cada compra é armazenada em todos os bancos do sistema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Backpressure, porque o consumidor reduz o ritmo de novas solicitações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Idempotência, pois repetir a operação não repete seu efeito lógico.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Particionamento, já que o identificador divide compras por intervalo numérico.",
+          "correct": false
+        }
+      ],
+      "explanation": "O identificador permite reconhecer uma repetição e devolver o resultado já associado à operação em vez de criar outro efeito. Essa estratégia torna mais segura a recuperação após resposta perdida e retentativa de cliente.",
+      "section": "4. Mensagens, resiliência e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma requisição a uma dependência lenta mantém muitas conexões ocupadas e faz outros serviços também atrasarem. Qual medida ajuda a conter a propagação da falha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar a espera de cada chamada até que a dependência eventualmente responda.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover os limites de concorrência para aceitar todo o tráfego sem restrição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar métricas para evitar carga extra nos serviços dependentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Repetir cada chamada sem intervalo e em todas as instâncias disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar timeout, limite de concorrência e isolamento para proteger serviços vizinhos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Limites de espera e concorrência evitam que pedidos presos consumam indefinidamente os recursos dos chamadores. Junto de isolamento e retentativas limitadas, essas medidas reduzem o risco de uma falha local produzir uma cascata.",
+      "section": "4. Mensagens, resiliência e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao parar de receber novas escritas e restaurar comunicação entre nós, as cópias de um banco convergem para o mesmo valor final. A garantia descrita é de consistência eventual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Consistência eventual permite divergência temporária durante propagação ou desconexão, mas prevê convergência quando as atualizações cessam e a comunicação necessária volta a funcionar.",
+      "section": "3. Consistência, CAP e consenso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma partição de rede ocorre quando grupos de nós deixam de trocar mensagens de forma confiável. Essa situação pode obrigar o sistema a ajustar suas garantias de resposta e consistência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Uma partição pode impedir que nós comparem estado ou formem quórum. Sistemas precisam decidir se rejeitam operações sem coordenação ou se respondem aceitando divergência temporária.",
+      "section": "3. Consistência, CAP e consenso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um grupo de três membros que usa maioria precisa de todos os três disponíveis para confirmar qualquer decisão, pois cada membro armazena uma cópia do estado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Maioria de três é dois, portanto o grupo pode tomar decisões com um membro indisponível, desde que os dois restantes estejam operacionais e cumpram o protocolo de consenso.",
+      "section": "3. Consistência, CAP e consenso",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Escala horizontal significa acrescentar máquinas ou instâncias para repartir carga, enquanto escala vertical amplia recursos de um nó já existente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A distinção se refere à forma de ampliar capacidade: mais nós caracteriza expansão horizontal; mais CPU, memória ou recursos no mesmo nó é expansão vertical.",
+      "section": "2. Escala, particionamento e replicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Particionamento e replicação designam o mesmo mecanismo, pois ambos consistem em distribuir cópias completas dos dados por vários servidores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Particionamento separa subconjuntos de dados entre nós; replicação cria cópias do mesmo conjunto ou de uma mesma partição. Os mecanismos podem ser usados juntos, mas não são sinônimos.",
+      "section": "2. Escala, particionamento e replicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o cliente excedeu o tempo limite de espera, fica provado que o servidor remoto não recebeu nem executou a operação enviada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O pedido pode ter chegado e sido executado, mas a resposta pode ter sido perdida ou atrasada. Timeout expressa a decisão do cliente de parar de aguardar, não prova o resultado remoto.",
+      "section": "1. Nós, comunicação e falhas parciais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Consistência eventual admite que réplicas respondam com valores diferentes por um período, desde que possam convergir após a comunicação e a atualização estabilizarem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A garantia é de convergência eventual sob as condições previstas, e não de igualdade instantânea entre todas as cópias em todos os instantes.",
+      "section": "3. Consistência, CAP e consenso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando vários consumidores leem partições diferentes de um tópico, os offsets locais bastam para estabelecer uma ordem total entre todos os eventos do tópico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Cada partição mantém seu próprio log e sequência. Offsets de partições distintas não constituem, por si, uma sequência global que ordene todos os eventos entre si.",
+      "section": "2. Escala, particionamento e replicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na entrega pelo menos uma vez, o consumidor pode receber novamente um registro se o processamento ocorreu, mas a confirmação do offset não foi persistida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O consumidor retoma de uma posição anterior se não registrou progresso e pode repetir trabalho já feito. É por isso que deduplicação e idempotência são importantes nesse modelo.",
+      "section": "4. Mensagens, resiliência e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura CP resumida pelo teorema CAP, qualquer lado de uma partição deve continuar aceitando escritas para garantir consistência entre as cópias.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Priorizar consistência durante partição pode exigir recusar operações em nós sem quórum, pois aceitar escritas independentes nos dois lados pode criar histórias conflitantes.",
+      "section": "3. Consistência, CAP e consenso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada síncrona entre serviços cria dependência temporal, pois o cliente aguarda a resposta e pode manter recursos ocupados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O chamador depende do tempo de resposta do destino e pode manter conexões ou recursos ocupados enquanto espera. Mensageria assíncrona reduz essa dependência temporal, embora traga outros problemas operacionais.",
+      "section": "4. Mensagens, resiliência e operação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A replicação assíncrona pode responder antes que todas as cópias recebam uma atualização, reduzindo a espera e permitindo que uma réplica fique temporariamente atrasada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Na forma assíncrona, a confirmação não aguarda necessariamente a propagação completa. O compromisso é menor espera para a escrita, com risco de leitura desatualizada ou perda de atualização recente conforme o protocolo e a falha.",
+      "section": "2. Escala, particionamento e replicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação da plataforma de mensagens garante por si só que uma cobrança externa será realizada exatamente uma vez, ainda que o sistema de cobrança não participe da transação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A transação pode cobrir apenas registros e offsets dentro da plataforma. Para estender a garantia ao sistema externo, é necessária cooperação transacional ou uma estratégia idempotente no destino.",
+      "section": "4. Mensagens, resiliência e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois líderes isolados podem confirmar gravações independentes sem coordenação e ainda preservar automaticamente uma única história consistente para todo o banco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Líderes independentes podem aceitar histórias conflitantes, caracterizando risco de split brain. Protocolos de consenso e quórum restringem decisões para manter uma história compatível, mesmo que isso reduza disponibilidade durante a separação.",
+      "section": "3. Consistência, CAP e consenso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Retentativas ilimitadas e imediatas podem agravar uma sobrecarga, porque repetem solicitações enquanto a dependência já consome sua capacidade disponível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Cada repetição acrescenta trabalho e pode criar uma tempestade de solicitações. Limites, espera progressiva, jitter e circuit breaker ajudam a evitar que a tentativa de recuperação amplifique a falha.",
+      "section": "4. Mensagens, resiliência e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se os serviços têm várias instâncias, não é necessário avaliar se elas dependem da mesma rede, zona de disponibilidade ou armazenamento central.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Dependências compartilhadas podem falhar juntas e anular a redundância aparente. Distribuir réplicas por domínios de falha e isolar dependências ajuda a limitar interrupções correlacionadas.",
+      "section": "4. Mensagens, resiliência e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma plataforma de pedidos, a equipe precisa evitar que o evento de um mesmo cliente seja tratado em ordem diferente por consumidores paralelos. Qual desenho ajuda diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Copiar todos os eventos para consumidores sem offsets ou posição de leitura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Distribuir eventos pela chave do cliente, mantendo-os na mesma partição ordenada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Enviar cada evento a uma partição aleatória para maximizar a dispersão do cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o timeout dos clientes até que a ordenação global apareça.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar replicação assíncrona como garantia de ordem entre partições distintas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A mesma chave de cliente pode direcionar seus eventos à mesma partição, cuja sequência preserva a ordem local para o consumidor. O desenho não fornece necessariamente ordem global entre clientes diferentes e pode exigir atenção a chaves desbalanceadas.",
+      "section": "2. Escala, particionamento e replicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema com três membros usa Raft e perde comunicação com um deles. Os dois restantes ainda se comunicam. Qual resultado é compatível com maioria?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O grupo deve parar, pois consenso exige voto unânime dos três membros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O grupo remanescente pode manter quórum e confirmar operações conforme o protocolo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Cada membro precisa criar um líder independente para evitar latência de rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O nó isolado pode confirmar gravações sem replicação e reconciliá-las sem conflito.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A perda de um membro converte automaticamente o log em consistência eventual.",
+          "correct": false
+        }
+      ],
+      "explanation": "Dois de três formam a maioria. O grupo que mantém comunicação entre esses membros ainda pode confirmar entradas conforme as regras de eleição e replicação; o nó isolado não deve criar uma decisão concorrente válida.",
+      "section": "3. Consistência, CAP e consenso",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe escolhe uma chave de particionamento cujo valor mais comum pertence a grande parte das solicitações. Após a implantação, poucos nós recebem quase todo o tráfego. Qual diagnóstico é mais provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A chave produziu partições quentes e distribuição desigual de carga.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A replicação síncrona removeu todos os registros dos nós menos acessados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O teorema CAP converteu automaticamente o tráfego em chamadas síncronas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os offsets de cada nó passaram a compor uma única fila global ordenada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A idempotência concentrou os clientes num só broker por definição.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma chave de baixa cardinalidade ou muito concentrada pode direcionar grande volume para poucas partições. O resultado é desequilíbrio e gargalo, embora o sistema tenha vários nós; rever a chave ou o particionamento pode ser necessário.",
+      "section": "2. Escala, particionamento e replicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aplicativo deve confirmar a reserva de um único assento sem permitir duas reservas concorrentes para o mesmo lugar. Durante a perda de quórum, que postura favorece consistência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aceitar reservas em todo nó disponível e resolver duplicatas depois da viagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Permitir gravações locais sem coordenação e manter todas como definitivas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Rejeitar ou aguardar a operação que não pode ser confirmada com segurança.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ler qualquer réplica atrasada e tratá-la como estado global atualizado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover o identificador do assento para aumentar a disponibilidade imediata.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para impedir duas confirmações incompatíveis, o serviço pode exigir consenso ou quórum e não aceitar a operação sem coordenação. Isso reduz disponibilidade durante a falha, mas preserva a exclusividade do assento.",
+      "section": "3. Consistência, CAP e consenso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um consumidor lê eventos de uma fila, persiste uma cobrança e então confirma o offset. O processo pode cair entre a cobrança e a confirmação. Qual risco e mitigação combinam com esse fluxo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A transação interna desfaz automaticamente qualquer cobrança em outro sistema externo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O evento será perdido antes do processamento; aumentar a quantidade de partições evita isso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O offset já confirmado será lido de novo; desativar a persistência protege o efeito.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A cobrança pode se repetir; uma chave idempotente no destino ajuda a deduplicá-la.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A rede converte a cobrança em operação somente de leitura após a primeira tentativa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se o efeito externo ocorreu e o offset não foi confirmado, a mensagem volta a ser processada e a cobrança pode duplicar. Uma chave de idempotência reconhecida pelo sistema de cobrança, ou coordenação transacional que cubra ambos, trata esse intervalo.",
+      "section": "4. Mensagens, resiliência e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço aceita chamadas de todos os clientes enquanto uma réplica isolada continua gravando localmente. Ao restabelecer a rede, aparecem valores concorrentes para a mesma conta. Que decisão de projeto ficou sem tratamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A resolução de conflito e o compromisso entre disponibilidade e consistência na partição.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A seleção do tamanho de CPU vertical para cada cliente da conta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O ajuste de timeout do consumidor para esconder as duas gravações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O cálculo de offset local para criar uma ordem global retroativamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A redução do tamanho da mensagem para que a rede não separe os nós.",
+          "correct": false
+        }
+      ],
+      "explanation": "Aceitar escritas independentes nos dois lados mantém respostas disponíveis, mas exige estratégia de reconciliação e pode violar exclusividade ou invariantes. O projeto deve escolher garantias antes da falha e definir como conflitos são evitados ou resolvidos.",
+      "section": "3. Consistência, CAP e consenso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe põe réplicas em três zonas, mas todas dependem de um único balanceador sem redundância. Qual fraqueza permanece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A distância entre zonas elimina a necessidade de monitorar latência e erro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "As réplicas deixam de ser cópias porque estão distribuídas em zonas diferentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O sistema obtém disponibilidade perfeita, pois qualquer componente pode falhar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O balanceador produz consistência causal sem acompanhar as operações dos bancos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O balanceador é um ponto único de falha capaz de interromper o acesso ao conjunto.",
+          "correct": true
+        }
+      ],
+      "explanation": "O balanceador central continua sendo uma dependência cuja falha pode impedir clientes de alcançar réplicas saudáveis. Redundância deve cobrir o caminho completo, incluindo entrada, rede, dados e dependências compartilhadas.",
+      "section": "4. Mensagens, resiliência e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um produtor envia registros a um broker e os consumidores consultam o log em seus próprios ritmos, acompanhando offsets separados. Qual modelo descreve melhor esse fluxo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Consenso sem líder, pois offsets dispensam qualquer coordenação de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Chamada síncrona, pois o produtor espera cada consumidor terminar o processamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Replicação vertical, pois cada offset representa memória adicional de um servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Log de eventos com consumo por posição, permitindo que grupos avancem independentemente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Transação distribuída externa, já que toda leitura altera simultaneamente os destinos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um log mantém registros e posições de leitura, permitindo aos consumidores avançar e retomar independentemente conforme o desenho do grupo. Isso favorece desacoplamento, mas não significa que todos os destinos externos participem de uma transação.",
+      "section": "4. Mensagens, resiliência e operação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Uma plataforma oferece transações entre registros de saída e offsets de entrada dentro do próprio fluxo. Qual limite ainda deve ser considerado quando o consumidor chama um serviço de pagamento externo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O pagamento externo pode não participar da transação e requer idempotência ou coordenação própria.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A transação interna torna o serviço externo incapaz de falhar durante qualquer chamada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O offset substitui a confirmação do pagamento e elimina efeitos duplicados por definição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O broker desfaz automaticamente efeitos físicos realizados por APIs de terceiros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A leitura transacional cria uma ordem global entre todos os sistemas conectados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A atomicidade interna não atravessa automaticamente uma fronteira externa. Se o pagamento conclui e a confirmação do fluxo falha, a tentativa pode se repetir; o provedor deve aceitar chave idempotente ou participar de um protocolo coordenado.",
+      "section": "4. Mensagens, resiliência e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Um serviço apresenta latência crescente e fila acumulada, embora ainda responda a parte dos pedidos. Quais métricas ajudam a avaliar se o sistema está prestando saída oportuna?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Latência, taxa de erro, saturação e atraso ou profundidade da fila.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente o número de máquinas cadastradas, sem observar demanda ou resposta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas a quantidade de eventos produzidos, descartando o ritmo dos consumidores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O horário físico de um servidor, presumindo sincronização perfeita entre todos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O número de tabelas de configuração, mesmo que não representem operação real.",
+          "correct": false
+        }
+      ],
+      "explanation": "Latência e erros mostram a experiência de resposta; saturação revela recursos no limite; atraso de fila indica acúmulo de trabalho. Em conjunto, essas medidas ajudam a detectar perda de pontualidade e gargalos que a contagem de nós não mostra.",
+      "section": "4. Mensagens, resiliência e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Um aplicativo depende de outro serviço que pode ficar indisponível. Um limite de concorrência permite somente um número controlado de chamadas simultâneas e rejeita ou adia as excedentes. Qual objetivo essa política atende?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conter consumo de recursos e evitar que a dependência lenta esgote o chamador.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Forçar consistência eventual entre os bancos sem enviar atualizações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garantir entrega exatamente uma vez para qualquer evento recebido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar cópias de segurança dos dados em cada conexão aceita.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar a ordem global das mensagens ao remover as partições existentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O limite de concorrência protege recursos locais e reduz a propagação de lentidão quando a dependência não acompanha a demanda. A medida precisa ser combinada com timeouts e política adequada para rejeições ou recuperação.",
+      "section": "4. Mensagens, resiliência e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Uma aplicação lê uma atualização do líder e logo depois consulta uma réplica que ainda não recebeu a escrita. A segunda leitura pode retornar o estado anterior sem que o dado tenha sido apagado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A replicação assíncrona pode deixar uma cópia temporariamente atrás do líder. A escolha de ler da réplica reduz pressão sobre o nó principal, mas pode enfraquecer a garantia de leitura após escrita.",
+      "section": "2. Escala, particionamento e replicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um timeout de cliente e uma falha confirmada do processo remoto são observações equivalentes: ambos demonstram que a operação não produziu efeito.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Timeout só informa que a resposta não chegou no limite de espera. O processo remoto pode ter concluído o efeito ou ainda estar ativo; o cliente permanece incerto sobre o resultado até consultar ou repetir de forma segura.",
+      "section": "1. Nós, comunicação e falhas parciais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma réplica adicional garante maior tolerância a falhas mesmo quando todas as instâncias estão no mesmo domínio de energia e dependem do mesmo armazenamento compartilhado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Uma falha comum pode derrubar ou corromper todas as instâncias ao mesmo tempo. A redundância precisa considerar domínios independentes e dependências compartilhadas para produzir tolerância real.",
+      "section": "4. Mensagens, resiliência e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A garantia CAP de disponibilidade exige que toda resposta seja correta e recente, mesmo quando uma partição impede que os nós comparem seus estados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Na formulação usual, disponibilidade requer resposta não erro, enquanto consistência exige leitura do estado mais recente ou erro quando isso não pode ser garantido. Sob partição, priorizar resposta pode aceitar dado inconsistente.",
+      "section": "3. Consistência, CAP e consenso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um log distribuído, o consumidor persiste seu progresso antes de aplicar os efeitos da mensagem. Se cair logo depois, o grupo pode avançar sem que a mensagem tenha produzido o resultado esperado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Registrar a posição antes do efeito cria risco de at-most-once: após uma falha, o próximo consumidor começa depois da mensagem que não terminou de processar. A ordem de confirmação deve refletir o risco aceitável.",
+      "section": "4. Mensagens, resiliência e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Consistência causal exige que todas as operações concorrentes e sem relação de dependência sejam observadas numa única ordem total idêntica por todos os clientes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A garantia causal preserva precedências entre operações relacionadas por causa e efeito; operações concorrentes sem relação causal podem ser observadas em ordens diferentes. Ordem total é uma garantia mais forte.",
+      "section": "3. Consistência, CAP e consenso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um broker deixa produtores publicar sem esperar o consumidor terminar cada evento; o consumidor pode buscar os registros posteriormente. Esse arranjo reduz o acoplamento temporal, mas ainda exige capacidade e retenção adequadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O intermediário separa o tempo de produção do tempo de consumo e pode absorver picos, mas a fila pode acumular além da capacidade ou perder registros conforme sua política de retenção.",
+      "section": "4. Mensagens, resiliência e operação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A eleição de um líder num protocolo como Raft torna desnecessário o quórum, pois todas as decisões passam a depender exclusivamente do líder atual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O líder coordena, mas a confirmação de registros ainda depende da replicação e do quórum previstos pelo protocolo. Sem maioria, aceitar decisões independentes poderia comprometer a consistência do log.",
+      "section": "3. Consistência, CAP e consenso",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Falhas correlacionadas podem comprometer cópias em servidores distintos quando elas compartilham dependências, como energia, rede ou serviço central.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Separação física de processos não basta quando a falha de uma dependência comum afeta todos ao mesmo tempo. Arquitetura resiliente considera domínios de falha e dependências de ponta a ponta.",
+      "section": "4. Mensagens, resiliência e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Antes de promover uma réplica a líder, um grupo dividido verifica se o candidato possui os registros confirmados pelo quórum. Qual critério deve orientar essa escolha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Promover qualquer cópia disponível, pois cópias distribuídas sempre têm estado idêntico.", "correct": false },
+        { "key": "B", "text": "Aguardar que cada membro reinicie antes de examinar o estado persistido do grupo.", "correct": false },
+        { "key": "C", "text": "Apagar o registro do antigo líder e ordenar as escritas pela hora do cliente.", "correct": false },
+        { "key": "D", "text": "Aceitar gravações sem maioria para manter atendimento nos dois lados isolados.", "correct": false },
+        { "key": "E", "text": "Exigir que o protocolo escolha candidato elegível com o histórico exigido pelo quórum.", "correct": true }
+      ],
+      "explanation": "A eleição precisa respeitar o histórico replicado e as condições do protocolo, para evitar que um líder novo descarte registros já confirmados. Disponibilidade de uma cópia isolada, por si só, não a torna elegível.",
+      "section": "3. Consistência, CAP e consenso",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação é repetida após timeout e usa a mesma chave idempotente registrada pelo serviço. O serviço devolve o resultado anterior em vez de realizar um segundo efeito lógico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Uma chave de idempotência permite reconhecer que a tentativa repetida representa a mesma operação. O cliente consegue recuperar um resultado incerto sem duplicar o efeito de negócio.",
+      "section": "4. Mensagens, resiliência e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Kafka — Design",
+      "publisher": "Apache Software Foundation",
+      "reference": "Partições, chaves, consumo por offset, semânticas de entrega, transações e replicação por partição.",
+      "url": "https://kafka.apache.org/40/design/design/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "etcd FAQ — quorum and failure tolerance",
+      "publisher": "etcd",
+      "reference": "Liderança no Raft, quórum majoritário, tolerância a falhas e efeitos de perda de quórum.",
+      "url": "https://etcd.io/docs/v3.3/faq/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "CAP theorem",
+      "publisher": "Amazon Web Services",
+      "reference": "Definições de consistência, disponibilidade e tolerância a partições; escolha durante partições de rede.",
+      "url": "https://docs.aws.amazon.com/whitepapers/latest/availability-and-beyond-improving-resilience/cap-theorem.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Overview of the framework — Resilience analysis framework",
+      "publisher": "AWS Prescriptive Guidance",
+      "reference": "Redundância, capacidade, saída oportuna, resultado correto e isolamento de falhas em sistemas distribuídos.",
+      "url": "https://docs.aws.amazon.com/prescriptive-guidance/latest/resilience-analysis-framework/overview.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Kafka — Introduction",
+      "publisher": "Apache Software Foundation",
+      "reference": "Tópicos, partições, eventos com chave e distribuição das cópias em brokers.",
+      "url": "https://kafka.apache.org/42/documentation/",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

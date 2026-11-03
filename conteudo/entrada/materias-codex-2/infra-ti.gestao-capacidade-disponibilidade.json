@@ -1,0 +1,1691 @@
+{
+  "id": "infra-ti.gestao-capacidade-disponibilidade",
+  "subject": "Informática",
+  "title": "Gestão de capacidade e disponibilidade de infraestrutura de TI",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Gestão de capacidade e disponibilidade",
+    "Planejamento de capacidade, indicadores de utilização e desempenho e otimização de recursos de infraestrutura",
+    "Planejamento de capacidade de TI",
+    "Indicadores de utilização de infraestrutura",
+    "Indicadores de desempenho de serviços de TI",
+    "Otimização de recursos de infraestrutura",
+    "Capacidade e disponibilidade de serviços de TI",
+    "Dimensionamento de infraestrutura tecnológica",
+    "Monitoramento de capacidade computacional",
+    "Gestão de desempenho de infraestrutura"
+  ],
+  "scope": {
+    "covers": "Gestão e planejamento de capacidade e disponibilidade de infraestrutura de TI; tradução de demanda em CPU, memória, armazenamento, rede e limites de serviços; coleta de dados, tendências, picos e previsão; utilização, desempenho, latência, vazão, erros, disponibilidade, SLI, SLO e SLA; gargalos, capacidade residual, folga e limites; escala vertical e horizontal, provisionamento automático e programado; otimização, right-sizing, consolidação, filas, teste de carga, capacidade para contingência e recuperação; acompanhamento de custos e revisão contínua.",
+    "excludes": "Configuração específica de produtos, comandos de fabricantes, cálculo contratual de créditos de SLA, administração detalhada de bancos de dados e gestão de continuidade de negócio além do planejamento de recursos de infraestrutura."
+  },
+  "theoryTitle": "Prever demanda, manter desempenho e sustentar a disponibilidade",
+  "chapters": [
+    {
+      "title": "1. Capacidade: atender à demanda sem desperdício",
+      "markdown": "### O problema que este assunto resolve\n\nCapacidade é o volume de trabalho que a infraestrutura consegue processar mantendo os níveis de serviço esperados. Planejar capacidade é estimar os recursos necessários para a demanda atual e futura, e então providenciá-los a tempo. A Microsoft descreve esse planejamento como previsão das necessidades para alcançar metas de desempenho; ele deve anteceder mudanças previstas de uso, como sazonalidade, campanhas, novas versões e eventos.\n\nO dimensionamento não se resume à quantidade de servidores. Considere CPU, memória, armazenamento, IOPS, throughput de disco, banda de rede, conexões simultâneas, limites de API, licenças, cotas e dependências externas. A capacidade útil de um serviço pode ser limitada por qualquer elo da cadeia.\n\n> **Siglas e termos deste capítulo**\n> - **CPU**: processador; sua utilização indica quanto tempo de processamento está ocupado.\n> - **IOPS**: operações de entrada e saída por segundo em armazenamento.\n> - **Throughput**: volume de trabalho ou dados concluído por unidade de tempo.\n> - **Cota (quota)**: limite administrativo de consumo ou criação de recursos.\n> - **Gargalo**: componente que limita o desempenho do fluxo inteiro.\n\n### Do requisito ao recurso\n\nComece pelos requisitos de negócio: usuários simultâneos, transações, volume armazenado, horário crítico, tempo de resposta e impacto de falhas. Traduza-os para métricas técnicas. Por exemplo, aumento de usuários pode elevar requisições por segundo, conexões de banco, CPU e tráfego; guardar mais documentos aumenta ocupação e crescimento do armazenamento. Teste a cadeia inteira, pois ampliar o servidor de aplicação pouco ajuda se a fila, o banco ou a banda já for o limite.\n\n| Sinal observado | Pergunta de capacidade | Recurso ou ação a investigar |\n| --- | --- | --- |\n| CPU sustentada e fila de execução crescentes | Falta processamento ou há trabalho ineficiente? | CPU, paralelismo, algoritmo e escala de computação |\n| Memória alta, paginação ou encerramentos | O conjunto ativo cabe na memória? | Memória, vazamento, cache e limites por processo |\n| Disco cheio ou latência de leitura/escrita alta | Há espaço e taxa de I/O suficientes? | Capacidade, IOPS, throughput e política de retenção |\n| Descartes e retransmissões de rede | O caminho suporta o tráfego? | Banda, latência, perda, roteamento e balanceamento |\n\nCapacidade nominal não é capacidade segura. Reserve margem para variação, manutenção, falha de nó e tempo necessário para adicionar recursos. Uma plataforma que só atende à carga média pode falhar no pico ou durante recuperação.\n\n### Como cai na prova\n\n- Dimensionar é relacionar previsão de carga, metas e limites de todos os componentes; comprar mais CPU sem identificar o gargalo não é planejamento.\n- Subutilização contínua pode indicar excesso de provisionamento, enquanto saturação acompanhada de latência ou erros sugere falta de capacidade ou ineficiência.\n- Cota e capacidade física são diferentes: aumentar uma cota não cria automaticamente servidores, armazenamento ou banda disponíveis na região."
+    },
+    {
+      "title": "2. Medição, indicadores e previsão de demanda",
+      "markdown": "### O problema que este assunto resolve\n\nSem séries históricas, o time tende a reagir tarde ou a provisionar pelo pior caso o tempo todo. Colete telemetria de infraestrutura e aplicação, registre alterações e relacione os dados ao calendário de negócio. Para cargas existentes, examine histórico, padrões de uso, desempenho e períodos de pico; para novas cargas sem histórico, use estimativas de especialistas e pilotos/protótipos, depois atualize a previsão com medições reais.\n\n> **Siglas e termos deste capítulo**\n> - **RPS/TPS**: requisições ou transações concluídas por segundo.\n> - **P95/P99**: percentis de latência; por exemplo, P95 é o limite abaixo do qual caem 95% das observações.\n> - **SLI**: indicador mensurável de nível de serviço.\n> - **SLO**: objetivo definido para um SLI, como uma meta de disponibilidade ou latência.\n> - **SLA**: compromisso formal de serviço com o cliente, que pode ter consequência contratual.\n\n### Indicadores que explicam capacidade e experiência\n\nCPU, memória, espaço livre, IOPS, throughput, banda e conexões mostram pressão sobre recursos. RPS/TPS e profundidade de fila expressam carga processada ou acumulada. Latência e taxa de erro revelam a experiência e a confiabilidade percebidas. Disponibilidade mede se o serviço esteve acessível e funcional segundo uma definição e uma janela estabelecidas. Combine indicadores: CPU média baixa pode esconder um núcleo saturado; latência média aceitável pode esconder uma cauda P99 ruim; espaço livre atual não revela a velocidade de crescimento.\n\nEstabeleça uma linha de base em condições normais e meça também picos, falhas e tarefas de manutenção. A previsão usa tendências e fatores conhecidos, como crescimento orgânico, novas equipes, campanhas, atualização de software, substituição de equipamento e failover. Para cada hipótese, registre premissas, margem de incerteza e data de revisão. Não extrapole cegamente uma tendência linear se houver sazonalidade ou mudança de produto.\n\n| Indicador | Interpretação útil | Cuidado\n| --- | --- |\n| Utilização de CPU/memória | Fração do recurso ocupado no intervalo | Média pode mascarar picos e contenção\n| Latência P95/P99 | Experiência de solicitações mais lentas | Investigue cauda, dependências e volume da amostra\n| Throughput e taxa de erro | Trabalho concluído e falhas durante esse trabalho | Mais requisições não significa mais capacidade saudável\n| Disponibilidade | Proporção de tempo ou solicitações elegíveis com sucesso | Defina população, janela e exclusões explicitamente\n| Crescimento de armazenamento | Consumo e tempo até atingir limite | Considere retenção, réplica, cópia e crescimento de índices\n\nSLI é a medida; SLO é a meta interna ou operacional para ela; SLA é o compromisso contratual. A documentação Azure recomenda derivar metas de conversas entre áreas de negócio e técnica e refiná-las com monitoramento e testes.\n\n### Como cai na prova\n\n- Tendência histórica, horário de pico, carga por transação e atividades planejadas alimentam a previsão; uma fotografia instantânea não basta.\n- SLI, SLO e SLA não são sinônimos. Latência e erros podem compor um indicador de saúde mesmo quando CPU está baixa.\n- Percentis complementam médias: P99 alto pede análise das solicitações lentas, não apenas aumento indiscriminado de capacidade."
+    },
+    {
+      "title": "3. Disponibilidade, resiliência e capacidade de contingência",
+      "markdown": "### O problema que este assunto resolve\n\nDisponibilidade é a possibilidade de o usuário acessar e concluir a função esperada. Ela depende de mais do que manter um servidor ligado: rede, autenticação, DNS, balanceador, armazenamento, dependências e capacidade para absorver a carga após uma falha também importam. Um serviço pode responder a verificações superficiais e ainda estar indisponível para a jornada crítica do usuário.\n\n> **Siglas e termos deste capítulo**\n> - **MTTR**: tempo médio para restaurar um serviço após falha, conforme a definição adotada.\n> - **MTBF**: tempo médio entre falhas em um modelo de operação definido.\n> - **Failover**: transferência da função para componente ou local alternativo.\n> - **Redundância**: duplicação de componentes para reduzir dependência de um ponto único de falha.\n> - **RTO/RPO**: objetivos de tempo de recuperação e de perda de dados aceitável; não dimensionam sozinhos a capacidade.\n\n### Redundância precisa de recursos suficientes\n\nDuas instâncias não garantem continuidade se ambas dependem do mesmo armazenamento, zona, circuito, credencial ou limite de serviço. Identifique domínios de falha e dependências comuns. Em ativo-passivo, o nó de reserva precisa estar pronto para assumir a carga; em ativo-ativo, distribua solicitações e verifique se cada local pode aguentar a parte que recebe durante a falha do outro. Se o ambiente saudável não tiver folga, a redundância existe no desenho, mas o failover derruba o serviço por sobrecarga.\n\nTeste falha e recuperação, não apenas operação normal. Inclua consumo temporário de atualização, substituição e reconstrução de nós. A documentação de capacidade da Microsoft recomenda contabilizar expansão temporária durante operações de atualização e failover. Em nuvem, verificar acesso à região, zona, SKU, cota, dependências e testes recentes evita descobrir a restrição no momento da implantação ou recuperação.\n\nSLO deve refletir fluxo crítico e percepção do usuário; monitoramento de disponibilidade deve ter verificações que atravessem componentes relevantes. Uma porcentagem de uptime, isolada da janela e dos critérios de sucesso, pode ocultar falhas em uma função importante. O SLA é o contrato; um SLO orienta operação e decisões de engenharia.\n\n### Como cai na prova\n\n- Capacidade de contingência é a carga que o ambiente restante consegue suportar durante falha, somada ao tempo de expansão.\n- Réplicas na mesma zona ou com dependência comum podem falhar juntas; conte domínios de falha e teste failover.\n- Reduzir recursos para economizar sem preservar a carga de failover pode comprometer simultaneamente desempenho e disponibilidade."
+    },
+    {
+      "title": "4. Escala e otimização de recursos",
+      "markdown": "### O problema que este assunto resolve\n\nOtimizar é atender às metas com os recursos apropriados, retirando desperdício sem introduzir saturação ou indisponibilidade. Primeiro localize o gargalo e confirme a relação entre carga, indicador e recurso; depois escolha entre melhorar o código/consulta, ajustar configuração, redistribuir carga ou adicionar capacidade.\n\n> **Siglas e termos deste capítulo**\n> - **Scale-up/vertical**: aumentar recursos de uma instância existente.\n> - **Scale-out/horizontal**: acrescentar instâncias para dividir o trabalho.\n> - **Right-sizing**: ajustar o tamanho e a quantidade de recursos à demanda medida e prevista.\n> - **Autoscaling**: adicionar ou remover recursos automaticamente conforme regras.\n> - **Backpressure**: limitar ou desacelerar entrada quando a capacidade posterior não consegue acompanhar.\n\n### Escolher como escalar\n\nEscala vertical pode ser simples, mas tem limites de tamanho e pode exigir reinício ou manutenção. Escala horizontal pode aumentar paralelismo e resiliência, mas requer distribuição de carga, estado compartilhado ou externo, cotas e compatibilidade da aplicação com várias instâncias. Em ambos os casos, valide limites de SKU/serviço e o tempo de provisionamento. Não confunda escalabilidade com capacidade já disponível: novas instâncias podem levar tempo ou falhar por cota.\n\nUse regra programada para picos conhecidos e regra baseada em métrica/evento para variação incerta; podem ser combinadas. Configure limites mínimo e máximo, gatilhos de scale-out e scale-in, período de estabilização e margem entre limiares para evitar oscilação (flapping). Regras muito reativas podem adicionar instâncias depois que o pico já ocorreu ou removê-las antes da queda terminar. Eventos de escala devem registrar gatilho, recursos alterados e horário para que a política seja afinada.\n\nOtimizações comuns incluem consolidar cargas compatíveis, desligar ambientes ociosos, ajustar tamanho após observar uso, eliminar armazenamento sem retenção necessária, reduzir trabalho redundante, distribuir tráfego e limitar filas com backpressure. Compare custo e desempenho por unidade útil (por transação concluída, por usuário ou por volume), e mantenha margem para picos e falhas. Não use CPU isolada como gatilho se a demanda real estiver melhor representada por fila, concorrência ou transações.\n\n### Como cai na prova\n\n- Vertical amplia uma instância; horizontal aumenta instâncias. Nenhuma forma remove a necessidade de medir limites e testar aplicações.\n- Escala programada serve a padrões previsíveis; métrica/evento responde a mudanças observadas. Autoscaling pode precisar de folga enquanto provisiona.\n- Se trabalhadores rápidos sobrecarregam banco ou serviço dependente, adicionar consumidores piora o gargalo; reduza/controle entrada e dimensione a dependência."
+    },
+    {
+      "title": "5. Ciclo prático de planejamento e controle",
+      "markdown": "### O problema que este assunto resolve\n\nPlanejamento não é uma compra pontual nem uma planilha anual esquecida. É um ciclo: definir metas e criticidade, descobrir dependências, coletar linha de base, prever cenários, comparar com limites, escolher ações, testar, acompanhar e revisar. A Microsoft recomenda começar pela carga individual e expandir a análise para unidades e portfólios à medida que a operação cresce.\n\n> **Siglas e termos deste capítulo**\n> - **Baseline (linha de base)**: comportamento medido usado como referência de comparação.\n> - **Teste de carga**: simulação de volume esperado para medir comportamento e limites.\n> - **Teste de estresse**: exploração além da carga normal para revelar modo de falha e recuperação.\n> - **Headroom/folga**: capacidade não consumida, reservada para variação, falha ou tempo de escala.\n> - **IaC**: infraestrutura como código, configuração versionada e implantável.\n\n### Roteiro operacional\n\n1. Defina fluxos críticos, horários, metas de latência/disponibilidade e crescimento esperado com responsáveis de negócio e tecnologia.\n2. Mapeie componentes e limites: computação, memória, disco, rede, dependências, cota, região e tempo de aquisição/provisionamento.\n3. Colete dados limpos e representativos, incluindo picos, cauda de latência, falhas e tendências de crescimento.\n4. Projete cenário esperado, pico, crescimento acelerado e contingência. Para carga nova, faça piloto e atualize premissas.\n5. Compare demanda prevista com capacidade efetiva e folga; identifique o elo restritivo e custo de cada alternativa.\n6. Implemente otimização ou expansão, valide com teste de carga/recuperação e confira as metas em produção.\n7. Revise após mudança de produto, campanha, incidente, atualização ou tendência que altere demanda. Versione limites e políticas de escala junto à configuração.\n\nTeste a carga representativa, não apenas uma taxa média artificial: inclua concorrência, tamanhos de mensagem, aquecimento de cache, limites externos, falha de instância e redução de capacidade. Observe throughput, latência de cauda, erros, consumo e fila. Se custo, uso e qualidade são analisados juntos, é possível reduzir recursos ociosos sem consumir toda a folga operacional.\n\n### Como cai na prova\n\n- O ciclo liga requisitos, telemetria, previsão, decisão, teste e revisão; métrica sem ação ou sem meta não é gestão de capacidade completa.\n- Carga de failover, atualização e expansão temporária também consome cota e capacidade.\n- Ajuste de regra de escala e de limites deve ser testado e registrado; alteração manual não documentada pode ser sobrescrita ou gerar ambientes distintos."
+    }
+  ],
+  "summary": "Gestão de capacidade prevê e provê CPU, memória, armazenamento, rede, cotas e dependências para atender à demanda com desempenho e custo adequados. Use requisitos de negócio, histórico, sazonalidade, picos, crescimento e cenários de manutenção/failover; estabeleça linha de base e monitore utilização, throughput, latência, erros, filas, disponibilidade e crescimento. SLI é indicador medido, SLO é meta, SLA é compromisso contratual. Identifique gargalos e limites de serviço, região e cota; preserve folga para variação e recuperação. Escala vertical aumenta uma instância; horizontal adiciona instâncias. Combine regras programadas para demanda previsível e automáticas por métricas/eventos para alterações observadas, configurando mínimo, máximo, expansão e redução, margem e estabilização. Otimize com right-sizing, consolidação, revisão de armazenamento e código, sem remover capacidade necessária a picos ou contingência. Teste carga, estresse, falha e recuperação, registre eventos e revise as previsões continuamente.",
+  "flashcards": [
+    {
+      "front": "O que é planejamento de capacidade?",
+      "back": "Prever e prover os recursos necessários para que uma carga alcance as metas de desempenho e disponibilidade sob demanda atual e prevista."
+    },
+    {
+      "front": "Quais recursos entram na previsão?",
+      "back": "CPU, memória, armazenamento e I/O, rede, conexões, limites de serviço, cotas e dependências."
+    },
+    {
+      "front": "Por que a média de CPU pode enganar?",
+      "back": "Pode esconder picos, saturação de um núcleo ou contenção; combine percentis, filas, latência e métricas da aplicação."
+    },
+    {
+      "front": "O que é um gargalo?",
+      "back": "Componente que limita o desempenho ou vazão do fluxo completo, mesmo que outros componentes estejam folgados."
+    },
+    {
+      "front": "Que dados ajudam a prever demanda existente?",
+      "back": "Histórico de utilização, picos, padrões por horário, transações, latência, erros, crescimento e mudanças planejadas."
+    },
+    {
+      "front": "Como estimar capacidade para carga nova sem histórico?",
+      "back": "Use requisitos e julgamento especializado, faça piloto ou protótipo e substitua estimativas por telemetria observada."
+    },
+    {
+      "front": "O que é linha de base de desempenho?",
+      "back": "Medição representativa do comportamento normal, usada para comparar picos, mudanças e degradação."
+    },
+    {
+      "front": "O que mostra P95 de latência?",
+      "back": "O valor abaixo do qual se encontram 95% das observações; ajuda a entender a cauda da experiência."
+    },
+    {
+      "front": "Qual a diferença entre SLI, SLO e SLA?",
+      "back": "SLI mede; SLO define meta para a medida; SLA formaliza compromisso contratual com cliente."
+    },
+    {
+      "front": "Por que throughput deve ser analisado com erros?",
+      "back": "A vazão pode crescer enquanto aumentam falhas ou retrabalho; o throughput saudável é trabalho concluído corretamente."
+    },
+    {
+      "front": "O que é capacidade residual ou folga?",
+      "back": "Parcela não consumida reservada para picos, falha, atualização e tempo até uma expansão ficar pronta."
+    },
+    {
+      "front": "O que caracteriza scale-up?",
+      "back": "Aumentar CPU, memória ou outra dimensão de uma instância já existente."
+    },
+    {
+      "front": "O que caracteriza scale-out?",
+      "back": "Adicionar instâncias e dividir trabalho entre elas, observando estado, balanceamento, cota e dependências."
+    },
+    {
+      "front": "Quando regra programada de escala é útil?",
+      "back": "Quando a variação é previsível, como início de expediente, fechamento mensal ou campanha planejada."
+    },
+    {
+      "front": "Quando escala por métrica ou evento é útil?",
+      "back": "Quando a demanda varia de modo incerto e sinais observáveis, como CPU, fila ou requisições, refletem a carga."
+    },
+    {
+      "front": "O que é flapping em autoscaling?",
+      "back": "Alternância rápida de expansão e redução por limiares muito próximos ou regras sem estabilização."
+    },
+    {
+      "front": "Por que definir máximos e mínimos de instâncias?",
+      "back": "Delimita a faixa de operação, contém custos e evita que o autoscaling fique sem capacidade necessária ou cresça sem limite."
+    },
+    {
+      "front": "Por que capacidade de failover deve ser planejada?",
+      "back": "Após falha, o componente restante recebe mais carga; sem folga pode saturar e tornar indisponível o serviço redundante."
+    },
+    {
+      "front": "O que é right-sizing?",
+      "back": "Ajustar tamanho e quantidade de recursos à carga medida, metas, previsão e margem de contingência."
+    },
+    {
+      "front": "Para que serve teste de carga?",
+      "back": "Simula demanda representativa para medir desempenho, throughput, latência, erros, utilização e limites."
+    },
+    {
+      "front": "Que fatores temporários podem consumir capacidade?",
+      "back": "Atualizações, substituição, reconstrução de nós, migrações, onboarding de usuários e failover."
+    },
+    {
+      "front": "Por que CPU não é sempre o melhor gatilho de escala?",
+      "back": "A demanda pode aparecer primeiro como fila, conexões, latência ou taxa de mensagens; escolha um indicador ligado à carga real."
+    },
+    {
+      "front": "Como armazenar capacidade projetada?",
+      "back": "Registre pressupostos, cenários, limites, previsão, responsáveis e data de revisão junto aos dados e configurações de operação."
+    },
+    {
+      "front": "Cota aumentada significa capacidade física garantida?",
+      "back": "Não. Cota é limite administrativo; disponibilidade de capacidade depende também de região, SKU, zona e oferta efetiva."
+    }
+  ],
+  "tips": [
+    "Na previsão, percorra toda a cadeia: computação, memória, armazenamento, rede, dependências, cotas e tempo de provisionamento.",
+    "Cruze utilização com fila, latência e erro. Alta utilização sem degradação não prova gargalo, e média baixa não exclui pico local.",
+    "Separe scale-up (maior instância) de scale-out (mais instâncias) e confira se a aplicação suporta a opção escolhida.",
+    "Para padrão conhecido, programe expansão antes do pico; para variação incerta, use sinal de métrica ou evento e mantenha folga.",
+    "Trate failover e atualização como cenários de consumo adicional, não como eventos que ocorrem sem usar recursos.",
+    "A decisão boa relaciona meta, risco e custo por carga concluída e volta a ser revista quando a demanda muda."
+  ],
+  "traps": [
+    "Dizer que utilização média basta para dimensionar: picos, percentis, filas e falhas também precisam entrar na análise.",
+    "Confundir aumentar cota com garantir capacidade física disponível em qualquer região ou SKU.",
+    "Afirmar que redundância garante disponibilidade sem verificar dependências comuns e capacidade do ambiente sobrevivente.",
+    "Tratar escala horizontal como aumento dos recursos internos da mesma máquina, ou vertical como adição de réplicas.",
+    "Escalar consumidores por causa de fila crescente sem verificar se o banco ou serviço de destino suporta a vazão adicional.",
+    "Reduzir instâncias com base em baixa utilização atual sem testar pico, failover, latência de provisionamento e mínimo operacional."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como transformar uma meta de negócio em requisitos de capacidade mensuráveis?",
+      "answer": "Identifique fluxo e volume (usuários, transações, concorrência), meta de latência/disponibilidade e crescimento; mapeie os componentes envolvidos, traduza a carga em CPU, memória, I/O, banda, conexões e cotas; valide com telemetria e teste."
+    },
+    {
+      "question": "Quais dados analisaria antes de prever capacidade para um serviço em produção?",
+      "answer": "Histórico representativo, utilização, vazão, latência média e percentis, erro, filas, horários de pico, crescimento, dependências e alterações planejadas; inclua mudanças temporárias e cenários de falha."
+    },
+    {
+      "question": "Como estimar capacidade de sistema sem histórico operacional?",
+      "answer": "Use requisitos, dados análogos e avaliação de especialistas como hipóteses; rode piloto/protótipo em carga controlada, monitore e atualize a projeção com os resultados."
+    },
+    {
+      "question": "Como diferenciar indicador de recurso e indicador de experiência?",
+      "answer": "CPU, memória e I/O medem consumo/pressão; latência, sucesso, erro e disponibilidade descrevem o resultado percebido. Correlacione ambos para localizar o gargalo."
+    },
+    {
+      "question": "Explique SLI, SLO e SLA com um exemplo de latência.",
+      "answer": "O SLI é a distribuição de latência observada; o SLO é o limite/meta operacional acordado; o SLA é eventual compromisso formal assumido com o cliente e suas consequências."
+    },
+    {
+      "question": "Quando escolher escala vertical e quando horizontal?",
+      "answer": "Vertical quando ampliar uma instância atende ao limite e à janela operacional; horizontal quando o sistema pode dividir trabalho entre instâncias e requer maior elasticidade. Compare limites, estado, custo e dependências."
+    },
+    {
+      "question": "Como projetar e validar capacidade de contingência?",
+      "answer": "Defina falha relevante, estime a carga redirecionada e a folga do ambiente sobrevivente, considere tempo de provisionamento e cotas e teste failover com monitoramento de latência, erros e throughput."
+    },
+    {
+      "question": "Quais controles reduzem oscilação e risco em autoscaling?",
+      "answer": "Limites mínimo/máximo, regras de scale-out e scale-in, distância entre limiares, janela de estabilização, métrica ligada à demanda, folga enquanto a expansão ocorre e registro dos eventos."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Planejamento baseado em fotografia ou média",
+      "summary": "Capacidade é prevista com histórico, sazonalidade, picos, tendências, crescimento e cenários de atualização/falha; percentis, filas e erros complementam médias."
+    },
+    {
+      "key": "e2",
+      "title": "Indicadores de uso confundidos com qualidade",
+      "summary": "Utilização mede pressão de recurso; throughput, latência, erro e disponibilidade mostram resultados. SLI mede, SLO define meta e SLA é compromisso formal."
+    },
+    {
+      "key": "e3",
+      "title": "Gargalo e dependência ignorados",
+      "summary": "O fluxo é limitado pelo componente restritivo; adicionar CPU ou consumidores pode não ajudar se rede, armazenamento, banco, cota ou serviço dependente limitar a carga."
+    },
+    {
+      "key": "e4",
+      "title": "Escala sem limites ou sem folga",
+      "summary": "Vertical amplia uma instância e horizontal adiciona instâncias. Autoscaling precisa antecipação, limites, expansão e redução controladas, estabilização e margem de operação."
+    },
+    {
+      "key": "e5",
+      "title": "Redundância tratada como disponibilidade automática",
+      "summary": "Réplicas podem compartilhar domínio de falha; o componente sobrevivente precisa suportar carga adicional. Testes de failover, cotas e tempo de provisionamento são parte do plano."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe prevê aumento sazonal de usuários e precisa evitar degradação durante o próximo pico. Qual abordagem inicia um planejamento de capacidade adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dimensionar para a média diária, sem antecipar sazonalidade nem validar cotas antes do pico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Comprar o maior servidor disponível e manter a configuração após a temporada de maior uso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Acompanhar somente o espaço livre atual e tratar CPU e rede depois que houver reclamação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Copiar o dimensionamento de outro sistema sem comparar transações, dependências ou horários de pico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar telemetria para prever a carga sazonal e validar limites com antecedência.",
+          "correct": true
+        }
+      ],
+      "explanation": "A previsão deve usar demanda observada e antecipar a mudança sazonal, incluindo metas e limites dos componentes. Compra máxima sem análise gera desperdício; esperar a falha não deixa tempo para provisionar e validar.",
+      "section": "1. Capacidade: atender à demanda sem desperdício",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma cadeia de aplicação, a CPU dos servidores web está folgada, mas as solicitações ficam paradas aguardando conexões de banco. Esse quadro pode indicar um gargalo no banco mesmo com folga na camada web.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A capacidade do fluxo depende de todos os componentes; uma camada pode estar folgada enquanto outra restringe a vazão. A fila de conexões é um sinal para investigar o banco e a dependência entre camadas.",
+      "section": "1. Capacidade: atender à demanda sem desperdício",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe analisa apenas a média mensal de CPU para dimensionar um serviço que apresenta lentidão às 9h. Qual complemento de análise é mais útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A média anual de armazenamento, pois ela representa todos os recursos usados na hora crítica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A contagem de servidores no inventário, já que a quantidade isolada explica a lentidão observada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O número de licenças adquiridas, porque ele mostra se os processos conseguem executar sem espera.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O uptime mensal sem separar períodos, pois a disponibilidade mede diretamente a pressão instantânea.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Medir uso no pico com latência, filas e volume de chamadas.",
+          "correct": true
+        }
+      ],
+      "explanation": "A média longa pode diluir um pico concentrado. Utilização em alta resolução, latência e fila no período crítico ajudam a correlacionar pressão e experiência; uptime, licenças e inventário não localizam sozinhos a causa.",
+      "section": "1. Capacidade: atender à demanda sem desperdício",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aumento de cota administrativa em uma nuvem garante que qualquer SKU estará fisicamente disponível em qualquer região no momento da implantação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A cota delimita o que a assinatura pode solicitar, mas a alocação depende também de capacidade da região, zona e SKU, além de acesso e dependências. Planeje e valide essas condições antes da implantação.",
+      "section": "1. Capacidade: atender à demanda sem desperdício",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema processa uma campanha com número previsto de pedidos por hora, mas a latência aumenta à medida que a fila cresce. Qual decisão técnica é mais apropriada antes de alterar o dimensionamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar a memória de toda a infraestrutura, pois filas indicam sempre falta de espaço em RAM.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover a coleta de métricas para liberar CPU e manter o mesmo volume de entrada da campanha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Correlacionar vazão, latência e pressão para localizar o gargalo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Reduzir os alertas de latência, pois a previsão de pedidos torna o atraso operacionalmente aceitável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar consumidores sem medir o banco de destino, pois mais instâncias sempre reduzem filas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Fila crescente com latência alta pode decorrer de consumidores insuficientes ou de uma dependência saturada. Medir entrada, saída, recursos e latência localiza a restrição; adicionar consumidores sem verificar o destino pode transferir e agravar o gargalo.",
+      "section": "1. Capacidade: atender à demanda sem desperdício",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço recém-projetado não possui série histórica de produção. A estimativa de capacidade deve considerar requisitos e hipóteses e ser atualizada com resultados de piloto ou protótipo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Na ausência de histórico, requisitos, experiência de especialistas e pilotos permitem formar uma estimativa inicial. As medições do piloto melhoram o modelo antes que se dependa de suposições permanentes.",
+      "section": "2. Medição, indicadores e previsão de demanda",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O indicador P99 de latência informa que 99% das observações ficaram acima ou no valor indicado, permitindo analisar a cauda lenta além da média.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O percentil 99 representa o ponto abaixo ou no qual se situam 99% das amostras; aproximadamente 1% ficou acima dele. Ele complementa, e não substitui, média e contexto da amostra.",
+      "section": "2. Medição, indicadores e previsão de demanda",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de medições permite avaliar tanto a pressão de recursos quanto a experiência dos usuários em uma API?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CPU e memória apenas, pois todo problema de experiência deriva desses dois recursos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Disponibilidade contratual e número de licenças, sem medir chamadas ou tempo de resposta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Latência média sem erros nem vazão, pois a média representa todas as solicitações corretamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Utilização, throughput, latência por percentil, erros e disponibilidade do fluxo acompanhado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Espaço total provisionado e contagem de máquinas, sem observar consumo ou resultado do serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "Indicadores de infraestrutura mostram consumo, enquanto vazão, cauda de latência, erros e disponibilidade descrevem o resultado. Métricas isoladas como CPU ou média não identificam todas as falhas da jornada.",
+      "section": "2. Medição, indicadores e previsão de demanda",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O SLO é a medida bruta coletada, o SLI é a meta estipulada para essa medida e o SLA é apenas um painel interno de alertas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. SLI é o indicador medido; SLO define um objetivo para o indicador; SLA é um compromisso formal de serviço com cliente, que pode ter implicações contratuais. Painel de alertas não define esses papéis.",
+      "section": "2. Medição, indicadores e previsão de demanda",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ocupação de armazenamento cresce todo mês, mas a equipe considera apenas o percentual usado hoje. Que informação torna a previsão mais acionável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tendência de crescimento, retenção prevista, réplicas e estimativa do momento em que o limite será atingido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A velocidade nominal da CPU, que converte diretamente ocupação atual em espaço futuro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O uptime do serviço, que informa quanto espaço será consumido por novos documentos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A quantidade de usuários cadastrados, sem relacioná-los a geração ou retenção de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A latência média da interface, pois uma resposta rápida impede crescimento dos dados armazenados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma projeção exige taxa histórica de crescimento e fatores que afetam ocupação, como retenção e cópias. A fotografia atual não informa quando o limite será alcançado; CPU, uptime e latência não substituem esses dados.",
+      "section": "2. Medição, indicadores e previsão de demanda",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar o throughput observado é suficiente para concluir que o serviço melhorou, mesmo que a taxa de erros tenha crescido no mesmo intervalo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A vazão maior pode estar acompanhada de falhas e representar trabalho não concluído corretamente. Throughput deve ser interpretado junto com sucesso, erros, latência e requisitos do fluxo.",
+      "section": "2. Medição, indicadores e previsão de demanda",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma área prevê lançamento de produto e uma atualização simultânea dos servidores. Como esses fatos devem entrar no plano de capacidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o tráfego de usuários entra na previsão; atualizações ocorrem fora do sistema e não consomem capacidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A previsão só pode incluir eventos já ocorridos, portanto o lançamento não pode ser considerado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas a média diária de CPU deve ser usada, pois atividades planejadas não alteram recursos disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A atualização deve ser cancelada automaticamente sempre que existir qualquer variação de uso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A demanda da campanha e o consumo temporário de atualização devem ser estimados em cenários e janelas de tempo.",
+          "correct": true
+        }
+      ],
+      "explanation": "Lançamento altera a demanda e a atualização pode consumir capacidade temporária ou reduzir recursos disponíveis. Planejar esses dois fatores permite testar folga, sequenciamento e cotas; limitar a análise ao histórico médio ignora o cenário previsto.",
+      "section": "2. Medição, indicadores e previsão de demanda",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma campanha ou mudança de produto altera as premissas, a previsão de capacidade anterior continua adequada sem revisão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A previsão é uma disciplina contínua: mudanças planejadas ou tendências observadas podem invalidar as premissas anteriores e exigem revisão dos recursos e metas.",
+      "section": "2. Medição, indicadores e previsão de demanda",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma página responde às verificações de vida, mas usuários não conseguem autenticar nem concluir a operação principal. A avaliação de disponibilidade deve considerar a jornada funcional, não só o processo ativo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A disponibilidade relevante é a do serviço acessível e funcional segundo o fluxo e os critérios definidos. Um processo vivo não garante que autenticação, rede ou dependências permitam ao usuário concluir a tarefa.",
+      "section": "3. Disponibilidade, resiliência e capacidade de contingência",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas réplicas de aplicação estão em zonas distintas, mas usam o mesmo armazenamento sem redundância. Qual conclusão é mais defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A redundância da aplicação assegura disponibilidade total, independentemente do armazenamento compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O armazenamento compartilhado elimina qualquer necessidade de verificar dependências entre as zonas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A diversidade de zona pode ajudar, mas o armazenamento comum continua sendo um possível ponto de falha.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A solução só ficará disponível se as duas instâncias forem desligadas durante a falha de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A disponibilidade depende apenas do número de instâncias, não da topologia ou do caminho de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Réplicas reduzem alguns modos de falha, mas dependência comum não redundante pode interromper ambas. O desenho deve mapear domínios de falha de toda a cadeia e testar o caminho de dados em contingência.",
+      "section": "3. Disponibilidade, resiliência e capacidade de contingência",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um arranjo ativo-passivo, a capacidade do nó de reserva e o tempo para ativá-lo devem ser avaliados diante da carga esperada após a falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O ambiente passivo precisa assumir a carga no prazo requerido. Uma réplica existente mas subdimensionada ou lenta para ativar pode falhar justamente durante a contingência.",
+      "section": "3. Disponibilidade, resiliência e capacidade de contingência",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual medida reduz o risco de um failover planejado derrubar também a instância sobrevivente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar que a instância sobrevivente tem folga para carga redirecionada e testar a transição e as dependências.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter todas as instâncias na mesma zona para que os dados percorram uma distância menor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dimensionar pelo uso médio normal, ignorando a carga adicional recebida após a falha de um nó.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar alertas durante a transição para que o aumento de latência não gere notificações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reduzir o tamanho dos nós restantes antes do teste para simular a economia esperada em produção.",
+          "correct": false
+        }
+      ],
+      "explanation": "A capacidade sobrevivente precisa comportar a demanda após o redirecionamento, com validação de dependências e do procedimento. Uso médio normal, mesma zona e supressão de alertas não demonstram que o serviço suporta a falha.",
+      "section": "3. Disponibilidade, resiliência e capacidade de contingência",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cópia de contingência sem teste pode ser considerada suficiente, pois a existência de recursos alternativos prova que a recuperação funcionará sob carga.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Inventário de recurso não comprova acesso, cota, dependências, tempo de ativação nem capacidade sob carga. Testes de recuperação verificam se o caminho alternativo realmente atende às metas.",
+      "section": "3. Disponibilidade, resiliência e capacidade de contingência",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa avaliar se o objetivo de disponibilidade reflete o serviço percebido pelos usuários. Qual abordagem é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Medir somente se as máquinas respondem a ping, sem considerar a aplicação ou o fluxo de negócio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Medir espaço livre em disco como único indicador da disponibilidade da experiência do usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir todos os indicadores por um SLA de fornecedor, mesmo que ele não cubra a jornada usada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Contar implantações realizadas no mês, pois cada implantação representa um período disponível.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir um SLI de sucesso do fluxo e estabelecer com as partes envolvidas um SLO verificável.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um indicador de sucesso de fluxo representa melhor a experiência do que ping isolado. O objetivo deve ser mensurável e definido com contexto de negócio e tecnologia; SLA de dependência não substitui a avaliação do serviço completo.",
+      "section": "3. Disponibilidade, resiliência e capacidade de contingência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se duas regiões têm recursos contratados ou listados no inventário, a equipe não precisa validar cota, acesso à região, SKU ou teste de implantação antes de uma recuperação real.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Acesso, cota, disponibilidade de SKU e dependências precisam ser verificados antecipadamente. Planejar a recuperação sem esse teste pode revelar uma restrição de alocação apenas quando a região principal estiver indisponível.",
+      "section": "3. Disponibilidade, resiliência e capacidade de contingência",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização usa ativo-ativo em duas regiões e espera que cada uma sustente a carga total quando a outra falha. Que verificação é mais importante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar apenas se a latência entre regiões é menor que a latência dos usuários finais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desligar a replicação de dados, pois ela não afeta capacidade durante uma falha regional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o número de painéis de monitoramento antes de revisar a carga de cada região.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Testar a capacidade de uma região absorver a demanda total e validar cotas e dependências nesse cenário.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Considerar o dobro da capacidade nominal como garantia sem realizar simulação de carga ou failover.",
+          "correct": false
+        }
+      ],
+      "explanation": "A estratégia presume que a região restante absorve a carga total. Teste esse cenário e verifique limites, cotas, dados e dependências; capacidade nominal somada não garante que uma região isolada aguente tudo.",
+      "section": "3. Disponibilidade, resiliência e capacidade de contingência",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma manutenção que remove temporariamente um nó deve ser incluída no cenário de capacidade, pois os nós remanescentes podem receber carga adicional durante a operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Manutenção e substituição alteram temporariamente os recursos disponíveis e podem transferir carga. O plano deve prever essa folga e a sequência operacional para manter as metas.",
+      "section": "3. Disponibilidade, resiliência e capacidade de contingência",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A definição de um SLO para disponibilidade torna desnecessário monitorar os componentes dependentes que participam do fluxo crítico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O SLO é um objetivo, não um mecanismo de observação nem garantia de cumprimento. Dependências em rede, identidade, armazenamento e serviços externos podem afetar o fluxo e precisam ser observadas e testadas.",
+      "section": "3. Disponibilidade, resiliência e capacidade de contingência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância está próxima do limite de memória e exige janela de reinicialização para receber mais recursos. Qual descrição corresponde a scale-up?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar réplicas adicionais e dividir todas as solicitações por um balanceador externo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar a memória ou o tamanho da própria instância, respeitando limites e janela de mudança.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Mover as métricas de memória para armazenamento de longo prazo e manter a instância igual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reduzir o volume de logs sem alterar os recursos que executam a aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar uma zona de disponibilidade sem modificar a capacidade do componente existente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Scale-up aumenta os recursos atribuídos a uma instância existente. A operação pode ter limites e indisponibilidade, que devem ser considerados; criar réplicas caracteriza escala horizontal.",
+      "section": "4. Escala e otimização de recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Scale-out aumenta CPU ou memória dentro da mesma instância, e por isso dispensa avaliar distribuição de carga entre réplicas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Scale-out acrescenta instâncias; ampliar CPU ou memória de uma instância é scale-up. A distribuição de trabalho, o estado e as dependências ainda precisam ser avaliados.",
+      "section": "4. Escala e otimização de recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O tráfego de entrada cresce de modo previsível toda segunda-feira pela manhã, e há uma variação inesperada possível. Qual política de escala é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar apenas escala manual depois do pico e retirar qualquer margem para reduzir custo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter a quantidade máxima de instâncias durante todo o ano, sem revisar o custo ou o uso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Agendar capacidade antes do padrão conhecido e combinar regras por métrica para desvios não previstos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Escalar somente quando o SLA mensal já tiver sido descumprido por falta de recursos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Programar redução no início do expediente e esperar que as métricas compensem a alteração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Padrão regular conhecido pode ser atendido por escala programada, antecipada pelo tempo de provisionamento; métricas podem cobrir variações fora do padrão. Esperar a degradação reage tarde e capacidade máxima permanente pode desperdiçar recursos.",
+      "section": "4. Escala e otimização de recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra de autoscaling que expande e reduz recursos por limiares muito próximos pode oscilar repetidamente entre as duas ações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Limiar sem margem, janela de estabilização ou histerese pode provocar flapping. Configure distância entre condições e avalie o tempo necessário para que uma mudança produza efeito.",
+      "section": "4. Escala e otimização de recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila cresce apesar da adição de muitos trabalhadores, e o banco de destino apresenta conexões saturadas. Qual resposta reduz o risco de deslocar o gargalo e piorar o serviço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar ainda mais trabalhadores e remover limites de concorrência para esvaziar a fila rapidamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar a taxa de entrada para manter todos os trabalhadores ocupados durante o incidente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Suspender medições de conexões e avaliar apenas o tamanho da fila antes de novas mudanças.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ajustar concorrência ou aplicar backpressure e dimensionar o destino conforme taxa sustentável e metas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Reduzir a capacidade do banco para impedir que os trabalhadores tentem abrir conexões novas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O banco é a dependência restritiva. Aumentar consumidores pode elevar contenção; controlar entrada/concorrência protege o destino, enquanto a equipe mede capacidade sustentável e escolhe uma expansão apropriada.",
+      "section": "4. Escala e otimização de recursos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A recomendação de right-sizing consiste em reduzir todos os recursos até que a utilização média fique próxima de 100%, aproveitando toda a capacidade provisionada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Right-sizing ajusta recursos à demanda e às metas, mas precisa preservar margem para picos, falhas e tempo de expansão. Operar permanentemente no limite reduz resiliência e pode degradar o serviço.",
+      "section": "4. Escala e otimização de recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer reduzir custos após identificar servidores ociosos. Qual sequência protege desempenho e disponibilidade durante a otimização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar utilização histórica, metas e cenários de pico/falha, ajustar gradualmente e observar os resultados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desligar de imediato todos os servidores com baixa utilização instantânea, sem monitorar serviços dependentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover a redundância de armazenamento primeiro, pois ela não influencia disponibilidade de aplicações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reduzir cotas de produção para obrigar o sistema a usar menos capacidade automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir indicadores de desempenho pelo custo mensal total e encerrar a análise após a economia.",
+          "correct": false
+        }
+      ],
+      "explanation": "Otimização compara uso representativo com metas e cenários de contingência; alterações graduais podem ser monitoradas e revertidas se necessário. Uma fotografia instantânea não justifica remover capacidade de pico ou dependências.",
+      "section": "4. Escala e otimização de recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As regras de expansão e redução de capacidade devem ser testadas e registradas junto da configuração de infraestrutura para que as implantações posteriores mantenham o comportamento esperado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Configuração versionada permite revisão, teste e consistência entre implantações. Mudanças apenas manuais podem ser sobrescritas ou produzir diferenças não rastreadas entre ambientes.",
+      "section": "4. Escala e otimização de recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A aplicação guarda estado local em cada instância e depende de afinidade de sessão. O time pretende escalar horizontalmente. Qual questão deve ser resolvida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar apenas o intervalo de coleta de CPU, pois ele torna instâncias locais intercambiáveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Verificar como estado e sessões serão compartilhados ou roteados e testar a distribuição entre instâncias.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desativar o balanceador para que todas as solicitações alcancem o mesmo processo sempre.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reduzir o número mínimo de instâncias a zero, independentemente do tempo de recuperação da sessão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o tamanho do disco local de cada servidor sem rever o comportamento da aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Escala horizontal requer que a distribuição entre instâncias preserve a semântica da aplicação. Estado local ou afinidade rígida pode impedir redistribuição; externalizar estado ou adaptar o roteamento deve ser avaliado e testado.",
+      "section": "4. Escala e otimização de recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Desligar recursos ociosos em ambiente de desenvolvimento pode reduzir desperdício, desde que o plano preserve horários de uso, dependências e tempo de inicialização necessário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A redução de recursos ociosos é uma otimização possível, mas precisa respeitar o horário de uso, dependências e o tempo para disponibilizar o serviço quando necessário.",
+      "section": "4. Escala e otimização de recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática torna um plano de capacidade verificável antes de um aumento importante de carga?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir o teste por uma previsão financeira, pois custo projetado comprova o desempenho técnico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aguardar o período de maior uso e comparar reclamações com o número de máquinas instaladas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar teste representativo e observar vazão, latência, erro, consumo e comportamento dos limites.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Testar apenas o login de um usuário, pois a funcionalidade individual comprova capacidade para concorrência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar dependências externas durante o teste, mesmo que façam parte do fluxo de produção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Teste representativo mede desempenho e recursos sob carga, expondo gargalos e limites antes da mudança. Testes triviais ou que removem dependências não reproduzem o cenário de produção; orçamento sozinho não demonstra capacidade.",
+      "section": "5. Ciclo prático de planejamento e controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste de estresse procura observar o comportamento além da carga normal, inclusive como o sistema falha ou se recupera, e não serve apenas para confirmar o tráfego médio esperado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O teste de estresse explora condições acima da carga usual para revelar limites e modos de falha; o teste de carga também pode validar a demanda representativa e metas previstas.",
+      "section": "5. Ciclo prático de planejamento e controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização planeja infraestrutura para um novo fluxo de negócio. Qual roteiro conecta requisitos à operação de forma mais completa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comprar recursos, iniciar o serviço e registrar métricas apenas quando surgirem falhas de desempenho.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir metas, mapear componentes e limites, medir ou pilotar, prever cenários, testar e revisar após mudanças.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Escolher o SKU mais comum do fornecedor e manter o dimensionamento até o encerramento do contrato.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Acompanhar custo agregado sem identificar os fluxos críticos nem os recursos consumidos por eles.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar somente a quantidade de equipamentos em inventário e assumir que os limites permanecem constantes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O ciclo inicia em metas e requisitos, identifica dependências e limites, forma previsões, valida com teste e acompanha resultados. Compra inicial e inventário sem telemetria não fecham o ciclo de gestão nem revelam gargalos.",
+      "section": "5. Ciclo prático de planejamento e controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Folga de capacidade deve ser planejada em relação a variação, falhas e tempo de expansão; mantê-la não significa automaticamente que os recursos estão desperdiçados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A folga absorve variabilidade, failover e o intervalo até novos recursos ficarem prontos. Sua dimensão deve ser justificada por metas e risco, equilibrando resiliência e custo.",
+      "section": "5. Ciclo prático de planejamento e controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após um teste de carga, o throughput esperado foi atingido, mas a latência P99 e a taxa de erros ultrapassaram as metas. O serviço pode ser declarado adequado apenas pelo throughput.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A meta de desempenho inclui qualidade e experiência, e a carga testada já viola latência e erros. Throughput isolado não comprova atendimento ao SLO nem capacidade saudável.",
+      "section": "5. Ciclo prático de planejamento e controle",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe identifica concentração de banda em determinados fluxos e lentidão intermitente. Que ação ajuda a orientar a otimização de rede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Analisar telemetria de tráfego, principais emissores, perdas e rotas junto de throughput e latência.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar CPU dos servidores de aplicação sem medir interfaces ou caminhos de rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reduzir retenção de dados imediatamente, pois ela sempre libera banda em tempo real.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desconsiderar retransmissões, já que o protocolo de rede garante que elas não afetam desempenho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar somente o uptime do roteador, pois ele informa distribuição e congestionamento de cada fluxo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Telemetria do tráfego permite localizar fluxos dominantes, hotspots, perdas e ineficiências de roteamento; junto de vazão e latência orienta alocação e planejamento. Uptime isolado não demonstra ausência de congestionamento.",
+      "section": "5. Ciclo prático de planejamento e controle",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de uma otimização, a equipe deve conferir novamente metas e métricas em produção e revisar a previsão quando os resultados observados divergirem das premissas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O resultado real valida ou invalida o modelo de capacidade. Monitorar após a mudança e atualizar as premissas impede que uma previsão antiga continue guiando decisões inadequadas.",
+      "section": "5. Ciclo prático de planejamento e controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço compartilha a mesma cota de API com várias equipes e aproxima-se do limite em picos simultâneos. Qual melhoria de planejamento é mais completa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar a frequência de reinício das aplicações para zerar o uso acumulado da cota compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Distribuir a demanda prevista por consumidor e horário, monitorar consumo/limites e avaliar aumento ou controle de entrada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Planejar apenas CPU local, pois limite de serviço externo não restringe capacidade da infraestrutura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar alertas até que todas as equipes atinjam a cota, para evitar notificações duplicadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar servidores clientes sem revisar a cota, pois mais instâncias distribuem automaticamente o limite externo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cotas de dependências compartilhadas podem limitar o fluxo mesmo com computação disponível. Previsão por consumidor e horário, monitoramento e alternativas de capacidade/controle de demanda tornam o limite operacionalmente tratável.",
+      "section": "5. Ciclo prático de planejamento e controle",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma linha de base serve como referência para comparar comportamento normal e mudanças posteriores, mas não substitui testes de pico ou de contingência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A linha de base caracteriza o comportamento observado em condições representativas; cenários de pico e falha precisam de validação específica porque podem exceder esse comportamento normal.",
+      "section": "5. Ciclo prático de planejamento e controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gerente quer comparar opções de infraestrutura com custos diferentes. Qual critério dá contexto ao custo sem ignorar o resultado entregue?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolher sempre o menor custo mensal, mesmo se violar metas de disponibilidade e latência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Comparar somente o preço unitário da máquina, sem incluir dependências ou volume de uso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Relacionar custo a uma unidade útil de trabalho concluído e às metas de qualidade e resiliência.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Selecionar a configuração mais cara, pois maior preço garante maior capacidade efetiva.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desconsiderar custos de reserva e folga, pois capacidade de contingência não produz valor operacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Custo por transação, usuário ou volume concluído permite comparar eficiência sem desligar metas de qualidade. Menor preço isolado pode degradar serviço, e custo alto ou recurso reservado não garantem resultado por si sós.",
+      "section": "5. Ciclo prático de planejamento e controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Registrar o gatilho, horário e recursos alterados em cada evento de autoscaling não permite avaliar a eficácia da política nem ajustar seus limiares.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O histórico dos eventos mostra o que provocou mudanças e permite comparar a política com carga, desempenho e custo observados. Essa trilha ajuda a identificar atrasos, excesso ou insuficiência de escala e a ajustar as regras.",
+      "section": "5. Ciclo prático de planejamento e controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O planejamento de capacidade para portfólio pode começar pela análise de cada carga e depois agregar tendências, dependências e limites compartilhados entre áreas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A visão por carga dá significado aos requisitos e, posteriormente, o agregado do portfólio revela competição por cotas, recursos comuns e oportunidades de consolidação. Uma soma sem contexto pode esconder picos simultâneos.",
+      "section": "5. Ciclo prático de planejamento e controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma plataforma executa perto do limite durante picos breves e demora alguns minutos para iniciar novas instâncias. Que medida ajuda a manter o serviço dentro da meta durante a expansão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter folga até que novas instâncias fiquem prontas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Reduzir a quantidade mínima de instâncias para zero e esperar que o pico diminua sozinho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Acionar a expansão somente depois que a latência ultrapassar a meta por um período prolongado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar a verificação de saúde durante a inicialização para anunciar nós ainda indisponíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dimensionar apenas pela média diária, sem incluir o tempo de inicialização dos novos nós.",
+          "correct": false
+        }
+      ],
+      "explanation": "A expansão leva tempo. A folga absorve a variação até as instâncias ficarem prontas; escalar depois da degradação, contar nós não saudáveis ou ignorar o pico não protege a meta durante esse intervalo.",
+      "section": "4. Escala e otimização de recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma medição mostra 80% de utilização de CPU, mas a latência e os erros permanecem estáveis. Qual conclusão inicial é mais prudente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O serviço já está indisponível, pois qualquer utilização acima da metade implica falha.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A CPU deve ser ampliada imediatamente, mesmo sem analisar tendência ou metas do fluxo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A taxa de utilização prova que a aplicação atende a qualquer crescimento futuro de demanda.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Analisar duração, picos, fila, metas e tendência antes de concluir que há gargalo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A utilização pode ser ignorada, porque latência e erros estáveis dispensam previsão de capacidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "Utilização elevada merece acompanhamento, mas não define sozinha saturação ou capacidade futura. Duração, tendência, filas, picos e metas mostram se o recurso está próximo de restringir o fluxo.",
+      "section": "2. Medição, indicadores e previsão de demanda",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe descobre que uma dependência externa limita requisições simultâneas e que a cota demora a ser revista. Que providência cabe ao plano de capacidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar a quantidade de servidores clientes, pois a cota do fornecedor cresce junto com a frota.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Prever e solicitar a cota a tempo, e controlar a demanda no limite.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ignorar a dependência externa, já que ela não consome recursos administrados pela equipe de infraestrutura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover o limite de concorrência local e encaminhar todas as chamadas de uma vez ao fornecedor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Esperar a cota ser excedida em produção e então iniciar a avaliação de alternativas de serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "A dependência e sua cota fazem parte da capacidade efetiva do fluxo. Previsão antecipada, pedido em tempo hábil e controle de demanda reduzem o risco de atingir o limite durante o pico.",
+      "section": "5. Ciclo prático de planejamento e controle",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço precisa suportar crescimento de tráfego, mas a equipe conhece apenas os limites por instância e não sabe se a aplicação pode distribuir sessões. Qual passo reduz incerteza?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Duplicar todos os discos sem medir a carga de sessão ou o limite do processador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Assumir que o balanceador converte qualquer aplicação com estado local em serviço escalável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar os limiares de CPU para evitar que o serviço solicite recursos adicionais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Testar carga distribuída, sessões e limites das dependências.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Configurar a capacidade máxima antes de verificar se as sessões podem mudar de instância.",
+          "correct": false
+        }
+      ],
+      "explanation": "O teste distribuído revela a resposta sob concorrência e pode expor dependência de estado local ou de afinidade. Limites nominais e balanceamento não comprovam, sozinhos, que a aplicação escala horizontalmente.",
+      "section": "4. Escala e otimização de recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer verificar se a redução de instâncias preserva a capacidade necessária para recuperação. Qual evidência é mais forte?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um teste de failover medindo latência, erros e throughput com os recursos que permaneceriam ativos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A confirmação de que o ambiente principal atende à média de utilização em um dia sem incidentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um relatório financeiro que mostra economia mensal depois da remoção das instâncias redundantes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma lista de recursos reservados, sem validar acesso, cota, inicialização ou dependências.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Testar failover sob carga e medir as dependências restantes.",
+          "correct": true
+        }
+      ],
+      "explanation": "A validação deve reproduzir a carga de contingência e medir o serviço e suas dependências. Média de operação normal, economia financeira e inventário não provam que a capacidade sobrevivente atende às metas.",
+      "section": "3. Disponibilidade, resiliência e capacidade de contingência",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Architecture strategies for capacity planning",
+      "publisher": "Microsoft Learn — Azure Well-Architected Framework",
+      "reference": "Definição de planejamento de capacidade, previsão, dados históricos, indicadores, limites de recursos, autoscaling e testes de carga.",
+      "url": "https://learn.microsoft.com/en-us/azure/well-architected/performance-efficiency/capacity-planning",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Architecture strategies for defining reliability targets",
+      "publisher": "Microsoft Learn — Azure Well-Architected Framework",
+      "reference": "Definição e relação entre metas de disponibilidade, SLI, SLO, SLA, latência, throughput, capacidade e erros.",
+      "url": "https://learn.microsoft.com/en-us/azure/well-architected/reliability/metrics",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Autoscaling Guidance",
+      "publisher": "Microsoft Learn — Azure Architecture Center",
+      "reference": "Escala programada e por métricas, limites mínimo/máximo, regras de expansão e redução, margem, métricas personalizadas e backpressure.",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/best-practices/auto-scaling",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Architecture strategies for designing a reliable scaling strategy",
+      "publisher": "Microsoft Learn — Azure Well-Architected Framework",
+      "reference": "Escala vertical e horizontal, carga e padrões de uso, folga enquanto ocorre expansão, particionamento e monitoramento de eventos de escala.",
+      "url": "https://learn.microsoft.com/en-us/azure/well-architected/reliability/scaling",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "How to design for capacity resilience",
+      "publisher": "Microsoft Learn — Azure Well-Architected Framework",
+      "reference": "Responsabilidade compartilhada, planejamento contínuo, demanda de failover/atualização, cotas, regiões, zonas, SKUs e reserva de capacidade.",
+      "url": "https://learn.microsoft.com/en-us/azure/well-architected/design-guides/capacity-resilience",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

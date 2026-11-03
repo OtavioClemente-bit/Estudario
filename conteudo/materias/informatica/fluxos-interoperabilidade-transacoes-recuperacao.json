@@ -1,0 +1,2155 @@
+{
+  "id": "informatica.fluxos-interoperabilidade-transacoes-recuperacao",
+  "subject": "Informática",
+  "title": "Fluxos e interoperabilidade: transações, estado e recuperação",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Fluxos e interoperabilidade de sistemas",
+    "Controle transacional em fluxos de dados",
+    "Registro de estado de execução de fluxos",
+    "Reinício de processos após falhas",
+    "Recuperação de workflows distribuídos",
+    "Transações em processamento de mensagens",
+    "Interoperabilidade entre sistemas e serviços",
+    "Retomada de execução por checkpoints",
+    "Idempotência e repetição de operações",
+    "Atomicidade em processamento de dados",
+    "Controle de offsets e mensagens Kafka",
+    "Histórico de eventos de workflows",
+    "Consistência em fluxos distribuídos",
+    "Coordenação de transações entre serviços",
+    "Registro durável do estado de processos"
+  ],
+  "scope": {
+    "covers": "Controle transacional em atividades de um fluxo; limites de transação, commit, rollback e savepoint; interoperabilidade por mensagens, APIs e contratos; estado de execução, histórico durável, checkpoints e offsets; estados de tarefas; retomada, repetição, idempotência, deduplicação e tratamento de falhas; semânticas at-most-once, at-least-once e exactly-once; transações locais e coordenação distribuída por saga, compensação e transactional outbox.",
+    "excludes": "Configuração completa de produtos específicos, sintaxe integral de SQL, administração de clusters, desenho de APIs de um domínio particular e garantias universais de execução única entre sistemas independentes."
+  },
+  "theoryTitle": "Como coordenar fluxos e recuperar sua execução",
+  "chapters": [
+    {
+      "title": "1. Fluxo, interoperabilidade e fronteira transacional",
+      "markdown": "### O problema que este assunto resolve\n\nUm fluxo de processamento encadeia etapas: receber um pedido, validar seus dados, atualizar um banco e avisar outro sistema. A interoperabilidade permite que componentes diferentes troquem dados e acionem operações por contratos conhecidos, como uma API HTTP, uma mensagem com esquema definido ou um evento em um broker. Ela não torna as etapas automaticamente atômicas: uma atualização no banco pode ter sido confirmada enquanto o envio da mensagem falha.\n\n> **Siglas e termos deste capítulo**\n> - **API**: interface contratada para um sistema solicitar operações ou consultar dados de outro.\n> - **Transação**: conjunto de operações tratado como unidade de confirmação ou cancelamento dentro de uma fronteira definida.\n> - **COMMIT**: confirmação das alterações da transação.\n> - **ROLLBACK**: cancelamento das alterações ainda não confirmadas.\n> - **Savepoint**: marcador interno que permite voltar a um ponto de uma transação sem cancelar tudo.\n> - **ACID**: atomicidade, consistência, isolamento e durabilidade, propriedades associadas a transações de banco.\n\n### Transação local: confirme o conjunto coerente\n\nEm SQL, `BEGIN` inicia uma transação explícita. A aplicação executa as mudanças relacionadas e termina com `COMMIT` quando todas as verificações passaram; se ocorrer um erro, usa `ROLLBACK`. No PostgreSQL, o manual define `ROLLBACK` como o cancelamento da transação corrente e o descarte de suas atualizações. Um `SAVEPOINT` nomeia um ponto intermediário, e `ROLLBACK TO SAVEPOINT` desfaz o trecho posterior a esse ponto sem abandonar a transação inteira.\n\nConsidere uma transferência de 80 unidades: debitar a conta de origem e creditar a de destino pertencem à mesma transação. Se o débito confirmar e o crédito não ocorrer, o saldo total fica incorreto. A atomicidade procura evitar esse estado parcial dentro do banco participante. A durabilidade significa que, após o commit, o banco deve preservar a confirmação mesmo diante de reinicialização, conforme suas garantias de armazenamento.\n\nA fronteira importa. Uma transação local do banco não inclui por si só uma chamada HTTP remota, o envio de e-mail ou a escrita em um broker. Manter uma transação aberta durante uma chamada de rede também pode prolongar bloqueios sem controlar o que o sistema remoto já fez. Para esses casos, o desenho precisa tratar resultados parciais e repetir ou compensar operações.\n\n### Contratos que atravessam componentes\n\nPara cooperar, os participantes precisam concordar sobre formato, significado e comportamento de falha: campos obrigatórios, identificador de correlação, versão do esquema, códigos de erro e regras de repetição. Uma mensagem com `pedido_id` e versão do evento pode ser validada e rastreada em vários serviços. O contrato deve deixar claro se uma resposta significa “recebido”, “processado” ou “concluído”; essas etapas não são sinônimas.\n\n| Mecanismo | O que atravessa a fronteira | Exemplo de uso |\n| --- | --- | --- |\n| API síncrona | Requisição e resposta | Consultar se uma conta pode reservar crédito |\n| Fila ou tópico | Mensagem persistida para consumo | Processar pedidos sem exigir que emissor e consumidor estejam ativos juntos |\n| Evento | Fato ocorrido, em geral publicado para interessados | `PedidoCriado` inicia etapas posteriores |\n| Arquivo com formato acordado | Lote de dados e metadados | Importar registros com cabeçalho, codificação e versão definidos |\n\nInteroperar não significa compartilhar a mesma memória ou o mesmo banco. Cada componente pode manter seu estado e comunicar alterações por contratos. Isso reduz dependências diretas, mas exige observabilidade, tratamento de duplicatas e reconciliação.\n\n### Como cai na prova\n\n- `COMMIT` confirma e `ROLLBACK` descarta alterações da transação ativa; nenhum deles desfaz automaticamente uma chamada HTTP que outro sistema já concluiu.\n- Uma API ou fila define como os sistemas trocam informação, mas não garante por si só uma transação atômica que inclua todos os participantes.\n- Savepoint é um ponto de retorno dentro da transação, não um backup independente do banco."
+    },
+    {
+      "title": "2. Estado de execução, histórico e checkpoint",
+      "markdown": "### O problema que este assunto resolve\n\nUm fluxo longo pode envolver dezenas de tarefas e durar minutos ou dias. Se o processo cair, o operador precisa saber o que foi recebido, o que terminou, o que estava em andamento e quais saídas foram gravadas. O estado de execução é essa representação persistente do progresso; sem ele, um reinício teria de adivinhar onde continuar.\n\n> **Siglas e termos deste capítulo**\n> - **Workflow**: processo descrito como etapas e dependências executáveis.\n> - **Instância de tarefa**: execução concreta de uma tarefa em determinado fluxo ou intervalo.\n> - **Checkpoint**: registro consistente de um ponto de progresso a partir do qual se pode retomar.\n> - **Offset**: posição de leitura de um consumidor em uma partição de log, como no Kafka.\n> - **Log de eventos**: sequência persistida de fatos que permite reconstruir o progresso.\n> - **XCom**: mecanismo do Airflow para transportar pequenas mensagens entre tarefas.\n\n### Estado não é só “começou” ou “acabou”\n\nUma orquestração precisa distinguir estados que levam a ações diferentes. Na documentação do Apache Airflow, uma instância de tarefa pode estar `scheduled` quando o agendador reconhece as dependências, `queued` quando aguarda executor, `running` durante o trabalho, `success` ao concluir, `failed` após erro, `up_for_retry` quando há nova tentativa disponível ou `upstream_failed` quando uma dependência necessária falhou. Também há estados como `skipped` para caminhos condicionais. O estado é por instância, não apenas por definição abstrata da tarefa.\n\nAlém do estado, registre identificadores estáveis: fluxo, instância, tarefa, tentativa, intervalo de dados, timestamps, versão do contrato e identificador de correlação. Logs e métricas explicam o que ocorreu; o estado persistente orienta o agendador; o histórico de eventos dá sequência e evidência para auditoria. Guardar apenas texto de log sem uma chave que ligue mensagens à mesma execução dificulta reconstruir a linha do tempo.\n\nO checkpoint precisa corresponder aos efeitos já duráveis. Se um consumidor salva o offset antes de gravar a saída processada, uma queda pode fazer a mensagem ser considerada concluída sem que o resultado exista: há risco de perda. Se grava a saída e cai antes de avançar o offset, a mensagem pode ser lida de novo: há risco de duplicação. Para reduzir essa janela, sistemas podem confirmar saída e posição na mesma transação quando ambos pertencem ao mesmo mecanismo, ou usar deduplicação/idempotência quando cruzam sistemas.\n\n### Eventos e replay\n\nO Temporal documenta um histórico de eventos durável para cada execução de workflow. Comandos solicitados pelo worker, como agendar uma atividade ou iniciar um temporizador, são convertidos em eventos persistidos pelo serviço. Se o worker cai, o código do workflow é reproduzido a partir do histórico para reconstruir o estado lógico e continuar. Replay não significa repetir indiscriminadamente todos os efeitos externos: atividades e chamadas com efeitos precisam seguir os mecanismos próprios de execução e repetição.\n\nNo Airflow, pequenas informações podem passar entre tarefas por XCom; arquivos ou resultados grandes devem ficar em armazenamento acessível aos workers, e a tarefa pode passar uma referência, como um caminho no S3. A documentação recomenda não depender de arquivo local quando tarefas podem rodar em servidores diferentes. O estado do orquestrador guarda andamento; não substitui o armazenamento durável dos dados produzidos.\n\n### Como cai na prova\n\n- Diferencie estado de tarefa, log de diagnóstico, histórico de eventos e checkpoint: têm funções relacionadas, mas não intercambiáveis.\n- Um offset é posição de consumo, não cópia dos dados processados nem prova isolada de que todos os efeitos externos foram confirmados.\n- Replay reconstrói estado a partir de eventos registrados; não autoriza efeitos externos não idempotentes a serem executados sem controle."
+    },
+    {
+      "title": "3. Falhas, reinício, tentativas e idempotência",
+      "markdown": "### O problema que este assunto resolve\n\nUma conexão pode cair depois que o servidor recebeu a solicitação, mas antes de a resposta chegar ao cliente. O cliente não sabe se a operação ocorreu. Reenviar pode ser necessário para progresso, porém pode duplicar uma cobrança ou uma linha inserida. Recuperação confiável combina repetição limitada, identificação da operação, estado persistido e efeitos seguros para reexecução.\n\n> **Siglas e termos deste capítulo**\n> - **Retry**: nova tentativa de uma operação que falhou ou cujo resultado ficou incerto.\n> - **Idempotência**: propriedade pela qual repetir a mesma operação, com a mesma chave e condições, não multiplica o efeito final.\n> - **Deduplicação**: reconhecimento e descarte de uma solicitação ou mensagem já tratada.\n> - **Backoff**: espera entre novas tentativas, frequentemente crescente.\n> - **DLQ**: dead-letter queue, fila de mensagens que excederam o tratamento normal e precisam de inspeção.\n> - **Timeout**: limite de espera; seu vencimento não prova que o sistema remoto não executou a solicitação.\n\n### Retentar com critério\n\nUma tentativa costuma ser adequada para falha transitória, como indisponibilidade momentânea ou limite de taxa; repetir erro permanente de validação apenas consome recursos. Configure máximo de tentativas, intervalo ou backoff, timeouts e classificação de erros. O Temporal, por exemplo, aplica política de repetição a atividades e não repete workflows automaticamente por padrão. O Airflow registra instâncias `up_for_retry` quando a tarefa falha, mas tem tentativas disponíveis. Os detalhes e padrões dependem do produto e da configuração.\n\nRepetição implica risco de executar mais de uma vez. Uma operação de “acrescentar 1 ao saldo” não é naturalmente idempotente; um comando “definir saldo para 120” pode ser idempotente se concorrência e validação forem controladas. Em uma API de pagamento, uma chave de idempotência vinculada ao pedido pode fazer o servidor devolver o resultado previamente registrado em vez de cobrar novamente. A chave precisa ter escopo e retenção apropriados; inventar uma chave nova a cada retry elimina a proteção.\n\nUma caixa de entrada de mensagens pode registrar `message_id` já processados junto com a alteração de negócio na mesma transação local. Se a mensagem reaparecer, o consumidor reconhece o identificador e não repete o efeito. Isso oferece processamento robusto apesar de entrega repetida, desde que a gravação do identificador e a operação de negócio sejam atômicas entre si.\n\n### Semânticas de entrega\n\n| Garantia | Comportamento diante de falhas | Risco característico |\n| --- | --- | --- |\n| At-most-once | A mensagem não é processada mais de uma vez; pode ser perdida | Perda se a posição avançar antes do efeito |\n| At-least-once | A mensagem tende a ser entregue até ser processada; pode reaparecer | Duplicidade se o efeito não for idempotente |\n| Exactly-once | Efeito definido aparece uma única vez dentro do escopo coberto pela implementação | A garantia não se estende automaticamente a sistemas externos |\n\nA documentação do Kafka explica a janela entre processar mensagens e salvar posição. Em geral, salvar a posição antes do resultado aproxima-se de at-most-once; salvar depois aproxima-se de at-least-once. Para processamento entre tópicos Kafka, uma transação pode agrupar mensagens de saída e offsets de entrada. Para banco externo ou serviço HTTP, a garantia exige cooperação adicional, como transação compartilhada, chave idempotente ou reconciliação. “Exactly once” deve sempre ser lido com seu escopo explícito.\n\n### Como cai na prova\n\n- Timeout deixa o resultado remoto incerto; consultar por chave ou repetir idempotentemente é mais seguro que presumir sucesso ou fracasso.\n- Tentativas infinitas sem espera podem sobrecarregar um serviço indisponível; backoff e limite controlam a pressão.\n- At-least-once permite duplicatas, então o consumidor deve suportar repetição quando o efeito não pode ser perdido."
+    },
+    {
+      "title": "4. Coordenação distribuída e interoperabilidade resiliente",
+      "markdown": "### O problema que este assunto resolve\n\nUma operação de negócio pode cruzar serviços com bancos independentes. Um pedido é criado no serviço de vendas, o crédito é reservado em outro e a entrega é solicitada a um terceiro. Uma transação local não confirma simultaneamente esses bancos. O fluxo precisa escolher entre coordenação transacional distribuída e uma sequência de transações locais com recuperação explícita.\n\n> **Siglas e termos deste capítulo**\n> - **2PC**: two-phase commit, protocolo coordenado de preparação e confirmação em duas fases.\n> - **Saga**: sequência coordenada de transações locais, com ações compensatórias para etapas concluídas.\n> - **Compensação**: nova operação de negócio que contrabalança um efeito anterior; não é rollback físico do passado.\n> - **Outbox transacional**: tabela local gravada na mesma transação da alteração de negócio; um publicador envia depois seus registros.\n> - **Reconciliação**: comparação de estados ou registros para localizar e corrigir divergências.\n> - **Correlação**: identificador comum que liga requisições, eventos e logs de uma mesma operação.\n\n### Saga e compensação\n\nNo padrão saga descrito em microservices.io, uma transação de negócio que atravessa serviços vira uma sequência de transações locais. Se uma etapa posterior falhar por regra de negócio, ações compensatórias tentam desfazer os efeitos já concluídos. Em uma reserva de pedido, por exemplo, o serviço pode criar o pedido como `PENDING`, solicitar reserva de crédito e, se a reserva for recusada, cancelar o pedido ou liberar reservas anteriores. Compensar não apaga o fato histórico; pode haver taxas, efeitos já observados ou compensação que também falhe. Por isso cada etapa precisa registrar resultado e permitir retomada/reconciliação.\n\nA coordenação pode ser por coreografia: um serviço publica evento que desencadeia o próximo participante; ou por orquestração: um coordenador envia comandos e acompanha respostas. Coreografia reduz um coordenador central, mas pode tornar o encadeamento menos visível. Orquestração centraliza o processo e deixa explícita a sequência, mas exige disponibilidade e evolução cuidadosa do orquestrador. Nenhuma opção elimina o tratamento de mensagens repetidas e falhas parciais.\n\n### Outbox fecha a lacuna entre banco e mensagem\n\nSe uma aplicação atualiza uma linha e depois publica um evento em uma chamada separada, pode cair entre as duas ações. O banco terá a mudança, mas o consumidor nunca receberá o evento. O padrão outbox grava, na mesma transação local, tanto a alteração de negócio quanto uma linha de mensagem pendente. Um processo separado publica a linha e marca seu envio. Se publicar e cair antes de marcar, pode publicar novamente; por isso consumidores ainda devem deduplicar ou ser idempotentes. O outbox evita a perda silenciosa na lacuna, sem criar uma transação global entre banco e broker.\n\n### O que de fato significa processamento exatamente uma vez\n\nO Kafka pode atualizar atomicamente, em seu escopo, os registros de saída e os offsets de entrada, usando produtor transacional e configuração compatível do consumidor. A documentação também ressalta que, para destinos externos, a cooperação do sistema de destino é necessária. Assim, ao integrar um banco e uma fila, não se deve inferir que ativar uma opção de broker faz uma cobrança HTTP ou uma gravação externa exatamente uma vez. Chaves idempotentes, outbox/inbox, transações locais e reconciliação compõem a solução conforme as fronteiras envolvidas.\n\n### Como cai na prova\n\n- Saga não mantém necessariamente um bloqueio distribuído durante todo o fluxo; usa transações locais e compensações.\n- Ação compensatória é uma nova ação de negócio e pode falhar ou não restaurar literalmente a situação histórica.\n- Outbox grava evento pendente junto com a mudança local; a entrega posterior ainda pode ser repetida."
+    }
+  ],
+  "summary": "Fluxos interoperáveis precisam declarar contratos entre componentes e controlar separadamente transações, progresso e efeitos externos. Em uma transação local, COMMIT confirma e ROLLBACK descarta mudanças ainda não confirmadas. Um orquestrador persiste estados por tarefa e identifica cada instância; checkpoints, offsets e históricos duráveis ajudam a retomar após falhas, mas precisam ser alinhados aos efeitos já gravados. Repetições são comuns em sistemas distribuídos, portanto chaves idempotentes e deduplicação evitam efeitos duplicados. Kafka pode agrupar offsets e saídas em transação dentro do seu escopo; essa garantia não se estende automaticamente a APIs ou bancos externos. Para operações entre serviços independentes, sagas coordenam transações locais e compensações, enquanto o transactional outbox grava a mudança e o evento pendente na mesma transação local.",
+  "flashcards": [
+    {
+      "front": "O que faz COMMIT em uma transação?",
+      "back": "Confirma as alterações da transação ativa, tornando-as efetivas segundo as garantias do banco."
+    },
+    {
+      "front": "O que faz ROLLBACK em uma transação ativa?",
+      "back": "Cancela a transação e descarta suas alterações ainda não confirmadas."
+    },
+    {
+      "front": "Para que serve um savepoint?",
+      "back": "Marca um ponto intermediário para permitir voltar a parte da transação sem cancelar todo o trabalho anterior."
+    },
+    {
+      "front": "Uma transação local inclui automaticamente uma chamada HTTP?",
+      "back": "Não. O banco não controla atomicamente o efeito que um serviço remoto já realizou."
+    },
+    {
+      "front": "O que diferencia estado de execução de log?",
+      "back": "Estado representa a situação atual usada para controlar o fluxo; log registra eventos e detalhes diagnósticos da execução."
+    },
+    {
+      "front": "O que é uma instância de tarefa?",
+      "back": "Uma execução concreta de uma tarefa para um fluxo ou intervalo específico, com estado próprio."
+    },
+    {
+      "front": "O que registra um offset Kafka?",
+      "back": "A posição do consumidor no log de uma partição, usada para orientar a leitura posterior."
+    },
+    {
+      "front": "O que é checkpoint?",
+      "back": "Um ponto persistido e consistente do progresso que pode servir de base para retomar o processamento."
+    },
+    {
+      "front": "O que ocorre em at-most-once?",
+      "back": "Evita reprocessamento, mas pode perder mensagem se a posição for avançada antes de persistir o efeito."
+    },
+    {
+      "front": "Qual o risco de at-least-once?",
+      "back": "Uma mensagem pode ser entregue novamente após uma falha e duplicar o efeito se o consumidor não for idempotente."
+    },
+    {
+      "front": "O que significa idempotência?",
+      "back": "Repetir a mesma operação identificada não multiplica seu efeito final."
+    },
+    {
+      "front": "O que é deduplicação?",
+      "back": "Identificar uma solicitação já tratada, em geral por um identificador estável, e evitar repetir seu efeito."
+    },
+    {
+      "front": "O que um timeout informa?",
+      "back": "Que a resposta não chegou no limite esperado; não prova se o sistema remoto executou a solicitação."
+    },
+    {
+      "front": "O que é backoff?",
+      "back": "Intervalo de espera entre tentativas, frequentemente aumentado para reduzir pressão sobre um serviço falhando."
+    },
+    {
+      "front": "Como o Temporal reconstrói o estado de um workflow após crash do worker?",
+      "back": "Reproduz o código do workflow guiado pelo histórico durável de eventos persistido pelo serviço."
+    },
+    {
+      "front": "Qual é o papel de XCom no Airflow?",
+      "back": "Transportar pequenas mensagens entre tarefas; dados grandes devem ficar em armazenamento compartilhado e durável."
+    },
+    {
+      "front": "O que é uma saga?",
+      "back": "Sequência coordenada de transações locais entre serviços, com ações compensatórias para efeitos concluídos quando necessário."
+    },
+    {
+      "front": "O que uma compensação faz?",
+      "back": "Executa nova operação para contrabalançar um efeito anterior; não apaga nem reverte literalmente o histórico."
+    },
+    {
+      "front": "O que resolve o padrão transactional outbox?",
+      "back": "Registra alteração de negócio e evento pendente na mesma transação local para posterior publicação confiável."
+    },
+    {
+      "front": "Exactly-once do Kafka cobre qualquer chamada externa?",
+      "back": "Não. A garantia depende do escopo transacional Kafka; destinos externos precisam cooperar com idempotência ou outro mecanismo."
+    },
+    {
+      "front": "O que é uma chave de correlação?",
+      "back": "Identificador que liga logs, requisições e eventos relativos à mesma operação distribuída."
+    },
+    {
+      "front": "Como uma inbox de consumidor ajuda?",
+      "back": "Registra IDs de mensagens tratadas junto com a alteração local, reconhecendo e descartando reentregas."
+    }
+  ],
+  "tips": [
+    "Ao analisar reinício, pergunte em que ordem foram persistidos o resultado do processamento e o offset/checkpoint.",
+    "Trate timeout como resultado desconhecido e procure uma chave de operação estável antes de reenviar.",
+    "Leia toda promessa de exactly-once com o escopo do armazenamento e dos efeitos que a transação realmente cobre.",
+    "Separe falha transitória de erro permanente antes de configurar retry.",
+    "Em fluxo entre serviços com bancos próprios, desenhe o sucesso e também a compensação de cada etapa.",
+    "Use identificador de correlação para ligar a mesma execução em logs, mensagens e chamadas de API."
+  ],
+  "traps": [
+    "Afirmar que rollback do banco desfaz automaticamente uma mensagem já publicada ou uma chamada HTTP remota.",
+    "Tratar timeout como prova de que a operação remota não aconteceu.",
+    "Confundir estado atual da tarefa com log diagnóstico ou histórico ordenado de eventos.",
+    "Dizer que at-least-once impede duplicatas; a garantia aceita reentrega para reduzir perda.",
+    "Supor que offset salvo antes do processamento garante que a saída foi gravada.",
+    "Chamar compensação de rollback literal: a compensação é outra ação e pode não apagar todos os efeitos observáveis."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique por que uma transação local não garante atomicidade entre um banco e uma API remota.",
+      "answer": "Cada participante confirma seu próprio efeito. O banco pode confirmar e a rede cair antes da chamada remota, ou o remoto pode concluir e a resposta se perder; é necessário coordenar ou tratar o resultado parcial."
+    },
+    {
+      "question": "Compare COMMIT, ROLLBACK e ROLLBACK TO SAVEPOINT.",
+      "answer": "COMMIT confirma a transação; ROLLBACK cancela as alterações não confirmadas; ROLLBACK TO SAVEPOINT desfaz somente o trecho posterior ao marcador e mantém a transação aberta."
+    },
+    {
+      "question": "Quais dados ajudam a reconstruir uma execução após falha?",
+      "answer": "IDs estáveis do fluxo, instância, tarefa, tentativa e mensagem; estados, timestamps, logs/histórico durável, checkpoint ou offset e referência a saídas persistentes."
+    },
+    {
+      "question": "Por que salvar o offset antes da saída pode perder trabalho?",
+      "answer": "Se a aplicação cair depois de avançar a posição e antes de persistir o resultado, a próxima execução começa após a mensagem que não produziu saída durável."
+    },
+    {
+      "question": "Por que salvar o offset depois da saída pode criar duplicatas?",
+      "answer": "Se a saída persistir e a aplicação cair antes de confirmar o offset, a mensagem volta a ser lida; idempotência ou deduplicação protege o efeito."
+    },
+    {
+      "question": "Como idempotência torna retry mais seguro?",
+      "answer": "A operação repetida com a mesma chave não cria novo efeito; o servidor devolve ou reconhece o resultado já registrado em vez de aplicar a ação novamente."
+    },
+    {
+      "question": "Descreva a sequência de uma saga em um pedido que reserva crédito.",
+      "answer": "Criar pedido pendente, solicitar reserva no serviço de crédito, registrar a resposta e aprovar o pedido ou executar compensação, como cancelar o pedido ou liberar reserva."
+    },
+    {
+      "question": "Que falha de publicação o outbox reduz e qual risco ainda permanece?",
+      "answer": "Reduz a janela em que a alteração do banco confirma sem que o evento seja registrado, pois ambos são gravados localmente juntos. A publicação posterior pode repetir após queda, exigindo consumidor idempotente."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Transação local confundida com transação distribuída",
+      "summary": "COMMIT ou ROLLBACK controla participantes daquela transação. Efeitos em broker, API e bancos remotos exigem coordenação e tratamento específico."
+    },
+    {
+      "key": "e2",
+      "title": "Checkpoint e efeito persistidos em ordens diferentes",
+      "summary": "Avançar offset antes da saída pode perder processamento; gravar saída antes do offset pode reprocessar. Alinhe confirmação e use idempotência/deduplicação."
+    },
+    {
+      "key": "e3",
+      "title": "Retry sem idempotência",
+      "summary": "Falha de resposta não prova ausência de efeito. Repetir operação não idempotente pode cobrar, inserir ou enviar duas vezes."
+    },
+    {
+      "key": "e4",
+      "title": "Garantia exactly-once ampliada além de seu escopo",
+      "summary": "A atomicidade de offsets e saídas em Kafka não cobre automaticamente banco externo ou API. Cada fronteira precisa participar da garantia ou aceitar deduplicação/reconciliação."
+    },
+    {
+      "key": "e5",
+      "title": "Compensação tratada como apagamento do passado",
+      "summary": "Saga coordena transações locais e ações compensatórias. A compensação é um novo efeito de negócio, pode falhar e não elimina fatos já observados."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em uma transação explícita do PostgreSQL, uma aplicação validou todas as mudanças relacionadas e deseja confirmá-las. Qual comando encerra a transação com sucesso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "COMMIT confirma as alterações feitas na transação corrente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "ROLLBACK confirma as alterações e fecha a transação corrente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SAVEPOINT confirma a transação e inicia outra unidade de trabalho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CHECKPOINT envia as alterações para todos os serviços remotos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RETRY valida as alterações e registra a transação no broker.",
+          "correct": false
+        }
+      ],
+      "explanation": "COMMIT encerra com sucesso a transação e confirma suas alterações. ROLLBACK cancela as mudanças não confirmadas; savepoint é um marcador interno; checkpoint e retry não são comandos SQL para confirmar a transação.",
+      "section": "1. Fluxo, interoperabilidade e fronteira transacional",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação atualiza duas contas na mesma transação local. A segunda atualização falha antes da confirmação. Qual comando descarta as mudanças ainda não confirmadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "COMMIT confirma o débito e deixa o crédito para uma tentativa posterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ROLLBACK descarta as atualizações da transação que falhou.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "SAVEPOINT confirma o débito e apaga o histórico da conta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "OFFSET devolve os dados da conta ao estado anterior à operação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "REPLAY reconstrói a transação e confirma a parte que já terminou.",
+          "correct": false
+        }
+      ],
+      "explanation": "ROLLBACK cancela a transação corrente e descarta suas alterações não confirmadas. Confirmar apenas o débito violaria a unidade da operação; savepoint não apaga histórico, offset é posição de consumo e replay não é comando de banco.",
+      "section": "1. Fluxo, interoperabilidade e fronteira transacional",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa voltar apenas às instruções executadas depois de um marcador, preservando o trecho anterior ainda dentro da transação. Qual recurso SQL atende a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "COMMIT TO SAVEPOINT confirma a transação e restaura o saldo anterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "OFFSET TO SAVEPOINT reposiciona o consumidor no log da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ROLLBACK TO SAVEPOINT desfaz o trecho posterior ao marcador.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "RETRY TO SAVEPOINT repete todas as operações já confirmadas no banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CHECKPOINT TO SAVEPOINT grava um backup independente da transação.",
+          "correct": false
+        }
+      ],
+      "explanation": "ROLLBACK TO SAVEPOINT permite voltar ao marcador definido dentro da transação e manter o restante anterior. O marcador não é backup, offset de mensagens nem comando de retry, e não confirma a transação inteira.",
+      "section": "1. Fluxo, interoperabilidade e fronteira transacional",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um consumidor Kafka salva o offset de uma mensagem antes de gravar o resultado em um banco externo. O processo cai entre essas ações. Qual risco essa ordem cria?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A mensagem será obrigatoriamente repetida porque o offset confirma a saída externa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O banco externo desfará o offset e repetirá a mensagem na mesma transação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O broker bloqueará a partição até o consumidor restaurar a saída perdida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A mensagem pode ser considerada consumida sem que seu resultado tenha sido gravado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O offset transforma a escrita no banco externo em operação exactly-once.",
+          "correct": false
+        }
+      ],
+      "explanation": "O offset avançado faz a próxima execução prosseguir depois daquela mensagem, embora a saída externa não tenha sido persistida. Como o banco externo não participa da transação que salvou o offset, pode ocorrer perda do efeito; outbox, transação coordenada ou estratégia de reprocessamento pode ser necessária.",
+      "section": "3. Falhas, reinício, tentativas e idempotência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo grava a saída em um sistema externo e cai antes de salvar o offset de entrada. Ao reiniciar, que situação é possível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A entrada pode ser lida novamente e produzir efeito duplicado se a operação não for idempotente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A entrada será ignorada porque a gravação externa confirma todos os offsets.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O broker reverte automaticamente a saída gravada no outro sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A tarefa recebe estado de sucesso assim que a rede confirma o envio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O consumidor inicia uma transação global sem configuração adicional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Como o offset ainda não foi salvo, a mensagem pode reaparecer após reinício, embora a saída já exista. A operação idempotente ou um registro de deduplicação evita aplicar o mesmo efeito novamente; a gravação externa não confirma automaticamente o offset.",
+      "section": "3. Falhas, reinício, tentativas e idempotência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância de tarefa do Airflow falhou, mas ainda tem tentativas configuradas e disponíveis. Qual estado indica que ela será agendada para nova tentativa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`scheduled`, porque suas dependências ainda não foram analisadas pelo executor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`upstream_failed`, porque a própria tarefa concluiu uma tentativa com erro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`success`, porque o agendador já aceitou processar a nova tentativa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`skipped`, porque a falha encerra o ramo antes de novas execuções.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`up_for_retry`, porque há tentativas disponíveis após a falha.",
+          "correct": true
+        }
+      ],
+      "explanation": "Airflow usa `up_for_retry` para a tarefa que falhou e ainda tem tentativas disponíveis. `upstream_failed` descreve dependência necessária que falhou; `scheduled`, `success` e `skipped` representam outras condições do ciclo de vida.",
+      "section": "2. Estado de execução, histórico e checkpoint",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um worker Temporal cai durante um workflow. Segundo o mecanismo de Event History, como o serviço pode reconstruir o estado lógico da execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Lê somente o último log de texto local e presume o resultado de cada atividade remota.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reproduz o código do workflow guiado pelos eventos duráveis registrados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desfaz todas as atividades já concluídas e inicia uma transação SQL comum.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usa o offset do tópico Kafka para localizar automaticamente qualquer saída externa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Restaura a memória exata do worker a partir de um snapshot obrigatório.",
+          "correct": false
+        }
+      ],
+      "explanation": "Temporal persiste um histórico ordenado de eventos. No replay, a execução do código do workflow é guiada pelo que já está no histórico, reconstruindo o estado lógico após a queda do worker. Isso não exige snapshot da memória e não desfaz efeitos externos concluídos.",
+      "section": "2. Estado de execução, histórico e checkpoint",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço recebe uma solicitação de pagamento, mas a resposta ao cliente expira. O cliente não sabe se a cobrança ocorreu. Qual prática reduz o risco de cobrar duas vezes ao reenviar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gerar uma chave diferente a cada envio e apagar o registro da tentativa anterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o timeout e assumir que o primeiro envio foi cancelado quando ele vencer.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar a mesma chave de idempotência para a mesma operação e retornar o resultado registrado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desativar logs para impedir que o servidor recupere dados da solicitação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Confirmar o offset da fila antes de verificar o estado da cobrança.",
+          "correct": false
+        }
+      ],
+      "explanation": "Timeout significa que a resposta não chegou, não que o servidor deixou de efetuar a cobrança. Reutilizar a mesma chave de idempotência permite reconhecer a operação já registrada e evitar um segundo efeito; criar nova chave remove essa proteção.",
+      "section": "3. Falhas, reinício, tentativas e idempotência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer reduzir tentativas simultâneas enquanto uma API está indisponível. Qual política ajuda a controlar a pressão sem abandonar a recuperação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir em laço sem espera, para preencher todas as conexões livres do serviço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter todo erro de validação em sucesso e ignorar o corpo da resposta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reiniciar o fluxo inteiro e apagar os identificadores das operações pendentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Classificar erros e repetir falhas transitórias com limite e backoff.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o paralelismo de cada retry até que a API responda.",
+          "correct": false
+        }
+      ],
+      "explanation": "Limite e backoff reduzem sobrecarga durante indisponibilidade; a classificação evita repetir indefinidamente erro permanente, como dado inválido. Um laço agressivo ou aumento de paralelismo pode ampliar a falha, e converter erro em sucesso mascara o problema.",
+      "section": "3. Falhas, reinício, tentativas e idempotência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação de negócio precisa atualizar um banco e publicar mensagem em tópico usando exatamente o mesmo COMMIT local, sem padrão adicional. Qual afirmação é correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A transação do banco controla o banco participante, não uma publicação remota feita separadamente. Um outbox transacional pode persistir a mensagem pendente junto com a mudança local e publicá-la depois; não é um COMMIT único do banco e broker.",
+      "section": "1. Fluxo, interoperabilidade e fronteira transacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No padrão de entrega at-least-once, a mensagem pode ser reentregue após falha, portanto um consumidor com efeito não idempotente pode duplicar o resultado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. At-least-once privilegia que a mensagem não se perca e permite que ela reapareça se a confirmação da posição não ocorreu. Deduplicação ou efeito idempotente torna a reexecução segura.",
+      "section": "3. Falhas, reinício, tentativas e idempotência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma transação ativa, `ROLLBACK` confirma as atualizações e as torna permanentes, enquanto `COMMIT` descarta as mudanças que ainda não foram gravadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os comandos têm o papel inverso: COMMIT confirma as alterações e ROLLBACK cancela a transação corrente, descartando atualizações ainda não confirmadas.",
+      "section": "1. Fluxo, interoperabilidade e fronteira transacional",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um offset Kafka indica a posição de leitura do consumidor no log de uma partição, mas não contém por si só a saída de negócio gravada em um banco externo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Offset orienta a retomada da leitura. A saída em um sistema externo tem persistência própria; coordenar ambas as confirmações exige mecanismo compatível, idempotência ou reconciliação.",
+      "section": "2. Estado de execução, histórico e checkpoint",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um timeout de chamada remota prova que o servidor não executou a operação, então a repetição com uma chave nova é sempre segura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O servidor pode ter concluído a operação e a resposta ter se perdido. A repetição com uma chave nova pode duplicar o efeito; use a mesma chave idempotente ou consulte o resultado da operação original.",
+      "section": "3. Falhas, reinício, tentativas e idempotência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No padrão saga, cada etapa é uma transação local e uma compensação é uma nova ação de negócio que pode não apagar literalmente o efeito histórico anterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Saga coordena operações locais e, em caso de falha posterior, executa compensações. Elas podem falhar e não equivalem a restaurar fisicamente um estado passado como se nada tivesse acontecido.",
+      "section": "4. Coordenação distribuída e interoperabilidade resiliente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma tarefa Airflow estiver em `up_for_retry`, significa que ela já teve sucesso e só aguarda o agendador liberar a tarefa dependente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `up_for_retry` indica falha com tentativas disponíveis e previsão de nova execução. Sucesso é outro estado; dependência anterior malsucedida pode levar a `upstream_failed`.",
+      "section": "2. Estado de execução, histórico e checkpoint",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um checkpoint consistente deve guardar o progresso em um ponto compatível com os efeitos duráveis que a execução já produziu.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Se o checkpoint avança além das saídas persistidas, a retomada pode pular trabalho; se fica atrás de saídas já gravadas, pode repetir trabalho. A fronteira deve ser alinhada ou protegida por idempotência/deduplicação.",
+      "section": "2. Estado de execução, histórico e checkpoint",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API que aceita uma chave idempotente deve receber uma chave aleatória nova a cada retry para distinguir cada tentativa como pagamento independente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A mesma operação lógica deve usar a mesma chave em suas tentativas, permitindo reconhecer uma solicitação já processada. Uma chave nova pode ser interpretada como uma operação distinta e duplicar a cobrança.",
+      "section": "3. Falhas, reinício, tentativas e idempotência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada HTTP concluída por outro serviço é desfeita automaticamente se o chamador emitir `ROLLBACK` em sua própria conexão de banco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O rollback afeta a transação local do banco participante. O serviço remoto já pode ter confirmado seu próprio efeito; compensação, chave idempotente ou coordenação explícita são necessários para tratar o resultado parcial.",
+      "section": "1. Fluxo, interoperabilidade e fronteira transacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A gravação de uma mensagem em uma outbox na mesma transação local da mudança de negócio evita a lacuna em que a mudança confirma sem deixar evento pendente registrado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A atualização e a linha da outbox confirmam ou são canceladas juntas no banco local. A publicação ocorre depois e ainda pode repetir, então o consumidor deve ser idempotente ou deduplicar.",
+      "section": "4. Coordenação distribuída e interoperabilidade resiliente",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao usar transação Kafka entre tópico de entrada e tópico de saída, a atomicidade cobre automaticamente também qualquer atualização de banco relacional fora do Kafka.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A transação Kafka pode agrupar offsets e registros Kafka dentro do seu escopo. Um banco externo não participa automaticamente dessa transação e exige cooperação, como idempotência, outbox/inbox ou protocolo coordenado apropriado.",
+      "section": "4. Coordenação distribuída e interoperabilidade resiliente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina processa mensagens com risco de reentrega. Qual implementação registra o identificador já tratado junto com o efeito no banco local?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Inserir o ID da mensagem numa inbox e aplicar a mudança de negócio na mesma transação local.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apagar o ID da mensagem do log após confirmar o offset em um arquivo local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gerar outro ID para a mensagem repetida e executar seu efeito antes de consultar o banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gravar o offset em memória e confirmar a mudança de negócio depois do reinício.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registrar apenas o texto da exceção e ignorar a identidade da solicitação recebida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma inbox persistente guarda a identidade da mensagem já processada, e a transação local inclui tanto essa marca quanto a alteração de negócio. Se houver reentrega, o identificador existente evita repetir o efeito; offset apenas em memória não fornece essa proteção.",
+      "section": "3. Falhas, reinício, tentativas e idempotência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma migração de fluxo precisa comunicar uma falha sem fazer o chamador repetir erro permanente de validação. Que política é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir toda resposta com o mesmo intervalo até o sistema atingir o timeout global.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tratar qualquer resposta de erro como sucesso e seguir para a próxima etapa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar o estado da execução para que o erro não reapareça na retomada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Classificar erros permanentes e transitórios, repetindo apenas os elegíveis com limite.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aumentar tentativas sempre que o contrato rejeitar um campo obrigatório ausente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Erro de validação tende a ser permanente até que a entrada seja corrigida, enquanto indisponibilidade temporária pode justificar retry. Classificar a falha e limitar tentativas evita desperdício e evita mascarar contrato inválido.",
+      "section": "3. Falhas, reinício, tentativas e idempotência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação usa API de pagamentos com idempotência. Qual decisão preserva a identidade de uma operação quando a resposta de uma tentativa se perde?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enviar a solicitação com uma chave nova e confiar que o servidor compare os valores do corpo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar dois identificadores de correlação para que cada tentativa tenha resultado isolado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover a chave da solicitação e deixar o servidor determinar se houve pagamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Confirmar o pagamento no banco local antes que o serviço remoto receba a requisição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reenviar com a mesma chave lógica e consultar ou reutilizar o resultado registrado.",
+          "correct": true
+        }
+      ],
+      "explanation": "A mesma chave idempotente identifica as tentativas da mesma operação; o servidor pode devolver o resultado já armazenado em vez de cobrar novamente. Chaves novas ou ausência da chave podem transformar um retry em nova cobrança.",
+      "section": "3. Falhas, reinício, tentativas e idempotência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transferência de dados exige que os registros produzidos e os offsets de entrada sejam confirmados juntos dentro do Kafka. Qual mecanismo pode fornecer esse agrupamento no escopo Kafka?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atualizar o offset antes de enviar cada registro para reduzir o tempo de espera.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar apenas uma chave de partição comum e considerar a ordenação como atomicidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar uma transação do produtor que inclua saídas e offsets de entrada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ativar retry no consumidor e gravar os offsets em memória até o encerramento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter o consumidor em pausa enquanto os registros de saída são publicados individualmente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Kafka permite que o produtor transacional agrupe publicações e atualização de offsets em uma unidade atômica dentro do sistema. Uma chave de partição ou pausa não oferece essa atomicidade; a garantia não se estende automaticamente a destino externo.",
+      "section": "3. Falhas, reinício, tentativas e idempotência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um consumer registra a saída processada e depois atualiza seu offset. Qual proteção reduz duplicação se o processo cair no intervalo entre as duas gravações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fazer a saída idempotente ou manter deduplicação persistente pela identidade da mensagem.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Marcar a mensagem como perdida e impedir que o broker volte a entregá-la.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o timeout de leitura para impedir uma queda do processo local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar persistência do offset para que o consumidor retome sempre do início.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar uma transação global presumida entre todo banco e broker conectados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se a saída persistir e o offset não, haverá reentrega; idempotência ou deduplicação pela mesma identidade impede duplicar o efeito. Não se deve presumir transação global entre sistemas independentes, e timeout não elimina a janela de falha.",
+      "section": "3. Falhas, reinício, tentativas e idempotência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação de pedido envolve vendas e crédito, cada qual com banco próprio. Qual solução representa uma sequência de transações locais com compensações quando uma etapa posterior falha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Checkpoint, que volta todos os bancos ao mesmo snapshot sem registrar efeitos intermediários.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Savepoint, que mantém uma única conexão aberta entre os serviços independentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Retry, que apaga as transações já confirmadas antes de repetir o pedido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Saga, que coordena transações locais e ações compensatórias do fluxo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Offset, que reserva crédito e confirma o pedido ao avançar a partição.",
+          "correct": false
+        }
+      ],
+      "explanation": "Saga é o padrão para coordenar transações locais em serviços independentes. Compensações tratam efeitos já concluídos quando o fluxo não pode avançar; checkpoint, savepoint, retry e offset não criam por si só atomicidade entre bancos.",
+      "section": "4. Coordenação distribuída e interoperabilidade resiliente",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço persiste o pedido, mas pode cair antes de publicar o evento correspondente. Como o transactional outbox reduz essa janela?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirma primeiro o evento no broker e deixa a atualização do pedido para uma rotina posterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Grava o pedido e a linha de evento pendente na mesma transação local, publicando depois.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Mantém uma transação de banco aberta enquanto todos os consumidores processam o evento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apaga a linha do pedido se a publicação não retornar dentro do timeout configurado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Salva apenas o offset do consumidor e usa esse valor como conteúdo do evento.",
+          "correct": false
+        }
+      ],
+      "explanation": "A outbox grava a mudança de negócio e uma mensagem pendente no mesmo commit local. Um publicador separado envia o evento. A publicação pode ser repetida se houver queda após envio e antes da marcação, de modo que a deduplicação continua importante.",
+      "section": "4. Coordenação distribuída e interoperabilidade resiliente",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fluxo entre serviços precisa coordenar as etapas por eventos publicados pelos próprios participantes, sem um serviço central que envie todos os comandos. Qual estilo de saga descreve esse arranjo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Na orquestrada, os participantes ignoram respostas e avançam só por timeout.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Na coreografada, um serviço central envia todos os comandos e guarda a sequência completa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Na orquestrada, um coordenador envia comandos e acompanha respostas dos participantes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Na coreografada, todas as transações locais compartilham necessariamente um único banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Na coreografada, eventos publicados por participantes desencadeiam etapas de outros serviços.",
+          "correct": true
+        }
+      ],
+      "explanation": "Coreografia coordena por eventos: cada serviço reage ao fato publicado pelo anterior. Orquestração usa um coordenador que envia comandos e acompanha respostas. Nenhuma dessas modalidades implica um banco compartilhado ou dispensa tratamento de falhas.",
+      "section": "4. Coordenação distribuída e interoperabilidade resiliente",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um contrato de evento define que `PedidoCriado` significa apenas que o sistema emissor recebeu a requisição, embora os consumidores o interpretem como pedido já aprovado. Que risco de interoperabilidade aparece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os consumidores podem agir com base em um significado mais forte do que o emissor garantiu.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O broker converte automaticamente o evento em confirmação transacional para todos os serviços.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A divergência de significado será corrigida quando o offset da partição avançar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O contrato não importa porque os campos JSON podem ser interpretados livremente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O serviço emissor pode inferir aprovação a partir da entrega da mensagem ao tópico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Contratos interoperáveis precisam definir significado e estágio do processo. Recebimento não é processamento nem aprovação; se consumidores inferem um resultado não garantido, podem executar ações incorretas. Um offset não corrige a semântica do evento.",
+      "section": "1. Fluxo, interoperabilidade e fronteira transacional",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma execução possui o estado `running`, mas o worker não envia heartbeat e já morreu. Qual mecanismo operacional de orquestração pode identificar uma instância presa e marcá-la para falha ou retry?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O offset do tópico confirma que o worker encerrou sem produzir saída.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O savepoint da tarefa restaura automaticamente a memória do processo encerrado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O rollback do banco altera diretamente o estado registrado pelo scheduler.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A detecção de heartbeat expirado permite ao orquestrador limpar a instância e falhar ou tentar novamente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A repetição do evento inicial elimina a necessidade de consultar o estado da tarefa.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação do Airflow descreve detecção de instâncias sem heartbeat que permanecem em `running`; o scheduler pode marcá-las como falha ou retry se houver tentativas. Offset, savepoint e rollback não monitoram a vida do worker.",
+      "section": "2. Estado de execução, histórico e checkpoint",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa Airflow armazena um arquivo apenas no disco local do worker e uma tarefa dependente pode ser executada em outro servidor. Qual desenho de interoperabilidade entre as tarefas é mais robusto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enviar todo o arquivo binário em XCom, pois ele foi criado dentro do mesmo DAG.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter a dependência no arquivo local e repetir até o worker original ser escalado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar o dado grande em armazenamento compartilhado e passar uma referência pequena.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Salvar apenas o estado `success`, pois ele transfere o conteúdo para o executor seguinte.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar a persistência do workflow para que as tarefas compartilhem a memória do scheduler.",
+          "correct": false
+        }
+      ],
+      "explanation": "Workers diferentes podem não compartilhar sistema de arquivos local. A prática documentada do Airflow é usar XCom para mensagens pequenas e armazenamento remoto, como S3 ou HDFS, para dados grandes, passando a referência ao consumidor.",
+      "section": "2. Estado de execução, histórico e checkpoint",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um evento contém versão de esquema, ID de correlação e definição clara de quando o fato ocorreu. Que benefício esses elementos oferecem ao fluxo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Forçam todos os consumidores a usar o mesmo banco e a mesma linguagem de programação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituem a necessidade de persistir estado ou registrar falhas de execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Impedem que o broker entregue mensagens repetidas depois de uma queda.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Garantem que toda chamada remota tenha exatamente uma resposta e nenhum timeout.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apoiam validação compatível, rastreamento da operação e interpretação compartilhada.",
+          "correct": true
+        }
+      ],
+      "explanation": "Versão e contrato apoiam compatibilidade dos dados; o identificador de correlação liga logs e mensagens da mesma operação; a semântica do evento evita confundir recebimento com conclusão. Esses elementos não impedem todas as falhas nem substituem persistência.",
+      "section": "1. Fluxo, interoperabilidade e fronteira transacional",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma saga, a reserva de crédito foi concluída, mas uma etapa posterior de entrega falhou definitivamente. O que representa uma compensação adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar o evento de reserva do histórico para que a etapa pareça nunca ter ocorrido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar ação de negócio, como liberar o crédito, e registrar seu resultado no fluxo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Emitir COMMIT no banco de entrega para cancelar a reserva no banco de crédito.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reiniciar a sequência desde o começo sem verificar as transações já concluídas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Avançar o offset do pedido e presumir que o serviço de crédito reverteu a reserva.",
+          "correct": false
+        }
+      ],
+      "explanation": "A compensação é uma operação explícita de negócio, como liberar a reserva, coordenada e registrada como outra etapa. Ela não apaga o evento passado, e o commit de um serviço não controla o banco independente de outro.",
+      "section": "4. Coordenação distribuída e interoperabilidade resiliente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação diz oferecer exactly-once porque o broker confirma offsets e mensagens de saída atomicamente. Qual conclusão sobre uma API de terceiros chamada durante o processamento é defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A API participa automaticamente da transação do broker por receber a mesma mensagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A API não precisa de chave idempotente porque o broker conhece sua resposta HTTP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A atomicidade descrita cobre o escopo Kafka; a chamada externa precisa de proteção própria.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O offset só confirma depois que toda operação externa da aplicação for desfeita.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O broker detecta e elimina duplicatas de efeitos em qualquer serviço remoto conectado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A garantia exactly-once do processamento Kafka tem escopo definido pelos registros e offsets geridos no Kafka. Uma API externa não está automaticamente na transação; use idempotência, registro de resultado, outbox ou reconciliação conforme o caso.",
+      "section": "4. Coordenação distribuída e interoperabilidade resiliente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual registro permite que equipes liguem a solicitação original, o evento publicado e os logs de serviços diferentes à mesma execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um identificador de correlação propagado nas chamadas e mensagens do fluxo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um savepoint local criado por cada banco sem compartilhar seu nome.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um timeout global que substitui o identificador de cada instância.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um estado `success` gravado sem IDs de fluxo, evento ou tarefa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma partição escolhida sem relação com o pedido original recebido.",
+          "correct": false
+        }
+      ],
+      "explanation": "O ID de correlação é propagado entre componentes para associar requisições, eventos e registros diagnósticos à mesma operação. Um estado terminal sem identificadores ou um timeout não fornece esse encadeamento.",
+      "section": "2. Estado de execução, histórico e checkpoint",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma atividade remota realiza um efeito financeiro e pode ser tentada novamente pelo orquestrador. Qual característica deve ser projetada para evitar duplicação após resposta perdida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fazer cada tentativa usar um valor ligeiramente diferente para o sistema distinguir o pagamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter o resultado apenas no log local do worker que pode ser reiniciado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Confirmar o workflow antes de o sistema financeiro receber a solicitação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tratar toda resposta ausente como falha sem verificar se o efeito foi concluído.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar chave estável ou deduplicação no serviço que controla o efeito financeiro.",
+          "correct": true
+        }
+      ],
+      "explanation": "O serviço que controla o efeito deve reconhecer a mesma operação por chave estável ou registro de deduplicação. Resposta perdida não prova que não houve pagamento; guardar resultado somente na memória do worker não sobrevive ao reinício.",
+      "section": "3. Falhas, reinício, tentativas e idempotência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fluxo usa arquivo de log durável para reconstruir progresso. Qual afirmação descreve corretamente a relação entre histórico e efeitos externos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O histórico substitui todas as transações externas porque contém a ordem dos comandos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O replay pode reconstruir estado lógico, enquanto efeitos externos precisam de controle próprio.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O replay deve repetir toda chamada externa para reconstruir a memória do worker.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O registro de um evento faz rollback automático de serviços que não responderam.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O histórico é equivalente a uma cópia dos dados de todos os bancos participantes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Histórico durável permite reconstruir o estado lógico de uma execução por replay. Não contém necessariamente todos os dados externos nem cancela efeitos remotos; chamadas externas devem ser isoladas e protegidas por mecanismos adequados de repetição e idempotência.",
+      "section": "2. Estado de execução, histórico e checkpoint",
+      "errorConceptKey": null,
+      "year": null,
+      "board": null,
+      "agency": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um broker está indisponível por alguns segundos, enquanto a mensagem continua válida e não há risco de executar o efeito mais de uma vez. Que resultado se espera de retry com backoff e limite configurados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A tarefa descarta o estado persistido e transforma a indisponibilidade em sucesso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O fluxo repete imediatamente sem espera e sem registrar o número de tentativas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A aplicação apaga a mensagem para liberar a partição antes de reconectar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A aplicação ignora o limite definido e repete sem pausa até o broker responder.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A execução pode se recuperar da falha transitória sem retry infinito agressivo.",
+          "correct": true
+        }
+      ],
+      "explanation": "Backoff introduz espera entre novas tentativas e o limite restringe a duração da recuperação automática. A mensagem permanece tratável e a tentativa não deve mascarar a falha; loops agressivos ampliam a pressão no broker.",
+      "section": "3. Falhas, reinício, tentativas e idempotência",
+      "errorConceptKey": null,
+      "year": null,
+      "board": null,
+      "agency": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema grava somente a mensagem de log “processamento concluído”, sem ID de execução, tarefa, tentativa ou intervalo. Qual limitação isso causa na recuperação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O log passa a servir como offset e permite reposicionar o consumidor automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O scheduler consegue deduzir a dependência entre todas as tarefas pelo texto livre.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fica difícil associar o registro à instância correta e reconstruir o progresso preciso.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A ausência de identificadores impede que qualquer mensagem seja reentregue pelo broker.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A transação local passa a incluir todos os componentes por compartilhar a mesma frase.",
+          "correct": false
+        }
+      ],
+      "explanation": "Texto de log sem chaves de execução não liga com segurança o registro à tarefa, tentativa ou mensagem correspondente. Estado persistente e IDs estáveis são necessários para o orquestrador retomar e para a equipe reconstruir a sequência.",
+      "section": "2. Estado de execução, histórico e checkpoint",
+      "errorConceptKey": null,
+      "year": null,
+      "board": null,
+      "agency": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas equipes mantêm um fluxo que envia eventos entre serviços. Qual mudança melhora a interoperabilidade sem impor banco ou linguagem compartilhados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Expor as tabelas internas do produtor e deixar cada consumidor inferir o significado dos campos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Permitir que cada consumidor interprete os mesmos campos conforme sua preferência local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir mensagens e APIs por acesso direto às tabelas internas do produtor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover a identificação da operação para impedir dependência entre consumidores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir campos, versão, significado do evento e regras de erro em contrato compartilhado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Contrato documentado sobre formato, versão, semântica e erros permite que serviços independentes troquem dados com interpretação compatível. Compartilhar tabelas e memória aumenta acoplamento, enquanto interpretação livre gera divergência.",
+      "section": "1. Fluxo, interoperabilidade e fronteira transacional",
+      "errorConceptKey": null,
+      "year": null,
+      "board": null,
+      "agency": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa foi marcada `success` pelo orquestrador, mas seu arquivo de saída está apenas no disco temporário local do worker. Qual conclusão operacional é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O estado de sucesso comprova que o arquivo está durável e acessível a qualquer worker.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Copiar o arquivo para outro diretório local do mesmo worker e passar seu caminho absoluto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O offset da tarefa será atualizado apenas depois que outro servidor copiar o arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O histórico de eventos contém necessariamente o conteúdo binário integral da saída.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O resultado pode não sobreviver à perda do worker ou estar indisponível para tarefas em outro host.",
+          "correct": true
+        }
+      ],
+      "explanation": "Estado success informa a situação registrada da tarefa, mas não transforma disco temporário local em armazenamento durável e compartilhado. Airflow recomenda armazenamento remoto para arquivos usados por tarefas em workers diferentes e passagem de referência por XCom.",
+      "section": "2. Estado de execução, histórico e checkpoint",
+      "errorConceptKey": null,
+      "year": null,
+      "board": null,
+      "agency": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem já produziu efeito e sua identidade foi registrada na mesma transação do banco. A reentrega chega novamente. Como deve agir o consumidor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar o efeito uma segunda vez e só depois atualizar o marcador da mensagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Gerar outro ID para a reentrega e gravar um segundo resultado legítimo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar o marcador e apagar a mensagem para reiniciar toda a partição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reconhecer o ID já tratado e evitar repetir a alteração de negócio.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Reverter todas as transações anteriores para simular uma primeira entrega.",
+          "correct": false
+        }
+      ],
+      "explanation": "O consumidor consulta o registro durável de deduplicação e reconhece que aquele ID já teve seu efeito aplicado. Como o marcador e a alteração foram confirmados juntos, a reentrega pode ser descartada sem duplicar a operação.",
+      "section": "3. Falhas, reinício, tentativas e idempotência",
+      "errorConceptKey": null,
+      "year": null,
+      "board": null,
+      "agency": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço de pedidos envia comando para crédito e aguarda resposta do participante antes de decidir se aprova o pedido. Esse arranjo corresponde a qual estilo de coordenação de saga?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Coreografia baseada só em eventos, sem componente que acompanhe a sequência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Orquestração por coordenador que envia comandos e acompanha resultados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Replicação de banco que confirma automaticamente alterações em ambos os serviços.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "At-most-once, que elimina o estado de pedido pendente antes da resposta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Checkpoint local, que converte a resposta de crédito em savepoint SQL.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na orquestração, um coordenador explicita a sequência, envia comandos aos participantes e reage às respostas para aprovar ou rejeitar o pedido. Coreografia distribui o avanço por eventos publicados por cada participante.",
+      "section": "4. Coordenação distribuída e interoperabilidade resiliente",
+      "errorConceptKey": null,
+      "year": null,
+      "board": null,
+      "agency": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma falha de rede ocorre depois de o consumidor enviar uma confirmação, mas antes de receber a resposta. Qual procedimento evita assumir incorretamente o desfecho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descartar os registros de estado porque ausência de resposta significa rollback remoto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Assumir que o efeito não ocorreu e repetir com identificador de operação novo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Consultar o estado por ID estável ou repetir idempotentemente a mesma operação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Finalizar o fluxo como sucesso porque a requisição saiu do processo local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atualizar o checkpoint antes de confirmar o resultado remoto para evitar bloqueio.",
+          "correct": false
+        }
+      ],
+      "explanation": "A falta de resposta deixa o resultado incerto. Consulta por ID estável ou repetição idempotente permite descobrir/reutilizar o resultado sem criar um segundo efeito; envio local não prova confirmação remota.",
+      "section": "3. Falhas, reinício, tentativas e idempotência",
+      "errorConceptKey": "e3",
+      "year": null,
+      "agency": null,
+      "board": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação separa corretamente retry de compensação em um fluxo distribuído?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retry tenta executar novamente uma etapa; compensação contrabalança efeito local já concluído.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Retry apaga evento histórico, enquanto compensação apenas aumenta o timeout.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Retry confirma todos os bancos participantes, enquanto compensação restaura snapshots.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Retry reexecuta etapa elegível; compensação executa nova ação para tratar efeito anterior.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Retry e compensação são nomes equivalentes para avançar offsets de consumidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Retry repete uma etapa, geralmente diante de erro transitório e com proteção contra duplicatas. Compensação é outra ação de negócio que trata efeito já concluído quando o fluxo não prossegue; não equivale a apagar histórico nem restaurar snapshot automaticamente.",
+      "section": "4. Coordenação distribuída e interoperabilidade resiliente",
+      "errorConceptKey": "e5",
+      "year": null,
+      "agency": null,
+      "board": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura de fluxo, o evento `ReservaConfirmada` é publicado antes que a reserva seja persistida; o serviço cai imediatamente depois. Qual problema o desenho pode causar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Consumidores podem agir sobre uma confirmação cujo estado de negócio não foi duravelmente gravado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O offset da mensagem impede a queda do banco e repete automaticamente o commit local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A publicação anterior à gravação garante atomicidade entre broker e banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A saga converte o evento em rollback SQL para todos os consumidores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O histórico do broker torna a persistência do pedido desnecessária em qualquer serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "Publicar primeiro pode expor um fato que o estado de negócio não confirmou. Outbox evita essa ordem descoordenada ao gravar a alteração e a intenção de evento na mesma transação local, publicando depois.",
+      "section": "4. Coordenação distribuída e interoperabilidade resiliente",
+      "errorConceptKey": null,
+      "year": null,
+      "agency": null,
+      "board": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fluxo precisa continuar depois de reinício e também permitir auditoria da sequência de decisões. Qual combinação de registros é mais útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um único log agregado sem chave, mais um estado final sobrescrito a cada execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Histórico durável de eventos, estado da instância e checkpoint alinhado aos efeitos persistidos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Somente a saída final, porque ela permite reconstruir a ordem das tarefas sem metadados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um timeout fixo e o código-fonte atual do fluxo, sem registrar tentativas anteriores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Offsets locais não persistidos e uma cópia temporária dos arquivos de log do worker.",
+          "correct": false
+        }
+      ],
+      "explanation": "Histórico ordenado apoia auditoria e replay, estado da instância orienta o scheduler, e checkpoint consistente permite retomar sem pular saídas ou repetir efeitos sem controle. Saída final sem metadados não revela necessariamente a sequência executada.",
+      "section": "2. Estado de execução, histórico e checkpoint",
+      "errorConceptKey": null,
+      "year": null,
+      "agency": null,
+      "board": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada externa pode gerar uma cobrança que não deve ser duplicada. Qual situação pode justificar uma nova tentativa controlada, mantendo proteção contra duplicidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Erro permanente de validação, pois cada nova tentativa pode corrigir o corpo original.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Falha transitória de conexão, respeitando limite, backoff e a mesma chave idempotente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Resposta de autorização negada, repetida imediatamente até obter permissão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Qualquer resposta HTTP, sem consultar status ou resultado da operação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Timeout com nova chave em cada chamada, para que o servidor faça cobranças distintas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma falha de conexão transitória pode justificar retry controlado, mantendo a mesma chave idempotente para evitar duplicar a cobrança. Erros permanentes de validação e autorização normalmente exigem corrigir entrada ou permissão, não repetição cega.",
+      "section": "3. Falhas, reinício, tentativas e idempotência",
+      "errorConceptKey": null,
+      "year": null,
+      "agency": null,
+      "board": null,
+      "sourceType": "AUTHORIAL",
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Airflow, uma tarefa normalmente aguarda o sucesso de suas tarefas upstream antes de executar, salvo quando a regra de disparo configurada altera esse comportamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O comportamento padrão é executar uma tarefa depois que as dependências upstream foram bem-sucedidas. Regras de disparo permitem condições diferentes, como executar após conclusão independentemente do resultado.",
+      "section": "2. Estado de execução, histórico e checkpoint",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Kafka, consumidores que precisam ignorar registros de transações abortadas podem usar isolamento `read_committed`, dentro das condições da transação Kafka.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação do Kafka recomenda `read_committed` para o consumidor que busca processamento transacional; sem esse isolamento, pode observar registros de transações abortadas ou ainda abertas. Isso se aplica ao escopo Kafka, não a efeitos externos.",
+      "section": "4. Coordenação distribuída e interoperabilidade resiliente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando uma etapa da saga falha, o banco executa automaticamente um único ROLLBACK distribuído que apaga os efeitos confirmados nos demais serviços.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Saga não é um rollback global automático. Cada serviço confirma sua transação local; o coordenador ou a coreografia aciona compensações explícitas para contrabalançar efeitos já concluídos.",
+      "section": "4. Coordenação distribuída e interoperabilidade resiliente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O histórico de eventos do Temporal é mantido somente na memória local do worker e desaparece quando esse processo é reiniciado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O serviço Temporal persiste duravelmente o Event History. O worker pode cair e outro worker reconstruir o estado lógico por replay desse histórico, que não depende da memória local do processo anterior.",
+      "section": "2. Estado de execução, histórico e checkpoint",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL 16 — ROLLBACK",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Cancelamento da transação corrente, descarte das atualizações e relação com COMMIT e savepoints.",
+      "url": "https://www.postgresql.org/docs/16/sql-rollback.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Airflow — Tasks",
+      "publisher": "Apache Software Foundation",
+      "reference": "Instâncias de tarefa, estados do ciclo de vida, tentativas e detecção de tarefas sem heartbeat.",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/concepts/tasks.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Airflow — Best Practices",
+      "publisher": "Apache Software Foundation",
+      "reference": "Idempotência/repetição de tarefas, XCom para mensagens pequenas e armazenamento remoto para dados compartilhados.",
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/best-practices.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Temporal — Event History",
+      "publisher": "Temporal Technologies",
+      "reference": "Histórico durável de eventos, replay e reconstrução do estado de workflow após falha do worker.",
+      "url": "https://docs.temporal.io/encyclopedia/event-history",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Kafka — Design",
+      "publisher": "Apache Software Foundation",
+      "reference": "Semânticas at-most-once, at-least-once e exactly-once; ordenação entre processamento, offsets e saídas transacionais.",
+      "url": "https://kafka.apache.org/41/design/design/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Debezium — Outbox Event Router",
+      "publisher": "Debezium",
+      "reference": "Uso da outbox para evitar inconsistências entre estado interno do serviço e eventos consumidos por outros serviços.",
+      "url": "https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "microservices.io — Saga pattern",
+      "publisher": "microservices.io",
+      "reference": "Transações locais distribuídas, compensações e coordenação por coreografia ou orquestração.",
+      "url": "https://microservices.io/patterns/data/saga.html",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

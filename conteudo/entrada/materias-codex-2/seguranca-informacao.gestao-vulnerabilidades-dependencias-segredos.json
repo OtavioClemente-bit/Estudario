@@ -1,0 +1,630 @@
+{
+  "id": "seguranca-informacao.gestao-vulnerabilidades-dependencias-segredos",
+  "subject": "Segurança da informação",
+  "title": "Gestão de vulnerabilidades, dependências e segredos",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Gestão de vulnerabilidades, dependências e segredos",
+    "Gestão de vulnerabilidades em software",
+    "Gestão de dependências vulneráveis",
+    "Análise de dependências de software",
+    "Segredos e credenciais em aplicações",
+    "CVE, CWE e CVSS em segurança",
+    "Scanners de vulnerabilidades de software",
+    "Análise de composição de software SCA",
+    "Correção e validação de vulnerabilidades",
+    "Testes de segurança de aplicações",
+    "Gerenciamento de vulnerabilidades técnicas",
+    "Segredos em código-fonte e pipelines"
+  ],
+  "scope": {
+    "covers": "Ciclo de gestão de vulnerabilidades; inventário, triagem, priorização, correção e verificação; CVE como identificador, CWE como catálogo de fraquezas e CVSS como sistema de severidade; análise de dependências e componentes de terceiros, SBOM e SCA; scanners de código, dependências, segredos, infraestrutura e aplicações; tratamento de falso positivo; proteção, armazenamento, acesso, rotação e revogação de segredos; testes de segurança e comprovação de correções em CI/CD.",
+    "excludes": "Exploração ofensiva passo a passo, resposta completa a incidentes, configuração detalhada de produtos comerciais, requisitos legais setoriais e cálculo manual integral da pontuação CVSS."
+  },
+  "theoryTitle": "Da descoberta à validação: vulnerabilidades, dependências e segredos",
+  "chapters": [
+    {
+      "title": "1. Ciclo de gestão e priorização de vulnerabilidades",
+      "markdown": "### O problema que este assunto resolve\n\nUm sistema pode conter falhas no código próprio, nos serviços expostos, no sistema operacional e nas bibliotecas que incorpora. Corrigir somente o que o scanner encontrou ontem não basta: versões mudam, novos avisos surgem e uma correção pode não chegar a todos os ambientes. Gestão de vulnerabilidades é um processo contínuo que liga inventário, descoberta, análise, decisão, correção ou mitigação e verificação.\n\n> **Siglas e termos deste capítulo**\n> - **Ativo**: sistema, serviço, imagem, dispositivo ou componente sob responsabilidade da organização.\n> - **Vulnerabilidade**: condição explorável que pode afetar confidencialidade, integridade ou disponibilidade.\n> - **Exposição**: modo como o ativo pode ser alcançado ou usado; influencia o risco prático.\n> - **Mitigação**: redução temporária da possibilidade ou do impacto enquanto a correção não é aplicada.\n> - **Falso positivo**: achado que não corresponde a uma falha aplicável ao ativo analisado.\n\n### Um fluxo que fecha o ciclo\n\nPrimeiro se mantém um inventário confiável: nome do produto, versão, ambiente, responsável, dependências e criticidade do serviço. Sem isso, uma notificação de segurança não pode ser relacionada com segurança aos sistemas afetados. Depois, fontes como avisos do fornecedor, bases de vulnerabilidades, scanners e relatos internos alimentam a triagem. A equipe confirma produto e versão, condições de exploração, disponibilidade de correção, exposição de rede, dados e funções afetados e presença de controles compensatórios.\n\nA severidade publicada é uma entrada, não a decisão inteira. Uma falha de severidade alta num componente alcançável pela Internet e usado para autenticação tende a merecer atenção maior que o mesmo componente isolado e inacessível. Já um componente crítico em ambiente de teste pode ter prioridade distinta, mas ainda deve ser rastreado. A organização precisa definir responsáveis, prazos internos baseados em risco, exceções justificadas, plano de tratamento e escalonamento para itens vencidos. Não há um prazo universal inferível do CVSS.\n\n| Etapa | Evidência esperada |\n| --- | --- |\n| Descobrir | Achado com ativo, versão, fonte e data |\n| Triar | Aplicabilidade, exposição, impacto e prioridade documentados |\n| Tratar | Atualização, correção de código, mitigação ou exceção aprovada |\n| Verificar | Teste repetido que confirma a correção e checa regressões |\n| Encerrar | Registro atualizado, responsável e evidência preservados |\n\n### CVE, CWE e CVSS respondem perguntas diferentes\n\n**CVE** é um identificador comum associado a uma vulnerabilidade divulgada; organizações autorizadas no programa CVE, chamadas CNAs, podem atribuir identificadores e publicar registros. O registro facilita que fornecedores, pesquisadores e operadores falem do mesmo problema. Um identificador não é, por si, um diagnóstico de que todo produto ou versão esteja vulnerável.\n\n**CWE** enumera tipos de fraqueza de software ou hardware, como validação inadequada de entrada. É uma classificação da causa ou padrão de erro, não o número de uma vulnerabilidade específica. **CVSS**, mantido pela FIRST, é um framework para comunicar características e severidade. Sua versão 4.0 divide métricas em Base (características intrínsecas), Threat (ameaça variável), Environmental (ambiente do consumidor) e Supplemental (contexto adicional, sem alterar a pontuação). A nota Base não substitui a avaliação local nem mede sozinha o risco de negócio.\n\n### Como cai na prova\n\nA banca troca as funções: CVE identifica, CWE categoriza fraquezas e CVSS expressa severidade por métricas. Também testa a diferença entre “scanner reportou” e “equipe confirmou aplicabilidade”. Priorização considera severidade junto com contexto, e encerramento requer verificar a correção, não apenas instalar um pacote."
+    },
+    {
+      "title": "2. Dependências, SCA e scanners",
+      "markdown": "### O problema que este assunto resolve\n\nAplicações modernas reutilizam pacotes, bibliotecas, imagens-base e componentes transitivos. Uma equipe pode não ter escrito uma linha de uma biblioteca vulnerável e ainda assim distribuir a falha. A análise de composição de software, ou **SCA**, identifica componentes e compara versões com informações de vulnerabilidade, licenças e origem.\n\n> **Siglas e termos deste capítulo**\n> - **Dependência direta**: declarada pelo projeto que a utiliza.\n> - **Dependência transitiva**: instalada por outra dependência.\n> - **SCA**: análise de composição de software para inventariar componentes e avaliar riscos associados.\n> - **SBOM**: lista estruturada de componentes de software e relações relevantes em um produto.\n> - **CPE**: esquema de identificação de produtos usado por algumas fontes e ferramentas para correlacionar componentes.\n\n### Identificar o que realmente foi construído\n\nA declaração do gerenciador de pacotes não é sempre o inventário do artefato final. Versões resolvidas, dependências transitivas, pacotes embarcados e camadas de contêiner podem diferir do arquivo de manifesto. Por isso, a análise deve alcançar os arquivos de bloqueio, o grafo resolvido, imagens e artefatos efetivamente publicados. Uma SBOM ajuda a responder “onde usamos esta biblioteca?” quando surge um aviso novo; ela precisa corresponder à versão entregue e pode usar formatos padronizados como SPDX ou CycloneDX. SBOM não prova que os componentes estejam seguros.\n\nUm achado de SCA pode surgir de correspondência aproximada entre nome, versão, CPE e aviso. A equipe confirma fornecedor, versão afetada, configuração e caminho de uso. Uma vulnerabilidade numa função que o sistema não alcança pode ter risco diferente, mas “não usamos” exige evidência, não suposição. Também se avaliam correções do fornecedor, versões suportadas, compatibilidade e cadeia de dependências. Atualizar uma biblioteca pode introduzir mudança incompatível; o patch precisa passar por build e testes.\n\n### Tipos de análise automatizada\n\n| Técnica | Examina principalmente | Exemplo de limite |\n| --- | --- | --- |\n| SAST | Código-fonte sem executá-lo | Pode sinalizar fluxo que não é explorável no contexto |\n| SCA | Bibliotecas, pacotes e componentes | Pode errar a identificação ou não saber se o código vulnerável é alcançável |\n| DAST | Aplicação em execução por suas interfaces | Não vê todos os caminhos internos nem substitui revisão de código |\n| Scanner de infraestrutura | Configuração de hosts, nuvem e imagens | Depende do acesso e da atualização das regras |\n| Detector de segredos | Padrões e credenciais em código, histórico ou artefatos | Pode perder formatos desconhecidos ou achar exemplos de teste |\n\nScanners de rede detectam serviços e configurações observáveis, mas não substituem SAST, SCA ou testes da aplicação. Um scanner autenticado pode enxergar mais configurações que um scanner externo sem credenciais; credenciais de varredura devem ter privilégio mínimo e ser protegidas. Atualizar as bases, registrar versão do scanner, escopo e data torna os resultados comparáveis.\n\n### Integrar sem transformar achados em ruído\n\nA esteira pode examinar pull requests, dependências e imagens antes da publicação, além de fazer varreduras periódicas em ambientes implantados. Políticas podem bloquear novos riscos graves, exigir revisão ou permitir exceção temporária com responsável, justificativa, controles e data de reavaliação. Bloquear toda compilação por qualquer achado legado incentiva a desativação do scanner; ignorar todos os avisos remove seu valor. O objetivo é produzir achados acionáveis, distinguir itens novos dos conhecidos e fazer escalonamento explícito.\n\n### Como cai na prova\n\nSCA descobre componentes e relaciona avisos conhecidos; não garante ausência de vulnerabilidade. Dependências transitivas também contam. A atualização deve ser testada no artefato resolvido. Resultados automatizados precisam de triagem, confirmação de falso positivo e rastreabilidade da exceção."
+    },
+    {
+      "title": "3. Segredos: prevenção, contenção e ciclo de vida",
+      "markdown": "### O problema que este assunto resolve\n\nChaves de API, senhas de banco, tokens, certificados privados e credenciais de automação concedem acesso. Se forem copiadas para código, logs, imagens ou repositórios, qualquer pessoa com acesso a esses locais pode obter autoridade que o segredo representa. Apagar a linha num commit novo não invalida o valor exposto: histórico, forks, caches e artefatos podem preservá-lo.\n\n> **Siglas e termos deste capítulo**\n> - **Segredo**: credencial ou material criptográfico cujo conhecimento permite autenticação, autorização ou assinatura.\n> - **Cofre de segredos**: serviço controlado para armazenar, entregar, auditar e, quando possível, rotacionar credenciais.\n> - **Rotação**: substituição de um segredo por outro, atualizando consumidores e invalidando o anterior conforme o procedimento.\n> - **Revogação**: cancelamento da validade ou dos privilégios do segredo exposto ou desnecessário.\n> - **Privilégio mínimo**: concessão apenas das ações e recursos necessários ao consumidor.\n\n### Guardar e entregar com controle\n\nEvite embutir segredos no código-fonte, arquivos de configuração versionados, imagens de contêiner e comandos que acabam em logs. Use um gerenciador dedicado ou mecanismos de identidade de carga de trabalho para obter credenciais no momento de execução. Restrinja leitura por identidade, serviço, ambiente e finalidade; evite uma chave compartilhada por toda a equipe ou por todos os ambientes. Quando possível, use credenciais de curta duração e segredos dinâmicos vinculados a concessões que expiram.\n\nO cofre deve permitir auditoria de criação, leitura, alteração, rotação e revogação. Logs não devem revelar o valor secreto; aplique mascaramento e evite imprimir cabeçalhos de autorização, variáveis sensíveis e respostas que contenham tokens. Pipelines também são fronteiras de confiança: limitar quem pode alterar tarefas, quem pode visualizar variáveis e quais eventos recebem segredos. Um fork ou tarefa de contribuição não confiável não deve receber credenciais de produção.\n\n### Responder a um vazamento\n\nQuando um segredo real aparece em um repositório, log ou artefato, trate-o como comprometido: identifique o serviço e o alcance, revogue ou rotacione o valor no provedor, atualize consumidores, examine logs de uso e confirme que o novo valor funciona. Remova o conteúdo exposto de locais acessíveis e históricos quando apropriado, coordenando reescrita do histórico para não criar inconsistência para outros clones. Essa limpeza reduz exposição futura, mas não substitui revogação. Registre as evidências e investigue eventual uso indevido.\n\nA rotação precisa ser planejada para evitar indisponibilidade: pode-se emitir um novo valor, configurar consumidores, testar autenticação e então desativar o antigo. Se o fornecedor não permite coexistência, combine a troca com os consumidores e valide a janela. Certificados devem ser substituídos e, quando necessário, revogados. Um detector de segredos pode rodar em commits e no histórico, mas credenciais de exemplo e formatos incomuns geram erros; achados precisam de avaliação humana sem expor o valor em tickets.\n\n### Como cai na prova\n\nSegredo removido do arquivo ainda pode estar válido e no histórico. A resposta central é revogar/rotacionar, corrigir todos os consumidores e investigar uso; reescrever Git isoladamente não invalida credencial. Cofre, privilégios mínimos, auditoria, mascaramento e expiração reduzem probabilidade e impacto."
+    },
+    {
+      "title": "4. Validar correções e testar segurança",
+      "markdown": "### O problema que este assunto resolve\n\nUma atualização declarada no ticket pode não ter sido implantada; um patch pode corrigir o caso conhecido e abrir regressão; uma configuração compensatória pode ter sido removida por uma nova publicação. O trabalho só se encerra quando a evidência mostra que o defeito deixou de ocorrer no componente e ambiente certos e que funções relacionadas continuam operacionais.\n\n> **Siglas e termos deste capítulo**\n> - **Teste de regressão**: verifica que comportamento previamente correto continua funcionando após a mudança.\n> - **Reteste**: repetição do teste que reproduzia a falha para confirmar a correção.\n> - **Fuzzing**: envio automatizado de entradas variadas ou malformadas para revelar falhas.\n> - **Threat modeling**: análise de ativos, ameaças, fronteiras e controles para encontrar riscos de projeto.\n> - **Evidência**: versão, ambiente, comando, resultado e data associados à verificação.\n\n### Definir a prova antes de corrigir\n\nRegistre o ativo e a versão afetados, o comportamento inseguro, os pré-requisitos de reprodução e a condição observável de sucesso do reparo. Para falha de entrada, o teste deve cobrir a entrada que antes contornava a validação e confirmar o tratamento seguro; para uma dependência, confirmar a versão efetivamente resolvida e incluída no artefato; para credencial exposta, confirmar revogação do antigo e autenticação do consumidor com o novo. Um número de versão no manifesto sozinho não demonstra que a imagem implantada mudou.\n\nApós aplicar o patch, rode o reteste direcionado e testes de regressão, além das verificações relevantes de integração. Reexecute o scanner com base atualizada e escopo equivalente para verificar se o achado desapareceu. Se a detecção era por assinatura ou correlação de versão, associe também a evidência do fornecedor ou teste funcional: um scanner pode continuar a reportar código não alcançável ou parar de reportar por mudança na base sem que o risco tenha sido resolvido.\n\n### Verificação por camadas\n\nO NIST IR 8397 recomenda um conjunto de técnicas de verificação, entre elas modelagem de ameaças, testes automatizados, análise estática, busca heurística de segredos, casos de teste caixa-preta e estruturais, testes históricos, fuzzing, scanners de aplicações web e análise de código incluído. Não existe um único teste suficiente para todos os defeitos. A seleção depende do sistema e do risco. Em aplicações web, DAST testa interfaces executáveis; SAST examina caminhos no código; SCA identifica componentes; revisão manual e testes direcionados analisam contexto.\n\nEm CI/CD, a mudança pode exigir revisão, verificação automática e artefato imutável promovido entre ambientes. Salve o relatório sem incluir tokens ou dados sensíveis. Para achado não corrigido, registre decisão, dono, mitigação, validade e condição que dispara nova análise. Uma exceção sem vencimento ou justificativa vira vulnerabilidade esquecida.\n\n### Encerramento e acompanhamento\n\nO encerramento registra o que foi corrigido, versão implantada, ambiente, resultado do reteste, varredura e eventuais limitações. Verifique também se a mitigação temporária pode ser removida com segurança ou se precisa continuar. Acompanhe métricas como tempo entre descoberta e tratamento por faixa de risco, reincidência e exceções vencidas; elas mostram gargalos sem confundir contagem de alertas com segurança real.\n\n### Como cai na prova\n\nA questão costuma oferecer um único indicador insuficiente: build verde, pacote atualizado no manifesto ou scanner silencioso. A validação combina reteste reproduzível, confirmação da versão no artefato implantado e regressão. Testes devem cobrir a causa e o contexto, e os registros precisam permitir auditoria sem divulgar segredos."
+    }
+  ],
+  "summary": "A gestão de vulnerabilidades percorre inventário, descoberta, triagem contextual, tratamento e verificação. CVE identifica uma vulnerabilidade divulgada; CWE classifica tipos de fraqueza; CVSS comunica severidade por métricas e não substitui risco local. SCA inventaria componentes diretos e transitivos, relacionando versões a avisos conhecidos; SBOM ajuda a localizar componentes, mas não certifica segurança. Scanners de código, dependências, segredos, infraestrutura e aplicações observam superfícies diferentes e seus resultados exigem confirmação. Segredos devem ficar fora de código e logs, sob acesso mínimo, auditoria, expiração e rotação. Um segredo exposto precisa ser revogado ou rotacionado; apagar o texto não o invalida. A correção termina após reteste da falha, confirmação da versão implantada, testes de regressão e registro de evidência segura.",
+  "flashcards": [
+    { "front": "O que um CVE representa?", "back": "Um identificador comum associado a uma vulnerabilidade divulgada, facilitando a referência entre organizações e bases. Não determina sozinho se uma versão específica está afetada." },
+    { "front": "O que classifica uma CWE?", "back": "Um tipo de fraqueza de software ou hardware, como validação inadequada de entrada; não é identificador de uma vulnerabilidade individual." },
+    { "front": "Para que serve CVSS?", "back": "Comunica características e severidade de vulnerabilidades por métricas. A pontuação não substitui a avaliação do contexto e do impacto local." },
+    { "front": "Quais grupos de métricas há no CVSS 4.0?", "back": "Base, Threat, Environmental e Supplemental. O grupo Supplemental acrescenta contexto e não altera a pontuação final." },
+    { "front": "O que é SCA?", "back": "Análise de composição de software que identifica componentes, inclusive dependências, e correlaciona versões com avisos conhecidos." },
+    { "front": "O que é dependência transitiva?", "back": "Componente instalado por outra dependência, mesmo sem ter sido declarado diretamente pelo projeto consumidor." },
+    { "front": "Para que serve uma SBOM?", "back": "Registra componentes e relações de um produto para inventariá-los e localizar usos quando um aviso novo aparece; não é certificado de segurança." },
+    { "front": "O que SAST examina?", "back": "Código sem executá-lo, buscando padrões e fluxos potencialmente inseguros." },
+    { "front": "O que DAST examina?", "back": "Aplicação em execução por interfaces observáveis, sem cobrir necessariamente todos os caminhos internos." },
+    { "front": "Por que validar um alerta de scanner?", "back": "Para confirmar ativo, versão, pré-requisitos, alcance e evidência, distinguindo falha aplicável de falso positivo ou risco mitigado." },
+    { "front": "O que fazer primeiro com um segredo exposto?", "back": "Tratá-lo como comprometido e revogá-lo ou rotacioná-lo no serviço emissor; apagar a linha do repositório não invalida a credencial." },
+    { "front": "O que significa privilégio mínimo para segredos?", "back": "Cada identidade recebe acesso somente aos segredos e operações necessários à sua função e ambiente." },
+    { "front": "Por que evitar segredos em logs?", "back": "Logs costumam ser copiados e acessados por muitos sistemas e pessoas; mascaramento e exclusão do valor reduzem exposição." },
+    { "front": "O que deve acompanhar um falso positivo?", "back": "Justificativa técnica, evidência da não aplicabilidade, responsável e condição ou data para reavaliar caso o contexto mude." },
+    { "front": "O que é reteste de segurança?", "back": "Repetir o caso que demonstrava a falha após a correção, verificando que o comportamento vulnerável não ocorre mais." },
+    { "front": "Por que testar regressão após um patch?", "back": "Para conferir que a correção da falha não quebrou comportamentos legítimos relacionados." },
+    { "front": "O que demonstra a versão no manifesto?", "back": "A intenção declarada de dependência; é preciso conferir a versão resolvida e o artefato implantado para provar o que foi entregue." },
+    { "front": "O que é segredo dinâmico?", "back": "Credencial criada para consumidor ou sessão com validade limitada, que pode expirar ou ser revogada ao fim da concessão." },
+    { "front": "Que evidências guardar ao encerrar vulnerabilidade?", "back": "Ativo, versão implantada, ambiente, testes e resultados, data, responsável e limitações, sem registrar o valor de segredos." },
+    { "front": "Quais técnicas de verificação o NIST IR 8397 cita?", "back": "Entre outras: modelagem de ameaças, análise estática, busca de segredos, testes caixa-preta e estruturais, testes históricos, fuzzing e scanners web." }
+  ],
+  "tips": [
+    "Separe a pergunta: CVE identifica, CWE categoriza fraqueza, CVSS comunica severidade.",
+    "Inclua dependências transitivas e imagens finais no inventário de componentes.",
+    "Priorize por severidade e contexto de exploração, exposição, impacto e controles.",
+    "Ao vazar credencial, revogue ou rotacione no emissor e depois limpe cópias acessíveis.",
+    "Defina o reteste reproduzível antes de iniciar a correção.",
+    "Registre exceções com dono, mitigação, justificativa e reavaliação definida."
+  ],
+  "traps": [
+    "CVSS alto não prova que toda instalação esteja afetada nem determina sozinho a prioridade local.",
+    "Uma SBOM lista componentes, mas não prova que estejam livres de falhas.",
+    "Scanner silencioso pode refletir escopo incompleto ou base desatualizada, não correção real.",
+    "Remover segredo do último commit não revoga valor que continua válido no serviço.",
+    "Atualizar o manifesto não demonstra que a imagem ou pacote implantado foi reconstruído.",
+    "SAST, SCA e DAST observam superfícies distintas; nenhum substitui todo o programa de testes."
+  ],
+  "activeRecall": [
+    { "question": "Explique a diferença entre CVE, CWE e CVSS.", "answer": "CVE identifica vulnerabilidade divulgada; CWE classifica um tipo de fraqueza; CVSS comunica características e severidade por métricas." },
+    { "question": "Quais elementos entram na triagem de uma vulnerabilidade?", "answer": "Ativo e versão, exposição, pré-requisitos de exploração, impacto, criticidade do serviço, correções disponíveis e controles compensatórios." },
+    { "question": "Por que mapear dependências transitivas?", "answer": "Elas também entram no artefato e podem conter falhas, embora o projeto não as tenha declarado diretamente." },
+    { "question": "Como tratar uma credencial encontrada no histórico Git?", "answer": "Considerá-la comprometida, revogar ou rotacionar no provedor, atualizar consumidores, investigar uso e limpar cópias expostas; reescrever histórico não a invalida." },
+    { "question": "Como demonstrar que uma correção de dependência chegou a produção?", "answer": "Verificar versão resolvida e artefato implantado, reproduzir o teste pertinente, executar regressões e registrar resultado e ambiente." },
+    { "question": "Por que combinar técnicas automatizadas e testes direcionados?", "answer": "Scanners têm cobertura e limites diferentes; testes direcionados confirmam a falha e a correção no contexto real." },
+    { "question": "Que controles reduzem exposição de segredos em CI/CD?", "answer": "Escopo mínimo, identidades próprias por ambiente, credenciais temporárias, controle de alterações, auditoria e mascaramento de logs." },
+    { "question": "O que deve conter uma exceção para achado não corrigido?", "answer": "Justificativa e evidência, responsável, mitigação, prazo de validade ou reavaliação e condição de escalonamento." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Confundir CVE, CWE e CVSS", "summary": "Os nomes são relacionados, mas exercem funções distintas: identificador de vulnerabilidade, taxonomia de fraquezas e framework de severidade." },
+    { "key": "e2", "title": "Tratar scanner como veredito", "summary": "Ferramentas têm limites de escopo, identificação e contexto; os achados precisam ser validados e priorizados." },
+    { "key": "e3", "title": "Esquecer componentes transitivos", "summary": "O produto final pode incorporar bibliotecas indiretas e camadas que não aparecem na declaração direta do projeto." },
+    { "key": "e4", "title": "Achar que apagar segredo resolve vazamento", "summary": "Uma credencial exposta permanece utilizável até ser revogada ou substituída no sistema que a aceita." },
+    { "key": "e5", "title": "Encerrar sem verificar o artefato", "summary": "A correção precisa ser observada na versão implantada e confirmada com reteste e regressão, não só no código-fonte." }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe recebe um registro CVE e precisa entender o papel de cada referência. Qual interpretação está correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "CVE identifica a vulnerabilidade divulgada; CWE descreve uma classe de fraqueza; CVSS comunica severidade." , "correct": false },
+        { "key": "B", "text": "CVE mede severidade; CWE identifica versões afetadas; CVSS atribui números aos fornecedores de software." , "correct": false },
+        { "key": "C", "text": "CVE classifica erros de código; CWE é o registro público; CVSS informa se existe uma correção do fabricante." , "correct": false },
+        { "key": "D", "text": "CVE e CWE são pontuações intercambiáveis; CVSS é o código usado para solicitar um novo identificador." , "correct": false },
+        { "key": "E", "text": "CVE certifica que o produto está vulnerável; CWE mede exposição; CVSS registra a versão instalada." , "correct": true }
+      ],
+      "explanation": "CVE oferece referência comum para uma vulnerabilidade divulgada. CWE organiza tipos de fraquezas que podem originá-la. CVSS caracteriza e comunica severidade por métricas. Nenhum desses papéis equivale a inventariar a instalação concreta ou comprovar a correção.",
+      "section": "1. Ciclo de gestão e priorização de vulnerabilidades", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao priorizar um achado com nota CVSS elevada, qual procedimento oferece uma avaliação de risco mais adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Ordenar somente pela nota publicada e dispensar análise de exposição e impacto local." , "correct": false },
+        { "key": "B", "text": "Desconsiderar a nota e tratar primeiro o sistema com maior número de bibliotecas." , "correct": false },
+        { "key": "C", "text": "Combinar severidade com exposição, possibilidade de exploração, impacto e controles do ambiente." , "correct": false },
+        { "key": "D", "text": "Adiar qualquer análise contextual até que o fornecedor publique uma pontuação ambiental." , "correct": false },
+        { "key": "E", "text": "Aplicar a mesma prioridade a toda versão mencionada, mesmo sem confirmar o produto implantado." , "correct": true }
+      ],
+      "explanation": "CVSS organiza características e severidade, mas não conhece sozinho o ambiente consumidor. Exposição, função do ativo, impacto para o serviço, versão e controles compensatórios ajudam a decidir a ordem de tratamento e a urgência local.",
+      "section": "1. Ciclo de gestão e priorização de vulnerabilidades", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma notícia cita uma CWE ligada a validação inadequada de entrada. O que essa referência informa diretamente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O identificador único da falha publicada em determinado produto e versão." , "correct": false },
+        { "key": "B", "text": "A categoria de fraqueza que descreve um padrão de erro de implementação." , "correct": false },
+        { "key": "C", "text": "O nível de severidade ambiental calculado para a rede de uma organização." , "correct": false },
+        { "key": "D", "text": "A prova de que toda aplicação com entrada de usuário está vulnerável." , "correct": false },
+        { "key": "E", "text": "O número da versão corrigida que deve ser instalado em cada sistema afetado." , "correct": true }
+      ],
+      "explanation": "CWE é uma enumeração de tipos de fraqueza em software e hardware. Ela ajuda a classificar causas e padrões, mas não identifica por si só uma instância publicada, uma versão afetada ou a severidade ambiental.",
+      "section": "1. Ciclo de gestão e priorização de vulnerabilidades", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual grupo do CVSS 4.0 contém métricas suplementares que acrescentam contexto sem alterar a pontuação final?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Base, pois suas métricas definem as propriedades intrínsecas observadas no software." , "correct": false },
+        { "key": "B", "text": "Threat, porque reflete condições de ameaça que podem mudar ao longo do tempo." , "correct": false },
+        { "key": "C", "text": "Environmental, pois ajusta a avaliação às características do ambiente consumidor." , "correct": false },
+        { "key": "D", "text": "Supplemental, que registra atributos adicionais sem modificar o resultado numérico." , "correct": false },
+        { "key": "E", "text": "Modified Base, que substitui todas as métricas de ameaça por dados do fornecedor." , "correct": true }
+      ],
+      "explanation": "Na especificação CVSS 4.0, os grupos são Base, Threat, Environmental e Supplemental. As métricas Supplemental fornecem informação extrínseca útil ao consumidor, mas não entram na pontuação final.",
+      "section": "1. Ciclo de gestão e priorização de vulnerabilidades", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um scanner aponta componente que pode estar fora do escopo de versão afetada. Qual é o próximo passo técnico?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Fechar automaticamente o alerta porque ferramentas não conhecem o contexto da aplicação." , "correct": false },
+        { "key": "B", "text": "Confirmar produto, versão, pré-requisitos e presença no artefato, registrando a evidência." , "correct": true },
+        { "key": "C", "text": "Aplicar imediatamente a primeira versão mais nova sem avaliar compatibilidade ou testes." , "correct": false },
+        { "key": "D", "text": "Desativar o scanner para evitar que o mesmo identificador apareça no próximo relatório." , "correct": false },
+        { "key": "E", "text": "Classificar como falso positivo apenas com base no nome informado pelo desenvolvedor." , "correct": false }
+      ],
+      "explanation": "A triagem verifica correspondência do produto e versão, presença real do componente e condições de aplicação. A conclusão precisa de evidência; depois, a equipe decide tratamento, mitigação ou falso positivo justificável.",
+      "section": "1. Ciclo de gestão e priorização de vulnerabilidades", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática descreve uma gestão contínua de vulnerabilidades, em vez de uma campanha isolada de correção?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Executar uma varredura anual e apagar o relatório após aplicar atualizações disponíveis." , "correct": false },
+        { "key": "B", "text": "Corrigir somente falhas encontradas durante uma interrupção de serviço." , "correct": false },
+        { "key": "C", "text": "Manter inventário, triagem, responsáveis, tratamento, verificação e acompanhamento de exceções." , "correct": true },
+        { "key": "D", "text": "Delegar toda decisão ao fornecedor da ferramenta e não atribuir donos internos." , "correct": false },
+        { "key": "E", "text": "Considerar encerrado qualquer achado que deixe de aparecer num relatório posterior." , "correct": false }
+      ],
+      "explanation": "O processo precisa conectar inventário, descoberta, decisão, tratamento, teste e registro de encerramento. Varredura ou instalação de atualização sem confirmação não fecha o ciclo nem mantém controle sobre riscos pendentes.",
+      "section": "1. Ciclo de gestão e priorização de vulnerabilidades", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço exposto à Internet usa o componente afetado para autenticar usuários. Como esse contexto deve influenciar a triagem?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A exposição e a função crítica podem elevar prioridade, junto com a severidade e a exploração." , "correct": true },
+        { "key": "B", "text": "A prioridade deve permanecer igual porque o CVSS Base já incorpora qualquer rede local." , "correct": false },
+        { "key": "C", "text": "O achado pode ser removido se a autenticação usa TLS, independentemente do defeito descrito." , "correct": false },
+        { "key": "D", "text": "A equipe deve esperar por uma pontuação calculada especificamente para esse serviço." , "correct": false },
+        { "key": "E", "text": "O componente deixa de ser vulnerável quando é usado por um serviço com autenticação." , "correct": false }
+      ],
+      "explanation": "A avaliação local considera superfície alcançável, papel do componente, dados e serviços afetados, explorabilidade e controles. Uma nota Base é comum e não incorpora automaticamente todas as condições concretas de cada organização.",
+      "section": "1. Ciclo de gestão e priorização de vulnerabilidades", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um processo aprovado define uma janela interna de tratamento por criticidade. O que CVSS determina sobre essa janela?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O CVSS 4.0 fixa prazos universais que substituem qualquer política de risco organizacional." , "correct": false },
+        { "key": "B", "text": "O grupo Supplemental converte automaticamente pontuação em prazo obrigatório para todo setor." , "correct": false },
+        { "key": "C", "text": "A pontuação comunica severidade; prazos de tratamento são definidos por política e contexto." , "correct": true },
+        { "key": "D", "text": "A data no identificador CVE indica o prazo limite de implantação do patch." , "correct": false },
+        { "key": "E", "text": "A CWE define o tempo de correção conforme o tipo de linguagem usada." , "correct": false }
+      ],
+      "explanation": "CVSS é um framework de comunicação de características e severidade, não uma tabela universal de prazos de correção. A organização define níveis e prazos internos considerando contexto, obrigações aplicáveis e capacidade de tratamento.",
+      "section": "1. Ciclo de gestão e priorização de vulnerabilidades", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um produto foi identificado por CVE numa base pública. Qual conclusão exige confirmação adicional antes de abrir correção para um servidor?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O registro ajuda a localizar o aviso e conversar sobre ele com equipes e fornecedores." , "correct": false },
+        { "key": "B", "text": "O identificador comum permite relacionar fontes que descrevem a mesma vulnerabilidade." , "correct": false },
+        { "key": "C", "text": "A correspondência do produto e da versão precisa ser conferida no inventário local." , "correct": false },
+        { "key": "D", "text": "A presença do CVE no catálogo prova que todos os produtos da família estão afetados." , "correct": true },
+        { "key": "E", "text": "A equipe deve verificar condições, correções e ambiente antes de concluir aplicabilidade." , "correct": false }
+      ],
+      "explanation": "Um registro CVE não certifica que todo produto, versão ou configuração de uma família esteja vulnerável. A equipe compara produto e versão locais com o escopo do aviso e confirma os pré-requisitos aplicáveis.",
+      "section": "1. Ciclo de gestão e priorização de vulnerabilidades", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe marca um achado como falso positivo porque o teste automático não reproduziu a falha em uma execução. Qual lacuna permanece?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A justificativa deve considerar escopo e condições de detecção e preservar evidência revisável." , "correct": true },
+        { "key": "B", "text": "O achado se torna falso positivo sempre que uma ferramenta falha em repetir o resultado." , "correct": false },
+        { "key": "C", "text": "A única evidência aceitável é uma pontuação CVSS inferior a um valor definido pelo scanner." , "correct": false },
+        { "key": "D", "text": "A equipe precisa retirar do inventário o ativo para que a classificação fique consistente." , "correct": false },
+        { "key": "E", "text": "O registro pode ser descartado, pois falsos positivos não precisam de rastreabilidade." , "correct": false }
+      ],
+      "explanation": "Uma execução sem reprodução não prova que a falha não se aplica: escopo, autenticação, configuração e condições podem ter impedido a detecção. Registre evidência, responsável e motivo para que outra pessoa possa revisar a conclusão.",
+      "section": "1. Ciclo de gestão e priorização de vulnerabilidades", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma biblioteca direta já foi corrigida, mas um pacote transitivo ainda instala a versão vulnerável. Qual inventário permite detectar o problema?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A lista de bibliotecas que os desenvolvedores lembram ter importado no código-fonte." , "correct": false },
+        { "key": "B", "text": "A SBOM ou o grafo resolvido do artefato, incluindo componentes transitivos." , "correct": true },
+        { "key": "C", "text": "O relatório de DAST, que necessariamente enumera pacotes instalados em cada contêiner." , "correct": false },
+        { "key": "D", "text": "O registro CWE da falha, que lista automaticamente todos os projetos consumidores." , "correct": false },
+        { "key": "E", "text": "A configuração do scanner de rede, sem consultar arquivos nem imagens construídas." , "correct": false }
+      ],
+      "explanation": "Dependências transitivas entram no artefato por meio de outros pacotes. O grafo resolvido ou SBOM correspondente à entrega ajuda a identificá-las e a localizar a versão realmente incluída.",
+      "section": "2. Dependências, SCA e scanners", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O que a SCA faz ao analisar componentes de terceiros numa aplicação?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Tenta identificar componentes e relacioná-los com avisos conhecidos e versões afetadas." , "correct": true },
+        { "key": "B", "text": "Prova que todas as rotas da aplicação resistem a entradas maliciosas em produção." , "correct": false },
+        { "key": "C", "text": "Substitui a política de atualização e instala pacotes corrigidos sem avaliar compatibilidade." , "correct": false },
+        { "key": "D", "text": "Classifica exclusivamente erros de lógica escritos pela equipe no código-fonte." , "correct": false },
+        { "key": "E", "text": "Garante que componentes sem CVE publicado não contenham fraquezas conhecidas." , "correct": false }
+      ],
+      "explanation": "SCA inventaria dependências e compara componentes e versões com fontes de vulnerabilidade. Ela não cobre todas as falhas próprias nem prova segurança de componentes para os quais não existe aviso conhecido.",
+      "section": "2. Dependências, SCA e scanners", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre uma SBOM corresponde ao uso correto desse inventário de software?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "É uma certificação que comprova a ausência de vulnerabilidades nos componentes listados." , "correct": false },
+        { "key": "B", "text": "É um relatório de testes dinâmicos que confirma a segurança de endpoints externos." , "correct": false },
+        { "key": "C", "text": "Registra componentes e relações para facilitar análise de impacto e localização de usos." , "correct": true },
+        { "key": "D", "text": "Substitui o inventário de ativos porque descreve todas as configurações do ambiente." , "correct": false },
+        { "key": "E", "text": "É um formato exclusivo de pontuação CVSS, armazenado somente pelo fornecedor." , "correct": false }
+      ],
+      "explanation": "A SBOM registra componentes de um produto e ajuda a rastrear usos quando surge uma nova vulnerabilidade. Sua utilidade depende de representar a versão efetivamente entregue; a lista não é certificação de segurança.",
+      "section": "2. Dependências, SCA e scanners", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma política exige identificar segredos acidentalmente enviados ao repositório. Qual controle automatizado é apropriado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Scanner DAST que envia requisições à aplicação para encontrar credenciais em respostas." , "correct": false },
+        { "key": "B", "text": "SCA que calcula o CVSS de cada senha conforme o histórico do pacote." , "correct": false },
+        { "key": "C", "text": "Scanner de rede que procura tokens em conexões abertas sem examinar arquivos." , "correct": false },
+        { "key": "D", "text": "Detector de segredos em commits, histórico e artefatos, seguido de triagem segura." , "correct": true },
+        { "key": "E", "text": "Teste de regressão funcional que confirma permissões de todas as contas do projeto." , "correct": false }
+      ],
+      "explanation": "Detectores de segredos procuram formatos e padrões de tokens, chaves ou senhas em código e outros locais. Como existem falsos positivos e padrões não reconhecidos, os resultados requerem triagem sem copiar o segredo em chamados.",
+      "section": "2. Dependências, SCA e scanners", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja encontrar falhas observáveis em endpoints de uma aplicação ativa. Qual técnica é mais diretamente voltada a esse cenário?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "SCA, que resolve dependências transitivas a partir dos manifests do projeto." , "correct": false },
+        { "key": "B", "text": "SAST, que examina código-fonte sem interagir com o serviço executado." , "correct": false },
+        { "key": "C", "text": "DAST, que testa a aplicação em execução por interfaces observáveis." , "correct": true },
+        { "key": "D", "text": "SBOM, que lista componentes e suas relações na imagem final." , "correct": false },
+        { "key": "E", "text": "CWE, que enumera fraquezas conhecidas sem enviar testes ao endpoint." , "correct": false }
+      ],
+      "explanation": "DAST testa uma aplicação executando e observa respostas por interfaces como páginas ou APIs. SAST examina código e SCA examina componentes; cada técnica complementa as demais e não garante cobertura completa.",
+      "section": "2. Dependências, SCA e scanners", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um scanner autenticado precisa acessar configurações de um host durante a avaliação. Como proteger a credencial usada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Usar uma conta administrativa compartilhada e permanente para garantir acesso completo." , "correct": false },
+        { "key": "B", "text": "Usar credencial controlada, de escopo mínimo, com armazenamento e auditoria adequados." , "correct": true },
+        { "key": "C", "text": "Incluir a senha no argumento do comando para facilitar sua recuperação nos logs." , "correct": false },
+        { "key": "D", "text": "Desabilitar o registro de atividade do host para impedir que a varredura seja observada." , "correct": false },
+        { "key": "E", "text": "Reutilizar a chave pessoal do operador em todos os ambientes avaliados." , "correct": false }
+      ],
+      "explanation": "Credenciais de varredura podem acessar dados e configurações. Devem ter privilégio mínimo para a tarefa, ser guardadas e entregues por mecanismo seguro, auditadas e não expostas em argumentos, saídas ou logs.",
+      "section": "2. Dependências, SCA e scanners", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra de SCA encontra versão vulnerável, mas há atualização incompatível. Qual encaminhamento mantém controle do risco?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Ignorar o achado permanentemente porque incompatibilidades impedem qualquer tratamento." , "correct": false },
+        { "key": "B", "text": "Atualizar em produção sem build ou teste para reduzir imediatamente o tempo de exposição." , "correct": false },
+        { "key": "C", "text": "Desativar a regra para que os demais componentes possam continuar sendo analisados." , "correct": false },
+        { "key": "D", "text": "Remover a dependência do inventário sem confirmar se ela segue dentro do artefato." , "correct": false },
+        { "key": "E", "text": "Planejar atualização ou mitigação, com responsável e testes de compatibilidade." , "correct": true }
+      ],
+      "explanation": "Incompatibilidade muda o plano de tratamento, mas não elimina o risco. A equipe pode buscar versão suportada, corrigir dependência transitiva, mitigar exposição ou justificar exceção com responsável e revisão, sempre testando o artefato.",
+      "section": "2. Dependências, SCA e scanners", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma imagem de contêiner publicada contém uma biblioteca vulnerável que não aparece na lista de imports do aplicativo. Como explicar o alerta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Camadas e dependências transitivas também integram a imagem distribuída." , "correct": true },
+        { "key": "B", "text": "Um pacote sem import direto não pode ser carregado nem influenciar o comportamento do processo." , "correct": false },
+        { "key": "C", "text": "A imagem não deve ser avaliada porque o código-fonte já foi aprovado pelo SAST." , "correct": false },
+        { "key": "D", "text": "O registro de vulnerabilidade necessariamente atribuiu nome incorreto ao serviço executado." , "correct": false },
+        { "key": "E", "text": "A equipe deve apagar o relatório, pois scanners não reconhecem bibliotecas de sistema." , "correct": false }
+      ],
+      "explanation": "O produto final pode incluir bibliotecas transitivas e pacotes da imagem-base não importados diretamente pelo código. Analisar a imagem efetivamente distribuída permite encontrar componentes fora do manifesto da aplicação.",
+      "section": "2. Dependências, SCA e scanners", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe encontra uma chave privada real num commit antigo. Qual sequência trata o risco com maior efetividade?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Apagar o arquivo no commit atual e manter a mesma chave para evitar indisponibilidade." , "correct": false },
+        { "key": "B", "text": "Reescrever o histórico e encerrar o caso sem consultar o serviço que aceita a chave." , "correct": false },
+        { "key": "C", "text": "Revogar ou rotacionar, atualizar consumidores e investigar uso indevido." , "correct": true },
+        { "key": "D", "text": "Marcar o detector como falso positivo por ser um commit que já não está na ponta." , "correct": false },
+        { "key": "E", "text": "Mover o segredo para outro arquivo versionado com nome menos evidente." , "correct": false }
+      ],
+      "explanation": "O valor antigo pode continuar válido e cópias do histórico podem persistir. Primeiro se invalida ou substitui a credencial no emissor, atualizam-se consumidores e investigam-se acessos; a limpeza do repositório é complementar.",
+      "section": "3. Segredos: prevenção, contenção e ciclo de vida", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual configuração de acesso a um cofre de segredos aplica melhor o princípio do privilégio mínimo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Conceder a cada serviço acesso aos segredos necessários à sua função e ambiente." , "correct": true },
+        { "key": "B", "text": "Compartilhar uma identidade administrativa entre aplicações para simplificar auditorias." , "correct": false },
+        { "key": "C", "text": "Permitir que qualquer pessoa com acesso ao repositório leia credenciais de produção." , "correct": false },
+        { "key": "D", "text": "Dar acesso total ao cofre a todo pipeline que execute testes automatizados." , "correct": false },
+        { "key": "E", "text": "Usar uma chave sem expiração em todos os ambientes para impedir falhas de renovação." , "correct": false }
+      ],
+      "explanation": "Privilégio mínimo limita cada identidade aos segredos e operações indispensáveis, segmentados por aplicação e ambiente. Isso reduz o raio de impacto se uma conta, pipeline ou serviço for comprometido.",
+      "section": "3. Segredos: prevenção, contenção e ciclo de vida", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Por que o valor de um token de autenticação não deve ser gravado em logs da aplicação ou do pipeline?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Logs não aceitam cadeias longas e podem interromper a execução do serviço." , "correct": false },
+        { "key": "B", "text": "Logs podem ser copiados e acessados por sistemas e pessoas além dos consumidores autorizados." , "correct": true },
+        { "key": "C", "text": "Tokens registrados perdem validade automaticamente quando o arquivo é fechado." , "correct": false },
+        { "key": "D", "text": "Uma credencial em log deixa de poder ser revogada pelo provedor emissor." , "correct": false },
+        { "key": "E", "text": "O mascaramento de logs impede que a aplicação use o token durante a sessão." , "correct": false }
+      ],
+      "explanation": "Logs costumam ser centralizados, retidos e acessíveis a operadores ou serviços distintos. Mascarar campos sensíveis e evitar registrar credenciais reduz a chance de que a cópia de um log conceda acesso indevido.",
+      "section": "3. Segredos: prevenção, contenção e ciclo de vida", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma credencial temporária foi criada para uma tarefa automatizada. Que propriedade reduz sua utilidade após a tarefa terminar?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Armazenar uma cópia permanente no repositório para que a tarefa possa ser repetida." , "correct": false },
+        { "key": "B", "text": "Permitir que qualquer operador renove seu prazo sem auditoria ou aprovação." , "correct": false },
+        { "key": "C", "text": "Reutilizar o mesmo segredo temporário em processos de desenvolvimento e produção." , "correct": false },
+        { "key": "D", "text": "Vincular a validade à concessão e revogar ou expirar a credencial quando não for necessária." , "correct": true },
+        { "key": "E", "text": "Desligar o consumidor, presumindo que isso invalida o token no sistema emissor." , "correct": false }
+      ],
+      "explanation": "Segredos dinâmicos ou temporários podem reduzir a janela de uso indevido quando expiram ou são revogados no sistema emissor. Encerrar o processo consumidor não cancela automaticamente a credencial emitida.",
+      "section": "3. Segredos: prevenção, contenção e ciclo de vida", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Como uma esteira deve proteger segredos quando executa tarefas originadas de contribuições externas não confiáveis?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Entregar as mesmas credenciais de produção para que os testes reproduzam fielmente o ambiente." , "correct": false },
+        { "key": "B", "text": "Restringir credenciais por evento, identidade e ambiente, sem expô-las a tarefas não confiáveis." , "correct": true },
+        { "key": "C", "text": "Imprimir as variáveis no início do job para facilitar a revisão do código enviado." , "correct": false },
+        { "key": "D", "text": "Permitir que qualquer fork copie os segredos para executar os mesmos comandos." , "correct": false },
+        { "key": "E", "text": "Manter privilégios amplos e confiar que o mascaramento impedirá qualquer extração." , "correct": false }
+      ],
+      "explanation": "Pipelines são fronteiras de confiança. Tarefas controladas por contribuições externas não devem receber credenciais de produção; permissões e segredos devem ser limitados por identidade, evento e finalidade, com auditoria de alterações.",
+      "section": "3. Segredos: prevenção, contenção e ciclo de vida", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotação de senha de banco pode interromper serviços dependentes. Qual sequência reduz esse risco operacional?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Revogar primeiro a senha em uso e só depois descobrir quais aplicações dependem dela." , "correct": false },
+        { "key": "B", "text": "Trocar o valor no cofre e presumir que processos ativos recarreguem a credencial sozinhos." , "correct": false },
+        { "key": "C", "text": "Testar o novo segredo nos consumidores antes de invalidar o antigo." , "correct": true },
+        { "key": "D", "text": "Manter indefinidamente os dois valores válidos para evitar falhas de compatibilidade." , "correct": false },
+        { "key": "E", "text": "Armazenar a nova senha em texto claro nos logs para acelerar a migração." , "correct": false }
+      ],
+      "explanation": "Uma rotação coordenada considera consumidores e dependências. Quando o provedor permite, o novo segredo é criado e testado nos consumidores antes de invalidar o antigo; ambos não devem permanecer válidos sem controle e prazo definido.",
+      "section": "3. Segredos: prevenção, contenção e ciclo de vida", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Após encontrar um segredo em log, qual informação ajuda a conter e investigar o evento sem ampliar a exposição?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Registrar origem, período, identidades e rotação sem copiar o segredo." , "correct": true },
+        { "key": "B", "text": "Anexar o token completo ao chamado restrito para que todos possam validar seu formato." , "correct": false },
+        { "key": "C", "text": "Apagar os logs originais antes de consultar se o segredo foi usado por terceiros." , "correct": false },
+        { "key": "D", "text": "Desativar a auditoria para que tentativas com a credencial não apareçam nos registros." , "correct": false },
+        { "key": "E", "text": "Limitar a investigação ao commit, sem identificar o serviço que reconhece a credencial." , "correct": false }
+      ],
+      "explanation": "A resposta deve preservar dados que permitam identificar origem, janela de exposição e acessos, sem replicar o valor. A credencial precisa ser invalidada no emissor; os logs ajudam a verificar uso e a dimensionar o impacto.",
+      "section": "3. Segredos: prevenção, contenção e ciclo de vida", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de evidências sustenta o encerramento de uma vulnerabilidade corrigida numa versão implantada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Uma mensagem do desenvolvedor informando que salvou a alteração no ramo principal." , "correct": false },
+        { "key": "B", "text": "Um build verde sem identificação do artefato que foi publicado no ambiente." , "correct": false },
+        { "key": "C", "text": "A ausência do alerta em qualquer relatório posterior, ainda que o escopo tenha mudado." , "correct": false },
+        { "key": "D", "text": "Identificar artefato e ambiente; guardar reteste e regressão concluídos." , "correct": true },
+        { "key": "E", "text": "A versão do pacote registrada no manifesto antes da reconstrução da aplicação." , "correct": false }
+      ],
+      "explanation": "O encerramento precisa ligar a correção ao ativo e artefato implantados, mostrar o resultado do reteste e dos testes relevantes e preservar evidência. Alterar fonte ou manifesto não prova que a produção recebeu a correção.",
+      "section": "4. Validar correções e testar segurança", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual finalidade descreve o reteste de uma falha após a aplicação de uma correção?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Repetir o caso que reproduzia a falha para confirmar que o comportamento inseguro não ocorre." , "correct": true },
+        { "key": "B", "text": "Substituir todos os testes funcionais por uma consulta ao banco de CVEs." , "correct": false },
+        { "key": "C", "text": "Medir a quantidade de linhas alteradas sem executar o componente corrigido." , "correct": false },
+        { "key": "D", "text": "Verificar se a nota CVSS diminuiu após a equipe fechar o chamado interno." , "correct": false },
+        { "key": "E", "text": "Confirmar que o scanner foi desinstalado para não reportar a mesma falha." , "correct": false }
+      ],
+      "explanation": "O reteste usa o cenário relevante que demonstrava a vulnerabilidade para observar se a correção eliminou o comportamento. Ele complementa regressões e a verificação da versão efetivamente implantada.",
+      "section": "4. Validar correções e testar segurança", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa caracteriza fuzzing como técnica de verificação de software?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Inventariar licenças e versões de componentes em um artefato publicado." , "correct": false },
+        { "key": "B", "text": "Enviar entradas variadas ou malformadas para revelar falhas de processamento." , "correct": true },
+        { "key": "C", "text": "Comparar a pontuação CVSS com prioridades definidas pelo serviço consumidor." , "correct": false },
+        { "key": "D", "text": "Rotacionar tokens de acesso sempre que uma aplicação é reiniciada." , "correct": false },
+        { "key": "E", "text": "Revisar exclusivamente requisitos e diagramas sem executar casos de teste." , "correct": false }
+      ],
+      "explanation": "Fuzzing automatiza o envio de muitas entradas, frequentemente inesperadas ou malformadas, para observar falhas como encerramentos, erros de memória ou validação deficiente. Não substitui todas as outras técnicas.",
+      "section": "4. Validar correções e testar segurança", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Por que testes de regressão acompanham frequentemente uma correção de segurança?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Para demonstrar que a falha constava de um registro CVE antes da mudança." , "correct": false },
+        { "key": "B", "text": "Para comprovar que o scanner manteve a mesma versão de suas regras." , "correct": false },
+        { "key": "C", "text": "Para certificar que todas as dependências indiretas estão livres de defeitos." , "correct": false },
+        { "key": "D", "text": "Para dispensar a confirmação de que o artefato corrigido foi implantado." , "correct": false },
+        { "key": "E", "text": "Para verificar que comportamentos legítimos relacionados continuam funcionando." , "correct": true }
+      ],
+      "explanation": "Uma alteração pode corrigir a condição vulnerável e quebrar funcionalidades válidas. Testes de regressão exercitam comportamentos previamente esperados, enquanto o reteste de segurança confirma a correção da falha específica.",
+      "section": "4. Validar correções e testar segurança", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma mudança corrige uma validação de entrada e altera respostas da API. Qual conjunto de testes oferece confirmação mais completa?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Somente o SAST, pois análise estática reproduz todas as entradas e respostas em produção." , "correct": false },
+        { "key": "B", "text": "Somente uma nova pontuação CVSS, recalculada a partir do código modificado." , "correct": false },
+        { "key": "C", "text": "Apenas uma busca textual por nome do parâmetro alterado em arquivos do repositório." , "correct": false },
+        { "key": "D", "text": "Retestar a falha, executar regressões e confirmar a versão implantada." , "correct": true },
+        { "key": "E", "text": "Desativar DAST e revisar apenas os logs de build após a publicação." , "correct": false }
+      ],
+      "explanation": "O reteste direcionado verifica a condição explorável, a regressão confirma funções legítimas e a identificação do artefato demonstra que a versão corrigida chegou ao ambiente avaliado. Uma única análise estática não cobre esses objetivos.",
+      "section": "4. Validar correções e testar segurança", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A especificação CVSS v4.0 separa métricas Base, Threat, Environmental e Supplemental, e o grupo Supplemental não modifica a pontuação final.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A especificação FIRST descreve quatro grupos. Supplemental acrescenta atributos contextuais para análise do consumidor, sem alterar o resultado calculado; Base, Threat e Environmental contribuem de formas distintas para a avaliação.",
+      "section": "1. Ciclo de gestão e priorização de vulnerabilidades", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um identificador CVE garante que todos os produtos de um fornecedor, em qualquer versão, contenham a vulnerabilidade registrada.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Um registro CVE identifica uma vulnerabilidade divulgada, mas é necessário consultar o escopo do aviso, produtos e versões afetadas. O identificador não determina que toda versão de uma família tenha a falha.",
+      "section": "1. Ciclo de gestão e priorização de vulnerabilidades", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A priorização local pode considerar exposição, criticidade do ativo, impacto e controles, além da severidade divulgada.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A organização precisa aplicar o contexto do ambiente à severidade comunicada. Exposição e função do ativo podem mudar a urgência prática, enquanto controles compensatórios precisam ser avaliados e acompanhados.",
+      "section": "1. Ciclo de gestão e priorização de vulnerabilidades", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Se uma única execução de scanner não reproduzir um achado, a equipe pode encerrá-lo sem registrar contexto ou justificativa.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Resultado negativo numa execução pode decorrer de escopo, autenticação, configuração ou condição de detecção. A equipe deve analisar a aplicabilidade, documentar evidência e manter a conclusão revisável.",
+      "section": "1. Ciclo de gestão e priorização de vulnerabilidades", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Dependências transitivas podem integrar o artefato mesmo quando não aparecem como dependências diretas no manifesto do projeto.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Um pacote direto pode instalar outros pacotes necessários. O grafo resolvido e a análise do artefato ajudam a descobrir componentes indiretos e suas versões realmente distribuídas.",
+      "section": "2. Dependências, SCA e scanners", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma SBOM completa certifica que cada componente relacionado foi testado e não contém vulnerabilidades conhecidas ou desconhecidas.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A SBOM é um inventário de componentes e relações que facilita rastreamento e análise de impacto. Ela não representa, por si só, uma certificação nem prova que todos os itens foram testados ou estão seguros.",
+      "section": "2. Dependências, SCA e scanners", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "SAST, SCA e DAST examinam aspectos diferentes, de modo que resultados de uma técnica não garantem cobertura das demais.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. SAST analisa código, SCA identifica componentes e avisos associados, e DAST testa aplicações executando. Cada método tem limites e pode ser combinado com revisão e testes direcionados.",
+      "section": "2. Dependências, SCA e scanners", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um scanner de dependências não identifica todos os defeitos próprios de lógica que a equipe escreveu na aplicação.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. SCA se concentra em componentes e informações associadas, como avisos conhecidos. Defeitos próprios de lógica exigem técnicas adicionais, como SAST, revisão, modelagem de ameaças e testes direcionados.",
+      "section": "2. Dependências, SCA e scanners", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma credencial real encontrada num commit antigo deixa de representar risco quando o arquivo é apagado num commit posterior.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O segredo pode continuar válido e estar preservado no histórico, clones, logs ou artefatos. É necessário revogá-lo ou rotacioná-lo no sistema emissor e atualizar seus consumidores.",
+      "section": "3. Segredos: prevenção, contenção e ciclo de vida", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O encerramento do processo consumidor invalida automaticamente o segredo que ele recebeu de um serviço externo.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O valor pode continuar aceito pelo provedor até expirar ou ser revogado. A validade deve estar vinculada a uma concessão controlada, e a revogação precisa ocorrer no serviço que reconhece a credencial.",
+      "section": "3. Segredos: prevenção, contenção e ciclo de vida", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um segredo armazenado em cofre ainda precisa de acesso mínimo, auditoria e proteção para não aparecer em logs.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Um cofre centraliza armazenamento e controles, mas não impede abuso por identidades autorizadas demais nem vazamento durante o uso. Restringir leitura, auditar operações e mascarar saídas continua necessário.",
+      "section": "3. Segredos: prevenção, contenção e ciclo de vida", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma credencial vazada pode ser removida do histórico Git e, por isso, dispensar a revogação no provedor que a aceita.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Limpar o histórico reduz cópias futuras, mas não garante que todas as cópias foram eliminadas e não invalida a credencial. A ação essencial é revogar ou rotacionar no emissor e verificar uso.",
+      "section": "3. Segredos: prevenção, contenção e ciclo de vida", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Repetir o cenário que demonstrava a falha após a correção ajuda a confirmar que o comportamento vulnerável foi eliminado.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Um reteste direcionado exercita a condição observada antes da mudança e verifica a correção. Ele deve ser acompanhado por regressões e pela confirmação da versão efetivamente avaliada.",
+      "section": "4. Validar correções e testar segurança", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um build concluído prova sozinho que a correção foi implantada no ambiente vulnerável e que a falha não pode mais ocorrer.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Build verde não identifica necessariamente qual artefato chegou a cada ambiente nem testa a condição vulnerável. É preciso confirmar implantação, retestar a falha e executar verificações de regressão adequadas.",
+      "section": "4. Validar correções e testar segurança", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O NIST IR 8397 inclui técnicas como testes automatizados, análise estática, fuzzing e testes caixa-preta entre recomendações de verificação.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O relatório lista um conjunto de técnicas de verificação, incluindo modelagem de ameaças, análise estática, busca heurística de segredos, testes caixa-preta e estruturais, fuzzing e scanners web quando aplicáveis.",
+      "section": "4. Validar correções e testar segurança", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Se um scanner deixa de reportar componente após atualizar suas regras, essa ausência comprova por si só que a correção foi implantada.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A mudança pode decorrer da base, identificação ou escopo de varredura. Confirme versão do componente no artefato e ambiente e use teste pertinente para comprovar correção, preservando o relatório como evidência complementar.",
+      "section": "4. Validar correções e testar segurança", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL", "title": "CVE Program — Mission and Program Overview", "publisher": "CVE Program", "reference": "Missão de identificar, definir e catalogar vulnerabilidades divulgadas; participantes e autoridades de numeração.", "url": "https://www.cve.org/", "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL", "title": "CVE Program Glossary", "publisher": "CVE Program", "reference": "Definição de identificador CVE e participantes do programa.", "url": "https://www.cve.org/ResourcesSupport/Glossary?activeTerm=glossaryCVEList", "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL", "title": "Common Weakness Enumeration (CWE)", "publisher": "MITRE", "reference": "Catálogo de tipos de fraquezas de software e hardware.", "url": "https://cwe.mitre.org/", "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL", "title": "CVSS v4.0 Specification Document", "publisher": "FIRST", "reference": "Grupos de métricas, cálculo e comunicação da severidade CVSS 4.0.", "url": "https://www.first.org/cvss/v4.0/specification-document", "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL", "title": "OWASP Dependency-Check — Developer Guide", "publisher": "OWASP", "reference": "SCA, identificação de bibliotecas e correlação com vulnerabilidades publicadas.", "url": "https://devguide.owasp.org/en/05-implementation/02-dependencies/01-dependency-check/", "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL", "title": "OWASP Secrets Management Cheat Sheet", "publisher": "OWASP", "reference": "Armazenamento, acesso, ciclo de vida, rotação, revogação, CI/CD e resposta a segredos expostos.", "url": "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html", "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL", "title": "NIST IR 8397 — Guidelines on Minimum Standards for Developer Verification of Software", "publisher": "NIST", "reference": "Técnicas mínimas de verificação: modelagem de ameaças, análise estática, busca de segredos, testes caixa-preta e estruturais, históricos, fuzzing e scanners web.", "url": "https://csrc.nist.gov/pubs/ir/8397/final", "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL", "title": "NIST Secure Software Development Framework (SSDF)", "publisher": "NIST", "reference": "Práticas organizacionais e de desenvolvimento para produzir software seguro e tratar vulnerabilidades.", "url": "https://csrc.nist.gov/Projects/ssdf", "accessedAt": "2026-11-03"
+    }
+  ]
+}

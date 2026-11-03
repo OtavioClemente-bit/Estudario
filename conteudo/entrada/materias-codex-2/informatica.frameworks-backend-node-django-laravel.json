@@ -1,0 +1,2282 @@
+{
+  "id": "informatica.frameworks-backend-node-django-laravel",
+  "subject": "Informática",
+  "title": "Frameworks backend: Node.js, Django REST Framework e Laravel",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Tecnologias Node.js 20 ou superior, Django REST Framework 3 ou superior e PHP Laravel 10 ou superior",
+    "Node.js 20 para desenvolvimento backend",
+    "Node.js e APIs HTTP assíncronas",
+    "Backend com Node.js 20 ou superior",
+    "Django REST Framework para APIs REST",
+    "Serializers e viewsets do Django REST Framework",
+    "Autenticação e permissões no Django REST Framework",
+    "Laravel 10 para aplicações backend PHP",
+    "Rotas e middleware em Laravel 10",
+    "Validação e Eloquent no Laravel 10"
+  ],
+  "scope": {
+    "covers": "Fundamentos concretos de desenvolvimento backend com Node.js 20 ou superior, Django REST Framework 3 ou superior e PHP Laravel 10 ou superior: modelo assíncrono e event loop, módulos CommonJS e ES modules, HTTP e streams no Node; serializers, validação, views, viewsets, routers, autenticação e permissões no Django REST Framework; rotas, middleware, validação, Eloquent e API Resources no Laravel; responsabilidades e diferenças entre as três tecnologias.",
+    "excludes": "Sintaxe completa de JavaScript, Python ou PHP; desenvolvimento de interfaces frontend; configuração de infraestrutura e nuvem; detalhes de versões posteriores às indicadas; implementação de protocolo REST além do necessário para compreender os recursos dos frameworks."
+  },
+  "theoryTitle": "Construção de APIs backend com Node.js, Django REST Framework e Laravel",
+  "chapters": [
+    {
+      "title": "1. Node.js 20+: execução JavaScript no servidor",
+      "markdown": "### O problema que este assunto resolve\n\nNode.js permite executar JavaScript fora do navegador e construir serviços de rede, inclusive APIs HTTP. Ele usa o motor V8 e oferece APIs próprias para arquivos, rede, processos e streams. Não é um framework web único: o runtime pode ser usado diretamente ou junto a frameworks como Express.\n\n> **Siglas e termos deste capítulo**\n> - **Runtime**: ambiente que executa um programa, incluindo motor e APIs.\n> - **V8**: motor JavaScript usado pelo Node.js.\n> - **I/O**: entrada e saída, como leitura de disco e comunicação de rede.\n> - **Event loop**: mecanismo que coordena callbacks e operações assíncronas.\n> - **Promise**: objeto que representa o resultado futuro de uma operação assíncrona.\n\n### Concorrência sem bloquear cada espera\n\nEm uma aplicação de servidor, muitas requisições passam tempo aguardando banco, arquivos ou outro serviço. O Node.js permite iniciar operações de I/O assíncronas e continuar tratando outros eventos enquanto elas aguardam. Ao concluir, a operação agenda seu callback ou resolve uma Promise. Isso não significa que qualquer cálculo ficou paralelo: JavaScript executado no thread principal ainda ocupa esse thread até terminar. Um laço de CPU muito longo pode atrasar todas as requisições, mesmo que o servidor aceite várias conexões.\n\nO event loop percorre fases de processamento de eventos e callbacks. Para trabalho de CPU intensivo, é comum delegar computação a worker threads, processos ou serviços separados, conforme o caso. `async`/`await` torna o fluxo de Promises mais legível, mas não transforma uma operação síncrona em assíncrona. `await` suspende a continuação da função assíncrona, liberando o fluxo do event loop para outros trabalhos.\n\n### Módulos e pontos de entrada\n\nO Node dá suporte a dois sistemas de módulos. CommonJS usa `require()` para carregar e `module.exports` ou `exports` para expor valores. ES modules usa `import` e `export`; a interpretação depende, entre outros fatores, da extensão (`.mjs` ou `.cjs`) e da configuração `type` do `package.json`. Um projeto deve usar a convenção de forma consistente e não confundir importação de módulo com uma chamada de rede.\n\n| Elemento | CommonJS | ES modules |\n| --- | --- | --- |\n| Importar | `const x = require('x')` | `import x from 'x'` |\n| Exportar | `module.exports = x` | `export default x` ou export nomeado |\n| Indicação comum de formato | `.cjs` | `.mjs` |\n\n### Servidor HTTP e fluxo de dados\n\nO módulo nativo `node:http` permite criar servidores e clientes HTTP. Um servidor é registrado com `createServer` e recebe uma requisição e uma resposta. O código define status, cabeçalhos e corpo, e encerra a resposta. A API HTTP é de baixo nível: roteamento avançado, validação e organização costumam vir de bibliotecas/frameworks.\n\nStreams representam dados que chegam ou saem em partes, em vez de exigir que todo o conteúdo esteja na memória. Há streams legíveis, graváveis, duplex e transformáveis. `pipe()` conecta uma fonte a um destino e ajuda a propagar o fluxo e o backpressure: o produtor pode desacelerar quando o consumidor não acompanha. Isso é útil para enviar arquivos grandes sem acumular todo o conteúdo em RAM.\n\n### Como cai na prova\n\n- Node.js é runtime JavaScript de servidor, não sinônimo de Express.\n- I/O assíncrono permite avançar durante esperas; JavaScript CPU-bound pode bloquear o thread principal.\n- `async`/`await` organiza Promises, mas não cria paralelismo automaticamente.\n- CommonJS (`require`) e ES modules (`import`) são sistemas distintos.\n- Streams processam dados em partes; `pipe` conecta leitura a escrita e respeita o ritmo do destino."
+    },
+    {
+      "title": "2. Django REST Framework 3+: representação e fluxo da API",
+      "markdown": "### O problema que este assunto resolve\n\nDjango REST Framework (DRF) acrescenta ferramentas para construir APIs sobre Django: conversão de dados, validação, views com respostas HTTP, políticas de acesso e roteamento. Uma API recebe dados externos que não devem ser tratados como objetos confiáveis do banco. O serializer organiza a entrada e a saída e permite validar a representação.\n\n> **Siglas e termos deste capítulo**\n> - **API**: interface pela qual sistemas trocam operações e dados.\n> - **Serializer**: declara campos e converte/valida representações e objetos.\n> - **JSON**: formato textual comum para intercâmbio de dados.\n> - **ModelSerializer**: serializer que deriva campos e comportamentos de um modelo Django.\n> - **APIView**: classe base de view de API no DRF.\n\n### Serialização, entrada e validação\n\nUm `Serializer` explícito declara campos, por exemplo `name = serializers.CharField()` e `price = serializers.DecimalField(...)`. Para saída, `serializer.data` apresenta a representação serializada. Para entrada, o DRF recebe os dados em `serializer.initial_data`; chama-se `is_valid()` para validar antes de acessar `validated_data` ou salvar. Se inválidos, `errors` informa os problemas. `raise_exception=True` faz a validação inválida gerar a exceção apropriada do framework e ser convertida em resposta de erro.\n\n`ModelSerializer` automatiza a declaração de campos com base no modelo relacionado e fornece implementações usuais de criação e atualização. A equipe ainda deve inspecionar os campos expostos: não se deve publicar automaticamente todo campo sensível do modelo. Em atualizações parciais, a instância é passada junto com `partial=True`; isso permite omitir campos que seriam exigidos numa atualização completa. Campos somente leitura podem aparecer na resposta sem serem aceitos para escrita.\n\nA validação pode ocorrer em um campo, com método como `validate_email`, ou no objeto completo, com `validate(attrs)` para regras que dependem de mais de um campo. Validar no serializer não elimina restrições de integridade do banco; cada camada tem sua responsabilidade.\n\n### Views, viewsets e roteadores\n\nUma `APIView` lida explicitamente com métodos HTTP, como `get()` e `post()`. Views genéricas juntam comportamentos comuns, como listar ou recuperar objetos. Um `ViewSet` agrupa ações relacionadas numa classe; em vez de declarar necessariamente `get()` e `post()`, usa ações como `list`, `retrieve`, `create`, `update`, `partial_update` e `destroy`. `ModelViewSet` fornece o conjunto comum dessas ações quando configurados `queryset` e `serializer_class`.\n\nUm router liga um ViewSet a URLs. Por exemplo, `router.register('books', BookViewSet)` cria rotas para a coleção e para um objeto individual; a configuração exata depende do router e do prefixo. `SimpleRouter` fornece rotas de recursos; `DefaultRouter` também inclui uma página raiz navegável da API e sufixos de formato. Ações extras podem ser marcadas com `@action`. Um ViewSet chamado diretamente sem router pode exigir configuração explícita de `basename` quando o router não consegue inferi-lo de `queryset`.\n\n### Como cai na prova\n\n- `is_valid()` precisa preceder o uso normal de `validated_data` e `save()`.\n- `ModelSerializer` reduz código de campos, mas exige revisar a exposição de dados.\n- `ViewSet` agrupa ações; router conecta essas ações a URLs.\n- `partial=True` representa atualização parcial, não validação desativada.\n- Ação adicional de ViewSet pode ser exposta com `@action`; permissões seguem aplicáveis."
+    },
+    {
+      "title": "3. Django REST Framework: autenticação e autorização",
+      "markdown": "### Identificar o cliente não é conceder acesso\n\nAutenticação determina as credenciais associadas à requisição e preenche, entre outras informações, `request.user` e `request.auth`. Permissões decidem se aquela identidade pode executar a operação ou acessar o objeto. A autenticação, sozinha, não é autorização: identificar uma pessoa não significa permitir que veja qualquer registro.\n\n> **Siglas e termos deste capítulo**\n> - **Authentication**: mecanismo de identificação das credenciais apresentadas.\n> - **Permission**: regra de autorização de acesso a uma view ou objeto.\n> - **Throttling**: política de limitação de frequência de requisições.\n> - **CSRF**: proteção contra falsificação de requisição entre sites, relevante ao uso de sessão/cookies.\n> - **401 / 403**: respostas associadas a falta de autenticação válida e falta de permissão, conforme o esquema e o contexto.\n\n### Esquemas de autenticação\n\nO DRF oferece classes como `BasicAuthentication`, `SessionAuthentication` e `TokenAuthentication`. Basic envia credenciais HTTP Basic e deve ser protegido por HTTPS. Session usa a sessão Django, adequada em particular a clientes que compartilham o mecanismo de sessão/cookies; requisições autenticadas por sessão que fazem operações inseguras precisam observar proteção CSRF. Token associa um token a um usuário e exige que o componente esteja instalado e configurado. O DRF também permite classes próprias e integrações de terceiros; JWT não é uma classe nativa padrão do núcleo.\n\nA ordem dos esquemas configurados pode influenciar qual esquema determina os cabeçalhos e a resposta de autenticação. Uma view pode substituir a política global com atributos como `authentication_classes`. A configuração de autenticação não decide, por si, se o usuário pode acessar o recurso.\n\n### Permissões de view e de objeto\n\nAs verificações de permissão ocorrem no começo do processamento da view. `AllowAny` libera acesso anônimo; `IsAuthenticated` exige usuário autenticado; `IsAdminUser` exige condição de equipe administrativa; `IsAuthenticatedOrReadOnly` permite leitura a anônimos e exige autenticação para métodos de escrita. As classes podem ser definidas globalmente em `DEFAULT_PERMISSION_CLASSES` ou na própria view por `permission_classes`.\n\nPermissões em nível de objeto verificam uma instância específica. A view genérica de detalhe costuma chamar essas verificações quando recupera o objeto. Em listas, o DRF não chama automaticamente a checagem de objeto para cada linha retornada; filtre o queryset para incluir apenas registros visíveis ao usuário. Do mesmo modo, criar um objeto pode exigir validação/atribuição do proprietário, porque não há objeto existente para checagem de acesso antes da criação.\n\n### Como cai na prova\n\n- Autenticação identifica; permissão autoriza. São etapas diferentes.\n- `IsAuthenticatedOrReadOnly` permite leitura anônima e restringe operações de escrita.\n- SessionAuthentication exige atenção a CSRF em métodos inseguros.\n- Permissão de objeto não filtra automaticamente cada item de uma lista.\n- TokenAuthentication é uma opção do DRF; escolha e transporte de credenciais exigem HTTPS e configuração adequada."
+    },
+    {
+      "title": "4. Laravel 10+: requisição, validação e persistência",
+      "markdown": "### O problema que este assunto resolve\n\nLaravel oferece uma estrutura PHP para aplicações web e APIs. Uma requisição passa por rotas, middleware e, quando configurado, controller ou closure. Na entrada, validação transforma regras declarativas em uma barreira para os dados; no acesso a banco, Eloquent oferece modelos Active Record, consultas e relacionamentos. Esses recursos compõem uma sequência coerente, mas cada um cumpre uma função própria.\n\n> **Siglas e termos deste capítulo**\n> - **Middleware**: componente que inspeciona ou filtra requisições e respostas.\n> - **Eloquent ORM**: mapeador objeto-relacional fornecido pelo Laravel.\n> - **ORM**: camada que relaciona objetos do programa a registros e consultas do banco.\n> - **Mass assignment**: atribuição em lote de atributos a um modelo.\n> - **API Resource**: camada de transformação que define a forma de saída de modelos em JSON.\n\n### Rotas e middleware\n\nRotas são definidas nos arquivos do diretório `routes`. Tradicionalmente, `web.php` aplica o grupo de middleware `web`, com estado de sessão e proteção CSRF; `api.php` aplica o grupo `api`, voltado a requisições sem estado de sessão e com prefixo `/api` por padrão em instalações Laravel 10. Rotas podem atender a verbos como GET, POST, PUT, PATCH e DELETE. Parâmetros aparecem entre chaves, como `/users/{user}`; restrições `whereNumber` ou expressões regulares limitam valores.\n\nMiddleware atua antes ou depois do tratamento principal, conforme sua implementação. Pode verificar autenticação, registrar requisições, limitar frequência ou interromper acesso. Middleware pode ser associado a rotas ou grupos. Ele não substitui a validação de formato e regras de negócio dos campos enviados.\n\n### Validação de dados\n\nO método `$request->validate([...])` aplica regras aos dados da requisição. Em uma requisição tradicional, falha redireciona com erros e dados de entrada; em requisições que esperam JSON, Laravel responde com erros de validação em JSON e status HTTP de erro apropriado. O método retorna os dados validados, que são a entrada adequada para o próximo passo. Regras comuns incluem `required`, `email`, `max`, `integer`, `unique` e `exists`. `Validator::make` permite controlar o ciclo de validação de forma mais explícita.\n\nValidação não substitui proteção contra atribuição em massa: o modelo também precisa declarar atributos permitidos por `$fillable` ou bloqueados por `$guarded`, ou então a aplicação deve atribuir campos individualmente. Dados validados devem ser enviados ao modelo de modo consciente, sem permitir que um cliente defina campos internos como `is_admin`.\n\n### Eloquent, relações e representação\n\nUm modelo Eloquent representa uma tabela, seguindo convenções que podem ser sobrescritas. Consultas podem ser encadeadas, como `User::where('active', true)->get()`. `find` busca pela chave primária; `first` retorna o primeiro resultado ou `null`; `get` retorna uma coleção. Relações como `hasMany` e `belongsTo` descrevem associações, por exemplo usuário e pedidos. Carregamento antecipado com `with` ajuda a evitar consultas repetidas ao percorrer relações (problema N+1).\n\nAPI Resources (`JsonResource`) separam o formato de representação JSON da estrutura do modelo. É possível expor campos escolhidos e relações, em vez de retornar indiscriminadamente todos os atributos. Soft deletes marcam registros com `deleted_at` e os excluem das consultas ordinárias do modelo, sem removê-los fisicamente; operações específicas podem restaurá-los ou incluí-los.\n\n### Como cai na prova\n\n- `routes/api.php` é voltado a rotas sem estado de sessão; `web.php` associa sessão e CSRF.\n- Middleware filtra o fluxo da requisição; validação verifica dados de entrada.\n- `$request->validate()` retorna os dados aprovados e envia erros conforme o tipo esperado de resposta.\n- `$fillable`/`$guarded` protegem a atribuição em massa; validação não substitui essa proteção.\n- `with()` antecipa relações; API Resources controlam a representação JSON."
+    }
+  ],
+  "summary": "Node.js é um runtime JavaScript de servidor que combina I/O assíncrono, event loop, módulos e APIs HTTP/streams; não deve ser confundido com um framework web. No Django REST Framework, serializers convertem e validam dados, views e ViewSets definem operações, routers as conectam a URLs e autenticação é distinta de autorização por permissões. No Laravel, rotas encaminham requisições, middleware filtra o fluxo, validação aprova a entrada, Eloquent consulta e persiste modelos e API Resources controlam a saída JSON. Em todos, valide entrada, controle acesso, evite bloquear operações concorrentes e exponha somente os dados necessários.",
+  "flashcards": [
+    {
+      "front": "O que é Node.js?",
+      "back": "Um runtime que executa JavaScript no servidor com V8 e APIs de sistema, rede e arquivos; não é, por si só, um framework web."
+    },
+    {
+      "front": "Como o Node trata I/O assíncrono?",
+      "back": "Inicia operações de entrada e saída sem manter o JavaScript principal parado esperando; a conclusão agenda callbacks ou resolve Promises."
+    },
+    {
+      "front": "Uma função async executa CPU intensiva em paralelo?",
+      "back": "Não. async/await organiza Promises; código síncrono pesado ainda bloqueia o thread principal até terminar."
+    },
+    {
+      "front": "Como se diferenciam CommonJS e ES modules?",
+      "back": "CommonJS usa require e module.exports; ES modules usa import/export e é indicado por extensões ou configuração do pacote."
+    },
+    {
+      "front": "Para que servem streams no Node?",
+      "back": "Processam dados em partes, reduzem necessidade de manter tudo em memória e podem aplicar backpressure entre produtor e consumidor."
+    },
+    {
+      "front": "Qual o papel de um serializer no DRF?",
+      "back": "Representar objetos em dados primitivos e validar/transformar dados recebidos antes de salvar uma instância."
+    },
+    {
+      "front": "Qual sequência de validação do DRF é esperada?",
+      "back": "Instanciar serializer com os dados de entrada, chamar is_valid() e então usar validated_data ou save(); erros ficam em errors."
+    },
+    {
+      "front": "O que ModelSerializer automatiza?",
+      "back": "Deriva campos e comportamentos comuns de um modelo Django, mas os campos expostos devem ser revisados explicitamente."
+    },
+    {
+      "front": "O que faz um ViewSet?",
+      "back": "Agrupa ações relacionadas de API, como list, retrieve, create e update; um router pode convertê-las em URLs."
+    },
+    {
+      "front": "Autenticação e permissão no DRF são a mesma coisa?",
+      "back": "Não. Autenticação identifica credenciais e usuário; permissão decide se a requisição pode realizar determinada operação."
+    },
+    {
+      "front": "Qual limitação comum das permissões por objeto em listas do DRF?",
+      "back": "A verificação por objeto não é executada automaticamente para cada item de uma lista; o queryset deve filtrar os registros visíveis."
+    },
+    {
+      "front": "O que fazem rotas de Laravel?",
+      "back": "Associam URI e verbo HTTP a uma closure, controller ou ação, podendo agrupar middleware e restringir parâmetros."
+    },
+    {
+      "front": "Para que serve middleware no Laravel?",
+      "back": "Inspeciona, permite, transforma ou interrompe requisições antes ou depois do tratamento principal, como autenticação ou registro."
+    },
+    {
+      "front": "O que retorna Request::validate no Laravel?",
+      "back": "Os dados aprovados pelas regras declaradas; em falha, o framework produz erros apropriados à requisição HTML ou JSON."
+    },
+    {
+      "front": "Como reduzir o risco de mass assignment no Eloquent?",
+      "back": "Declarar atributos permitidos com $fillable ou protegidos com $guarded e não confiar apenas na validação do formulário."
+    },
+    {
+      "front": "Para que serve with() em consultas Eloquent?",
+      "back": "Carrega antecipadamente relações, evitando consultas repetidas quando o código percorre vários modelos relacionados."
+    },
+    {
+      "front": "O que é API Resource do Laravel?",
+      "back": "Uma classe de transformação que seleciona e organiza como modelos e relações aparecem na resposta JSON."
+    },
+    {
+      "front": "Qual grupo padrão é associado a routes/web.php?",
+      "back": "O grupo web, que inclui recursos como sessão e proteção CSRF para formulários web."
+    },
+    {
+      "front": "Qual grupo padrão é associado a routes/api.php no Laravel 10?",
+      "back": "O grupo api, voltado a rotas sem estado de sessão e com prefixo /api na configuração padrão."
+    },
+    {
+      "front": "O que significa atualização parcial em serializer DRF?",
+      "back": "Passar partial=True permite omitir campos normalmente obrigatórios durante uma atualização, sem eliminar as demais validações."
+    }
+  ],
+  "tips": [
+    "Ao ler código Node, identifique se o arquivo usa require/module.exports ou import/export antes de concluir como seus módulos carregam.",
+    "Na questão sobre lentidão do Node, diferencie espera de I/O de cálculo síncrono pesado; só a primeira é naturalmente não bloqueante nas APIs assíncronas.",
+    "No DRF, procure a chamada is_valid antes de qualquer uso de validated_data ou save.",
+    "Se o enunciado disser que uma lista só mostra objetos do usuário, verifique o queryset: permissão de objeto isolada não filtra toda a lista.",
+    "No Laravel, separe autenticação/middleware, validação da entrada, persistência Eloquent e serialização da resposta.",
+    "Quando a questão mencionar campos como is_admin enviados pelo cliente, pense em mass assignment e em $fillable/$guarded, além da validação."
+  ],
+  "traps": [
+    "Dizer que Node.js é um framework HTTP confunde runtime com bibliotecas construídas sobre ele.",
+    "Dizer que await paraleliza qualquer função ignora que o trecho síncrono continua ocupando o thread de execução.",
+    "Dizer que autenticar concede acesso mistura identificação com autorização; o DRF aplica uma política de permissões separada.",
+    "Supor que um router DRF cria lógica de negócio é confundir mapeamento de URLs com ações implementadas no ViewSet.",
+    "Afirmar que dados validados podem ser atribuídos sem restrições ao modelo Laravel ignora o risco de mass assignment.",
+    "Retornar um modelo inteiro como JSON pode expor atributos internos; Resource controla a representação pública."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o caminho de uma requisição HTTP em um backend Node simples.",
+      "answer": "O servidor node:http recebe a requisição, o código escolhe rota e operação, processa dados e define status, cabeçalhos e corpo da resposta. Operações de I/O podem ser aguardadas por callbacks ou Promises sem bloquear o event loop."
+    },
+    {
+      "question": "Como um serializer DRF trata uma entrada JSON inválida?",
+      "answer": "O serializer é criado com os dados recebidos; is_valid() executa validações. Com erro, errors descreve os problemas e validated_data não deve ser usado para persistir a entrada inválida."
+    },
+    {
+      "question": "Compare Serializer e ModelSerializer no DRF.",
+      "answer": "Serializer declara campos e conversões explicitamente. ModelSerializer aproveita um modelo para gerar campos e comportamentos comuns, mas requer controle sobre quais atributos podem ser lidos e escritos."
+    },
+    {
+      "question": "Como um ViewSet ganha rotas no DRF?",
+      "answer": "Registra-se o ViewSet num router com um prefixo; o router mapeia ações como list e retrieve para URLs e verbos HTTP. A lógica continua definida nas ações do ViewSet."
+    },
+    {
+      "question": "Explique a diferença entre autenticação e autorização no DRF.",
+      "answer": "O autenticador interpreta credenciais e identifica request.user/request.auth. A permissão aplica regras para conceder ou negar a operação, podendo levar em conta o usuário e o objeto."
+    },
+    {
+      "question": "Por que filtrar queryset numa view de listagem com dados privados?",
+      "answer": "A checagem de permissão por objeto não é aplicada automaticamente em cada resultado de listagem. Filtrar queryset evita incluir instâncias às quais o usuário não deve ter acesso."
+    },
+    {
+      "question": "Como Laravel responde a dados de entrada inválidos em HTML e JSON?",
+      "answer": "A validação tradicional redireciona com erros e entrada anterior; uma requisição que espera JSON recebe detalhes de validação em JSON com status de erro. Em sucesso, validate retorna os dados aprovados."
+    },
+    {
+      "question": "Como proteger uma criação Eloquent contra atribuição indevida?",
+      "answer": "Validar os valores, permitir explicitamente os atributos atribuíveis com $fillable ou proteger os demais com $guarded e atribuir campos sensíveis sob controle do servidor."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Runtime confundido com framework",
+      "summary": "Node.js executa JavaScript com APIs de servidor; não define sozinho roteamento, controllers e todas as convenções de uma aplicação web."
+    },
+    {
+      "key": "e2",
+      "title": "Assíncrono confundido com paralelismo",
+      "summary": "Promessas e I/O assíncronos evitam esperar bloqueado, mas o código síncrono CPU-bound do thread principal ainda bloqueia o event loop."
+    },
+    {
+      "key": "e3",
+      "title": "Autenticação confundida com autorização",
+      "summary": "No DRF, esquemas de autenticação identificam credenciais; permission_classes decide acesso e requer tratamento distinto para objetos e listas."
+    },
+    {
+      "key": "e4",
+      "title": "Serializer confundido com persistência automática",
+      "summary": "Serializer valida e representa dados; save só usa create/update após validação e a API deve escolher campos e regras de escrita."
+    },
+    {
+      "key": "e5",
+      "title": "Middleware confundido com validação Laravel",
+      "summary": "Middleware filtra fluxo da requisição; regras de validação examinam campos e formatos. Um não substitui a responsabilidade do outro."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma rota Node recebe dois pedidos: um aguarda leitura de arquivo assíncrona e o outro executa um cálculo síncrono demorado no thread principal. Qual efeito é esperado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O event loop transforma qualquer operação síncrona em Promise quando há múltiplos pedidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os dois pedidos rodam necessariamente em threads JavaScript independentes desde a chamada inicial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A leitura interrompe o event loop, enquanto o cálculo é transferido ao sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Node serializa todas as conexões e só aceita a segunda depois de fechar a primeira.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A leitura assíncrona pode aguardar sem reter o fluxo principal; o cálculo longo pode atrasar outras callbacks.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma API de I/O assíncrona permite ao Node aguardar o sistema sem manter o thread JavaScript parado. Já um cálculo executado sincronamente ocupa esse thread até terminar, adiando callbacks e o tratamento de outras requisições. Promises não convertem automaticamente uma função bloqueante em trabalho paralelo.",
+      "section": "1. Node.js 20+: execução JavaScript no servidor",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Node.js, o que `await` faz quando usado numa função assíncrona que aguarda uma Promise pendente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converte toda a função em um processo separado e copia seu estado para outro núcleo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Interrompe o processo Node até que o sistema operacional finalize todas as requisições abertas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pausa a continuação daquela função até a Promise resolver, deixando o fluxo tratar outros eventos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Troca automaticamente o protocolo HTTP por uma conexão persistente do tipo WebSocket.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transforma o valor futuro em dado síncrono e elimina a possibilidade de rejeição.",
+          "correct": false
+        }
+      ],
+      "explanation": "Await torna sequencial e legível o encadeamento da função assíncrona: sua continuação espera a Promise, mas o event loop pode processar outros trabalhos. A operação ainda pode rejeitar, e await não cria uma thread nem um processo para executar a função.",
+      "section": "1. Node.js 20+: execução JavaScript no servidor",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual associação entre sintaxe de módulos e formato é coerente com os sistemas de módulos do Node.js?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CommonJS costuma usar import/export, enquanto ES modules exige require e module.exports.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A extensão .js obriga todo projeto a tratar qualquer arquivo como módulo CommonJS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os dois formatos usam require e module.exports, mudando apenas o nome da pasta de origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ES modules só carrega arquivos JSON, enquanto CommonJS é reservado a scripts HTTP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CommonJS usa require/module.exports; ES modules usa import/export, com formato definido pela extensão ou pacote.",
+          "correct": true
+        }
+      ],
+      "explanation": "CommonJS e ES modules têm sintaxes de importação e exportação próprias. O Node interpreta o formato segundo extensões como .cjs e .mjs ou a configuração type do package.json; não há uma regra universal de que todo .js seja CommonJS.",
+      "section": "1. Node.js 20+: execução JavaScript no servidor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API Node envia um arquivo grande ao cliente sem carregá-lo inteiro na memória. Qual recurso combina melhor com esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concatenar todos os blocos numa string e guardá-la até o cliente confirmar o download.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Serializar os bytes numa única Promise e aguardar o corpo completo antes de escrever.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar uma consulta síncrona de disco para reservar memória para o arquivo inteiro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ler o arquivo como stream e conectá-lo à resposta gravável, respeitando o fluxo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Criar uma variável global com o conteúdo binário para compartilhar entre requisições.",
+          "correct": false
+        }
+      ],
+      "explanation": "Streams processam dados gradualmente, e a conexão entre uma fonte legível e a resposta gravável permite enviar partes sem acumular o arquivo completo. O mecanismo de backpressure ajuda a desacelerar a fonte caso o destino não consiga consumir os dados no mesmo ritmo.",
+      "section": "1. Node.js 20+: execução JavaScript no servidor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa de criptografia síncrona e custosa está atrasando respostas em um servidor Node. Qual diagnóstico inicial é tecnicamente adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A solução é acrescentar await à chamada síncrona, mesmo que ela não retorne uma Promise.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O roteador HTTP converteu a tarefa numa stream legível que aguarda tráfego externo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O módulo ES está importado como CommonJS e por isso todas as Promises ficam pendentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O backpressure do socket impede o motor V8 de executar qualquer callback de rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O event loop foi bloqueado pelo trabalho de CPU; considere delegação a worker ou processo.",
+          "correct": true
+        }
+      ],
+      "explanation": "Código CPU-bound executado sincronicamente ocupa a thread principal e impede o event loop de avançar enquanto o trabalho não termina. Um worker thread, processo ou serviço separado pode ser apropriado, conforme a necessidade. Acrescentar await não muda uma função síncrona em assíncrona.",
+      "section": "1. Node.js 20+: execução JavaScript no servidor",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao criar um servidor HTTP nativo com `node:http`, qual responsabilidade ainda pertence ao código da aplicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O runtime decide sozinho todas as regras de autenticação, autorização e validação do domínio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O motor V8 escolhe a representação JSON e grava cada resposta no banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O módulo HTTP só permite fazer chamadas de saída e não pode aceitar conexões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O módulo gera automaticamente controllers e rotas com base nos modelos do banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A aplicação interpreta a requisição e define status, cabeçalhos e corpo da resposta.",
+          "correct": true
+        }
+      ],
+      "explanation": "A API HTTP de baixo nível fornece mecanismos para criar servidor e manipular requisição e resposta, mas cabe ao programa tratar rotas, regras, autenticação, dados e resposta. Frameworks podem oferecer convenções adicionais, que não são automaticamente impostas pelo runtime Node.",
+      "section": "1. Node.js 20+: execução JavaScript no servidor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No fluxo de uma rota DRF, qual é a finalidade imediata de chamar `serializer.is_valid()` antes de salvar dados recebidos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar todas as tabelas do modelo e executar as migrações pendentes do Django.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Gerar automaticamente um router para cada campo declarado no serializer.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Validar e converter a entrada, disponibilizando erros ou dados aprovados para uso posterior.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Autenticar o usuário por token e atribuir permissões a qualquer instância relacionada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Renderizar a resposta em HTML e aplicar a política de cache da view.",
+          "correct": false
+        }
+      ],
+      "explanation": "A chamada is_valid executa validações e prepara os dados convertidos. Se houver falhas, errors as descreve; se passar, validated_data pode ser usado para salvar. Essa etapa não cria tabelas, autentica o usuário nem configura roteamento.",
+      "section": "2. Django REST Framework 3+: representação e fluxo da API",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API Django precisa aceitar atualizações que enviam somente alguns campos sem exigir novamente os demais. Como o serializer deve ser usado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Instanciá-lo sem dados para que todos os campos sejam removidos antes de salvar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Marcar todos os campos como somente leitura e chamar save() sem validação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Configurar o router como DefaultRouter para desativar validações de campos ausentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar somente request.user e dispensar o serializer em operações PATCH.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Passar partial=True junto à instância e aos dados que serão atualizados.",
+          "correct": true
+        }
+      ],
+      "explanation": "Para atualização parcial, o serializer recebe a instância existente, os dados recebidos e partial=True. Assim os campos normalmente obrigatórios podem ser omitidos; os dados presentes continuam sujeitos às validações correspondentes e à lógica de atualização.",
+      "section": "2. Django REST Framework 3+: representação e fluxo da API",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual componente do DRF deriva campos e comportamentos comuns de um modelo Django, sem dispensar a revisão dos campos públicos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DjangoModelPermissions, que substitui a declaração de campos e validação da API.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DefaultRouter, que consulta cada coluna e transforma todos os campos em JSON.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SessionAuthentication, que converte os campos do modelo para a representação externa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "APIView, que cria serializers automaticamente para todo model registrado no admin.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ModelSerializer, cuja lista de campos expostos deve ser escolhida e revisada conscientemente.",
+          "correct": true
+        }
+      ],
+      "explanation": "ModelSerializer fornece geração conveniente de campos e métodos usuais de criação/atualização a partir de um modelo. O desenvolvedor deve declarar ou revisar a seleção de campos, sobretudo para evitar que informações internas ou sensíveis passem a ser expostas.",
+      "section": "2. Django REST Framework 3+: representação e fluxo da API",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe DRF implementa ações `list` e `retrieve`, e a equipe deseja conectá-las a URLs convencionais. Qual combinação descreve a solução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um parser converte automaticamente as ações em tabelas durante cada requisição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um renderer associa as ações a URLs e define a política de autenticação global.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um serializer transforma os nomes das ações em caminhos do sistema de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um router registra o ViewSet e mapeia as ações para rotas e métodos HTTP.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um autenticador registra o ViewSet no banco e cria rotas para cada usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Routers do DRF ligam ViewSets registrados a padrões de URL e métodos HTTP. A lógica de listagem ou recuperação continua nas ações do ViewSet; serializer e autenticação cumprem outras responsabilidades.",
+      "section": "2. Django REST Framework 3+: representação e fluxo da API",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma validação precisa comparar `start_date` e `end_date` em conjunto. Onde esse tipo de regra se encaixa melhor em um serializer DRF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Na configuração do router, que recebe todos os valores e verifica sua ordem cronológica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Na declaração de um campo somente leitura, impedindo toda operação de criação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "No método list do ViewSet, depois que a resposta JSON já foi renderizada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Na classe de autenticação, comparando datas com a credencial apresentada pelo usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "No método validate(attrs), que pode examinar a combinação dos campos do objeto.",
+          "correct": true
+        }
+      ],
+      "explanation": "A validação em nível de objeto recebe o conjunto de atributos e permite impor regras que envolvem vários campos. Validação de campo é mais apropriada quando a regra depende de um valor isolado; router e autenticação não são camadas para essa regra de domínio.",
+      "section": "2. Django REST Framework 3+: representação e fluxo da API",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe usa `ModelViewSet` com `queryset` e `serializer_class`. Qual expectativa sobre as ações comuns é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele gera endpoints mesmo sem serializer, queryset, modelo ou implementação de ações.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele substitui o banco Django por uma coleção em memória sem operações de persistência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele declara apenas autenticação e exige escrever sempre todos os métodos HTTP do zero.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele cria permissões por objeto em cada instância e filtra automaticamente qualquer listagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele oferece ações usuais de consulta e alteração, que ainda dependem da política e configuração da view.",
+          "correct": true
+        }
+      ],
+      "explanation": "ModelViewSet reúne implementações comuns como list, retrieve, create, update, partial_update e destroy, usando o queryset e o serializer configurados. Autorização e visibilidade dos dados continuam exigindo configuração apropriada; uma lista não recebe filtragem automática por cada permissão de objeto.",
+      "section": "2. Django REST Framework 3+: representação e fluxo da API",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente uma ação adicional em um ViewSet DRF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É uma view fora do DRF que não pode usar serializadores nem políticas de permissão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É um campo do modelo, descoberto automaticamente quando o router consulta o banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pode ser marcada com `@action` para que o router a exponha além das ações convencionais.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "É uma migração de URL que deve substituir todas as ações list e retrieve.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É uma função que desativa autenticação para todo o conjunto de endpoints relacionados.",
+          "correct": false
+        }
+      ],
+      "explanation": "O decorador @action marca métodos adicionais de um ViewSet para roteamento, permitindo representar operações que não são as ações convencionais de CRUD. A política de autenticação e permissão pode ser configurada para a ação, mas não é automaticamente desativada.",
+      "section": "2. Django REST Framework 3+: representação e fluxo da API",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma view DRF que usa `raise_exception=True` ao validar um serializer, o que acontece se os dados forem inválidos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O serializer ignora os campos inválidos e salva parcialmente sem informar o cliente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A transação é aberta e os dados inválidos ficam gravados para revisão, sem impedir uma resposta de sucesso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O router remove a rota de escrita e permite somente uma resposta HTML de sucesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A exceção de validação é tratada pelo framework para produzir uma resposta de erro apropriada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A requisição é autenticada novamente até que todos os campos sejam aceitos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com raise_exception=True, uma falha na validação levanta a exceção de validação do DRF. O tratamento padrão do framework converte-a em resposta de erro, em vez de prosseguir normalmente para salvar dados inválidos.",
+      "section": "2. Django REST Framework 3+: representação e fluxo da API",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No DRF, o que deve ser feito antes de acessar `validated_data` para persistir dados fornecidos pelo cliente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registrar o ViewSet em qualquer router e confiar que isso executará todas as regras do serializer.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desabilitar as classes de permissão para que o serializer consiga converter os campos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Chamar is_valid e tratar eventuais erros antes de consultar validated_data ou chamar save.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ler os campos de request.user, pois o framework copia neles o conteúdo JSON recebido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar list() no queryset e usar o primeiro objeto como dados validados de entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A validação precisa ser executada antes de se usar os dados convertidos ou salvar. is_valid populates validated_data quando a entrada é válida, e errors contém os detalhes da falha; roteamento, permissão e consulta do banco não substituem esse passo.",
+      "section": "2. Django REST Framework 3+: representação e fluxo da API",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API lista documentos privados por usuário. Por que uma permission class em nível de objeto, sozinha, pode não bastar para limitar o resultado da ação `list`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A ação list usa um router diferente e não recebe request.user durante a serialização.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O DRF aplica permissões por objeto somente depois de renderizar o JSON da resposta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A checagem por objeto não roda automaticamente em cada linha; o queryset precisa restringir a coleção.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Listagens sempre ignoram autenticação e exigem que cada modelo tenha um token próprio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O serializer decide visibilidade de registros exclusivamente pelo nome do campo primário.",
+          "correct": false
+        }
+      ],
+      "explanation": "O DRF normalmente executa checagens de objeto quando a view recupera uma instância individual, mas não percorre todo resultado de lista para chamar a permissão em cada objeto. O queryset deve limitar as linhas visíveis, evitando que registros não autorizados cheguem à serialização.",
+      "section": "3. Django REST Framework: autenticação e autorização",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja permitir leitura pública e exigir usuário autenticado para operações de escrita. Qual classe de permissão padrão expressa essa política no DRF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "AllowAny, que permite leitura anônima e impede operações autenticadas de escrita.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "IsAdminUser, que libera escrita para qualquer pessoa e exige login para leitura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DjangoModelPermissions, que torna públicos todos os métodos seguros e bloqueia os demais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "IsAuthenticatedOrReadOnly, que permite métodos de leitura a anônimos e exige autenticação para escrita.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "SessionAuthentication é uma regra de permissão que permite leitura anônima e exige login para gravar em qualquer endpoint.",
+          "correct": false
+        }
+      ],
+      "explanation": "IsAuthenticatedOrReadOnly permite acesso de leitura sem autenticação, mas requer usuário autenticado para operações consideradas de escrita. SessionAuthentication é um mecanismo de autenticação, enquanto AllowAny não impõe essa restrição de escrita.",
+      "section": "3. Django REST Framework: autenticação e autorização",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API baseada em cookies de sessão Django recebe uma requisição autenticada que altera dados. Qual proteção merece atenção específica no DRF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A configuração de serializer ativa CSRF somente quando o usuário não está autenticado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A regra CORS substitui o token CSRF sempre que o cliente usa JSON.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um router de leitura deve ser usado para impedir a sessão de enviar cabeçalhos HTTP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Proteção CSRF, pois requisições inseguras autenticadas por sessão precisam verificar o token correspondente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O sistema de sessão garante proteção CSRF automaticamente para qualquer cliente externo.",
+          "correct": false
+        }
+      ],
+      "explanation": "SessionAuthentication aproveita a sessão Django e, para requisições inseguras autenticadas por sessão, a proteção CSRF continua relevante. CORS tem outra finalidade e o uso de JSON, isoladamente, não torna segura uma requisição que altera dados.",
+      "section": "3. Django REST Framework: autenticação e autorização",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual classe DRF é um esquema de autenticação integrado que associa um token a um usuário, quando instalado e configurado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DjangoObjectPermissions, que lê tokens do corpo e autentica qualquer usuário anônimo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "TokenAuthentication, que autentica por token e deve ser usada com transporte protegido.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "IsAuthenticatedOrReadOnly, que é uma classe autenticadora de tokens para métodos PATCH.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DefaultRouter, que verifica token no caminho e converte-o em request.auth automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ModelSerializer, que autentica cada registro com base no campo primário do modelo.",
+          "correct": false
+        }
+      ],
+      "explanation": "TokenAuthentication é uma classe de autenticação disponível no DRF, requer instalação e configuração apropriadas, e associa credenciais de token à identidade da requisição. A proteção do transporte, especialmente HTTPS, é importante para impedir exposição da credencial; permissões cumprem outra função.",
+      "section": "3. Django REST Framework: autenticação e autorização",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sobre `BasicAuthentication` no DRF, qual recomendação operacional é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usá-la sem TLS, porque o DRF cifra as credenciais em qualquer conexão HTTP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usá-la como permissão de objeto, pois ela restringe a leitura ao proprietário do modelo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usá-la apenas em respostas JSON, que impedem a interceptação de cabeçalhos de autenticação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usá-la por HTTPS, pois Basic não torna segura a transmissão das credenciais por si só.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usá-la somente em requisições GET, porque POST não aceita cabeçalho de autorização.",
+          "correct": false
+        }
+      ],
+      "explanation": "HTTP Basic codifica credenciais para transporte, mas não as protege criptograficamente por si só. HTTPS protege o canal contra leitura e alteração durante o transporte. A classe autentica a requisição; não aplica permissões específicas de objeto.",
+      "section": "3. Django REST Framework: autenticação e autorização",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma view DRF, qual é a diferença entre `authentication_classes` e `permission_classes`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A primeira valida campos de serializer; a segunda transforma modelos em representação textual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A primeira registra rotas; a segunda define o formato JSON de toda resposta gerada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A primeira identifica credenciais; a segunda autoriza ou nega acesso à view ou ao objeto.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A primeira habilita cache; a segunda define a ordem de carregamento dos módulos Python.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A primeira filtra cada linha de queryset; a segunda cria as credenciais de sessão do usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "As classes de autenticação interpretam credenciais e estabelecem a identidade da requisição. As classes de permissão usam esse contexto para decidir se o acesso à view ou a um objeto é autorizado; não há substituição automática entre essas responsabilidades.",
+      "section": "3. Django REST Framework: autenticação e autorização",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma instalação Laravel 10 padrão, qual diferença de propósito existe entre `routes/web.php` e `routes/api.php`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "web.php define somente tarefas agendadas; api.php armazena as consultas Eloquent do sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "web.php recebe middleware de sessão e CSRF; api.php agrupa rotas sem estado de sessão.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "web.php cria automaticamente modelos; api.php cria migrações quando a rota é acessada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "web.php atende apenas POST; api.php aceita exclusivamente métodos GET e OPTIONS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "web.php não pode usar controllers; api.php só permite closures dentro do arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O arquivo web.php é associado ao grupo web, que inclui recursos de sessão e proteção CSRF. O api.php é voltado a endpoints sem estado de sessão, com prefixo /api pela configuração padrão do Laravel 10. Ambos podem usar closures ou controllers conforme a aplicação.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a função principal de middleware numa aplicação Laravel?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir o esquema físico de tabelas e executar comandos SQL de migração a cada chamada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Inspecionar ou filtrar requisições antes ou depois de chegarem à lógica principal.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Transformar automaticamente todos os modelos Eloquent em formulários HTML editáveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir regras de validação, garantindo que qualquer entrada tenha o formato esperado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenar credenciais de autenticação dentro dos arquivos de rotas registrados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Middleware fornece um ponto para inspecionar, filtrar, permitir, modificar ou rejeitar requisições que entram na aplicação, e pode atuar no fluxo de resposta. Autenticação é um uso comum, mas middleware não substitui regras de validação dos campos nem migrações de banco.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rota precisa aceitar apenas identificadores numéricos no segmento `{id}`. Qual recurso do roteamento Laravel pode restringir esse parâmetro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `whereNumber('id')` ou uma condição equivalente no parâmetro da rota.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Declarar `$fillable` no middleware global para converter caracteres não numéricos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Configurar `with('id')` no controller para remover rotas com parâmetros textuais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Marcar o parâmetro como `required` no recurso JSON para restringir seu tipo HTTP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Acrescentar uma regra `unique` ao modelo para bloquear letras no caminho da URL.",
+          "correct": false
+        }
+      ],
+      "explanation": "Laravel permite aplicar restrições ao parâmetro de rota, inclusive o atalho whereNumber ou uma expressão regular. Se a requisição não satisfizer a condição, a rota não corresponde e o framework retorna 404; validação de formulário e regras Eloquent cumprem outros papéis.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma requisição HTML Laravel falha na validação feita com `$request->validate(...)`. Qual comportamento padrão se espera?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O registro é salvo e os erros são enviados somente ao log de consultas do banco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A validação é ignorada e a aplicação retorna sempre o conjunto completo de entrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O framework redireciona com erros e dados de entrada disponíveis para a resposta seguinte.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A rota é removida do cache e todos os usuários recebem erro de autenticação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Eloquent converte automaticamente os valores inválidos em nulos antes de criar o modelo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em requisições tradicionais que esperam HTML, uma falha de validação leva a redirecionamento e disponibiliza erros e valores de entrada para a próxima resposta. Para requisições que esperam JSON, a representação dos erros é diferente; em nenhum caso os dados inválidos devem seguir como se aprovados.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após validar os dados com `$request->validate(...)`, o método retorna qual conjunto para a lógica da aplicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os dados aprovados pelas regras, apropriados para seguir ao próximo passo da operação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todos os cabeçalhos HTTP recebidos, incluindo cookies, sem verificar os campos enviados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma instância do modelo persistida, mesmo quando a validação não encontra registro existente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma lista de rotas carregadas, filtradas conforme o resultado de cada regra declarada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O conteúdo completo do banco, convertido em JSON conforme as regras de entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando as regras passam, validate retorna os dados validados, que podem então ser usados pela aplicação. Ele não cria por si só um modelo nem retorna cabeçalhos ou dados do banco. Em caso de falha, o fluxo de validação gera a resposta correspondente em vez de fornecer um resultado aprovado.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Eloquent, qual método de relacionamento normalmente expressa que um modelo Pai possui vários modelos Filho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "belongsTo, definido no Pai para apontar diretamente a coleção dos Filhos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "hasMany, definido no Pai para representar sua coleção de modelos relacionados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "withMany, definido no Filho para criar registros relacionados durante toda leitura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "find, definido no Pai para declarar uma associação permanente entre as tabelas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "fill, definido no banco para gerar chaves estrangeiras e consultas agrupadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "No relacionamento um-para-muitos, o modelo que possui a coleção costuma declarar hasMany, enquanto o modelo relacionado declara belongsTo. Esses métodos descrevem a associação para consultas; migrations e chaves estrangeiras configuram a estrutura persistente correspondente.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um loop sobre vários usuários acessa a relação `posts` de cada um e gera muitas consultas. Qual ajuste Eloquent pode reduzir esse padrão N+1?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `with('posts')` na consulta inicial para carregar antecipadamente a relação necessária.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar `find()` dentro do loop para abrir uma nova conexão por publicação retornada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mover a relação para `$guarded` e impedir que consultas de usuário acessem as publicações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Declarar uma rota `apiResource` para que o middleware una automaticamente todas as consultas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar soft delete à relação antes de cada leitura para reutilizar resultados armazenados.",
+          "correct": false
+        }
+      ],
+      "explanation": "O carregamento antecipado com with inclui a relação necessária na consulta de forma planejada, reduzindo consultas repetidas feitas ao acessar cada modelo no loop. Isso evita o padrão N+1; fillable/guarded e soft deletes tratam de preocupações diferentes.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual componente Laravel permite definir explicitamente a estrutura JSON pública de um modelo sem retornar indiscriminadamente todos os seus atributos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A tabela de rotas, que renomeia colunas e seleciona propriedades durante cada requisição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um middleware de autenticação, que converte campos internos em chaves JSON públicas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um API Resource, que transforma o modelo em uma representação de saída controlada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O método fill, que remove todos os atributos não relacionados a chaves estrangeiras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma regra `exists`, que serializa registros relacionados quando o banco os encontra.",
+          "correct": false
+        }
+      ],
+      "explanation": "API Resources separam a estrutura do modelo da representação que a API expõe, permitindo selecionar atributos e relações de saída. Isso evita retornar automaticamente campos internos. Middleware pode filtrar requisições, mas não é a camada adequada para mapear a resposta JSON do modelo.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação usa `$request->validate` e depois passa toda a entrada bruta a um método de atribuição em massa do modelo. Qual risco permanece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O router pode transformar os dados em comandos SQL e executar atualizações não previstas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um atributo interno não autorizado pode ser atribuído se o modelo não restringir campos em massa.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "As regras de validação passam a ser executadas novamente pelo middleware CSRF da rota.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O modelo perde sua chave primária porque `validate` remove as relações Eloquent.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A resposta JSON deixa de ser válida porque campos permitidos não podem persistir no banco.",
+          "correct": false
+        }
+      ],
+      "explanation": "Validar formato e regras de entrada não equivale a declarar quais atributos podem ser atribuídos em massa. Um atacante poderia tentar enviar campo sensível, como indicador administrativo, caso o código aceite entrada indiscriminada e o modelo não restrinja atributos via fillable/guarded ou atribuição individual controlada.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No DRF, uma view define `permission_classes = [IsAuthenticated]`. Qual consequência expressa melhor essa política?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A requisição deve estar associada a um usuário autenticado para acessar a view.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A view fica pública, mas só pode retornar os campos marcados como obrigatórios.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Qualquer usuário autenticado passa a ter permissão para acessar todos os objetos do banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A view aceita somente autenticação por sessão e rejeita qualquer outro esquema configurado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O serializer exige que todos os campos do modelo apareçam em qualquer requisição recebida.",
+          "correct": false
+        }
+      ],
+      "explanation": "IsAuthenticated exige identidade autenticada para acesso à view. Isso não significa que todo objeto esteja autorizado; a política de objeto, queryset e autenticação configurada também importam. A classe de permissão não obriga o uso exclusivo de autenticação por sessão nem altera campos do serializer.",
+      "section": "3. Django REST Framework: autenticação e autorização",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Node.js, uma função chamada `readFileSync` é usada diretamente numa rota muito concorrida. Qual risco decorre dessa escolha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A leitura síncrona pode bloquear o thread JavaScript e atrasar o atendimento de outros eventos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A função converte o conteúdo para stream e aplica backpressure automaticamente ao cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O event loop desloca qualquer API Sync para uma worker thread assim que há concorrência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O módulo de arquivos passa a rejeitar todas as Promises já criadas no processo Node.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O servidor passa a executar cada requisição num processo isolado sem custo de recursos.",
+          "correct": false
+        }
+      ],
+      "explanation": "APIs síncronas mantêm a execução parada até concluir a operação. Em um servidor que compartilha o thread principal entre callbacks, essa espera pode impedir temporariamente o tratamento de outros eventos. Uma API assíncrona ou estratégia de delegação evita essa espera bloqueante no fluxo principal.",
+      "section": "1. Node.js 20+: execução JavaScript no servidor",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rota Laravel definida dentro de `web.php`, um formulário envia POST sem token CSRF. Qual explicação é consistente com a configuração padrão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A rota usa o grupo web e a proteção CSRF pode rejeitar o envio sem o token esperado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Eloquent rejeita qualquer formulário sem chave primária antes de chegar ao middleware.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A regra de email do validator exige token CSRF em todos os métodos GET e POST.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O router converte todas as rotas web em APIs sem estado e remove o middleware associado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um API Resource valida automaticamente a origem e cria o token no corpo da resposta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Rotas de web.php recebem o grupo web, que inclui sessão e proteção CSRF. Formulários que alteram estado devem enviar o token previsto; sem ele, a requisição pode ser rejeitada. Essa proteção é distinta das regras de formato do validator e das operações de persistência Eloquent.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No DRF, o endpoint usa `TokenAuthentication` e a permissão `IsAuthenticated`. Que papel o token cumpre nesse fluxo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Define a forma do serializer e converte os dados de entrada em campos do modelo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Atua como credencial de autenticação; a permissão usa a identidade para decidir o acesso.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Gera URLs para as ações list e retrieve e dispensa registro do ViewSet.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Filtra o queryset automaticamente para objetos criados pelo usuário autenticado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substitui HTTPS porque tokens não podem ser copiados durante o transporte HTTP.",
+          "correct": false
+        }
+      ],
+      "explanation": "TokenAuthentication interpreta o token e estabelece a identidade da requisição. IsAuthenticated verifica se existe identidade autenticada para conceder acesso à view. O token sozinho não define quais objetos o usuário pode acessar, não cria URLs e deve ser protegido em trânsito por HTTPS.",
+      "section": "3. Django REST Framework: autenticação e autorização",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Laravel, uma aplicação quer validar entrada e evitar que o cliente escolha o campo `is_admin` numa operação de cadastro. Qual abordagem é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar o validator e confiar na proteção CSRF para filtrar valores enviados em JSON.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Validar os campos esperados e restringir atributos em massa ou atribuí-los individualmente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Retornar o modelo inteiro por API Resource e aceitar todos os campos recebidos do cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mover a rota para `api.php`, pois esse arquivo remove atributos administrativos da entrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar soft delete antes da criação para bloquear campos não declarados no formulário.",
+          "correct": false
+        }
+      ],
+      "explanation": "A validação limita valores e campos conforme as regras da requisição, enquanto $fillable/$guarded ou atribuições explícitas limitam quais atributos podem ser preenchidos em massa. O campo de privilégio deve ser controlado pelo servidor. CSRF, grupo de rota e Resource não fazem essa proteção de entrada.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço precisa ler e transformar dados grandes em fluxo contínuo. Como streams e `pipe()` ajudam no Node.js?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Streams processam blocos e pipe conecta fonte a destino, respeitando o ritmo do consumidor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Streams guardam todo o conteúdo em memória e pipe replica o buffer em cada worker.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Streams convertem automaticamente arquivos em JSON e pipe escolhe a rota HTTP correspondente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Streams são somente para conexões de saída e pipe bloqueia a fonte até reiniciar o processo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Streams transformam qualquer cálculo CPU-bound numa operação paralela executada pelo V8.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma stream pode consumir ou produzir dados por blocos, evitando que todo o conteúdo precise ser mantido simultaneamente na memória. pipe conecta uma stream legível à gravável e participa do controle de backpressure. Ele não executa automaticamente código em paralelo nem transforma o conteúdo em JSON.",
+      "section": "1. Node.js 20+: execução JavaScript no servidor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao usar uma rota Laravel com parâmetro de modelo `{user}` e um argumento tipado como `User`, o que pode ocorrer com o binding implícito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Laravel resolve o modelo correspondente ao parâmetro; ausência de registro correspondente pode resultar em 404.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Laravel cria um usuário vazio e o salva antes de executar qualquer controller.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O middleware converte a rota em uma consulta de sessão sem usar chave do modelo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O parâmetro só pode corresponder ao texto do nome, nunca à chave de rota configurada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O router injeta todos os usuários da tabela e escolhe o primeiro registro disponível.",
+          "correct": false
+        }
+      ],
+      "explanation": "No binding implícito, o tipo do modelo e o nome correspondente ao segmento permitem que Laravel resolva a instância pela chave de rota. Se não encontrar correspondência, a resposta usual é 404. Isso não cria registro nem carrega toda a tabela para escolher o primeiro usuário.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coluna `deleted_at` está preenchida em um modelo Laravel com soft deletes. Qual interpretação descreve o efeito normal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O registro foi removido fisicamente e não pode mais ser encontrado em qualquer consulta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O modelo permanece no banco e consultas ordinárias o excluem, podendo haver recuperação específica.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A coluna invalida a chave estrangeira e impede toda consulta às relações do modelo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O sistema converte o registro em JSON somente leitura e apaga os demais atributos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A aplicação usa `with()` para restaurar automaticamente o registro em cada consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Soft deletes marcam logicamente o registro com deleted_at em vez de eliminá-lo fisicamente. As consultas usuais do modelo ignoram registros marcados, mas operações específicas podem incluí-los ou restaurá-los. Isso é diferente de exclusão permanente ou carregamento antecipado de relações.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “No Node.js, callbacks de uma operação de I/O assíncrona são executados antes de a operação terminar, e o event loop pausa os demais eventos durante a espera.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O resultado da operação precisa estar disponível para que sua continuação seja processada; ela não executa o callback antes de terminar. Enquanto um I/O assíncrono aguarda, o event loop pode avançar em outros eventos, em vez de pausar todo o atendimento.",
+      "section": "1. Node.js 20+: execução JavaScript no servidor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “O uso de `await` garante que uma função de cálculo síncrono passe a executar em paralelo com outras requisições no Node.js.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Await aguarda uma Promise e suspende a continuação da função assíncrona, mas não transfere automaticamente código síncrono CPU-bound para outro thread. Cálculo que bloqueia a thread principal pode atrasar outras callbacks e requisições.",
+      "section": "1. Node.js 20+: execução JavaScript no servidor",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “No CommonJS do Node.js, `import` e `export` são sintaxes obrigatórias, enquanto `require()` pertence ao sistema ES modules.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. CommonJS usa require() e module.exports ou exports. import/export é a sintaxe de ES modules, cujo uso depende da extensão e da configuração do pacote; o enunciado inverte os sistemas.",
+      "section": "1. Node.js 20+: execução JavaScript no servidor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “Uma stream Node precisa reunir todo o arquivo na memória antes de enviar o primeiro bloco ao destino.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Streams permitem processar e transferir dados em partes. A conexão entre fonte e destino pode aplicar backpressure, sem exigir que o arquivo inteiro esteja armazenado antes de começar a transmissão.",
+      "section": "1. Node.js 20+: execução JavaScript no servidor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “No DRF, `serializer.errors` contém os problemas de entrada mesmo antes de `is_valid()` executar as regras de validação.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Os erros são produzidos quando a validação é executada por is_valid(). Antes disso, o serializer ainda não aplicou as regras aos dados para montar errors; a aplicação deve validar antes de consultar o resultado.",
+      "section": "2. Django REST Framework 3+: representação e fluxo da API",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “O `ModelSerializer` pode gerar campos com base no modelo, mas ainda é necessário selecionar cuidadosamente quais campos serão expostos.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A geração automática do ModelSerializer reduz repetição, mas não determina quais dados são adequados para a API pública. Campos internos, credenciais ou atributos de controle devem ser excluídos ou tratados como somente leitura conforme o caso.",
+      "section": "2. Django REST Framework 3+: representação e fluxo da API",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “Um ViewSet do DRF agrupa ações relacionadas, e um router pode mapear essas ações para URLs convencionais.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. ViewSets reúnem ações de recursos como listar, recuperar e criar. Um router registra o ViewSet e constrói os padrões de URL; a lógica de cada ação permanece na classe e em seus componentes associados.",
+      "section": "2. Django REST Framework 3+: representação e fluxo da API",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “Autenticação no DRF, por si só, determina que todo recurso do banco pode ser acessado pelo usuário identificado.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Autenticação identifica as credenciais e a identidade da requisição. As permissões e o escopo dos objetos determinam o que essa identidade pode acessar; autenticação válida não equivale a autorização universal.",
+      "section": "3. Django REST Framework: autenticação e autorização",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “A permissão por objeto do DRF é chamada automaticamente para cada elemento de uma resposta de listagem, filtrando a coleção sem ajuda do queryset.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Em geral, checagens de objeto ocorrem quando a view recupera uma instância individual; o framework não executa automaticamente essa verificação para cada resultado de lista. A própria consulta deve restringir a coleção ao conjunto autorizado.",
+      "section": "3. Django REST Framework: autenticação e autorização",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “Rotas em `routes/web.php` no Laravel 10 são associadas ao grupo web, que inclui recursos de sessão e proteção CSRF.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O grupo web fornece funcionalidades próprias de aplicações web com estado, como sessão e proteção CSRF. Formulários que fazem operações de escrita precisam apresentar o token esperado pelo middleware.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “Middleware Laravel e validação do request são nomes diferentes para a mesma etapa, que verifica tipo e regras de cada campo enviado.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Middleware inspeciona e filtra o fluxo de requisições e respostas; validação examina os valores recebidos segundo regras de campos e domínio. Um middleware pode autenticar ou limitar tráfego, mas não substitui as regras explícitas de entrada.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “Eloquent usa o método `hasMany` no modelo pai para descrever uma relação com vários modelos filhos.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. hasMany declara a relação de um para muitos do modelo que possui a coleção; o modelo relacionado costuma apontar de volta com belongsTo. A relação permite consultar associados sem escrever a associação manual em cada chamada.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “Um API Resource Laravel deve expor todos os atributos internos do modelo para que o cliente escolha quais deseja receber.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. API Resources servem justamente para controlar e transformar a representação de saída, selecionando atributos e relações adequados. Deixar a exposição indiscriminada para o cliente aumenta risco de divulgar dados internos e mistura estrutura persistente com contrato público.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “No Laravel, validação bem-sucedida e proteção contra atribuição em massa são verificações distintas que devem ser consideradas.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Regras de validação verificam valores e presença de campos; $fillable/$guarded ou atribuições individuais controlam quais atributos podem ser preenchidos em massa. Uma requisição que passe na validação ainda não deve poder escolher campos internos sem autorização.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “Soft delete no Eloquent marca o registro sem removê-lo fisicamente, e consultas comuns deixam de incluí-lo.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A exclusão lógica mantém a linha no banco com marca temporal e faz as consultas ordinárias do modelo ignorarem o registro. Há operações específicas para incluir ou restaurar esse conteúdo, diferentemente da remoção física definitiva.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “O DRF disponibiliza `BasicAuthentication`, `SessionAuthentication` e `TokenAuthentication` como opções integradas, com configurações e usos distintos.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O framework inclui esses esquemas, além de permitir autenticação personalizada. Basic exige canal seguro; Session usa sessão e demanda atenção a CSRF; Token associa uma credencial ao usuário e requer configuração adequada.",
+      "section": "3. Django REST Framework: autenticação e autorização",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “Uma view DRF que usa `IsAuthenticatedOrReadOnly` pode permitir leitura anônima e exigir autenticação para operações de escrita.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Essa classe permite acesso de leitura a clientes não autenticados, enquanto exige autenticação para métodos que alteram estado. Ela não concede, por si, acesso irrestrito a todos os objetos da aplicação.",
+      "section": "3. Django REST Framework: autenticação e autorização",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “`DefaultRouter` do DRF cria apenas rotas de recursos e nunca oferece uma página raiz navegável da API.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Além das rotas de recursos, DefaultRouter inclui uma raiz navegável da API; SimpleRouter fornece o roteamento básico sem essa página raiz. Ambos conectam ViewSets a URLs, e a escolha depende da necessidade de navegação.",
+      "section": "2. Django REST Framework 3+: representação e fluxo da API",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “`routes/api.php` no Laravel é voltado a rotas sem estado de sessão e recebe prefixo `/api` por padrão na configuração correspondente da versão 10.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O grupo api é projetado para requisições sem estado de sessão e a configuração padrão adiciona o prefixo /api às rotas desse arquivo. A aplicação pode ajustar essa configuração no bootstrap/provedor de rotas.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “A função `with('orders')` em uma consulta Eloquent serve principalmente para limitar o atributo `orders` que o cliente pode enviar no formulário.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. with é usado para carregamento antecipado de relacionamentos na consulta, reduzindo consultas repetidas ao percorrer os modelos. Restrição de atribuição em massa é tratada com fillable/guarded, e validação cuida dos valores submetidos.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “A extensão `.mjs` é uma indicação de arquivo ES module no Node, enquanto `.cjs` indica CommonJS.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Essas extensões indicam explicitamente o formato do módulo. Arquivos .js dependem de configuração, incluindo o campo type do package.json, por isso projetos devem manter convenção clara para evitar interpretações inesperadas.",
+      "section": "1. Node.js 20+: execução JavaScript no servidor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “Em uma operação `PATCH` com serializer DRF, `partial=True` permite omitir campos obrigatórios ausentes, mantendo validações dos campos informados.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A opção parcial altera a exigência de campos que não vieram na atualização, mas não torna os valores fornecidos automaticamente válidos nem elimina regras de validação aplicáveis a eles.",
+      "section": "2. Django REST Framework 3+: representação e fluxo da API",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “Na resposta padrão de falha do `$request->validate`, Laravel ignora o formato solicitado pelo cliente e sempre redireciona, mesmo quando a requisição espera JSON.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Em requisições que esperam JSON, Laravel responde com erros de validação em JSON e status apropriado, sem o redirecionamento convencional de um fluxo HTML. A forma da resposta depende do tipo de requisição e do tratamento configurado.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “`IsAdminUser` é uma classe de autenticação do DRF que transforma credenciais inválidas em usuário administrador.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. IsAdminUser é uma classe de permissão que verifica condição administrativa do usuário autenticado. Ela não interpreta credenciais e não transforma identidade; essa função pertence aos mecanismos de autenticação configurados.",
+      "section": "3. Django REST Framework: autenticação e autorização",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “No Laravel, `whereNumber` aplicado a um parâmetro de rota restringe o segmento a valores numéricos e pode fazer uma URL incompatível retornar 404.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A restrição faz parte do casamento da rota. Se o segmento não corresponder ao padrão numérico, aquela rota não atende à requisição e o tratamento padrão resulta em 404, em vez de passar um valor incompatível à ação.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “Em Node.js, `pipe()` conecta streams e pode propagar backpressure para que um produtor não exceda indefinidamente a capacidade do consumidor.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O fluxo entre streams legíveis e graváveis pode coordenar a produção com a capacidade de consumo por meio de backpressure. Isso ajuda a limitar acumulação de dados, embora a aplicação ainda precise tratar erros e encerramento do fluxo corretamente.",
+      "section": "1. Node.js 20+: execução JavaScript no servidor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “Um Laravel API Resource controla a representação de saída, enquanto `$fillable` controla quais atributos aceitam atribuição em massa.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Resource transforma modelo em representação JSON pública; fillable é uma proteção de escrita para atributos em atribuição em massa. Exposição de dados na resposta e aceitação de dados na entrada são direções diferentes e precisam de controle separado.",
+      "section": "4. Laravel 10+: requisição, validação e persistência",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O item afirma: “O método `list` de um ViewSet DRF é uma alternativa ao serializer e converte diretamente qualquer JSON recebido em instância válida.”",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. list é uma ação de leitura do ViewSet, geralmente usada para retornar uma coleção. A conversão e validação de entrada pertencem ao serializer, e a criação ou atualização precisa seguir o fluxo de validação antes de persistir.",
+      "section": "2. Django REST Framework 3+: representação e fluxo da API",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Node.js v20 Documentation — HTTP",
+      "publisher": "OpenJS Foundation / Node.js",
+      "reference": "API HTTP nativa, servidor, requisição, resposta e streams de rede",
+      "url": "https://nodejs.org/docs/latest-v20.x/api/http.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Node.js v20 Documentation — Modules: CommonJS modules",
+      "publisher": "OpenJS Foundation / Node.js",
+      "reference": "Sistema CommonJS, require e module.exports",
+      "url": "https://nodejs.org/docs/latest-v20.x/api/modules.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Node.js v20 Documentation — ECMAScript modules",
+      "publisher": "OpenJS Foundation / Node.js",
+      "reference": "ES modules, import/export e interpretação de arquivos",
+      "url": "https://nodejs.org/docs/latest-v20.x/api/esm.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Node.js v20 Documentation — Streams",
+      "publisher": "OpenJS Foundation / Node.js",
+      "reference": "Streams legíveis, graváveis, pipe e backpressure",
+      "url": "https://nodejs.org/docs/latest-v20.x/api/stream.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Django REST Framework — Serializers",
+      "publisher": "Encode OSS Ltd.",
+      "reference": "Representação, validação, ModelSerializer e atualização parcial",
+      "url": "https://www.django-rest-framework.org/api-guide/serializers/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Django REST Framework — Viewsets and Routers",
+      "publisher": "Encode OSS Ltd.",
+      "reference": "Ações de ViewSet e geração de rotas para APIs",
+      "url": "https://www.django-rest-framework.org/api-guide/viewsets/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Django REST Framework — Authentication and Permissions",
+      "publisher": "Encode OSS Ltd.",
+      "reference": "Esquemas de autenticação, autorização e permissões por objeto",
+      "url": "https://www.django-rest-framework.org/api-guide/authentication/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Laravel 10.x — Routing, Middleware and Validation",
+      "publisher": "Laravel",
+      "reference": "Arquivos de rota, parâmetros, grupos de middleware e validação de requisições",
+      "url": "https://laravel.com/framework/docs/10.x/validation",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Laravel 10.x — Eloquent: Getting Started",
+      "publisher": "Laravel",
+      "reference": "Modelos Eloquent, relações, consultas, mass assignment e soft deletes",
+      "url": "https://laravel.com/framework/docs/10.x/eloquent",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Laravel 10.x — Middleware",
+      "publisher": "Laravel",
+      "reference": "Inspeção e filtragem de requisições por middleware",
+      "url": "https://laravel.com/framework/docs/10.x/middleware",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

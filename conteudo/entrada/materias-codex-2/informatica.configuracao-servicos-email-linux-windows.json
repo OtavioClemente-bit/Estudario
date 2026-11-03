@@ -1,0 +1,1559 @@
+{
+  "id": "informatica.configuracao-servicos-email-linux-windows",
+  "subject": "Informática",
+  "title": "Configuração de serviços e protocolos de correio eletrônico em Linux e Windows",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Configuração de serviços de correio eletrônico em Linux e Windows",
+    "Configuração de servidores de email Linux e Windows",
+    "Protocolos de correio eletrônico em estações de trabalho",
+    "Serviços de email em sistemas Linux e Windows",
+    "Configuração de SMTP para envio de mensagens de email",
+    "Configuração de IMAP e POP3 para acesso ao correio eletrônico",
+    "Servidor Postfix em Linux para correio eletrônico",
+    "Configuração de Postfix e Dovecot em servidor Linux",
+    "Servidor Exchange e protocolos de correio eletrônico",
+    "Correio eletrônico em estação de trabalho Linux e Windows",
+    "Protocolos SMTP IMAP POP3 e TLS em correio eletrônico",
+    "Serviços de envio e recebimento de email em servidores",
+    "Administração de serviços de correio eletrônico em rede",
+    "Configuração segura de cliente de email em computador",
+    "Configuração de servidor SMTP para clientes autenticados"
+  ],
+  "scope": {
+    "covers": "Arquitetura do correio eletrônico; agentes MUA, MSA, MTA e MDA; SMTP para transporte e submissão; IMAP e POP3 para acesso; portas usuais e TLS implícito ou STARTTLS; DNS MX; configuração de clientes de email; configuração básica de Postfix em Linux e integração conceitual com Dovecot; conceitos de serviços POP3, IMAP4 e SMTP em Windows/Exchange; filas, logs, autenticação, certificados, relay e diagnóstico.",
+    "excludes": "Administração avançada de Exchange ou de diretórios corporativos, configuração de provedores específicos, implantação completa de antispam, assinatura criptográfica ponta a ponta e sintaxe exaustiva de todos os parâmetros dos produtos."
+  },
+  "theoryTitle": "Como configurar e diagnosticar serviços de correio eletrônico",
+  "chapters": [
+    {
+      "title": "1. Caminho de uma mensagem e função dos protocolos",
+      "markdown": "### O problema que este assunto resolve\n\nUma mensagem não é enviada diretamente do aplicativo da pessoa para a caixa postal do destinatário por um único protocolo. A estação de trabalho compõe e submete a mensagem a um servidor; servidores de transporte a encaminham; um serviço de entrega a grava na caixa postal; e o destinatário acessa essa caixa por outro protocolo. Entender cada etapa ajuda a localizar falhas: um cliente pode conseguir ler mensagens por IMAP e ainda assim não conseguir enviá-las por SMTP.\n\n> **Siglas e termos deste capítulo**\n> - **MUA (Mail User Agent)**: programa do usuário que compõe, envia e lê mensagens, como um cliente de email.\n> - **MSA (Mail Submission Agent)**: serviço que recebe mensagens submetidas por clientes e aplica regras de envio, autenticação e política.\n> - **MTA (Mail Transfer Agent)**: agente que transporta mensagens entre servidores; Postfix é um exemplo.\n> - **MDA (Mail Delivery Agent)**: componente que entrega a mensagem à caixa postal local.\n> - **DNS MX**: registro que indica quais hosts recebem email destinado a um domínio.\n> - **MIME**: formato que permite representar anexos e conteúdo de diferentes tipos em mensagens.\n\n### Envio, transporte e leitura são tarefas diferentes\n\nO MUA normalmente submete o email de saída a um MSA por SMTP autenticado. O MSA pode encaminhá-lo a um MTA; este consulta o DNS do domínio destinatário e procura seus registros MX para escolher o servidor de destino. O MTA remoto aceita a mensagem e a entrega à caixa postal. Para ler ou sincronizar essa caixa em outro dispositivo, o cliente usa IMAP ou POP3.\n\n| Necessidade | Protocolo típico | Papel | Porta tradicional | Opção protegida comum |\n| --- | --- | --- | --- | --- |\n| Transporte entre servidores | SMTP | MTA envia ao MTA destinatário | TCP 25 | TLS oportunista conforme política e suporte |\n| Envio do cliente ao servidor | SMTP Submission | Cliente envia ao MSA | TCP 587 | STARTTLS ou TLS configurado |\n| Envio com TLS implícito | SMTP Submission | Cliente abre sessão protegida desde o início | TCP 465 | TLS implícito |\n| Acesso sincronizado à caixa | IMAP | Consulta pastas e estado mantidos no servidor | TCP 143 | TCP 993 com TLS implícito; STARTTLS também pode ser configurado |\n| Download de mensagens | POP3 | Recupera mensagens da caixa postal | TCP 110 | TCP 995 com TLS implícito; STARTTLS também pode ser configurado |\n\nAs portas indicam convenções de serviço; o administrador pode configurar portas diferentes. SMTP na porta 25 é associado sobretudo à comunicação entre MTAs. Para submissão de mensagens de clientes, a porta 587 tem função própria: permite ao servidor aplicar política de envio e autenticação separada do relay entre servidores.\n\n### IMAP e POP3 no uso diário\n\nIMAP mantém a caixa no servidor e permite trabalhar com pastas, sinalizadores de lida/não lida, busca e sincronização entre dispositivos. O protocolo moderno IMAP4rev2 não envia mensagens: essa tarefa cabe ao SMTP Submission. POP3 apresenta uma caixa mais simples, centrada em listar e recuperar mensagens; clientes podem manter ou remover cópias conforme configuração e recursos do servidor. No POP3, marcar uma mensagem com `DELE` não significa necessariamente apagá-la naquele instante: o servidor efetiva a remoção ao encerrar normalmente a sessão com `QUIT`.\n\n### Como cai na prova\n\n- Se o cenário trata de encaminhamento entre servidores, pense em SMTP/MTA e consulta a MX; para envio iniciado pelo usuário, pense em SMTP Submission/MSA.\n- IMAP e POP3 são protocolos de acesso a mensagens recebidas, não substitutos do protocolo de envio.\n- IMAP favorece sincronização de pastas e estado entre dispositivos; POP3 é orientado à recuperação da caixa, com comportamento de cópia definido pelo cliente e servidor.\n- A porta 25 não deve ser confundida com a porta usual de submissão autenticada do cliente."
+    },
+    {
+      "title": "2. Cliente de email, autenticação e proteção da conexão",
+      "markdown": "### O problema que este assunto resolve\n\nUma conta configurada no cliente precisa identificar servidores e protocolos distintos para entrada e saída. Também precisa negociar proteção de transporte e autenticar o usuário sem expor credenciais. Um perfil pode receber bem e falhar ao enviar porque o servidor SMTP, a porta, o método TLS ou a autenticação de saída estão incorretos.\n\n> **Siglas e termos deste capítulo**\n> - **TLS**: protocolo criptográfico que protege a conexão entre cliente e servidor.\n> - **STARTTLS**: comando que começa uma sessão sem TLS e solicita sua atualização para TLS.\n> - **TLS implícito**: negociação TLS começa imediatamente ao abrir a conexão na porta designada.\n> - **SASL**: estrutura usada por protocolos de aplicação para negociar mecanismos de autenticação.\n> - **FQDN**: nome de host completo, como `imap.exemplo.org`, resolvido por DNS e coberto pelo certificado.\n> - **OAuth**: autorização baseada em tokens, usada por alguns serviços no lugar de senha básica.\n\n### Campos de uma conta em uma estação de trabalho\n\nEm um programa como Thunderbird ou Outlook, informe o endereço e a identidade de login exigidos pelo provedor, o servidor de entrada (IMAP ou POP3), o servidor de saída (SMTP), as portas, a opção de criptografia e o método de autenticação. Em geral, o nome de usuário é o endereço completo, mas essa regra depende do serviço. A opção de autenticação do servidor de saída deve estar habilitada quando o MSA exigir login. O envio e o recebimento podem usar credenciais diferentes em ambientes corporativos.\n\nPara IMAP, selecione a porta e o modo TLS que correspondam à configuração do servidor: 993 para TLS implícito é amplamente usado; 143 pode oferecer STARTTLS. Para POP3, 995 é usual para TLS implícito; 110 pode ser configurado com STARTTLS. Para submissão SMTP, use a porta definida pelo serviço, com 587 associado a STARTTLS ou 465 a TLS implícito. Não combine uma porta de TLS implícito com modo STARTTLS, nem configure uma conexão em claro como se já estivesse protegida.\n\n### Certificados e versões TLS\n\nO certificado apresentado pelo servidor precisa ser válido para o nome DNS configurado, estar dentro de sua validade e formar uma cadeia confiável para o cliente. Ignorar alertas de certificado permite que uma conexão seja interceptada sem que o usuário perceba. A orientação do RFC 8314 é usar TLS para o tráfego entre clientes e servidores de acesso/submissão, desestimular acesso em texto claro e preferir TLS implícito nessas conexões; o documento recomenda TLS 1.2 ou superior. STARTTLS ainda é uma modalidade válida quando configurada e validada corretamente, mas começa com a negociação do protocolo antes da elevação para TLS.\n\nA criptografia TLS protege o trecho entre os dois pontos da conexão. Ela não é, por si só, criptografia ponta a ponta do conteúdo da mensagem: servidores intermediários podem processar a mensagem durante a entrega. Não envie senhas em conexões sem TLS.\n\n### Diagnóstico no posto de trabalho\n\nSe o recebimento falha, confirme o hostname e a porta de IMAP/POP, DNS, conectividade, certificado e credenciais. Se apenas o envio falha, revise SMTP Submission, autenticação, política da conta e eventual bloqueio do protocolo pelo administrador. Em serviço corporativo, a senha básica pode estar desabilitada e o cliente pode precisar de autenticação moderna compatível; não é seguro resolver a falha reduzindo a proteção da conta. Compare os parâmetros com a documentação vigente do provedor e com a configuração do serviço.\n\n### Como cai na prova\n\n- Um cliente pode usar IMAP para entrada e SMTP autenticado para saída ao mesmo tempo.\n- TLS implícito e STARTTLS são formas diferentes de iniciar proteção; modo e porta precisam ser compatíveis.\n- Um certificado cujo nome não corresponde ao hostname configurado é um problema de validação, não um aviso descartável.\n- Desabilitar SMTP para a organização ou para uma caixa pode ser uma política deliberada de segurança."
+    },
+    {
+      "title": "3. Serviços de correio em Linux: Postfix, entrega e leitura",
+      "markdown": "### O problema que este assunto resolve\n\nEm Linux, uma instalação de correio costuma separar o transporte SMTP do armazenamento/acesso às caixas. O Postfix pode receber e encaminhar mensagens como MTA; um servidor de acesso como Dovecot pode expor as caixas por IMAP/POP3 e realizar autenticação conforme a arquitetura adotada. Instalar apenas um MTA não cria automaticamente contas de email acessíveis por IMAP.\n\n> **Siglas e termos deste capítulo**\n> - **MTA**: componente que aceita e encaminha mensagens SMTP.\n> - **Mailbox**: caixa postal associada a um usuário ou endereço.\n> - **Relay**: encaminhamento de mensagem a outro servidor ou domínio.\n> - **Open relay**: servidor que aceita encaminhar mensagens de remetentes não autorizados a destinos arbitrários.\n> - **Syslog**: serviço de registro de eventos usado por muitos daemons Linux.\n> - **`main.cf` / `master.cf`**: arquivos de configuração principal e de serviços do Postfix, normalmente em `/etc/postfix`.\n\n### Parâmetros essenciais do Postfix\n\nA documentação do Postfix organiza a configuração básica em torno de identidade, domínios locais, clientes autorizados, destinos de relay e rota de entrega. Em `main.cf`, `myhostname` identifica o host; `mydomain` representa o domínio; `myorigin` define o domínio acrescentado a mensagens locais sem domínio; `mydestination` lista domínios entregues localmente; `mynetworks` delimita clientes confiáveis; `relay_domains` indica destinos para os quais o servidor aceita encaminhar mensagens de terceiros; e `relayhost` especifica um próximo salto quando a entrega é indireta. `inet_interfaces` determina em quais interfaces o Postfix escuta.\n\n`mydestination` não é uma lista de qualquer domínio a encaminhar: indica domínios tratados como locais. `mynetworks` controla quais origens podem usar o servidor como relay confiável. Limitar essa lista a hosts ou redes realmente autorizados evita que terceiros usem a máquina para spam. Não se deve confiar cegamente em toda a sub-rede quando ela inclui redes amplas ou não controladas.\n\n| Objetivo | Parâmetro ou arquivo | Efeito\n| --- | --- | --- |\n| Identidade e domínio de origem | `myhostname`, `mydomain`, `myorigin` | Identifica o host e qualifica remetentes locais |\n| Entrega local | `mydestination` | Define domínios que o servidor recebe e entrega localmente |\n| Confiança para relay | `mynetworks` | Define clientes/rede autorizados a encaminhar mensagens |\n| Relay remoto | `relay_domains`, `relayhost` | Controla destinos aceitos ou próximo salto de saída |\n| Interfaces de escuta | `inet_interfaces` | Define endereços/interfaces em que o daemon recebe conexões |\n| Configuração de serviços | `/etc/postfix/master.cf` | Declara serviços e processos Postfix |\n\nDepois de alterar parâmetros, valide a configuração e recarregue o serviço pelo mecanismo da distribuição; o comando documentado `postfix reload` solicita ao Postfix a releitura das configurações. Alterações de interface de escuta podem exigir reinicialização, conforme o parâmetro e a instalação. A documentação oficial alerta que os arquivos devem ser protegidos contra escrita por usuários não confiáveis, pois permissões inadequadas em `main.cf`, `master.cf` ou diretórios podem permitir elevação de privilégio.\n\n### DNS, fila e observabilidade\n\nPara receber email da Internet, o domínio publica registros MX que apontam para hosts de correio; esses hosts precisam resolver para endereços alcançáveis e aceitar conexões SMTP. Para saída direta, o MTA consulta o MX do domínio destinatário; em uma rede que exige intermediário, define-se `relayhost`. Mensagens temporariamente não entregues permanecem em fila para novas tentativas; falhas definitivas geram rejeição ou aviso de não entrega. Logs do sistema de email ajudam a distinguir falha DNS, conexão recusada, rejeição por política e problema de entrega local. O Postfix documenta comandos administrativos como `postfix check` para verificar discrepâncias de propriedade e permissões e `postfix reload` para recarregar parâmetros.\n\n### Postfix e Dovecot juntos\n\nUma arquitetura comum faz o Postfix cuidar de SMTP e entrega, enquanto o Dovecot disponibiliza IMAP/POP3 e pode integrar a autenticação e o armazenamento. A configuração concreta depende da distribuição, do formato de mailbox e da forma como usuários são mantidos. Verifique que os serviços de acesso escutam somente onde necessário, usam TLS, consultam as caixas corretas e não publicam portas sem firewall apropriado. Um serviço POP3 ou IMAP sem TLS e uma configuração SMTP que permita relay a qualquer origem são erros graves.\n\n### Como cai na prova\n\n- `mydestination` trata domínios locais; `mynetworks` delimita origens confiáveis para relay.\n- `relayhost` aponta para o próximo servidor de saída quando não se entrega diretamente.\n- Postfix é associado ao MTA/SMTP; IMAP e POP3 dependem de serviços de acesso às caixas, como Dovecot ou outro componente.\n- Confira fila e logs para diferenciar atraso temporário de rejeição permanente; não conclua que a mensagem foi perdida apenas porque ainda não chegou."
+    },
+    {
+      "title": "4. Windows/Exchange, publicação e solução de problemas",
+      "markdown": "### O problema que este assunto resolve\n\nEm servidores Windows, a configuração do correio pode ser realizada por uma plataforma de mensagens como Exchange Server. A administração inclui habilitar os serviços de acesso necessários, atribuir nomes e certificados, definir portas e criptografia, habilitar protocolos por caixa e controlar o fluxo de transporte. Em estações Windows, o usuário normalmente configura um perfil no Outlook ou em outro cliente compatível com o serviço.\n\n> **Siglas e termos deste capítulo**\n> - **Exchange Server**: plataforma de mensagens e colaboração da Microsoft, instalada em servidores Windows.\n> - **Client Access (frontend)**: serviços de entrada que recebem conexões de clientes e as encaminham ao servidor de caixa apropriado.\n> - **Mailbox server**: função que hospeda dados e serviços de caixa postal no Exchange.\n> - **Receive connector**: configuração que define como o Exchange recebe conexões SMTP.\n> - **Send connector**: configuração de saída que encaminha mensagens a destinos ou próximos saltos.\n> - **Autenticação moderna**: autenticação baseada em tokens, como OAuth, quando suportada pelo serviço e pelo cliente.\n\n### Habilitar e configurar serviços\n\nA documentação do Exchange Server informa que POP3 e IMAP4 estão disponíveis em versões específicas do produto, mas seus serviços precisam ser iniciados e configurados. No Exchange Server 2016 e 2019, clientes POP3/IMAP4 conectam aos serviços frontend de Client Access no Mailbox server; não se conectam diretamente aos serviços backend. A administração também pode habilitar ou desabilitar o acesso POP/IMAP em caixas específicas. Portanto, um serviço iniciado no servidor não significa necessariamente que toda caixa está autorizada a usá-lo.\n\nPara conexões internas IMAP, a documentação descreve o FQDN do servidor e as alternativas TCP 993 com SSL/TLS sempre ativo ou TCP 143 sem criptografia ou com STARTTLS, que passa a proteger a conexão depois do início do protocolo. O servidor precisa apresentar certificado confiável correspondente ao nome utilizado. Os nomes externos e certificados devem ser configurados de forma compatível com o DNS publicado e com os clientes externos. As portas e opções de POP devem ser verificadas na configuração efetiva do ambiente, em vez de copiadas sem conferir.\n\nNo fluxo SMTP, conectores de recebimento controlam como o Exchange aceita conexões; conectores de envio definem como encaminha mensagens. As regras variam conforme versão e topologia. Não crie um relay anônimo amplo: aceite relay apenas de origens e aplicações autorizadas, com autenticação ou restrição de rede apropriada. Uma aplicação de impressora ou sistema legado pode ter um caminho de envio controlado sem liberar submissão irrestrita para toda a Internet.\n\n### Estação de trabalho Windows e diagnóstico\n\nNo Outlook, um perfil Exchange nativo usa mecanismos próprios de conexão ao Exchange; uma conta configurada manualmente como POP/IMAP usa os protocolos correspondentes e o SMTP para envio. Essas modalidades não são intercambiáveis em todos os recursos. Para uma conta POP/IMAP, informe servidor, porta, criptografia e credenciais de acordo com o administrador; teste entrada e saída separadamente. Para conta Exchange, prefira a descoberta automática e o método de autenticação suportados pela organização.\n\nSe clientes não autenticam após uma mudança de política, investigue se o protocolo foi desabilitado no tenant/servidor/caixa, se o cliente suporta o método moderno exigido, se o certificado é válido e se a conexão chega ao frontend esperado. A documentação Microsoft alerta que protocolos e autenticação podem ser bloqueados por política para reduzir abuso; SMTP AUTH pode ser desabilitado no tenant ou habilitado apenas para caixas selecionadas. Não se deve reabilitar autenticação básica indiscriminadamente como correção: primeiro confirme a política e o método suportado.\n\n### Roteiro prático de diagnóstico\n\n1. Identifique a etapa: resolução DNS, conexão TCP, negociação TLS, autenticação, submissão SMTP, transporte entre servidores ou entrega na caixa.\n2. Confirme o hostname publicado, registro MX, endereço resolvido, firewall e porta apropriada para o protocolo.\n3. Valide se o certificado corresponde ao hostname, é confiável e não está expirado; confira STARTTLS versus TLS implícito.\n4. Teste autenticação e autorização da caixa, do protocolo e do relay, sem expor senhas em logs ou canais inseguros.\n5. Examine logs e fila do MTA/Exchange; diferencie mensagens em retry, rejeições SMTP e falha de entrega local.\n6. Compare o resultado de envio e de recebimento; o sucesso em um sentido não prova que o outro esteja configurado.\n\n### Como cai na prova\n\n- Em Exchange, a disponibilidade do serviço e a permissão do protocolo na caixa podem ser controles separados.\n- Clientes POP/IMAP chegam ao frontend indicado pela arquitetura, não diretamente ao serviço backend descrito pela documentação do Exchange.\n- SMTP de submissão, transporte SMTP e acesso à caixa são etapas distintas; teste cada uma.\n- Uma configuração segura limita relay, valida certificados, usa TLS e aplica apenas protocolos necessários."
+    }
+  ],
+  "summary": "O email percorre etapas distintas: o cliente submete mensagens por SMTP ao MSA, MTAs as transportam usando SMTP e DNS MX, e o destinatário consulta a caixa por IMAP ou POP3. Em estações, configure servidores, portas, autenticação e TLS de forma compatível. No Linux, Postfix concentra o transporte e parâmetros como mydestination, mynetworks, relayhost e inet_interfaces controlam entrega, confiança e escuta; serviços como Dovecot oferecem acesso IMAP/POP às caixas. Em Exchange no Windows, habilitar serviço, permitir protocolo por caixa, configurar frontend, certificados e conectores são controles relacionados. Diagnostique DNS, rede, TLS, autenticação, políticas, fila e logs em etapas separadas e nunca configure relay aberto.",
+  "flashcards": [
+    {
+      "front": "Para que serve SMTP?",
+      "back": "Para submeter mensagens de clientes e transportar mensagens entre agentes de transferência de email."
+    },
+    {
+      "front": "Qual o papel de IMAP?",
+      "back": "Acessar e manipular mensagens e pastas mantidas em uma caixa postal no servidor."
+    },
+    {
+      "front": "Qual o papel de POP3?",
+      "back": "Recuperar mensagens de uma caixa postal, em um modelo mais simples que o de sincronização de pastas do IMAP."
+    },
+    {
+      "front": "O IMAP envia mensagens?",
+      "back": "Não. O envio é feito por SMTP Submission ou mecanismo equivalente."
+    },
+    {
+      "front": "Qual é o uso usual da porta TCP 25?",
+      "back": "Transporte SMTP entre MTAs; não é a porta usual de submissão autenticada do cliente."
+    },
+    {
+      "front": "Qual é a função usual da porta TCP 587?",
+      "back": "Submissão SMTP de mensagens de clientes ao MSA."
+    },
+    {
+      "front": "O que significa TLS implícito?",
+      "back": "A conexão começa negociando TLS imediatamente ao ser aberta na porta configurada para esse modo."
+    },
+    {
+      "front": "O que faz STARTTLS?",
+      "back": "Solicita a atualização de uma sessão de protocolo inicialmente em texto claro para uma sessão protegida por TLS."
+    },
+    {
+      "front": "Para que serve um registro MX?",
+      "back": "Indica os servidores responsáveis por receber email de um domínio."
+    },
+    {
+      "front": "O que é MUA?",
+      "back": "Aplicativo do usuário que compõe, envia e lê mensagens."
+    },
+    {
+      "front": "O que é MSA?",
+      "back": "Serviço de submissão que recebe mensagens de clientes e aplica políticas de envio e autenticação."
+    },
+    {
+      "front": "O que é MTA?",
+      "back": "Agente que aceita e encaminha mensagens entre servidores por SMTP."
+    },
+    {
+      "front": "O que define mydestination no Postfix?",
+      "back": "Os domínios que o servidor trata como locais para entrega."
+    },
+    {
+      "front": "O que define mynetworks no Postfix?",
+      "back": "Clientes ou redes considerados confiáveis para encaminhar mensagens pelo servidor."
+    },
+    {
+      "front": "Para que serve relayhost no Postfix?",
+      "back": "Define um próximo servidor usado para encaminhar email de saída em vez de entrega direta."
+    },
+    {
+      "front": "O que caracteriza um open relay?",
+      "back": "Um servidor que permite a origens não autorizadas encaminhar mensagens para destinos arbitrários."
+    },
+    {
+      "front": "Qual o papel de Dovecot em uma arquitetura comum?",
+      "back": "Oferecer acesso IMAP/POP3 às caixas e integrar autenticação ou armazenamento conforme a implantação."
+    },
+    {
+      "front": "O que faz o comando postfix reload?",
+      "back": "Solicita que o Postfix recarregue as configurações após alterações compatíveis com recarga."
+    },
+    {
+      "front": "Em POP3, quando mensagens marcadas DELE são removidas?",
+      "back": "Na atualização da caixa após encerramento normal da sessão com QUIT."
+    },
+    {
+      "front": "TLS protege o email ponta a ponta?",
+      "back": "Não por si só; protege o trecho de conexão entre cliente e servidor, sem substituir criptografia ponta a ponta."
+    },
+    {
+      "front": "O que verificar quando somente o envio falha?",
+      "back": "Servidor e porta SMTP Submission, TLS, autenticação, política da conta e autorização de relay."
+    },
+    {
+      "front": "Por que o certificado precisa cobrir o FQDN usado?",
+      "back": "Para que o cliente valide a identidade do servidor ao comparar o nome configurado com o certificado."
+    }
+  ],
+  "tips": [
+    "Separe entrada de saída: teste IMAP/POP e SMTP em separado; a falha de envio não prova que o servidor de entrada esteja indisponível.",
+    "Associe porta a modo TLS: confira se o cliente usa TLS implícito ou STARTTLS conforme o servidor, evitando combinações incompatíveis.",
+    "Leia parâmetros pelo efeito: no Postfix, mydestination indica entrega local, mynetworks indica confiança e relayhost é o próximo salto.",
+    "Siga a rota DNS: para entrega externa, verifique o MX do domínio destinatário e a resolução dos hosts indicados.",
+    "Inspecione logs e fila: eles distinguem conexão recusada, falha temporária, rejeição por política e entrega local pendente.",
+    "Limite acesso e relay: habilite apenas protocolos necessários, restrinja origens autorizadas e valide certificados."
+  ],
+  "traps": [
+    "Confundir SMTP e IMAP: IMAP acessa a caixa; não é o protocolo de envio da mensagem.",
+    "Tratar porta 25 como porta universal do cliente: ela é associada ao transporte entre MTAs; submissão costuma ter serviço próprio.",
+    "Confundir STARTTLS com TLS implícito: STARTTLS eleva uma sessão após o início; TLS implícito protege desde o começo.",
+    "Tratar mydestination como relay: esse parâmetro lista domínios locais; mynetworks autoriza origens confiáveis.",
+    "Supor que POP3 sempre apaga ao baixar: a política depende do cliente e o protocolo atualiza exclusões ao terminar a sessão.",
+    "Abrir relay para resolver envio: encaminhamento irrestrito facilita abuso; restrinja redes, autenticação e destinos."
+  ],
+  "activeRecall": [
+    "Desenhe o percurso do email desde o cliente remetente até a caixa do destinatário e identifique os protocolos em cada trecho.",
+    "Explique por que uma conta pode receber por IMAP e falhar no envio por SMTP.",
+    "Compare IMAP e POP3 em relação a pastas, estado da mensagem e uso em múltiplos dispositivos.",
+    "Diferencie SMTP entre MTAs de SMTP Submission entre cliente e servidor.",
+    "Associe as portas 25, 465, 587, 143, 993, 110 e 995 às funções usuais, sem esquecer que a configuração efetiva pode variar.",
+    "Explique a diferença de estabelecimento da proteção em STARTTLS e TLS implícito.",
+    "Descreva como o DNS MX participa da entrega de email a outro domínio.",
+    "Explique os efeitos de mydestination, mynetworks, relayhost e inet_interfaces no Postfix."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Protocolos e etapas do correio",
+      "summary": "SMTP submete/transporta; IMAP e POP3 acessam mensagens recebidas. O sucesso de entrada não comprova que a conexão de saída esteja funcionando."
+    },
+    {
+      "key": "e2",
+      "title": "Portas e modos TLS",
+      "summary": "As portas usuais dependem do serviço e do modo de proteção; STARTTLS e TLS implícito iniciam a criptografia de formas diferentes."
+    },
+    {
+      "key": "e3",
+      "title": "Domínio local e relay no Postfix",
+      "summary": "mydestination lista domínios locais; mynetworks delimita clientes confiáveis; relayhost determina o próximo salto de saída."
+    },
+    {
+      "key": "e4",
+      "title": "Serviço habilitado e acesso autorizado",
+      "summary": "No Exchange, iniciar um serviço não significa que POP/IMAP ou SMTP esteja permitido em toda caixa; políticas podem restringir protocolos e autenticação."
+    },
+    {
+      "key": "e5",
+      "title": "Diagnóstico em camadas",
+      "summary": "DNS, conexão TCP, certificado/TLS, autenticação, submissão, transporte e entrega local são pontos distintos e devem ser verificados separadamente."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "O cliente de email de uma estação submete uma mensagem ao servidor da organização, e esse servidor a encaminha ao domínio destinatário. Qual associação descreve melhor as etapas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cliente submete por SMTP ao MSA; o MTA encaminha ao servidor indicado pelo MX.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O cliente submete por IMAP ao servidor de acesso, que pesquisa a pasta remota do destinatário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O cliente submete por POP3 ao servidor de caixa, que encaminha mensagens entre domínios.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O cliente submete por DNS MX diretamente à caixa postal, que replica a mensagem ao MTA.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O cliente submete por TLS ao servidor de arquivos, que converte o conteúdo em SMTP.",
+          "correct": false
+        }
+      ],
+      "explanation": "O cliente usa SMTP Submission para enviar ao serviço de submissão; o agente de transferência encaminha a mensagem a outros MTAs. IMAP e POP3 servem ao acesso à caixa recebida, e DNS MX auxilia a localizar o servidor responsável pelo domínio destinatário.",
+      "section": "1. Caminho de uma mensagem e função dos protocolos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "IMAP4rev2 permite acessar e manipular mensagens e caixas postais remotas, mas não define um meio de postar novas mensagens.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. IMAP permite manipular mensagens e pastas no servidor. O envio de novas mensagens é tratado por um protocolo de submissão, como SMTP Submission.",
+      "section": "1. Caminho de uma mensagem e função dos protocolos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário sincroniza as mesmas pastas de correio em um computador e em um telefone, mantendo no servidor o estado de lida e não lida. Qual protocolo de acesso é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "POP3, pois sincroniza obrigatoriamente todas as pastas e seus sinalizadores em cada dispositivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "IMAP mantém pastas e estado das mensagens no servidor para sincronizar clientes conectados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "SMTP, pois mantém as mensagens recebidas e atualiza as pastas dos dispositivos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MX, pois distribui os sinalizadores de leitura por meio do DNS do domínio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MIME, pois sincroniza as caixas e transmite alterações de estado ao servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "IMAP foi concebido para acessar e manipular caixas remotas, incluindo pastas e estado das mensagens, e permite sincronização. POP3 tem modelo mais simples de recuperação; SMTP transporta/submete mensagens, e MX é informação DNS de roteamento.",
+      "section": "1. Caminho de uma mensagem e função dos protocolos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma sessão POP3, uma mensagem marcada como excluída com DELE é necessariamente removida do servidor imediatamente, antes de o cliente encerrar a conexão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. DELE marca a mensagem para exclusão durante a transação. A remoção é efetivada quando a sessão entra no estado de atualização após QUIT; encerramento anormal não deve remover as mensagens marcadas.",
+      "section": "1. Caminho de uma mensagem e função dos protocolos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer evitar que o cliente use SMTP entre servidores como se fosse um protocolo de sincronização da caixa. Qual afirmação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "SMTP sincroniza pastas; IMAP decide o próximo salto entre servidores externos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SMTP transporta; IMAP e POP3 acessam mensagens entregues na caixa do servidor.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "SMTP consulta o estado de leitura; POP3 realiza autenticação de saída para todos os clientes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SMTP e IMAP são sinônimos, diferenciados somente pelo número de porta escolhido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SMTP publica o MX; POP3 mantém o certificado usado pelo cliente de email.",
+          "correct": false
+        }
+      ],
+      "explanation": "SMTP é usado para submissão e transporte de mensagens. IMAP e POP3 são protocolos de acesso a mensagens já entregues. Mudar a porta não altera a função fundamental de cada protocolo.",
+      "section": "1. Caminho de uma mensagem e função dos protocolos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta DNS do domínio destinatário pode localizar o servidor que recebe email para esse domínio por meio de seus registros MX.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O MTA remetente consulta registros MX para descobrir os hosts responsáveis pela recepção de mensagens daquele domínio e então tenta estabelecer a entrega SMTP.",
+      "section": "1. Caminho de uma mensagem e função dos protocolos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual configuração corresponde ao envio autenticado usual de uma estação ao serviço de submissão SMTP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Servidor de saída DNS, normalmente na porta 53 usando STARTTLS para anexos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Servidor de saída POP3, normalmente na porta 110 sem autenticação da conta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Servidor de saída IMAP, normalmente na porta 143 com o comando MX habilitado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Use SMTP Submission na porta definida, com autenticação e TLS exigidos pelo servidor.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Servidor de saída MIME, normalmente na porta 993 para transportar mensagens entre MTAs.",
+          "correct": false
+        }
+      ],
+      "explanation": "A submissão de mensagens por clientes tem serviço próprio; a porta 587 é reservada para essa finalidade na especificação de Message Submission. A configuração também precisa corresponder ao método de criptografia e autenticação exigidos pelo servidor.",
+      "section": "1. Caminho de uma mensagem e função dos protocolos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A porta TCP 25 é usada principalmente para SMTP entre servidores de transporte, enquanto a submissão de clientes tem serviço e política próprios.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A separação entre submissão e relay permite que cada serviço aplique regras diferentes. SMTP entre MTAs continua associado à porta 25; a porta 587 identifica a submissão de mensagens.",
+      "section": "1. Caminho de uma mensagem e função dos protocolos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conta está recebendo mensagens por IMAP, mas os emails enviados ficam na caixa de saída. Qual verificação é mais diretamente pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reinstalar o servidor de entrada, pois receber por IMAP prova falha do MTA remoto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Alterar apenas o registro MX do domínio destinatário local do usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar IMAP por POP3, que é o protocolo responsável por enviar mensagens.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o tamanho da caixa, pois isso habilita automaticamente a submissão SMTP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Revise SMTP Submission, porta, TLS e autorização de envio da conta no servidor.",
+          "correct": true
+        }
+      ],
+      "explanation": "A entrada e a saída usam serviços diferentes. Como o IMAP funciona, o diagnóstico inicial do envio deve verificar SMTP Submission, autenticação, criptografia e políticas que autorizam aquela caixa a submeter mensagens.",
+      "section": "1. Caminho de uma mensagem e função dos protocolos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "TLS implícito inicia a proteção criptográfica no estabelecimento da conexão; STARTTLS solicita a atualização de uma sessão de protocolo já iniciada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. No TLS implícito, a conexão começa protegida na porta definida para esse modo. Com STARTTLS, primeiro se estabelece a conexão do protocolo e o comando negocia a passagem para TLS.",
+      "section": "2. Cliente de email, autenticação e proteção da conexão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um cliente configurado para IMAP com TLS implícito, qual conjunto é coerente com o uso usual do protocolo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "text": "Servidor SMTP, porta 993, comando MX e autenticação dispensada por ser TLS.",
+          "key": "A",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "IMAP na porta 993 com TLS imediato e certificado validado para o nome do servidor.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Servidor IMAP, porta 25, modo STARTTLS obrigatório para sincronizar pastas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Servidor POP3, porta 587, conexão clara e senha protegida pelo registro MX.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Servidor IMAP, porta 143, TLS iniciado antes da conexão em qualquer modo configurado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A porta usual de IMAP com TLS implícito é 993. O cliente deve validar o certificado para o nome do servidor. A porta 143 é convencional para IMAP sem TLS inicial ou com STARTTLS, conforme a configuração efetiva.",
+      "section": "2. Cliente de email, autenticação e proteção da conexão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um certificado apresentado pelo servidor pode ser ignorado com segurança sempre que o usuário já conhece a senha da conta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A senha não prova a identidade do servidor. O cliente precisa validar o certificado, incluindo confiança e correspondência do nome; ignorar o alerta pode ocultar uma interceptação da conexão.",
+      "section": "2. Cliente de email, autenticação e proteção da conexão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador precisa configurar o cliente para POP3 protegido desde o início, usando a porta usual desse modo. Qual opção deve ser selecionada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "text": "IMAP com TLS implícito na porta 587, destinado à recuperação POP3.",
+          "key": "A",
+          "correct": false
+        },
+        {
+          "text": "SMTP entre servidores na porta 110, com autenticação de leitura.",
+          "key": "B",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "POP3 com TLS implícito na porta usual 995, validando o certificado do servidor.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "POP3 com STARTTLS na porta 993, que é a porta de TLS implícito de IMAP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "DNS MX na porta 995, que faz o download das mensagens em modo seguro.",
+          "correct": false
+        }
+      ],
+      "explanation": "POP3 com TLS implícito é comumente oferecido na porta 995. A porta 993 é associada a IMAP com TLS implícito; a modalidade precisa coincidir com o serviço efetivamente configurado.",
+      "section": "2. Cliente de email, autenticação e proteção da conexão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de TLS entre cliente e servidor substitui necessariamente qualquer necessidade de criptografia ponta a ponta, pois nenhum servidor intermediário consegue ler a mensagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. TLS protege o tráfego em um trecho entre os pontos que negociam a conexão. A mensagem pode ser processada por servidores intermediários; essa proteção não equivale à criptografia ponta a ponta do conteúdo.",
+      "section": "2. Cliente de email, autenticação e proteção da conexão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa mantém IMAP na porta 143 com STARTTLS e certificados válidos. Um cliente foi configurado para TLS implícito nessa mesma porta e falha antes de autenticar. Qual é a causa mais provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A porta 143 só pode transportar SMTP entre MTAs e rejeita qualquer conexão IMAP válida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O certificado bloqueia pastas remotas, mesmo quando a sessão IMAP está estabelecida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O uso de certificado impede IMAP de oferecer sincronização de pastas com clientes externos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O modo diverge: cliente inicia TLS imediato e servidor espera STARTTLS na sessão.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O MX está ausente; por isso a negociação local de TLS não consegue iniciar a sessão IMAP.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na porta configurada para STARTTLS, a sessão do protocolo começa antes do comando que eleva a conexão para TLS. Um cliente em modo TLS implícito envia TLS imediatamente, causando incompatibilidade. Certificado e nome precisam ser validados, mas a falha descrita ocorre antes da autenticação por divergência de modo.",
+      "section": "2. Cliente de email, autenticação e proteção da conexão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política de serviço pode desabilitar SMTP AUTH em todo o tenant ou permitir o protocolo apenas para caixas selecionadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A administração do Exchange Online permite controlar SMTP AUTH em nível organizacional e de caixa postal, reduzindo o uso indevido do protocolo. A falha de autenticação pode resultar de política, e não apenas de senha incorreta.",
+      "section": "2. Cliente de email, autenticação e proteção da conexão",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após mudar a senha, um cliente antigo ainda não autentica em um serviço que exige OAuth para POP/IMAP. Qual diagnóstico é mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar o POP pelo MX, que autentica o cliente durante a consulta de mensagens.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar o servidor IMAP pelo endereço MX, pois OAuth só funciona no transporte entre MTAs.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar TLS para que a senha seja transmitida antes de a política de OAuth atuar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar mydestination no cliente, pois essa opção controla autenticação de POP em nuvem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Verifique suporte OAuth do cliente e se a política permite POP/IMAP para a caixa.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma senha correta não resolve incompatibilidade entre o método de autenticação implementado pelo cliente e o exigido pelo serviço. Também é preciso confirmar se POP/IMAP está habilitado para a conta e conforme a política vigente. Desativar TLS expõe credenciais e não contorna a política com segurança.",
+      "section": "2. Cliente de email, autenticação e proteção da conexão",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rede insegura, é recomendável usar TLS para conexões entre o cliente e servidores de submissão e acesso, em vez de enviar credenciais em texto claro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. As recomendações do RFC 8314 desencorajam protocolos de acesso e submissão em texto claro e recomendam TLS para essas conexões, com validação adequada do servidor.",
+      "section": "2. Cliente de email, autenticação e proteção da conexão",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual papel do Postfix é mais característico em uma arquitetura de correio Linux?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "text": "Cliente gráfico que sincroniza pastas e apresenta mensagens ao usuário final.",
+          "key": "A",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Agente MTA que recebe mensagens, mantém a fila e encaminha por SMTP aos destinos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Servidor DNS autoritativo que publica registros MX e certificados TLS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Protocolo de recuperação que baixa mensagens e marca exclusões na caixa POP3.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Formato de anexo que codifica conteúdo binário para transporte entre servidores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Postfix é um MTA: recebe, enfileira e encaminha mensagens por SMTP. Clientes gráficos atuam como MUA; IMAP/POP3 são protocolos de acesso, e DNS e MIME cumprem funções diferentes.",
+      "section": "3. Serviços de correio em Linux: Postfix, entrega e leitura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Postfix, mydestination identifica os domínios tratados como locais para entrega, enquanto mynetworks delimita origens consideradas confiáveis para relay.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Os parâmetros têm finalidades distintas. Confundi-los pode fazer o servidor tratar domínios remotos como locais ou confiar em origens além das pretendidas para encaminhamento.",
+      "section": "3. Serviços de correio em Linux: Postfix, entrega e leitura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor Linux entrega mensagens para um gateway corporativo em vez de tentar chegar diretamente a cada domínio destinatário. Qual parâmetro básico do Postfix define esse próximo salto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`inet_interfaces`, que seleciona o conteúdo da fila para transmissão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`mydestination`, que transforma o gateway em domínio local da caixa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`relayhost` aponta mensagens para o próximo MTA ou gateway de saída configurado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`myorigin`, que substitui a consulta DNS MX por autenticação local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`mynetworks`, que define a porta POP usada pelo gateway remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "`relayhost` define um próximo salto para entrega indireta. `mydestination` lista domínios locais, `inet_interfaces` controla interfaces de escuta e `mynetworks` define origens confiáveis; nenhum deles substitui essa função.",
+      "section": "3. Serviços de correio em Linux: Postfix, entrega e leitura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A documentação básica do Postfix recomenda definir `mynetworks` de forma ampla em toda rede conectada à Internet, pois isso impede retransmissão indevida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. `mynetworks` delimita origens confiáveis para relay. Uma definição ampla pode confiar em clientes não autorizados; a documentação alerta para o risco de configuração permissiva e favorece redes explicitamente autorizadas.",
+      "section": "3. Serviços de correio em Linux: Postfix, entrega e leitura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em `main.cf`, qual parâmetro define os endereços de interface em que o Postfix escuta conexões de email?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`myorigin`, que vincula o daemon a uma interface IPv4 de saída.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`myhostname`, que escolhe as interfaces de rede usadas pelo daemon para escutar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`relay_domains`, que escolhe a placa de rede em que o SMTP será publicado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`inet_interfaces` indica interfaces e endereços IP nos quais o Postfix aceita conexões.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`relayhost`, que limita os endereços locais aceitos pelo servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "`inet_interfaces` controla os endereços de rede nos quais o Postfix aceita conexões. Os outros parâmetros tratam de identidade, domínios locais, destinos de relay ou próximo salto.",
+      "section": "3. Serviços de correio em Linux: Postfix, entrega e leitura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Alterações nos arquivos `main.cf` e `master.cf` devem ser feitas por usuários sem privilégios, pois esses arquivos não afetam a segurança do sistema de email.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A documentação do Postfix exige proteger propriedade e permissões desses arquivos. Permitir escrita por usuário não confiável pode equivaler a conceder privilégios administrativos, já que configura o comportamento de serviços do sistema.",
+      "section": "3. Serviços de correio em Linux: Postfix, entrega e leitura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja receber mensagens para `exemplo.org` localmente e encaminhar outros domínios ao gateway `smtp-gw.interno`. Qual configuração conceitual separa corretamente essas tarefas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar somente mynetworks para classificar domínio local e próximo salto de toda mensagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Listar todos os domínios externos em mydestination e deixar mynetworks vazio para entregá-los localmente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir `exemplo.org` em relayhost e usar inet_interfaces para gravar mensagens na caixa local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Configurar o gateway como myorigin e usar mydestination para autorizar qualquer cliente da Internet.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`mydestination` recebe o domínio local; `relayhost` encaminha saída ao gateway definido.",
+          "correct": true
+        }
+      ],
+      "explanation": "`mydestination` indica domínios entregues localmente. `relayhost` pode direcionar a saída para um gateway intermediário, enquanto `mynetworks` precisa continuar delimitando as origens permitidas a usar o serviço de relay. Os parâmetros não devem ser usados como substitutos uns dos outros.",
+      "section": "3. Serviços de correio em Linux: Postfix, entrega e leitura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A existência de Postfix em um host Linux garante, por si só, que usuários já podem sincronizar suas pastas de email por IMAP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Postfix é principalmente um MTA para SMTP. O acesso IMAP normalmente depende de outro serviço, como Dovecot, integrado às caixas e à autenticação conforme a arquitetura.",
+      "section": "3. Serviços de correio em Linux: Postfix, entrega e leitura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após modificar `main.cf`, qual procedimento é coerente para solicitar que o Postfix releia sua configuração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Valide os arquivos e use `postfix reload` para reler as configurações do serviço.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar `postmap` sem argumento, que reinicia qualquer daemon e corrige todas as opções inválidas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reiniciar o DNS MX do destinatário, pois ele armazena a configuração de `main.cf`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar `QUIT` em uma sessão POP3, que força todos os serviços SMTP a reler seus arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apagar a fila do Postfix, que recarrega os parâmetros sem validar o arquivo alterado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação do Postfix indica `postfix reload` para solicitar a releitura da configuração pelo sistema em execução. A validação, os logs e a checagem de permissões complementam o procedimento; comandos de POP3, DNS ou limpeza da fila não recarregam `main.cf`.",
+      "section": "3. Serviços de correio em Linux: Postfix, entrega e leitura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um MTA pode manter uma mensagem temporariamente em fila e tentar novamente quando o servidor remoto não está disponível; isso é diferente de uma rejeição definitiva.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Falhas temporárias de conexão ou resposta podem levar a novas tentativas, enquanto rejeições permanentes geram falha de entrega ou notificação. A fila e os logs ajudam a identificar qual situação ocorreu.",
+      "section": "3. Serviços de correio em Linux: Postfix, entrega e leitura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instalação precisa aceitar IMAP e POP3 sem tornar o Postfix responsável por armazenar e apresentar as caixas aos usuários. Qual desenho atende melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar mydestination para habilitar automaticamente POP3 e IMAP em todas as caixas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Configurar mydestination para converter automaticamente cada processo SMTP em servidor IMAP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Postfix transporta SMTP; Dovecot ou serviço equivalente expõe caixas por IMAP/POP.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ativar relay_domains, que cria caixas POP3 e sincroniza sinalizadores de mensagens recebidas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Configurar relayhost em cada cliente e dispensar um serviço de acesso às caixas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A arquitetura separa as tarefas: Postfix atua como MTA e transporta mensagens por SMTP, enquanto Dovecot ou componente equivalente oferece IMAP/POP3 e se integra ao armazenamento e à autenticação das caixas. Parâmetros de roteamento do Postfix não criam, por si sós, um serviço de leitura para os usuários.",
+      "section": "3. Serviços de correio em Linux: Postfix, entrega e leitura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Exchange Server 2016 e 2019, clientes POP3/IMAP4 conectam-se aos serviços frontend de Client Access no Mailbox server, e a administração pode controlar o acesso também por caixa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação Microsoft descreve a conexão dos clientes aos serviços frontend e permite habilitar ou desabilitar POP/IMAP em caixas específicas. Serviço iniciado não implica que toda caixa tenha acesso autorizado.",
+      "section": "4. Windows/Exchange, publicação e solução de problemas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Exchange Server, a equipe iniciou o serviço IMAP, mas uma caixa continua sem conexão. Qual controle pode explicar a diferença entre serviço disponível e usuário autorizado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O protocolo IMAP pode estar desabilitado para essa caixa, mesmo com o serviço ativo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O registro MX da caixa determina obrigatoriamente se o cliente pode usar IMAP local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O serviço IMAP só funciona depois que o POP3 exclui as mensagens da caixa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O conector de envio SMTP precisa publicar as pastas IMAP para o usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O transporte TLS impede por definição que o administrador controle protocolos por caixa.",
+          "correct": false
+        }
+      ],
+      "explanation": "No Exchange, iniciar e configurar o serviço é uma camada; habilitar ou desabilitar o protocolo em caixas específicas é outra. A política por caixa pode impedir o acesso mesmo quando o serviço frontend está disponível.",
+      "section": "4. Windows/Exchange, publicação e solução de problemas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A documentação do Exchange Server descreve IMAP interno com TLS implícito na porta 993 e também menciona a porta 143 sem criptografia ou com STARTTLS, conforme configurado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Esses são os parâmetros documentados para conexões IMAP internas no Exchange. O nome do servidor, a exposição externa, o certificado e o modo escolhido precisam corresponder à implantação real.",
+      "section": "4. Windows/Exchange, publicação e solução de problemas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual função corresponde a um conector de recebimento SMTP em uma implantação Exchange?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Controla conexões SMTP recebidas e permissões do Exchange para as origens.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenar pastas IMAP nos computadores Windows sem conexão com o Mailbox server.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Publicar MX para todos os domínios da Internet sem depender de DNS externo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter mensagens em arquivos MIME e remover a autenticação dos usuários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir que qualquer host encaminhe email para qualquer domínio sem restrições.",
+          "correct": false
+        }
+      ],
+      "explanation": "Conectores de recebimento controlam a aceitação de conexões SMTP no Exchange. As permissões devem refletir a finalidade e as origens confiáveis; liberar relay universalmente não é uma consequência necessária nem segura.",
+      "section": "4. Windows/Exchange, publicação e solução de problemas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um conector de envio do Exchange define rotas ou próximos saltos usados para encaminhar mensagens de saída.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Conectores de envio participam do roteamento de saída para destinos ou gateways. Não são o componente que concede ao cliente acesso às pastas IMAP.",
+      "section": "4. Windows/Exchange, publicação e solução de problemas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor Linux e um Exchange recebem conexões externas, mas clientes veem erro de nome no certificado. Que correção deve ser investigada primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar todos os registros MX por registros POP, que fazem o certificado coincidir com o cliente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Alinhar o hostname do cliente ao certificado e ao DNS publicados, conferindo cadeia e validade.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar a validação do certificado em todos os clientes para permitir autenticação básica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar mynetworks para incluir o nome DNS do certificado como uma rede de relay.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mudar a porta SMTP para 25, porque essa porta ignora os nomes apresentados pelo TLS.",
+          "correct": false
+        }
+      ],
+      "explanation": "A validação compara o nome do servidor usado pelo cliente com os nomes cobertos pelo certificado e também verifica validade e cadeia de confiança. Alinhar DNS, hostname e certificado corrige a inconsistência mantendo a proteção contra interceptação; registros MX ou POP não alteram a identidade TLS apresentada pelo serviço.",
+      "section": "4. Windows/Exchange, publicação e solução de problemas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma conexão SMTP autenticada falha no Exchange Online, a única causa possível é uma senha digitada incorretamente; políticas do tenant e da caixa não afetam SMTP AUTH.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. SMTP AUTH pode ser desabilitado no nível organizacional e controlado no nível da caixa. Também podem existir problemas de método de autenticação, conectividade ou parâmetros; a política precisa ser conferida antes de atribuir a falha à senha.",
+      "section": "4. Windows/Exchange, publicação e solução de problemas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação interna precisa enviar relatórios, mas a organização não quer criar um relay aberto. Qual medida é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autorize apenas a aplicação ou rede identificada e exija autenticação conforme a política.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aceitar SMTP anônimo de qualquer endereço para todos os domínios externos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover validação de destinatário e liberar o conector de recebimento para toda a Internet.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Habilitar POP3 na aplicação, que pode encaminhar mensagens sem credenciais SMTP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Publicar somente o registro MX e presumir que ele autentica todas as aplicações remetentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O envio da aplicação deve seguir uma rota controlada, restrita à origem autorizada e às permissões necessárias, preferencialmente com autenticação quando aplicável. Um relay aberto aceita encaminhamento abusivo por terceiros e pode levar a bloqueio e envio de spam.",
+      "section": "4. Windows/Exchange, publicação e solução de problemas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um diagnóstico de email, a confirmação de que o servidor IMAP está acessível prova que DNS MX e transporte SMTP até o domínio destinatário estão corretos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. IMAP verifica acesso à caixa recebida; MX e SMTP tratam do roteamento e transporte de mensagens. São etapas distintas, e o sucesso de uma não comprova a outra.",
+      "section": "4. Windows/Exchange, publicação e solução de problemas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um email aparece na fila de saída há algum tempo, e o log mostra falhas temporárias ao conectar ao host MX remoto. Qual interpretação e ação inicial fazem sentido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Falha temporária: confira DNS, rota, firewall, MX remoto e novas tentativas registradas na fila.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A mensagem foi necessariamente entregue, pois toda entrada na fila equivale a confirmação do servidor remoto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O protocolo POP3 deve ser ativado no servidor destinatário para permitir conexão SMTP entre MTAs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A mensagem deve ser apagada da fila antes de analisar logs para forçar o recebimento local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O certificado IMAP da estação está inválido, o que prova falha na negociação MX do servidor remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma falha temporária de conexão pode manter a mensagem em fila para novas tentativas. Deve-se verificar a resolução MX, conectividade, firewall, resposta do servidor remoto e registros do MTA. A fila não é confirmação de entrega e POP/IMAP não participa desse transporte entre servidores.",
+      "section": "4. Windows/Exchange, publicação e solução de problemas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para investigar uma falha, é útil separar DNS, estabelecimento da conexão, TLS, autenticação, submissão, transporte e entrega à caixa em etapas independentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Cada etapa tem causas e evidências diferentes. Logs do cliente, do MTA ou Exchange, consultas DNS, teste de porta e validação de certificado ajudam a localizar o ponto de falha sem alterar componentes não relacionados.",
+      "section": "4. Windows/Exchange, publicação e solução de problemas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O administrador valida o hostname interno IMAP, mas clientes externos resolvem outro nome DNS que não consta no certificado. Qual ajuste resolve a inconsistência sem desativar a validação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desabilitar a verificação do certificado em todos os clientes externos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Alinhe DNS e hostname ao certificado válido e confira sua cadeia de confiança.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Trocar o registro MX por um registro IMAP que altere o certificado apresentado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Habilitar POP3 na porta 25 para dispensar a validação de nomes TLS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar o hostname externo a mynetworks para corrigir a identidade do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "O nome utilizado pelo cliente precisa corresponder ao nome coberto pelo certificado e ao serviço publicado no DNS. A correção é alinhar esses elementos e manter a validação; ignorar o alerta enfraquece a proteção contra interceptação.",
+      "section": "4. Windows/Exchange, publicação e solução de problemas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma estação Windows consegue abrir a caixa no Exchange por IMAP, mas não envia. O administrador confirmou que o conector de recebimento está ativo. Qual verificação é ainda necessária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Recriar os registros MX, que também autorizam o cliente a submeter mensagens.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desabilitar IMAP, pois o protocolo de leitura impede qualquer envio SMTP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conferir SMTP Submission, autenticação, permissões da caixa e rota de saída.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Apagar as pastas IMAP, para que o servidor aceite mensagens novas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o certificado do MTA remoto antes de conferir o erro do cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A leitura IMAP não testa a submissão SMTP. É preciso verificar a configuração SMTP do perfil, credenciais e autorização da caixa, além da rota de saída e da resposta nos logs do serviço.",
+      "section": "4. Windows/Exchange, publicação e solução de problemas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na revisão de um servidor Postfix, a equipe percebe que computadores não confiáveis da Internet conseguem enviar mensagens a domínios externos por meio dele. Qual ajuste reduz diretamente esse risco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar todos os hosts externos à lista mynetworks.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Listar todos os domínios externos em mydestination.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir relayhost para o próprio endereço público do servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`mynetworks` deve listar origens confiáveis e limitar a submissão externa.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Ativar inet_interfaces em todas as redes para filtrar automaticamente os remetentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O risco é de relay aberto ou autorização excessiva. `mynetworks` deve conter apenas origens confiáveis, e clientes fora delas devem usar o mecanismo de submissão autenticada definido na política. Os demais parâmetros não substituem esse controle.",
+      "section": "4. Windows/Exchange, publicação e solução de problemas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No servidor, o registro MX está correto e a conexão SMTP externa é aceita, mas a mensagem não aparece na caixa do usuário. Qual sequência de análise é mais útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reconfigurar POP3 do remetente antes de consultar o servidor que recebeu a mensagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Alterar imediatamente a porta IMAP do cliente para SMTP Submission.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar TLS no servidor, mesmo sem evidência de falha de negociação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Excluir o registro MX já confirmado e aguardar nova publicação do DNS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Examinar a fila, logs do MTA, regras de transporte e entrega/armazenamento da caixa.",
+          "correct": true
+        }
+      ],
+      "explanation": "Se a conexão de entrada já é aceita, deve-se seguir a mensagem no servidor: conferir aceitação SMTP, fila, regras de transporte, logs de entrega local e armazenamento da caixa. Alterar protocolo de cliente ou DNS confirmado não explica por si só a ausência após recebimento.",
+      "section": "4. Windows/Exchange, publicação e solução de problemas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 5321 — Simple Mail Transfer Protocol",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Protocolo SMTP, transporte de email, agentes e roteamento por MX.",
+      "url": "https://www.rfc-editor.org/rfc/rfc5321.html",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 6409 — Message Submission for Mail",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Separação entre submissão de mensagens por clientes e relay SMTP entre servidores; serviço de submissão na porta 587.",
+      "url": "https://www.rfc-editor.org/rfc/rfc6409.html",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 8314 — Cleartext Considered Obsolete: Use of TLS for Email Submission and Access",
+      "publisher": "IETF / RFC Editor",
+      "reference": "TLS para acesso e submissão, recomendação de TLS 1.2 ou superior e preferência por TLS implícito.",
+      "url": "https://www.rfc-editor.org/rfc/rfc8314.html",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 9051 — Internet Message Access Protocol (IMAP) - Version 4rev2",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Acesso e manipulação de mensagens e caixas remotas; IMAP não define postagem de novas mensagens.",
+      "url": "https://www.rfc-editor.org/rfc/rfc9051.html",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 1939 — Post Office Protocol - Version 3",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Estados, comandos e operação POP3, incluindo marcação DELE e atualização após QUIT.",
+      "url": "https://www.rfc-editor.org/rfc/rfc1939.html",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Postfix Basic Configuration",
+      "publisher": "Postfix Project",
+      "reference": "Arquivos main.cf e master.cf; myorigin, mydestination, mynetworks, relay_domains, relayhost, inet_interfaces, recarga e logs.",
+      "url": "https://www.postfix.org/BASIC_CONFIGURATION_README.html",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "POP3 and IMAP4 in Exchange Server",
+      "publisher": "Microsoft Learn",
+      "reference": "Serviços POP3/IMAP4, frontend Client Access, controle por caixa e parâmetros IMAP internos.",
+      "url": "https://learn.microsoft.com/en-us/exchange/clients/pop3-and-imap4/pop3-and-imap4",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Can't connect to Outlook with POP/IMAP and Modern authentication",
+      "publisher": "Microsoft Learn",
+      "reference": "Compatibilidade de autenticação, políticas para POP/IMAP/SMTP e controle de SMTP AUTH.",
+      "url": "https://learn.microsoft.com/en-us/troubleshoot/exchange/administration/cannot-connect-mailbox-pop-imap-outlook",
+      "accessedAt": "2026-11-01"
+    }
+  ]
+}

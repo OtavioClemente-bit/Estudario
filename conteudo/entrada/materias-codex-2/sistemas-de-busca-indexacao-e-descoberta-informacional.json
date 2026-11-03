@@ -1,0 +1,2595 @@
+{
+  "id": "informatica.sistemas-de-busca-indexacao-e-descoberta-informacional",
+  "subject": "Informática",
+  "title": "Sistemas de busca, indexação e descoberta informacional",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Sistemas de busca, indexação e descoberta informacional",
+    "Sistemas de busca e recuperação da informação",
+    "Indexação de documentos digitais",
+    "Mecanismos de busca e índices invertidos",
+    "Descoberta de recursos informacionais digitais",
+    "Busca textual em coleções documentais",
+    "Recuperação da informação em repositórios",
+    "Rastreamento, indexação e busca na Web",
+    "Metadados e descoberta em bibliotecas digitais",
+    "OAI-PMH e interoperabilidade de repositórios",
+    "Pesquisa, relevância e ordenação de resultados",
+    "Análise de texto para mecanismos de busca"
+  ],
+  "scope": {
+    "covers": "Fundamentos de sistemas de busca e recuperação da informação; documentos, campos, metadados e esquemas; coleta, extração, análise, tokenização, normalização e indexação; índice invertido e estruturas auxiliares; consultas, operadores, filtros, facetas, ordenação, relevância e avaliação; descoberta de páginas por links, sitemaps e rastreadores; noções de robots.txt e noindex; descoberta e interoperabilidade em repositórios por OAI-PMH, provedores de dados e provedores de serviço; atualização, remoção, duplicidade, cobertura, precisão e revocação.",
+    "excludes": "Implementação interna de algoritmos proprietários de buscadores, otimização comercial de posicionamento, treinamento matemático aprofundado de modelos de linguagem, administração detalhada de clusters e configuração específica de versões de produtos."
+  },
+  "theoryTitle": "Da fonte ao resultado: busca, indexação e descoberta",
+  "chapters": [
+    {
+      "title": "1. O que faz um sistema de busca",
+      "markdown": "### O problema que este assunto resolve\n\nUma coleção digital pode conter milhões de páginas, artigos, processos ou arquivos. Examinar cada documento a cada pergunta seria lento. Um sistema de busca prepara representações consultáveis da coleção e, quando recebe uma consulta, encontra documentos candidatos, calcula quais parecem mais úteis e apresenta uma lista que a pessoa consegue explorar. **Recuperação da informação** é esse processo de representar, localizar e entregar recursos relevantes a uma necessidade expressa em uma consulta.\n\n> **Siglas e termos deste capítulo**\n> - **Documento**: unidade recuperável, como uma página, artigo, processo ou registro de catálogo.\n> - **Campo**: atributo de um documento, como título, autor, data, assunto ou texto integral.\n> - **Metadado**: dado que descreve, identifica ou contextualiza outro recurso.\n> - **Consulta (query)**: expressão enviada ao sistema para localizar recursos.\n> - **Índice**: estrutura preparada para localizar documentos sem reler toda a coleção.\n> - **SERP**: página de resultados de um mecanismo de busca na Web.\n\n### O percurso de uma busca\n\nO trabalho pode ser entendido como uma sequência: fontes fornecem conteúdo; um processo de coleta descobre registros; a ingestão extrai texto e metadados; a análise transforma valores em termos pesquisáveis; o índice associa termos e campos aos documentos; a consulta é analisada de modo compatível; o mecanismo recupera candidatos e os ordena; a interface apresenta títulos, trechos, filtros e links. Um erro na etapa de ingestão pode aparecer como resultado ausente, mesmo que a consulta e o ranking estejam corretos.\n\n| Etapa | Entrada e operação | Resultado típico |\n| --- | --- | --- |\n| Descoberta/coleta | URLs, APIs, arquivos ou registros de repositório | Itens a ingerir |\n| Extração | HTML, PDF, XML, banco de dados ou outro formato | Texto e metadados estruturados |\n| Análise | Campos textuais processados por regras | Termos e atributos normalizados |\n| Indexação | Termos associados a identificadores de documentos | Estruturas de consulta |\n| Recuperação e ranking | Consulta, filtros e candidatos | Lista ordenada de resultados |\n| Apresentação | Títulos, trechos, facetas e navegação | Resposta utilizável pela pessoa |\n\nUm documento pode ter texto integral pesquisável e, ao mesmo tempo, campos próprios para título, autor, data e tipo. A separação permite que a busca por palavras use análise linguística, enquanto filtros e ordenação usem valores exatos ou tipos apropriados. Em Solr, o esquema descreve campos e tipos; o índice é construído a partir dos documentos recebidos. Alterar o esquema não transforma retroativamente os documentos já indexados: pode ser necessário reindexar para que a nova interpretação alcance os dados antigos.\n\n### Descoberta não é indexação\n\nEncontrar uma URL significa descobrir que ela existe. Rastrear significa solicitar seu conteúdo. Indexar significa processar e incorporar uma representação a um índice. Exibir significa escolher apresentá-la para certa consulta. São eventos diferentes: uma URL descoberta pode não ser rastreada; uma página rastreada pode não ser indexada; uma página indexada pode não aparecer para uma consulta específica. Sitemap e links ajudam a descoberta, mas não obrigam um buscador a rastrear ou indexar tudo.\n\nEm repositórios acadêmicos, a descoberta pode ocorrer pela exposição de metadados via OAI-PMH. O repositório que expõe registros é o **provedor de dados**; um serviço que coleta esses registros para oferecer busca ou agregação é o **provedor de serviços**. O protocolo transfere metadados estruturados, não equivale a baixar automaticamente o texto integral associado a cada registro.\n\n### Como cai na prova\n\n- Diferencie descoberta, rastreamento, indexação e apresentação: cada verbo descreve uma etapa distinta.\n- Se um registro existe no sistema de origem, isso não prova que foi indexado nem que será exibido para toda consulta.\n- Um índice melhora a localização, mas depende de coleta, extração, metadados e análise adequados."
+    },
+    {
+      "title": "2. Análise de texto e índice invertido",
+      "markdown": "### O problema que este assunto resolve\n\nPara responder rapidamente a uma consulta por palavra, o buscador precisa saber em quais documentos cada termo aparece. A estrutura clássica para isso é o **índice invertido**: em vez de guardar apenas cada documento e seu texto corrido, mantém listas de ocorrências associadas a termos. Assim, uma consulta por “acervo” pode localizar diretamente os documentos que contêm esse termo, sem comparar a palavra com cada arquivo inteiro.\n\n> **Siglas e termos deste capítulo**\n> - **Token**: unidade produzida pela análise, frequentemente uma palavra ou parte dela.\n> - **Tokenizador**: componente que divide uma sequência de caracteres em tokens.\n> - **Filtro de tokens**: componente que mantém, remove ou transforma tokens.\n> - **Analisador**: cadeia de tokenizador e filtros que produz termos para indexação ou consulta.\n> - **Índice invertido**: associação de termos a documentos e, conforme a configuração, posições e frequências.\n> - **Stop word**: palavra frequente que um projeto pode decidir tratar de modo especial ou remover.\n\n### Da cadeia de caracteres aos termos\n\nNo Solr, a documentação descreve a análise como um fluxo de tokens. O tokenizador, por exemplo, pode dividir “Busca em bibliotecas digitais” em unidades; filtros podem converter letras para minúsculas, remover pontuação, normalizar acentos, remover palavras escolhidas ou reduzir flexões. Uma escolha de análise muda quais consultas correspondem ao documento. Se o índice transforma “Informação” em “informacao”, a consulta precisa produzir representação compatível para encontrar o registro sem acento.\n\nA mesma análise costuma ser aplicada na indexação e na consulta para preservar correspondência. Em certos campos é intencional configurar analisadores distintos: um campo de texto pode usar tokenização e normalização para busca, enquanto um identificador deve permanecer como valor indivisível. Se a análise de consulta gerar termos incompatíveis com os gravados no índice, a recuperação pode falhar ou perder precisão.\n\n| Operação | Exemplo de transformação | Efeito possível |\n| --- | --- | --- |\n| Tokenização | “busca digital” → `busca`, `digital` | Permite procurar cada termo |\n| Minúsculas | `Índice`, `índice` → forma uniforme | Reduz distinção por caixa |\n| Normalização de acento | `informação` → `informacao` | Amplia correspondências ortográficas |\n| Remoção de stop word | retirada de artigo muito frequente | Índice menor, mas pode perder significado |\n| Stemming/lematização | formas flexionadas aproximadas a uma raiz/lema | Pode aumentar revocação e também gerar falsos positivos |\n\nEssas operações não são universais nem gratuitas. Remover acentos pode ser útil para consulta tolerante, mas nem todo idioma ou campo deve ser tratado da mesma forma. Stemming agressivo pode aproximar palavras que não são sinônimas. Uma stop word importante em uma expressão ou nome próprio não deve desaparecer sem considerar o impacto. Campos de frase, identificadores, códigos e nomes podem exigir regras diferentes do texto geral.\n\n### O índice invertido em termos concretos\n\nConsidere três registros: D1 contém “busca digital”; D2 contém “biblioteca digital”; D3 contém “busca em biblioteca”. Após análise que retire “em”, uma representação simplificada poderia ser `busca → D1, D3`, `biblioteca → D2, D3`, `digital → D1, D2`. A consulta “busca digital” cruza as listas conforme o operador e a configuração. Índices reais também podem guardar frequência do termo no documento e posições, úteis para frases, proximidade e cálculo de relevância.\n\nO índice é derivado dos documentos e da configuração de análise. Se um documento for atualizado ou removido, o índice precisa refletir a mudança. Em sistemas distribuídos, essa atualização pode não ser imediatamente visível em todas as consultas: a arquitetura e a política de atualização determinam a latência. Não confunda o índice de busca com o arquivo original nem com um backup do conteúdo.\n\n### Como cai na prova\n\n- Analisador é uma cadeia de processamento; tokenizador divide e filtro transforma, remove ou conserva tokens.\n- Índice invertido organiza termos para encontrar documentos, geralmente com frequências e posições auxiliares.\n- Uma mudança na análise pode exigir reprocessar documentos já indexados para reconstruir os termos."
+    },
+    {
+      "title": "3. Consultas, relevância e navegação dos resultados",
+      "markdown": "### O problema que este assunto resolve\n\nEncontrar documentos que contenham os termos consultados produz candidatos, mas uma lista sem ordem nem recursos de exploração pode ser pouco útil. A busca combina condições, restrições por campo e critérios de ordenação; o ranking tenta colocar primeiro os documentos mais prováveis de atender à necessidade; a interface oferece meios para refinar ou entender a resposta.\n\n> **Siglas e termos deste capítulo**\n> - **Precisão**: proporção dos itens recuperados que são relevantes para a necessidade avaliada.\n> - **Revocação**: proporção dos itens relevantes existentes que foram recuperados.\n> - **Ranking**: ordenação dos documentos recuperados segundo uma função ou regra.\n> - **Faceta**: categoria ou valor com contagem que ajuda a refinar um conjunto de resultados.\n> - **Snippet**: trecho do documento exibido para contextualizar um resultado.\n> - **BM25**: função de similaridade usada para atribuir escores de busca textual em Solr/Lucene.\n\n### Correspondência e operadores\n\nUma consulta pode combinar termos de maneiras distintas. Com AND, em sua interpretação usual, exige-se que todos os conceitos estejam presentes; OR admite documentos que contenham um ou outro; NOT exclui correspondências. Aspas costumam indicar busca por frase, sujeita às regras de análise e posições armazenadas. Um filtro por campo, como tipo de documento ou data, restringe os candidatos, mas não equivale a filtro de análise: no Solr, *filter query* atua sobre documentos do índice no momento da consulta, enquanto filtros do analisador processam tokens durante a análise textual.\n\nO buscador pode permitir busca por campos específicos, intervalos, prefixos, frases e operadores. A sintaxe concreta depende do produto e da configuração; uma questão conceitual deve distinguir o objetivo do operador do detalhe sintático de uma versão. Filtros frequentemente são úteis para restringir sem alterar a pontuação textual principal, embora o comportamento exato dependa da implementação.\n\n### Ranking e qualidade\n\nA pontuação procura estimar a correspondência, não provar a verdade ou a qualidade intelectual. No Solr, a similaridade padrão documentada para campos sem configuração explícita é BM25. Em termos intuitivos, funções dessa família consideram a presença dos termos e fatores como frequência no documento e raridade do termo na coleção, com ajustes relacionados ao tamanho do documento. A configuração e os dados influenciam o resultado. Um escore maior significa maior pontuação segundo aquela função, não necessariamente maior autoridade, atualidade ou adequação humana.\n\nPrecisão e revocação exprimem objetivos diferentes. Um filtro muito estreito pode aumentar a proporção de resultados pertinentes entre os exibidos, mas omitir materiais úteis. Uma expansão de consulta pode recuperar mais itens relevantes e também trazer ruído. A escolha depende da tarefa: numa busca jurídica exaustiva, perder documento pode ser grave; numa página de respostas curtas, excesso de resultados irrelevantes também atrapalha. Avaliações usam julgamentos de relevância e conjuntos de consultas representativas, e não somente a impressão de um único teste.\n\n### Facetas, snippets e paginação\n\nFacetas exibem valores de campos e quantos resultados correspondem a cada valor, por exemplo assunto, ano ou tipo documental. Elas ajudam a explorar uma coleção sem exigir que a pessoa conheça de antemão todos os termos. Uma faceta de assunto deve usar valores coerentes: se o campo textual foi dividido em palavras, a contagem pode não corresponder a rótulos inteiros; por isso sistemas podem manter uma cópia do campo para busca textual e outra para valores exatos. Snippets destacam passagens relacionadas à consulta e facilitam decidir se vale abrir o documento; não substituem a leitura do conteúdo.\n\nNa paginação por deslocamento e quantidade, o cliente pede uma posição inicial e número de resultados. Em coleções grandes, deslocamentos muito profundos podem custar caro, pois o sistema precisa localizar e ordenar os itens anteriores. Para navegação profunda em sistemas como Solr, a documentação recomenda considerar paginação por cursor em vez de offsets enormes, respeitando ordenação estável.\n\n### Como cai na prova\n\n- Faceta apresenta categorias e contagens para refinar resultados; não é sinônimo de filtro do analisador.\n- BM25 e outros escores ordenam correspondências; não certificam qualidade ou veracidade.\n- Precisão mede a qualidade do conjunto recuperado; revocação mede a cobertura dos itens relevantes."
+    },
+    {
+      "title": "4. Descoberta na Web e em repositórios",
+      "markdown": "### O problema que este assunto resolve\n\nUm sistema só pode pesquisar aquilo que consegue descobrir e processar. Na Web, rastreadores seguem URLs encontradas em links e outras fontes de descoberta. Em coleções institucionais, catálogos, APIs e protocolos de interoperabilidade podem expor registros para agregadores. A descoberta amplia o acesso, mas não elimina decisões de acesso, qualidade de metadados, duplicidade ou seleção editorial.\n\n> **Siglas e termos deste capítulo**\n> - **Crawler/rastreador**: programa que solicita URLs e percorre conteúdo ou links.\n> - **Sitemap**: arquivo que lista URLs que o responsável pelo site considera importantes.\n> - **robots.txt**: arquivo que comunica regras de acesso a rastreadores compatíveis.\n> - **noindex**: diretiva que solicita que uma página não seja incluída em um índice, quando o rastreador pode ler a diretiva.\n> - **OAI-PMH**: protocolo HTTP para coleta de metadados de repositórios.\n> - **Dublin Core**: formato de metadados simples suportado como obrigatório pelo OAI-PMH.\n\n### Links, sitemaps e controles de rastreamento\n\nLinks HTML rastreáveis formam caminhos pelos quais os crawlers podem encontrar páginas. A documentação do Google Search Central informa que sitemaps podem ajudar a descobrir URLs, especialmente em sites grandes, novos ou com muitos arquivos especializados; a submissão não garante rastreamento nem indexação. Um sitemap é uma indicação sobre URLs, não um comando para incluir cada página nos resultados.\n\n`robots.txt` informa a rastreadores quais caminhos podem solicitar. Ele é um mecanismo de controle de rastreamento, não uma forma confiável de ocultar conteúdo nem uma diretiva que, por si, garanta exclusão do índice: se a URL for conhecida por outras fontes, pode haver referência a ela sem conteúdo rastreado. Para pedir exclusão de indexação, a página precisa poder ser rastreada para que o mecanismo veja a diretiva `noindex`, ou o acesso deve exigir autenticação. Regras e resultados dependem do comportamento de cada crawler.\n\nLinks internos, URLs estáveis, páginas acessíveis e sitemaps atualizados ajudam a descoberta. Parâmetros de navegação facetada podem gerar um número enorme de URLs quase equivalentes; uma política de rastreamento e canonicalização bem definida reduz duplicação e desperdício de recursos. Não se deve presumir que rastreador seguirá todos os links ou visitará todas as URLs com a mesma frequência.\n\n### OAI-PMH: colheita de metadados\n\nO Open Archives Initiative Protocol for Metadata Harvesting permite interoperabilidade entre repositórios. O provedor de dados expõe registros estruturados; o provedor de serviços envia requisições HTTP e coleta lotes ou registros. O protocolo define seis verbos: `Identify` descreve o repositório; `ListMetadataFormats` informa formatos disponíveis; `ListSets` lista conjuntos; `ListIdentifiers` lista cabeçalhos/identificadores; `ListRecords` colhe registros com metadados; `GetRecord` recupera um registro identificado. Requisições de listagem podem ser particionadas com token de continuação quando a resposta é grande.\n\nO protocolo exige suporte a Dublin Core não qualificado como formato de metadados e pode oferecer formatos adicionais. `metadataPrefix` identifica o formato solicitado; identificadores identificam registros dentro do repositório. OAI-PMH é um mecanismo de colheita de metadados, não uma consulta textual geral a todo o conteúdo nem um protocolo que necessariamente transfere o arquivo integral. O registro pode conter identificador ou link para o objeto relacionado.\n\n### Cobertura e manutenção do acervo\n\nUma descoberta de qualidade exige registros identificáveis, metadados consistentes, formatos interpretáveis, URLs alcançáveis e regras claras para atualização e exclusão. Se a origem altera um registro, o índice agregado precisa receber a atualização; se o item foi removido, uma política deve propagar exclusões ou tombstones quando o protocolo e a implementação oferecem esse sinal. Duplicatas podem surgir quando o mesmo objeto é exposto por mais de uma fonte; identificadores persistentes e regras de deduplicação ajudam a evitar resultados repetidos.\n\n### Como cai na prova\n\n- Sitemap ajuda descoberta, mas não obriga o buscador a rastrear ou indexar as URLs.\n- `robots.txt` regula requisições de crawlers compatíveis; não substitui autenticação ou `noindex` para controlar aparição.\n- OAI-PMH colhe metadados por seis verbos e distingue provedor de dados de provedor de serviços."
+    }
+  ],
+  "summary": "Sistemas de busca transformam coleções em estruturas consultáveis. A descoberta localiza recursos; a extração e a análise produzem campos e termos; o índice invertido relaciona termos a documentos; a consulta combina correspondências e filtros; o ranking ordena candidatos; facetas e snippets apoiam a exploração. Na Web, links e sitemaps ajudam crawlers a descobrir URLs, sem garantir indexação. Em repositórios, OAI-PMH permite que provedores de serviços colham metadados expostos por provedores de dados. Qualidade depende da cadeia inteira: cobertura, metadados, análise, atualização, relevância e apresentação.",
+  "flashcards": [
+    {
+      "front": "O que distingue descoberta, rastreamento e indexação?",
+      "back": "Descoberta encontra uma referência/URL; rastreamento solicita e percorre o recurso; indexação processa uma representação e a incorpora ao índice."
+    },
+    {
+      "front": "O que é recuperação da informação?",
+      "back": "Representar, localizar e entregar recursos que possam atender a uma necessidade informacional expressa por consulta."
+    },
+    {
+      "front": "O que descreve o esquema de um índice de busca?",
+      "back": "Campos, tipos e regras que orientam como documentos e valores são interpretados e indexados."
+    },
+    {
+      "front": "O que é um índice invertido?",
+      "back": "Estrutura que associa termos a documentos em que ocorrem, podendo registrar frequências e posições."
+    },
+    {
+      "front": "Qual é o papel do tokenizador?",
+      "back": "Dividir uma sequência de caracteres em unidades de análise chamadas tokens."
+    },
+    {
+      "front": "O que fazem filtros de tokens?",
+      "back": "Mantêm, removem ou transformam tokens, por exemplo convertendo para minúsculas ou normalizando acentos."
+    },
+    {
+      "front": "O que é um analisador textual?",
+      "back": "Uma cadeia de processamento, geralmente composta por tokenizador e filtros, usada para produzir termos."
+    },
+    {
+      "front": "Por que alinhar análise de indexação e análise da consulta?",
+      "back": "Para que a consulta produza termos compatíveis com os gravados no índice e possa encontrar os documentos."
+    },
+    {
+      "front": "Qual risco existe ao remover stop words?",
+      "back": "Pode reduzir o índice, mas também eliminar palavras necessárias ao sentido de expressões ou nomes."
+    },
+    {
+      "front": "O que é stemming?",
+      "back": "Redução aproximada de formas flexionadas a uma raiz; pode ampliar correspondências e também trazer falsos positivos."
+    },
+    {
+      "front": "O que mede precisão em recuperação?",
+      "back": "A proporção dos documentos recuperados que são relevantes segundo o julgamento adotado."
+    },
+    {
+      "front": "O que mede revocação?",
+      "back": "A proporção dos documentos relevantes existentes que o sistema conseguiu recuperar."
+    },
+    {
+      "front": "O que é ranking?",
+      "back": "Ordenação dos documentos recuperados segundo escores ou regras de relevância."
+    },
+    {
+      "front": "O que indica um escore BM25 maior?",
+      "back": "Maior pontuação segundo a função de similaridade configurada, não maior veracidade ou autoridade absoluta."
+    },
+    {
+      "front": "O que são facetas?",
+      "back": "Categorias ou valores com contagens que permitem explorar e refinar um conjunto de resultados."
+    },
+    {
+      "front": "Para que serve um snippet?",
+      "back": "Exibir um trecho contextual do documento, frequentemente destacando termos da consulta."
+    },
+    {
+      "front": "O que um sitemap oferece a um mecanismo de busca?",
+      "back": "Uma lista de URLs que pode auxiliar descoberta e rastreamento, sem garantir inclusão no índice."
+    },
+    {
+      "front": "Qual é a função básica de robots.txt?",
+      "back": "Comunicar a crawlers compatíveis regras sobre quais caminhos podem solicitar."
+    },
+    {
+      "front": "Qual a diferença entre robots.txt e noindex?",
+      "back": "robots.txt trata de rastreamento; noindex solicita exclusão do índice quando o crawler consegue ler a diretiva."
+    },
+    {
+      "front": "O que o OAI-PMH permite?",
+      "back": "Colheita interoperável de metadados estruturados expostos por repositórios através de requisições HTTP."
+    },
+    {
+      "front": "Quem é provedor de dados no OAI-PMH?",
+      "back": "O repositório que expõe seus registros e metadados para colheita."
+    },
+    {
+      "front": "Quem é provedor de serviços no OAI-PMH?",
+      "back": "O serviço que faz requisições de colheita e agrega ou utiliza metadados de provedores de dados."
+    },
+    {
+      "front": "Qual é o propósito de GetRecord no OAI-PMH?",
+      "back": "Solicitar o registro identificado em um formato de metadados especificado."
+    },
+    {
+      "front": "O OAI-PMH baixa necessariamente o texto integral dos objetos?",
+      "back": "Não. É um protocolo de colheita de metadados; o registro pode apontar para o conteúdo associado."
+    },
+    {
+      "front": "Por que duplicatas prejudicam a descoberta?",
+      "back": "Elas ocupam posições repetidas, fragmentam sinais e dificultam reconhecer que resultados representam o mesmo objeto."
+    }
+  ],
+  "tips": [
+    "Memorize a ordem conceitual: descobrir, coletar, extrair, analisar, indexar, consultar, ordenar e apresentar.",
+    "Ao ler uma questão, identifique se ela fala de rastreamento, análise textual ou consulta: são etapas diferentes.",
+    "Associe índice invertido a termo → lista de documentos; a inversão está em partir do termo para chegar aos registros.",
+    "Associe faceta a categoria com contagem para refinar resultados, como ano, tipo ou assunto.",
+    "Lembre que precisão e revocação são métricas distintas e podem exigir compromissos diferentes.",
+    "Nos seis verbos OAI-PMH, diferencie listas de identificadores, listas de registros e obtenção de um registro específico."
+  ],
+  "traps": [
+    "Tratar página descoberta como página automaticamente rastreada, indexada e exibida.",
+    "Confundir índice invertido com cópia integral ou backup dos arquivos de origem.",
+    "Supor que normalização, stemming e remoção de stop words sempre melhoram qualquer campo.",
+    "Interpretar maior escore de ranking como prova de qualidade, autoridade ou veracidade.",
+    "Confundir filtro do analisador com filtro de consulta; um processa tokens, o outro restringe documentos candidatos.",
+    "Afirmar que sitemap garante rastreamento ou que robots.txt remove uma URL do índice."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o caminho de um documento desde a fonte até uma lista de resultados.",
+      "answer": "A fonte é descoberta e coletada; conteúdo e metadados são extraídos; campos textuais são analisados; termos e atributos são indexados; a consulta recupera candidatos, aplica restrições, ordena e apresenta resultados."
+    },
+    {
+      "question": "Explique por que o índice invertido acelera busca por termos.",
+      "answer": "Ele mantém uma associação direta de cada termo aos documentos onde ocorre, evitando varrer integralmente cada documento para cada consulta."
+    },
+    {
+      "question": "Diferencie tokenizador, filtro e analisador.",
+      "answer": "O tokenizador divide o texto em tokens; filtros transformam, removem ou mantêm tokens; o analisador encadeia essas operações para produzir o fluxo final."
+    },
+    {
+      "question": "Compare precisão e revocação com um exemplo de busca documental.",
+      "answer": "Precisão pergunta quantos resultados entregues são relevantes; revocação pergunta quantos dos relevantes existentes foram recuperados. Um filtro estreito pode elevar a primeira e reduzir a segunda."
+    },
+    {
+      "question": "O que são facetas e como ajudam uma pessoa que pesquisa?",
+      "answer": "São categorias e contagens calculadas sobre resultados, como ano ou assunto, que permitem restringir ou explorar a coleção por dimensões conhecidas."
+    },
+    {
+      "question": "O que um sitemap faz e o que ele não garante?",
+      "answer": "Ele informa URLs que o responsável considera importantes e pode ajudar descoberta; não obriga o buscador a rastrear, indexar ou exibir todas elas."
+    },
+    {
+      "question": "Explique a relação entre os papéis no OAI-PMH.",
+      "answer": "O provedor de dados disponibiliza metadados em seu repositório; o provedor de serviços solicita e colhe os registros para agregação ou oferta de serviços de busca."
+    },
+    {
+      "question": "Quais cuidados mantêm um índice de descoberta confiável ao longo do tempo?",
+      "answer": "Atualizar registros alterados, propagar remoções, preservar identificadores, tratar duplicatas, manter metadados coerentes e verificar se as fontes e formatos continuam acessíveis."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Etapas de busca confundidas",
+      "summary": "Descoberta localiza referências; rastreamento solicita recursos; indexação os processa; ranking e apresentação acontecem na resposta à consulta."
+    },
+    {
+      "key": "e2",
+      "title": "Análise textual inadequada",
+      "summary": "Tokenizador, filtros e analisador têm funções distintas. Normalizar ou remover termos altera correspondências e precisa ser compatível entre índice e consulta."
+    },
+    {
+      "key": "e3",
+      "title": "Ranking tomado como verdade",
+      "summary": "Escores como BM25 ordenam resultados conforme uma função e configuração; não certificam autoridade, atualidade ou correção."
+    },
+    {
+      "key": "e4",
+      "title": "Controles de crawler interpretados como garantias",
+      "summary": "Sitemap ajuda descoberta sem garantir indexação; robots.txt limita rastreamento compatível e não serve como controle de acesso nem garantia de remoção."
+    },
+    {
+      "key": "e5",
+      "title": "OAI-PMH confundido com busca ou transferência integral",
+      "summary": "OAI-PMH colhe metadados estruturados por seis verbos; os papéis são provedor de dados e provedor de serviços, e o protocolo não implica baixar o objeto completo."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um índice invertido associa cada termo pesquisável aos documentos em que ele aparece, podendo guardar também frequência e posição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A estrutura parte do termo e aponta para documentos, ao contrário de uma leitura sequencial de todos os textos para cada consulta. Frequências e posições auxiliam pontuação e busca de frases.",
+      "section": "2. Análise de texto e índice invertido",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema de busca, descobrir uma URL significa necessariamente que seu conteúdo já foi rastreado e incorporado ao índice.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Descoberta apenas identifica uma referência. O crawler ainda pode não solicitar a URL, e o conteúdo rastreado ainda pode não ser selecionado para indexação ou exibição.",
+      "section": "1. O que faz um sistema de busca",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O tokenizador divide o texto em tokens, enquanto filtros podem transformar ou remover tokens produzidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação do Solr descreve tokenizadores como divisores de unidades lexicais e filtros como componentes que mantêm, transformam ou descartam tokens; ambos podem compor um analisador.",
+      "section": "2. Análise de texto e índice invertido",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o mecanismo aplicar normalização de acentos ao indexar, a análise da consulta pode permanecer incompatível sem prejudicar correspondências.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A consulta precisa produzir termos compatíveis com os armazenados. Se o índice guardar uma forma sem acento e a consulta buscar apenas uma forma distinta, a correspondência pode ser perdida.",
+      "section": "2. Análise de texto e índice invertido",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A remoção de stop words pode diminuir o índice, mas também pode eliminar palavras importantes para uma expressão ou nome.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Uma lista de palavras frequentes é uma escolha de análise, não uma regra sem consequências. Retirar uma palavra curta pode alterar o sentido de uma frase ou impedir a busca de um nome próprio.",
+      "section": "2. Análise de texto e índice invertido",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Precisão mede a parcela de documentos relevantes existentes que foi recuperada pelo sistema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Essa definição corresponde à revocação. Precisão mede a proporção dos documentos recuperados que são relevantes segundo a avaliação adotada.",
+      "section": "3. Consultas, relevância e navegação dos resultados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma faceta pode apresentar valores de assunto com a quantidade de resultados correspondente a cada valor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Facetas organizam resultados por categorias e informam contagens, permitindo que a pessoa refine a coleção por assunto, período, tipo ou outra dimensão indexada.",
+      "section": "3. Consultas, relevância e navegação dos resultados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um escore BM25 mais alto prova que o documento é mais confiável e verdadeiro que os demais resultados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. BM25 é uma função de similaridade para pontuar correspondência textual. A pontuação não atesta verdade, autoridade, atualidade nem qualidade intelectual do conteúdo.",
+      "section": "3. Consultas, relevância e navegação dos resultados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sitemap pode ajudar um crawler a descobrir URLs, mas não obriga que todas sejam rastreadas ou indexadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação do Google Search Central trata o sitemap como auxílio de descoberta. A decisão de rastrear e indexar continua sob controle do mecanismo de busca.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O arquivo robots.txt é um mecanismo de autenticação que impede qualquer pessoa de acessar o conteúdo listado nele.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. robots.txt comunica regras a crawlers compatíveis, mas não bloqueia acesso humano ou de clientes que ignorem as regras. Conteúdo restrito exige controle de acesso apropriado.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No OAI-PMH, o provedor de dados expõe metadados e o provedor de serviços os colhe para agregar ou utilizar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Essa divisão de papéis permite interoperabilidade: repositórios disponibilizam registros, e serviços enviam requisições para coletá-los e oferecer busca ou agregação.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O verbo GetRecord solicita um registro individual usando identificador e formato de metadados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Na especificação OAI-PMH, GetRecord recupera metadados de um item identificado; o formato é indicado pelo metadataPrefix. Isso difere de listar uma coleção de registros.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "OAI-PMH é um protocolo de pesquisa textual que necessariamente transfere o arquivo integral de cada objeto digital.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. OAI-PMH foi concebido para colheita de metadados estruturados. Um registro pode apontar para o objeto, mas o protocolo não equivale à transferência obrigatória do texto integral nem a um motor de busca textual geral.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mudança no esquema de campos do Solr altera automaticamente e sem reprocessamento todos os termos já existentes no índice.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O esquema orienta a interpretação dos documentos recebidos, mas mudar a configuração não reprocessa necessariamente o material já indexado. Para aplicar novas regras a registros antigos pode ser preciso reindexar.",
+      "section": "1. O que faz um sistema de busca",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de stemming pode ampliar a correspondência entre formas de palavras e também causar correspondências indesejadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A redução de formas a uma raiz aproxima termos relacionados, o que pode aumentar a revocação. Como o processo é aproximado, também pode reunir palavras diferentes e reduzir a precisão.",
+      "section": "2. Análise de texto e índice invertido",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência representa corretamente o percurso típico de uma página até aparecer em resultados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Indexar, descobrir, exibir, rastrear e extrair o conteúdo, começando pelo índice antes mesmo de localizar a página.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Descobrir, rastrear, extrair e analisar, indexar, recuperar e apresentar.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ranquear, apresentar, descobrir, rastrear e então analisar o documento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apresentar, coletar, indexar e depois procurar uma consulta compatível.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Extrair, exibir, descobrir, ranquear e rastrear o conteúdo publicado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A cadeia começa pela descoberta da referência e pelo rastreamento do recurso. Depois vêm extração, análise e indexação; diante da consulta, o sistema recupera candidatos, ordena e apresenta resultados.",
+      "section": "1. O que faz um sistema de busca",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual estrutura permite localizar documentos a partir dos termos que contêm?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um índice invertido que associa cada termo aos documentos correspondentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um sitemap que associa cada termo aos documentos já revisados e calcula, durante a consulta, em quais textos cada palavra aparece.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma tabela de sessões que associa cada consulta a um usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um arquivo robots.txt que associa cada página ao seu conteúdo integral.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma lista de links que associa cada pessoa aos arquivos consultados.",
+          "correct": false
+        }
+      ],
+      "explanation": "O índice invertido parte de um termo e aponta para os documentos onde ele ocorre, permitindo recuperação eficiente. Sitemap e robots.txt tratam de descoberta e rastreamento, não dessa associação de busca.",
+      "section": "2. Análise de texto e índice invertido",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um analisador de texto, qual componente divide a sequência de caracteres em unidades lexicais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O faceteador, que conta categorias e valores dos resultados depois da recuperação, sem dividir a sequência original em unidades lexicais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O tokenizador, que produz tokens a partir do texto recebido.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O ranqueador, que ordena os documentos por escore calculado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O crawler, que segue URLs e solicita páginas remotas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O paginador, que seleciona a faixa de resultados exibida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tokenizadores dividem dados textuais em unidades chamadas tokens. Filtros podem modificar o fluxo depois dessa divisão, enquanto facetas, ranking, crawling e paginação pertencem a outras funções.",
+      "section": "2. Análise de texto e índice invertido",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário representa melhor o uso de um campo estruturado separado do texto integral?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar o mesmo texto corrido para consulta, ordenação e identificação persistente, sem separar atributos nem permitir filtros por tipo ou data.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Guardar autor, data e tipo em campos próprios para filtrar e ordenar resultados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Colocar todas as palavras em um único campo sem registrar metadados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Descartar título e autoria e recuperar apenas pelo endereço da página.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar a lista de links do sitemap como esquema de campos do documento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Campos estruturados mantêm atributos como autoria, data e tipo separáveis do texto integral, possibilitando filtros e ordenação apropriados. Uma única cadeia textual não oferece o mesmo controle sem tratamento adicional.",
+      "section": "1. O que faz um sistema de busca",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto quer encontrar “Informação” mesmo quando a consulta digitada é “informacao”. Qual recurso pode apoiar essa correspondência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Normalização de acentos aplicada de modo compatível no índice e na consulta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ordenação alfabética dos resultados sem alterar os termos indexados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Paginação por cursor aplicada somente depois de recuperar os documentos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumento do tamanho do sitemap sem mudanças na análise do texto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Bloqueio do caminho no robots.txt para converter caracteres acentuados, pois regras de rastreamento também reescrevem os tokens armazenados no índice.",
+          "correct": false
+        }
+      ],
+      "explanation": "A normalização pode mapear formas com e sem acento para representações compatíveis. A regra precisa ser aplicada de modo coerente durante indexação e análise da consulta para que os termos correspondam.",
+      "section": "2. Análise de texto e índice invertido",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja reduzir palavras muito frequentes no índice. Qual cuidado é tecnicamente adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover todas as palavras curtas sem avaliar frases, nomes ou consultas usuais, já que a frequência elevada torna qualquer palavra semanticamente dispensável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Testar a lista de stop words nos campos e tarefas para evitar perda de sentido.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Remover apenas os substantivos, pois artigos nunca participam de expressões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar a remoção só na consulta e manter os termos no índice sem análise.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir os filtros por uma ordenação fixa dos documentos cadastrados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Stop words podem reduzir termos pouco discriminantes, mas sua remoção altera a representação pesquisável. É necessário testar efeitos em expressões, nomes próprios e consultas reais; uma regra indiscriminada pode eliminar informação útil.",
+      "section": "2. Análise de texto e índice invertido",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um campo de identificador deve ser buscado como valor exato. Qual configuração conceitual tende a ser mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tratar o identificador como texto livre e dividi-lo em cada pontuação, descartando a igualdade literal que o código precisa preservar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar stemming ao código para aproximá-lo de palavras em português.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar um tipo e análise compatíveis com correspondência literal do valor.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Remover todos os algarismos antes de indexar o identificador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Guardar o identificador apenas em um campo de snippet destacado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Códigos e identificadores frequentemente exigem tratamento literal, sem tokenização ou stemming de texto geral. O tipo de campo e a análise devem refletir a forma de consulta esperada.",
+      "section": "2. Análise de texto e índice invertido",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instituição quer saber quantos documentos relevantes foram encontrados entre todos os relevantes existentes. Qual medida responde a isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A latência, calculada pelo tempo de resposta de cada consulta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A precisão, calculada entre resultados encontrados e relevantes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A revocação, calculada sobre os relevantes que foram recuperados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A disponibilidade, calculada sobre servidores que respondem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A cobertura de sitemap, calculada sobre URLs enviadas ao crawler, sem considerar se os documentos relevantes existentes foram efetivamente recuperados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Revocação relaciona os documentos relevantes recuperados ao conjunto de documentos relevantes existente. Precisão, por sua vez, considera quantos dos recuperados são relevantes.",
+      "section": "3. Consultas, relevância e navegação dos resultados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como interpretar corretamente uma pontuação de busca produzida por BM25?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como um identificador único que não depende da consulta realizada e certifica que qualquer documento recuperado é verdadeiro e confiável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Como uma certificação de autoria revisada e verificada por especialista.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Como uma prova de que o conteúdo do resultado é verdadeiro e atual, independentemente da consulta, dos documentos e dos parâmetros usados no cálculo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como uma contagem exata de pessoas que preferem aquele documento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como uma estimativa de correspondência usada para ordenar documentos na configuração adotada.",
+          "correct": true
+        }
+      ],
+      "explanation": "BM25 é uma função de similaridade usada para pontuar correspondência textual. O escore depende da consulta, dos documentos e da configuração e não mede diretamente verdade, autoridade ou preferência humana.",
+      "section": "3. Consultas, relevância e navegação dos resultados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na busca por documentos, para que serve uma faceta de ano de publicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para impedir que páginas antigas sejam rastreadas pelos crawlers e apagar automaticamente os documentos anteriores à data selecionada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Para trocar a análise textual e converter anos em palavras equivalentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para listar períodos e contagens, permitindo restringir a coleção por ano.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Para substituir o identificador persistente de cada registro recuperado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para assegurar que cada documento do período seja pertinente à consulta e que a data de publicação, sozinha, comprove sua relevância temática.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma faceta de ano apresenta valores e contagens para explorar ou restringir os resultados por período. Ela não certifica relevância nem altera, por si, o conteúdo dos documentos.",
+      "section": "3. Consultas, relevância e navegação dos resultados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual desenho ajuda a pesquisar texto e, ao mesmo tempo, filtrar por rótulos completos de assunto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Indexar o rótulo apenas como texto tokenizado e contar cada token como assunto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter uma representação analisada para busca e outra literal para facetas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Guardar o assunto somente no sitemap e omitir o campo do documento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter o assunto em snippet após recuperar todos os documentos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar os metadados e calcular assuntos a partir da ordem do ranking.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação do Solr explica que uma cópia textual analisada pode servir à busca e uma cópia de valor literal pode servir à faceta. Assim a análise de palavras não fragmenta o rótulo categórico que deve ser apresentado como unidade.",
+      "section": "3. Consultas, relevância e navegação dos resultados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma interface destaca no snippet a frase que corresponde à consulta. Qual é o benefício principal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir avaliar rapidamente o contexto do resultado antes de abrir o documento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Garantir que todo o conteúdo do documento esteja atualizado na origem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Provar que o documento foi revisado por uma autoridade competente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir a análise textual usada para montar o índice invertido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover do índice os registros que não contêm a frase destacada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Snippets e destaque contextual ajudam a pessoa a decidir se um resultado parece útil. Eles são uma apresentação derivada do documento e não garantem atualização, autoridade ou qualidade do conteúdo.",
+      "section": "3. Consultas, relevância e navegação dos resultados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma busca com AND entre dois termos, na interpretação usual, tende a recuperar documentos que contenham ambos. Qual é seu efeito provável em relação a OR?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "AND tende a restringir mais o conjunto, enquanto OR admite qualquer um dos termos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "AND amplia sempre a coleção e OR exige a presença dos dois termos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "AND ordena alfabeticamente e OR ordena por data de publicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "AND remove termos do índice e OR normaliza os acentos da consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "AND controla rastreamento e OR define a política de indexação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na interpretação usual de busca booleana, AND requer os dois conceitos e tende a reduzir o conjunto; OR aceita correspondência a qualquer um e tende a ampliá-lo. A sintaxe e os padrões exatos dependem do mecanismo.",
+      "section": "3. Consultas, relevância e navegação dos resultados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um site institucional grande, há páginas importantes sem links internos. Qual medida pode ajudar um crawler a conhecer essas URLs?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o número de facetas sem fornecer os endereços das páginas, pois facetas notificam crawlers sobre URLs que ainda não aparecem em links ou em outras fontes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover as URLs do índice e esperar que apareçam por consulta textual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar os metadados por uma lista de stop words para cada página.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Publicar um sitemap atualizado com as URLs que o responsável considera importantes.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Inserir o conteúdo integral das páginas no arquivo robots.txt.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um sitemap pode auxiliar a descoberta de URLs em sites grandes ou com páginas pouco ligadas. Ele não substitui boas ligações internas nem garante que cada URL seja rastreada e indexada.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer evitar a indexação de uma página que precisa permanecer publicamente acessível ao crawler. Qual sinal pode ser usado para solicitar que ela não entre no índice?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma regra disallow no robots.txt que impede o crawler de ler qualquer diretiva e, justamente por isso, comunica que a página não deve ser indexada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma diretiva noindex acessível ao rastreador quando ele processar a página.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um campo de faceta com contagem zero enviado no sitemap da página.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma consulta AND acrescentada ao título para ocultar a URL de todos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um identificador OAI-PMH usado como senha de acesso ao conteúdo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para que um crawler reconheça noindex, precisa conseguir rastrear a página e ler a diretiva. Bloquear o rastreamento pode impedir que ele veja a instrução; conteúdo realmente restrito deve exigir autenticação.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente robots.txt?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substitui links HTML como meio de descoberta de páginas relacionadas e faz todos os crawlers conhecerem as URLs permitidas sem consultar qualquer outra fonte.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criptografa arquivos para impedir acesso de usuários sem credencial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remove imediatamente todos os caminhos listados de qualquer índice.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Garante que o conteúdo permitido seja incluído nos resultados de busca.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Comunica regras de rastreamento para crawlers que respeitam o protocolo.",
+          "correct": true
+        }
+      ],
+      "explanation": "robots.txt é um mecanismo de comunicação de regras de acesso de rastreadores compatíveis. Não é autenticação, não garante indexação do permitido e não assegura a remoção de URLs já conhecidas.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um artigo novo está listado no sitemap, mas não aparece em resultados. Qual conclusão é justificável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O mecanismo necessariamente rastreou o artigo, mas apagou seu texto integral.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O sitemap indica a URL, mas não prova rastreamento nem inclusão no índice.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A ausência prova que o arquivo sitemap não pode ser lido por crawlers.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O mecanismo deve exibir o artigo porque a URL foi formalmente submetida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A página não pode ser encontrada por links internos depois de enviada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sitemaps são sinais de descoberta e não garantias de rastreamento, indexação ou exibição. É possível que a URL ainda não tenha sido processada ou que não seja selecionada para o índice ou para aquela consulta.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um repositório deseja que agregadores colham metadados de seus registros. Qual solução corresponde a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publicar robots.txt com o texto integral de todos os registros bibliográficos para que provedores de serviços colham metadados por meio de regras de rastreamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Configurar somente facetas locais sem fornecer acesso aos metadados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Expor uma interface OAI-PMH como provedor de dados para serviços coletores.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar BM25 para transmitir os arquivos sem identificadores persistentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar uma consulta booleana que seja executada nos computadores dos agregadores.",
+          "correct": false
+        }
+      ],
+      "explanation": "OAI-PMH foi concebido para interoperabilidade por colheita de metadados. O repositório funciona como provedor de dados, e serviços externos podem solicitar seus registros estruturados.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção lista corretamente os seis verbos definidos pelo OAI-PMH?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Identify, SearchRecords, RankSets, ListFiles, GetObject e CrawlPage.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Search, Crawl, Index, Rank, Facet e ExportRecord; esses nomes formam a lista oficial de operações do protocolo e são aceitos como verbos OAI-PMH em todos os repositórios.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Create, Update, Delete, Merge, Rank e GetDocument.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Identify, ListMetadataFormats, ListSets, ListIdentifiers, ListRecords e GetRecord.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "ListMetadata, ListDocuments, Query, Filter, Highlight e RetrieveAll.",
+          "correct": false
+        }
+      ],
+      "explanation": "A especificação OAI-PMH define exatamente esses seis verbos: três para identificação, formatos e conjuntos; dois para listagens de cabeçalhos ou registros; e GetRecord para obter um registro específico.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço precisa colher registros de um repositório em formato Dublin Core. Qual parâmetro identifica o formato solicitado nas requisições pertinentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "robotsPath, usado para liberar acesso autenticado ao repositório e selecionar o formato XML solicitado pelo coletor OAI-PMH.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "facet.limit, usado para determinar o total de registros armazenados; no protocolo de colheita ele também seleciona o esquema XML e a língua de cada metadado devolvido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "metadataPrefix, usado para indicar o formato de metadados da resposta.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "queryAnalyzer, usado para dividir o XML em tokens textuais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "rankingScore, usado para ordenar os identificadores persistentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "No OAI-PMH, metadataPrefix seleciona o formato de metadados solicitado em operações como ListRecords, ListIdentifiers e GetRecord. Ele não define ranking ou controle de rastreamento.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta de ListRecords é grande demais para ser entregue de uma vez. Qual mecanismo do OAI-PMH permite continuar a colheita?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma regra robots.txt que divide a resposta em páginas menores e indica ao provedor qual registro deve ser devolvido em seguida pelo protocolo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um snippet que contém o restante do texto integral dos documentos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma faceta de cursor que substitui o identificador de cada registro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um resumption token devolvido para solicitar a próxima parte da listagem.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um score BM25 usado como deslocamento de paginação do protocolo, que calcula qual trecho da lista OAI-PMH deve ser enviado e substitui o token de continuação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Listagens OAI-PMH podem ser particionadas, e a resposta fornece um token de continuação para buscar a próxima parte. O token não é pontuação de relevância nem conteúdo do objeto digital.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coleção recebe atualizações e exclusões na origem. O que um serviço de descoberta deve fazer para manter resultados coerentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Recriar as URLs com outro domínio sem atualizar os identificadores dos registros, pois isso mantém a coleção sincronizada e elimina dados desatualizados do índice.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter para sempre todos os registros, pois índices não podem ser atualizados e a colheita de metadados não dispõe de qualquer forma de registrar alteração ou exclusão na fonte.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Recolher mudanças e propagar atualizações ou remoções segundo a política do protocolo e do índice.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Excluir os metadados e deduzir alterações apenas a partir de BM25.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar stemming aos identificadores para que a remoção ocorra automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A representação agregada precisa acompanhar o estado da fonte. Isso requer recolher alterações, atualizar registros e tratar exclusões conforme os sinais disponíveis, evitando que documentos removidos permaneçam indevidamente pesquisáveis.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao avaliar um mecanismo para uma busca exaustiva de documentos, por que uma consulta excessivamente restrita pode ser problemática?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pode elevar a precisão aparente e simultaneamente deixar documentos relevantes de fora.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Eleva necessariamente a revocação porque reduz o número de documentos analisados e, por definição, faz cada item relevante existente aparecer nos resultados sem exceção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Transforma todos os resultados em registros verificados por autoridade externa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Impede que o índice invertido associe termos a documentos existentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Faz o crawler ignorar automaticamente todo o sitemap do domínio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma restrição mais estreita pode remover resultados irrelevantes e aumentar a precisão entre os exibidos, mas também omitir itens relevantes e reduzir revocação. A avaliação deve refletir a necessidade da tarefa.",
+      "section": "3. Consultas, relevância e navegação dos resultados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta usa aspas para buscar uma sequência de palavras como frase. Qual requisito pode ser relevante para a correspondência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A faceta precisa ordenar todos os documentos segundo o alfabeto da frase, porque esse recurso armazena posições dos tokens e executa a correspondência sequencial.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O sitemap deve registrar a frase em um elemento de navegação obrigatória.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O arquivo robots.txt precisa conter a frase antes da consulta ser enviada, pois esse arquivo armazena as posições dos termos e é consultado pelo mecanismo para compor cada busca textual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O índice pode precisar preservar posições dos termos e aplicar análise compatível.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O provedor OAI-PMH precisa baixar os objetos antes de receber aspas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Busca de frase depende de termos em sequência e, em mecanismos baseados em índice invertido, pode usar posições registradas. As regras de análise também importam para saber quais termos e posições são comparados.",
+      "section": "3. Consultas, relevância e navegação dos resultados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um catálogo retorna milhares de resultados e permite filtrar por tipo documental e década. Qual combinação descreve melhor a função de facetas nesse caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Exibir categorias e contagens que permitam restringir a lista atual de resultados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Reanalisar cada arquivo original e alterar seu texto integral automaticamente, já que uma faceta reescreve os documentos de origem sempre que a pessoa escolhe um valor categórico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Descobrir URLs inéditas sem consultar fontes ou links disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir a pontuação de relevância pela confirmação de autoridade dos itens.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Publicar metadados por OAI-PMH sem que exista provedor de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Facetas resumem resultados por valores de campos, com contagens, e ajudam a navegar por dimensões como tipo e período. Elas não reescrevem a fonte nem descobrem recursos externos.",
+      "section": "3. Consultas, relevância e navegação dos resultados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pesquisador recebe um resultado com alta pontuação, mas precisa confirmar se o conteúdo é correto. Qual procedimento é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar o escore com o valor da faceta e escolher o maior número, como se as contagens de categoria certificassem a correção factual do documento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aceitar o resultado sem leitura, porque BM25 verifica fatos durante a consulta e comprova autoria, atualidade e correção de qualquer documento com pontuação alta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Abrir e avaliar a fonte, pois o escore apenas ordena correspondências segundo o mecanismo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Assumir que todo resultado indexado teve autoria validada pelo crawler.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Consultar robots.txt para confirmar a validade das afirmações do documento.",
+          "correct": false
+        }
+      ],
+      "explanation": "O ranking estima correspondência, não correção factual. A avaliação de confiabilidade exige examinar o documento e sua fonte, contexto, autoria e evidências pertinentes.",
+      "section": "3. Consultas, relevância e navegação dos resultados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe cria URLs facetadas para cada combinação de assunto, idioma, data e ordenação. Qual risco de rastreamento pode surgir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A multiplicação de URLs quase equivalentes pode consumir recursos e ampliar duplicidades.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O índice invertido deixa de armazenar qualquer palavra dos documentos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O protocolo OAI-PMH passa a aceitar somente o verbo Identify.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A faceta transforma automaticamente URLs em páginas autenticadas e impede que outros mecanismos descubram qualquer endereço derivado de filtros ou parâmetros de navegação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A análise textual passa a ser idêntica em todos os mecanismos da Web.",
+          "correct": false
+        }
+      ],
+      "explanation": "Combinações de parâmetros de navegação podem gerar grande quantidade de URLs com conteúdo repetido ou muito semelhante. Uma política de rastreamento, canonicalização e links cuidadosa ajuda a reduzir desperdício e duplicação.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um repositório oferece Dublin Core e MODS. Qual papel do metadataPrefix em uma requisição OAI-PMH?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Indicar a língua da interface e ocultar os registros em outras línguas, pois metadataPrefix funciona como filtro de acesso e como comando para rejeitar formatos alternativos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Selecionar qual formato de metadados será retornado para a operação compatível.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Escolher qual índice invertido e qual função BM25 serão usados pelo agregador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir qual crawler tem autorização para rastrear o servidor de origem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter um identificador do registro em endereço de rede obrigatório.",
+          "correct": false
+        }
+      ],
+      "explanation": "metadataPrefix identifica o formato de metadados solicitado nas operações de colheita. Ele não escolhe o índice ou o ranking do provedor de serviços nem funciona como permissão de crawler.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um projeto de indexação, a análise é alterada para remover acentos e dividir hifens de outra forma. Qual ação permite aplicar coerentemente a nova regra a documentos antigos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mudar robots.txt para que os documentos sejam analisados sem nova ingestão, pois regras de rastreamento atualizam diretamente os termos já gravados no índice.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Alterar somente a página de resultados e preservar todos os termos anteriores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Enviar um sitemap novo, pois ele reescreve os termos do índice existente e converte a configuração de análise para todos os documentos sem nova ingestão ou processamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reprocessar ou reindexar os documentos antigos usando a análise atualizada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o limite de facetas sem recalcular a representação textual.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os termos indexados foram produzidos pela regra antiga. Para que os registros existentes adotem nova normalização e tokenização, o conteúdo precisa ser reprocessado ou reindexado; a configuração não reescreve automaticamente os termos antigos.",
+      "section": "2. Análise de texto e índice invertido",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa pesquisa uma palavra, recebe documentos classificados por tipo, e escolhe “relatórios” para reduzir a lista. Qual elemento permite essa escolha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um verbo GetRecord executado diretamente pelo navegador de busca, que cria categorias e contagens para reduzir qualquer lista de resultados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um tokenizador que substitui o texto integral por identificadores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um sitemap que transfere os relatórios para o computador da pessoa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma diretiva noindex que inclui relatórios em toda consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma faceta baseada no campo de tipo documental e em suas contagens.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma faceta baseada em um campo categórico pode apresentar o valor “relatórios” e sua contagem, permitindo refinar os resultados. As demais opções têm funções distintas de análise, descoberta ou colheita.",
+      "section": "3. Consultas, relevância e navegação dos resultados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição distingue melhor um provedor de serviços de um provedor de dados no OAI-PMH?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O provedor de serviços cria os metadados; o provedor de dados somente lista sitemaps e não expõe registros para colheita por agregadores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O provedor de serviços expõe o arquivo integral; o provedor de dados calcula BM25.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O provedor de serviços controla URLs; o provedor de dados aplica stemming a consultas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O provedor de serviços colhe metadados; o provedor de dados os expõe a partir do repositório.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O provedor de serviços é sempre o usuário final; o provedor de dados é o crawler.",
+          "correct": false
+        }
+      ],
+      "explanation": "A especificação define repositórios como provedores de dados que disponibilizam metadados e serviços como provedores que os solicitam e colhem para criar agregações ou funcionalidades de descoberta.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a diferença conceitual entre consulta de filtro e filtro de análise textual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Filtro de consulta ordena facetas; filtro de análise calcula a revocação da coleção, substituindo a recuperação de documentos por uma métrica de cobertura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Filtro de consulta remove acentos; filtro de análise define o domínio de rastreamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Filtro de consulta cria sitemaps; filtro de análise autentica os usuários do índice.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Filtro de consulta é exclusivo do OAI-PMH; filtro de análise é exclusivo de HTML.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Filtro de consulta restringe documentos do índice; filtro de análise transforma o fluxo de tokens.",
+          "correct": true
+        }
+      ],
+      "explanation": "No Solr, filter queries atuam na busca sobre documentos do índice, enquanto filtros do analisador operam em tokens durante análise de texto. Apesar do nome parecido, acontecem em etapas e com finalidades diferentes.",
+      "section": "3. Consultas, relevância e navegação dos resultados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma busca de frases em documentos extensos apresenta trechos com termos destacados. Qual combinação de recursos está envolvida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sitemap, autenticação e remoção das palavras frequentes do documento, recursos que preservam a sequência de tokens e destacam o contexto da frase nos trechos retornados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Análise compatível, posições para correspondência de frase e apresentação por snippet.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Faceta de autor, verbo Identify e bloqueio do crawler por robots.txt.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "BM25 como verificador semântico e metadataPrefix como destaque de HTML.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Stemming obrigatório, exclusão do índice e paginação por deslocamento profundo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Correspondência de frase depende de análise e, em índices textuais, pode depender das posições dos termos. O snippet é um recurso de apresentação que mostra o contexto encontrado e pode destacar os termos correspondentes.",
+      "section": "3. Consultas, relevância e navegação dos resultados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ação ajuda a limitar duplicatas quando o mesmo objeto chega por fontes distintas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Bloquear todos os links internos para que a coleção não seja descoberta e, assim, evitar que versões duplicadas cheguem ao índice por qualquer fonte.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar uma faceta com contagens e conservar todos os registros repetidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar atualização e impedir que as fontes informem novas versões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover identificadores e combinar registros somente pelo escore textual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar identificadores persistentes e regras de deduplicação durante a ingestão.",
+          "correct": true
+        }
+      ],
+      "explanation": "Identificadores estáveis ajudam a reconhecer que registros de fontes diferentes representam o mesmo objeto. Regras de deduplicação podem então consolidar ou relacionar cópias sem depender apenas da pontuação textual.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório de avaliação mostra alta precisão e baixa revocação. Qual interpretação é consistente com essas medidas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O sitemap continha todas as URLs e, portanto, a indexação foi garantida, independentemente dos resultados da busca e dos julgamentos de relevância adotados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A maioria dos resultados recuperados é irrelevante e quase todos os relevantes foram encontrados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O mecanismo não conseguiu ordenar os resultados por qualquer critério de ranking.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A maioria dos resultados recuperados é relevante, mas muitos relevantes existentes ficaram de fora.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Os registros foram colhidos por OAI-PMH e os metadados são necessariamente completos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Alta precisão significa que grande parcela dos itens recuperados é relevante. Baixa revocação significa que uma parcela pequena do conjunto relevante total foi recuperada; portanto, muitos itens úteis podem estar ausentes.",
+      "section": "3. Consultas, relevância e navegação dos resultados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instituição deseja que a busca por nome de autor ignore diferenças de maiúsculas e minúsculas, sem alterar o campo de identificador do autor. Qual estratégia é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colocar o nome no sitemap e usar robots.txt para converter capitalização, já que diretivas de rastreamento controlam a análise de campos e preservam o identificador literal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar stemming ao identificador e manter o nome sensível à caixa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover todos os campos e recuperar nomes a partir do snippet exibido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Configurar análise de texto no campo de nome e manter o identificador com tipo literal.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar BM25 como substituto para análise e como chave única do registro.",
+          "correct": false
+        }
+      ],
+      "explanation": "Campos podem receber configurações distintas conforme a finalidade. Normalizar caixa no nome facilita a busca textual; o identificador pode continuar literal para preservar igualdade e precisão de consulta.",
+      "section": "2. Análise de texto e índice invertido",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma página foi rastreada e seu conteúdo analisado, mas não aparece em determinada consulta. Qual explicação continua possível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela pode não ter sido indexada ou não atender aos critérios daquela consulta e apresentação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O rastreamento prova que todas as palavras foram incorporadas ao índice permanentemente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A análise do conteúdo obriga o mecanismo a exibir a página em toda consulta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A URL não pode existir, pois páginas rastreadas não podem ser excluídas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O mecanismo de busca está usando OAI-PMH para ordenar os resultados por ano.",
+          "correct": false
+        }
+      ],
+      "explanation": "Rastreamento e análise não equivalem a indexação nem a apresentação. O mecanismo pode selecionar o que indexa e qual resultado exibe para cada consulta, segundo suas políticas e sinais disponíveis.",
+      "section": "1. O que faz um sistema de busca",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre o esquema e os documentos indexados em Solr é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O esquema orienta interpretação dos campos, e alterações podem exigir reindexação de dados existentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O esquema é um backup do conteúdo e restaura documentos excluídos do índice.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O esquema é criado pelo sitemap e não admite campos de tipos diferentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O esquema determina a verdade dos documentos e dispensa a análise textual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O esquema só controla apresentação visual e nunca afeta consultas ou indexação.",
+          "correct": false
+        }
+      ],
+      "explanation": "No Solr, o esquema define como campos e tipos devem ser entendidos para construir índices. Alterações na interpretação não modificam automaticamente os termos já armazenados, podendo exigir reindexação para alcançar registros antigos.",
+      "section": "1. O que faz um sistema de busca",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um repositório OAI-PMH, qual verbo permite consultar os formatos de metadados disponíveis para um registro ou repositório?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ListMetadataFormats, que informa formatos suportados para a colheita.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "ListRecords, que fornece a lista de todos os formatos de saída existentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "GetRecord, que sempre enumera os formatos sem identificar item algum.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ListSets, que calcula o idioma e a codificação dos arquivos integrais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Identify, que substitui toda requisição de metadados de um item específico.",
+          "correct": false
+        }
+      ],
+      "explanation": "ListMetadataFormats informa os formatos de metadados disponíveis. GetRecord recupera um registro em formato especificado, enquanto ListSets lista conjuntos e Identify descreve o repositório.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um portal quer mostrar primeiro documentos recentes, independentemente da pontuação de texto. Qual decisão de apresentação é possível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ordenar por um campo de data, reconhecendo que a ordem não equivale ao ranking textual.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Converter a data em stop word para aumentar a revocação da consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Colocar a data no robots.txt para alterar a posição de todo crawler.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar ListSets para ordenar páginas Web por data de publicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tratar o sitemap como índice invertido que pontua documentos por recência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sistemas podem ordenar por um campo estruturado, como data, conforme a necessidade da interface. Essa ordenação é diferente da pontuação de similaridade textual, embora aplicações possam combinar critérios.",
+      "section": "3. Consultas, relevância e navegação dos resultados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um crawler encontra uma URL bloqueada para rastreamento no robots.txt, mas o endereço é citado em outros sites. Que situação é possível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O mecanismo pode conhecer a URL sem acessar o conteúdo bloqueado, e sua aparição depende de outras condições.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A URL é apagada de toda fonte externa assim que a regra é publicada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O crawler autentica automaticamente o usuário para abrir a página restrita.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O conteúdo torna-se necessariamente indexado em texto integral sem rastreamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sitemap passa a ignorar a URL e remove todos os links que apontam para ela.",
+          "correct": false
+        }
+      ],
+      "explanation": "robots.txt pode impedir a solicitação do conteúdo por crawlers que respeitam a regra, mas não apaga links externos nem funciona como controle de acesso. Uma URL pode ser conhecida por referências externas mesmo sem o conteúdo rastreado.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação de busca permite trocar “catálogo” por “catálogos” e encontrar documentos com ambas as formas. Qual operação pode contribuir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma regra linguística de stemming ou lematização aplicada coerentemente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma regra de sitemap que converte automaticamente singular em plural.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma faceta que enumera cada URL sem analisar conteúdo textual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma diretiva noindex que transforma palavras da consulta em sinônimos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um verbo Identify que altera os termos gravados no índice invertido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Stemming ou lematização pode aproximar formas flexionadas, permitindo correspondência entre singular e plural. O resultado depende das regras de idioma e pode gerar associações excessivas, por isso deve ser avaliado.",
+      "section": "2. Análise de texto e índice invertido",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática melhora a qualidade de descoberta em uma coleção institucional com documentos de várias fontes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Normalizar metadados essenciais, manter identificadores estáveis e sincronizar alterações.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Descartar autoria e data para que todos os documentos tenham o mesmo formato.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conservar duplicatas e impedir que fontes informem remoções ou correções.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar somente o nome do arquivo como texto integral de cada documento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir toda ingestão por consulta manual a cada usuário final.",
+          "correct": false
+        }
+      ],
+      "explanation": "Metadados consistentes permitem filtrar, exibir e relacionar registros; identificadores estáveis apoiam deduplicação; sincronização mantém o índice alinhado à fonte. A qualidade depende da manutenção ao longo do tempo.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso do Solr é mais diretamente apropriado para exibir termos da consulta destacados em um trecho do documento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "robots.txt combinado com uma regra de exclusão de URL, pois esse arquivo destaca trechos do documento e prepara snippets a partir dos termos da consulta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ListSets combinado com paginação de identificadores OAI-PMH, recurso que destaca termos no conteúdo integral e monta um trecho da página correspondente à consulta enviada ao Solr.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Realce de resultados (highlighting) combinado com geração de snippet.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Tokenização combinada com remoção de todos os metadados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sitemap combinado com a frequência de termos do índice.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Solr oferece recursos de highlighting e snippets para destacar termos e mostrar trechos contextuais na resposta. Isso melhora a apresentação e não substitui consulta, análise ou validação da fonte.",
+      "section": "3. Consultas, relevância e navegação dos resultados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma busca booleana, um pesquisador deseja excluir resultados que contenham o termo “rascunho”. Qual operador expressa essa intenção em uma sintaxe que o suporte?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "OR, que obriga a presença simultânea de todos os termos pesquisados e remove cada resultado que contenha qualquer um deles.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "NOT, aplicado ao termo que deve ser excluído do conjunto de correspondências.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "AND, que remove do índice o termo especificado pela pessoa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "FACET, que transforma o termo em diretiva para o crawler.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "IDENTIFY, que apaga o registro do repositório de origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "NOT representa exclusão de correspondências que contenham determinado termo em sintaxes booleanas que o suportem. Operadores e precedência variam por mecanismo, mas a função conceitual é excluir resultados correspondentes.",
+      "section": "3. Consultas, relevância e navegação dos resultados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o limite principal de usar apenas um arquivo de sitemap como estratégia de descoberta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele substitui permanentemente a necessidade de links internos navegáveis e obriga o mecanismo a rastrear, indexar e apresentar todo endereço listado, independentemente de acesso, conteúdo ou relevância.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele só funciona se cada URL também tiver uma faceta de assunto visível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele pode informar URLs, mas não garante que o mecanismo as rastreie, indexe ou apresente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ele transfere obrigatoriamente todos os arquivos integrais para qualquer crawler.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele calcula automaticamente a relevância e a autoridade de cada página listada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sitemap facilita a descoberta de endereços, mas a decisão de rastrear, indexar e exibir é do mecanismo. Links internos e acessibilidade continuam relevantes, e a listagem não determina ranking.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um repositório precisa descrever a si próprio, incluindo informações gerais sobre o serviço OAI-PMH oferecido. Qual verbo é voltado a essa identificação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "GetRecord, que lista todas as políticas gerais do provedor e identifica o serviço sem selecionar um registro específico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Identify, que devolve informações de identificação do repositório.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "ListIdentifiers, que substitui os metadados de cada registro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ListSets, que recupera um item pelo seu identificador único.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ListMetadataFormats, que define o ranking global dos serviços.",
+          "correct": false
+        }
+      ],
+      "explanation": "Identify retorna informações de identificação do repositório e do serviço. GetRecord recupera metadados de um item; ListIdentifiers lista cabeçalhos, e ListSets descreve conjuntos.",
+      "section": "4. Descoberta na Web e em repositórios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pesquisa por termo encontra um relatório irrelevante porque a palavra aparece muitas vezes, enquanto um documento curto e pertinente fica abaixo. Qual conclusão de projeto é razoável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O sitemap deveria ser usado como única fonte para ordenar resultados de consulta, já que define a pertinência de cada documento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O documento mais longo deve sempre ficar no topo porque contém mais informação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A frequência do termo comprova que o relatório é mais atual e confiável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Facetas corrigem automaticamente todos os erros de relevância textual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ranking depende de configuração e avaliação, e frequência isolada não assegura relevância humana.",
+          "correct": true
+        }
+      ],
+      "explanation": "Funções de ranking combinam sinais e fatores de normalização, e a adequação depende da tarefa. Ocorrência ou frequência de termos não equivale a relevância humana; a qualidade deve ser avaliada com consultas e julgamentos representativos.",
+      "section": "3. Consultas, relevância e navegação dos resultados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual enunciado descreve corretamente a relação entre metadados e descoberta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Metadados substituem sempre o conteúdo integral e tornam desnecessário qualquer índice, mesmo para localizar palavras em texto livre.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Metadados estruturados ajudam identificação, filtragem, apresentação e interoperabilidade de registros.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Metadados são usados apenas pelo crawler e nunca são mostrados ao usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Metadados garantem que todo documento será exibido em qualquer consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Metadados são equivalentes a posições de termos no índice invertido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Metadados descrevem e identificam recursos e podem alimentar filtros, facetas, exibição e intercâmbio entre sistemas. Não garantem inclusão nem substituem necessariamente o texto integral pesquisável.",
+      "section": "1. O que faz um sistema de busca",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coleção possui muitos PDFs e documentos de escritório. Qual etapa deve preceder a análise textual para torná-los pesquisáveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar ranking BM25 sobre bytes sem criar campos ou representação textual, pois o cálculo converte qualquer arquivo binário diretamente em relevância pesquisável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar facetas diretamente ao arquivo binário sem identificar seu conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar robots.txt como conversor universal dos arquivos em tokens.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Extrair texto e metadados dos formatos de arquivo antes da análise e indexação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Solicitar ListSets para transformar cada documento em página HTML.",
+          "correct": false
+        }
+      ],
+      "explanation": "Conteúdos em PDF e formatos de escritório normalmente precisam passar por extração para obter texto e metadados. Só então o material extraído pode ser analisado e incorporado ao índice textual.",
+      "section": "1. O que faz um sistema de busca",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao pesquisar uma frase jurídica, um sistema remove todas as palavras curtas antes de indexar. Qual consequência merece atenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A remoção faz o sistema recuperar automaticamente a frase original completa e repor todas as palavras descartadas, sem armazená-las.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A remoção aumenta necessariamente a precisão sem afetar a revocação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A remoção converte os termos restantes em metadados de autoria.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A remoção pode apagar termos funcionais que mudam o sentido da expressão pesquisada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A remoção substitui a necessidade de armazenar posições dos tokens.",
+          "correct": false
+        }
+      ],
+      "explanation": "Palavras curtas podem ter função semântica decisiva em expressões jurídicas ou nomes. Removê-las pode impedir a recuperação de uma frase ou alterar o sentido; regras de stop words devem ser avaliadas para o domínio.",
+      "section": "2. Análise de texto e índice invertido",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Solr Reference Guide: Documents, Fields, and Schema Design",
+      "publisher": "Apache Software Foundation",
+      "reference": "Documentos, campos, esquemas e construção do índice",
+      "url": "https://solr.apache.org/guide/solr/latest/getting-started/documents-fields-schema-design.html",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Solr Reference Guide: Document Analysis in Solr",
+      "publisher": "Apache Software Foundation",
+      "reference": "Analisadores, tokenizadores, filtros e análise em indexação e consulta",
+      "url": "https://solr.apache.org/guide/solr/latest/indexing-guide/document-analysis.html",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Solr Reference Guide: Analyzers",
+      "publisher": "Apache Software Foundation",
+      "reference": "Definição de analisadores e configuração por campo",
+      "url": "https://solr.apache.org/guide/solr/latest/indexing-guide/analyzers.html",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Solr Reference Guide: Faceting",
+      "publisher": "Apache Software Foundation",
+      "reference": "Facetas de campo, categorias e contagens",
+      "url": "https://solr.apache.org/guide/solr/latest/query-guide/faceting.html",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Solr Reference Guide: Schema Elements",
+      "publisher": "Apache Software Foundation",
+      "reference": "Similaridade BM25 como padrão documentado quando não há similaridade explícita por tipo",
+      "url": "https://solr.apache.org/guide/solr/latest/indexing-guide/schema-elements.html",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Open Archives Initiative Protocol for Metadata Harvesting, Version 2.0",
+      "publisher": "Open Archives Initiative",
+      "reference": "Seis verbos, papéis de provedores, formatos e colheita de metadados",
+      "url": "https://www.openarchives.org/OAI/openarchivesprotocol.html",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Open Archives Initiative: OAI-PMH",
+      "publisher": "Open Archives Initiative",
+      "reference": "Interoperabilidade entre provedores de dados e provedores de serviços",
+      "url": "https://www.openarchives.org/pmh/",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Google Search Central: What Is a Sitemap?",
+      "publisher": "Google",
+      "reference": "Sitemaps ajudam descoberta, sem garantir rastreamento ou indexação",
+      "url": "https://developers.google.com/search/docs/crawling-indexing/sitemaps/overview",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Google Search Central: Crawling and Indexing",
+      "publisher": "Google",
+      "reference": "Rastreamento, indexação e papel do robots.txt",
+      "url": "https://developers.google.com/search/docs/crawling-indexing",
+      "accessedAt": "2026-11-01"
+    }
+  ]
+}

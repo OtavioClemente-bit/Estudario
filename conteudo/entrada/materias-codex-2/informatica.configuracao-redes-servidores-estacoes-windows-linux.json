@@ -1,0 +1,2291 @@
+{
+  "id": "informatica.configuracao-redes-servidores-estacoes-windows-linux",
+  "subject": "Informática",
+  "title": "Configuração de redes em servidores e estações Windows e Linux",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Configuração de ambiente de rede em servidores e estações de trabalho Linux e Windows",
+    "Configuração de redes Windows e Linux",
+    "Configuração de rede em servidores Windows",
+    "Configuração de rede em servidores Linux",
+    "Configuração de rede em estações Windows",
+    "Configuração de rede em estações Linux",
+    "Configuração de interfaces IP em Windows e Linux",
+    "Endereçamento IP e DNS em servidores e estações",
+    "Administração de DHCP e DNS em redes Windows",
+    "Configuração de TCP IP em sistemas operacionais",
+    "Rotas e resolvedores DNS em Linux",
+    "Serviços de rede em servidores Windows e Linux"
+  ],
+  "scope": {
+    "covers": "Configuração de interfaces e parâmetros de rede em servidores e estações Windows e Linux: IPv4, IPv6, máscara ou prefixo, endereço estático e DHCP, gateway e rotas, DNS e sufixo de pesquisa, identificação de interfaces, ferramentas PowerShell e ipconfig, configuração persistente com Netplan, serviços DHCP e DNS no Windows Server, escopos, exclusões, reservas, opções e encaminhamento DNS, firewall e diagnóstico básico de conectividade e resolução de nomes.",
+    "excludes": "Projeto avançado de redes, protocolos de roteamento dinâmico, configuração de equipamentos de múltiplos fabricantes, administração detalhada de Active Directory, segurança ofensiva, implementação de serviços web e particularidades de distribuições Linux não baseadas em Netplan."
+  },
+  "theoryTitle": "Endereços, serviços e diagnóstico de rede",
+  "chapters": [
+    {
+      "title": "1. O que uma máquina precisa para entrar na rede",
+      "markdown": "### O problema que este assunto resolve\n\nUma estação ou servidor precisa de parâmetros coerentes para conversar com outros equipamentos: endereço IP, prefixo da rede, rota de saída e servidores DNS. Se o endereço estiver fora da sub-rede, se o gateway não existir ou se o DNS apontar para um serviço inacessível, a falha aparece como ‘sem rede’, embora cada causa seja diferente.\n\n> **Siglas e termos deste capítulo**\n> - **NIC/interface**: placa ou interface lógica pela qual o equipamento se conecta.\n> - **IPv4/IPv6**: versões do protocolo IP, com endereços de 32 e 128 bits.\n> - **Prefixo**: quantidade de bits da rede; `/24` equivale à máscara IPv4 `255.255.255.0`.\n> - **Gateway padrão**: próximo salto usado quando não há rota mais específica.\n> - **DNS**: serviço que consulta nomes, como `intranet.exemplo`, e retorna registros, inclusive endereços IP.\n\n### Endereço, rede, rota e DNS\n\nEm `192.168.10.25/24`, o prefixo `/24` identifica a rede `192.168.10.0/24`; um endereço válido de host nessa rede pode alcançar diretamente os demais equipamentos do mesmo segmento. Para destinos fora dele, a tabela de rotas indica o gateway. Endereço e máscara precisam corresponder ao plano da rede, e o endereço do gateway deve ser alcançável pela interface.\n\nUm endereço estático é configurado manualmente e costuma servir a servidores e equipamentos cuja localização precisa permanecer previsível. DHCP entrega automaticamente endereço, máscara/prefixo, duração da concessão e opções como roteador e DNS. Se for necessário que um cliente DHCP receba sempre o mesmo endereço, pode-se criar uma reserva associada ao identificador da interface; não se deve distribuir por DHCP um endereço já usado estaticamente.\n\nO DNS não é o gateway: o gateway encaminha pacotes entre redes; o DNS resolve nomes. O sufixo de pesquisa permite tentar completar nomes curtos. Resolver um nome interno requer que o cliente consulte o DNS que conhece a zona interna, não apenas um resolvedor público.\n\n### Como cai na prova\n\nDiante de um caso, separe as camadas: endereço e prefixo definem a rede local; rota padrão permite sair dela; DNS traduz nomes. `ping` para o gateway testa conectividade IP local, enquanto `nslookup` ou `Resolve-DnsName` testa resolução de nome. Uma página pode falhar por DNS mesmo quando o acesso a um IP conhecido funciona. Em IPv6, o prefixo e a rota também importam; não se deve presumir que IPv4 e IPv6 usam necessariamente a mesma configuração ou que exista apenas um gateway."
+    },
+    {
+      "title": "2. Configurar Windows cliente e servidor",
+      "markdown": "### O problema que este assunto resolve\n\nWindows oferece configuração pela interface gráfica, PowerShell e ferramentas de diagnóstico. Em uma estação comum, DHCP reduz a configuração manual; em servidor de infraestrutura, endereço estável facilita que clientes encontrem o serviço. A escolha depende do papel da máquina e do desenho da rede.\n\n> **Siglas e termos deste capítulo**\n> - **DHCP**: protocolo que concede parâmetros de rede por prazo de concessão.\n> - **Escopo**: conjunto de endereços e opções que um servidor DHCP administra para uma sub-rede.\n> - **Exclusão**: faixa do escopo que o DHCP não deve oferecer.\n> - **Reserva**: associação de um endereço a um cliente identificado, normalmente pela interface.\n> - **FQDN**: nome DNS completo, como `srv01.corp.exemplo`.\n\n### Configuração da interface e DHCP\n\nNo PowerShell elevado, `Get-NetIPConfiguration` mostra interfaces, endereços e gateway. `New-NetIPAddress -InterfaceAlias 'Ethernet' -IPAddress 192.168.10.20 -PrefixLength 24 -DefaultGateway 192.168.10.1` configura endereço IPv4 estático; `Set-DnsClientServerAddress -InterfaceAlias 'Ethernet' -ServerAddresses 192.168.10.10,192.168.10.11` define resolvedores. Os nomes de interface e endereços são exemplos: devem coincidir com o ambiente. A configuração manual precisa evitar conflitos e manter a rota e o DNS corretos.\n\n`ipconfig /all` exibe configuração detalhada, inclusive DHCP habilitado, servidores DNS e endereço físico. `ipconfig /release` libera a concessão DHCP IPv4 e `ipconfig /renew` solicita outra; esses comandos não corrigem por si só escopo esgotado, servidor indisponível ou VLAN/relay incorreto. `ipconfig /flushdns` limpa o cache local de resolução, não altera a zona DNS no servidor.\n\n### DHCP e DNS no Windows Server\n\nUm escopo IPv4 reúne faixa, máscara, exclusões, concessão e opções. Planeje cada sub-rede e evite faixas sobrepostas. Endereços reservados a servidores estáticos devem ficar fora da faixa distribuída ou em exclusões. Configure aos clientes o roteador padrão e os DNS corretos; o servidor DHCP pode distribuir opções por servidor, escopo e reserva. O DHCP Server pode ser instalado pelo Server Manager ou por `Install-WindowsFeature DHCP -IncludeManagementTools`; a criação do escopo pode ser feita no console ou por `Add-DhcpServerv4Scope`. Em domínio Active Directory, o servidor DHCP deve estar autorizado para oferecer serviço na rede do domínio.\n\nNo DNS Server, uma zona de pesquisa direta responde por nomes para endereços; uma zona reversa permite procurar nome a partir do endereço. Registros A e AAAA associam nome a IPv4 e IPv6; PTR é usado na pesquisa reversa. Uma zona primária pode ser gravável; uma secundária mantém cópia somente leitura recebida por transferência de zona. Zona integrada ao Active Directory pode replicar com o diretório. Encaminhadores enviam consultas não resolvidas a servidores DNS designados; encaminhador condicional seleciona servidores por namespace. Atualizações dinâmicas podem manter registros de clientes DHCP atualizados, e credenciais consistentes são relevantes quando DHCP registra nomes em nome dos clientes.\n\n### Como cai na prova\n\nConfirme primeiro o nome correto da NIC e o estado do link; depois endereço, prefixo, gateway e DNS. Em escopo sem endereços disponíveis, renovar no cliente não cria capacidade: é preciso verificar concessões, exclusões e faixa. Para uma falha de nomes internos, verifique se a estação recebe o DNS interno e se a zona ou encaminhamento existe. Para resolver nomes externos, configure encaminhadores ou permita a resolução recursiva apropriada, conforme a política local."
+    },
+    {
+      "title": "3. Configurar servidores e estações Linux",
+      "markdown": "### O problema que este assunto resolve\n\nNo Linux, a interface pode ser administrada por ferramentas diferentes conforme a distribuição e o ambiente gráfico. Em Ubuntu Server, Netplan descreve a configuração em YAML e a entrega ao `systemd-networkd` ou ao NetworkManager. Saber qual componente controla a interface evita editar um arquivo que será sobrescrito por outro serviço.\n\n> **Siglas e termos deste capítulo**\n> - **Netplan**: camada declarativa de configuração de rede usada no Ubuntu.\n> - **renderer**: backend escolhido pelo Netplan, normalmente `networkd` ou `NetworkManager`.\n> - **YAML**: formato textual sensível à indentação usado nos arquivos Netplan.\n> - **`ip`**: ferramenta para consultar endereços, interfaces e rotas no Linux.\n> - **systemd-resolved**: serviço resolvedor que pode integrar DNS por interface.\n\n### DHCP e endereço estático com Netplan\n\nArquivos Netplan ficam em `/etc/netplan/` e têm extensão `.yaml`. Exemplo mínimo de DHCP IPv4: `network: {version: 2, renderer: networkd, ethernets: {enp3s0: {dhcp4: true}}}`. Na prática, a estrutura deve ser escrita com indentação YAML válida. Para endereço fixo, a interface usa `addresses: [192.168.10.20/24]`, uma rota padrão `to: default` com `via: 192.168.10.1` e, se necessário, `nameservers: {addresses: [192.168.10.10, 192.168.10.11], search: [corp.exemplo]}`. O nome `enp3s0` é apenas exemplo.\n\nApós revisar o arquivo, `sudo netplan try` permite testar uma alteração com possibilidade de reversão caso se perca o acesso; `sudo netplan apply` aplica a configuração. O resultado pode ser verificado com `ip address`, `ip route` e `resolvectl status`. Netplan mantém a configuração em disco para reinícios, mas imagens de nuvem também podem ter `cloud-init` como origem dos arquivos; identifique a fonte antes de alterar uma configuração gerada.\n\n### Rota, resolução e diagnóstico\n\n`ip link` lista interfaces e estado; `ip address` mostra endereços e prefixos; `ip route` mostra rotas IPv4; `ip -6 route` mostra as rotas IPv6. Uma rota padrão aparece como destino `default` e aponta para um próximo salto. `resolvectl status` apresenta DNS por link quando `systemd-resolved` está em uso; `resolvectl query host.corp.exemplo` testa a resolução nesse resolvedor. `getent hosts nome` consulta o mecanismo de resolução do sistema. O arquivo `/etc/resolv.conf` pode ser um link gerenciado, portanto editar seu conteúdo diretamente pode não persistir.\n\n### Como cai na prova\n\nErro de indentação impede a leitura do YAML; nome incorreto de interface deixa a configuração sem efeito; prefixo errado cria uma rede local diferente; rota padrão incorreta afeta destinos externos; DNS errado afeta nomes. Compare a configuração declarada com o estado efetivo após aplicar. Em distribuições como Debian, a administração pode usar NetworkManager, `systemd-networkd` ou outros mecanismos, então não generalize Netplan para todo Linux."
+    },
+    {
+      "title": "4. Validar conectividade e localizar falhas",
+      "markdown": "### O problema que este assunto resolve\n\nO diagnóstico eficiente testa cada dependência em ordem, em vez de alterar vários parâmetros ao mesmo tempo. Uma estação pode ter endereço válido e ainda não alcançar o gateway; pode alcançar um IP externo e falhar ao consultar nomes; ou pode resolver o nome, mas não alcançar o serviço por rota ou firewall.\n\n> **Siglas e termos deste capítulo**\n> - **ICMP**: família de mensagens usada, entre outros fins, por `ping`.\n> - **ARP/NDP**: mecanismos de descoberta de vizinhos IPv4 e IPv6 na rede local.\n> - **ACL/firewall**: regras que permitem ou bloqueiam tráfego.\n> - **DHCP relay**: agente que encaminha solicitações DHCP entre sub-redes.\n> - **Lease/concessão**: período durante o qual o cliente usa o endereço DHCP atribuído.\n\n### Uma sequência prática\n\n1. Confira link e interface: cabo, Wi-Fi, adaptador habilitado e VLAN. 2. Confira endereço e prefixo; endereço `169.254.x.x` em IPv4 costuma indicar autoconfiguração local quando não foi obtida concessão DHCP, não conectividade normal com a rede corporativa. 3. Verifique rota padrão e alcance do gateway. 4. Teste um IP de destino conhecido permitido pela política. 5. Teste DNS e compare resposta com o endereço esperado. 6. Verifique firewall local e intermediário, serviço de destino, logs e concessão DHCP.\n\n`ping` pode ser bloqueado por firewall e sua ausência de resposta não prova, isoladamente, que o host está desligado. `tracert` no Windows e `traceroute` no Linux ajudam a observar saltos, mas roteadores podem não responder às sondagens. `Test-NetConnection host -Port 443` verifica conectividade TCP a uma porta no Windows. `ss -lntup` no Linux lista sockets em escuta; `systemctl status serviço` examina o serviço correspondente.\n\nEm redes segmentadas, o broadcast DHCP não atravessa roteadores por padrão. Clientes em outra sub-rede precisam de relay configurado para alcançar o servidor. O firewall deve permitir os fluxos necessários; abrir tudo ou desativá-lo não é um diagnóstico aceitável. IPv6 também pode estar ativo mesmo quando IPv4 está funcionando, por isso verifique ambas as famílias quando o sintoma envolver apenas alguns destinos.\n\n### Como cai na prova\n\nSe ping ao gateway funciona e ping por IP externo também, mas nomes falham, investigue DNS. Se o nome resolve mas a conexão TCP à porta do serviço falha, investigue rota, firewall e serviço de destino. Se só clientes de outra VLAN não obtêm endereço, verifique relay e alcance do DHCP. Registre os valores observados antes de mudar a configuração, para saber qual alteração resolveu o problema."
+    }
+  ],
+  "summary": "Uma interface de rede precisa de endereço e prefixo coerentes, rota para outras redes e DNS para traduzir nomes. Windows configura esses parâmetros pela interface gráfica ou PowerShell; Windows Server acrescenta serviços DHCP e DNS: escopos distribuem endereços e opções, exclusões protegem endereços fixos, reservas associam endereço a cliente, zonas publicam registros e encaminhadores direcionam consultas. Em Ubuntu Server, Netplan descreve DHCP ou configuração estática em YAML sob /etc/netplan e aplica por networkd ou NetworkManager; comandos ip e resolvectl mostram o estado efetivo. Diagnostique em sequência link, endereço, gateway, alcance IP, DNS, firewall e serviço. DHCP entre sub-redes requer relay, e testar ping não prova sozinho que um host está indisponível.",
+  "flashcards": [
+    {
+      "front": "Quais parâmetros centrais permitem a uma interface comunicar-se em uma rede IP?",
+      "back": "Endereço IP, prefixo ou máscara, rota padrão quando há destinos fora da sub-rede e servidores DNS para resolver nomes."
+    },
+    {
+      "front": "O que representa o /24 em 192.168.10.25/24?",
+      "back": "O prefixo de rede com 24 bits; em IPv4 corresponde à máscara 255.255.255.0."
+    },
+    {
+      "front": "Qual é a função do gateway padrão?",
+      "back": "Encaminhar tráfego para destinos sem uma rota mais específica, normalmente fora da rede local."
+    },
+    {
+      "front": "Qual é a diferença entre gateway e DNS?",
+      "back": "Gateway encaminha pacotes entre redes; DNS consulta nomes e retorna registros como endereços IP."
+    },
+    {
+      "front": "O que DHCP pode entregar além do endereço IP?",
+      "back": "Prefixo ou máscara, duração da concessão, roteador padrão, servidores DNS e outras opções configuradas."
+    },
+    {
+      "front": "Para que serve uma exclusão em um escopo DHCP?",
+      "back": "Impede que o servidor conceda os endereços excluídos, por exemplo os usados estaticamente."
+    },
+    {
+      "front": "Como uma reserva DHCP identifica normalmente o cliente?",
+      "back": "Associa o endereço reservado ao identificador da interface, frequentemente seu endereço MAC."
+    },
+    {
+      "front": "Qual cmdlet do PowerShell mostra configuração IP por interface?",
+      "back": "Get-NetIPConfiguration."
+    },
+    {
+      "front": "Para que serve ipconfig /all?",
+      "back": "Exibe detalhes da configuração Windows, inclusive endereços, gateway, DNS, DHCP e endereço físico."
+    },
+    {
+      "front": "O que faz ipconfig /flushdns?",
+      "back": "Limpa o cache local de resolução de nomes; não modifica registros na zona DNS do servidor."
+    },
+    {
+      "front": "O que contém um escopo DHCP IPv4?",
+      "back": "Faixa e máscara da sub-rede, exclusões, concessões e opções distribuídas aos clientes."
+    },
+    {
+      "front": "Quais registros DNS associam nome a IPv4 e IPv6?",
+      "back": "A associa um nome a IPv4; AAAA associa um nome a IPv6."
+    },
+    {
+      "front": "Para que serve um registro PTR?",
+      "back": "Para resolução reversa, consultando um nome associado a um endereço IP."
+    },
+    {
+      "front": "O que faz um encaminhador DNS condicional?",
+      "back": "Envia consultas de um namespace específico a servidores DNS designados para ele."
+    },
+    {
+      "front": "Onde ficam arquivos de configuração Netplan?",
+      "back": "Em /etc/netplan/, normalmente com extensão .yaml."
+    },
+    {
+      "front": "Quais backends podem ser escolhidos como renderer do Netplan?",
+      "back": "systemd-networkd e NetworkManager."
+    },
+    {
+      "front": "Que ferramenta Linux exibe endereços e rotas?",
+      "back": "A ferramenta ip; por exemplo, ip address e ip route."
+    },
+    {
+      "front": "Como consultar DNS por interface no systemd-resolved?",
+      "back": "Use resolvectl status para ver o estado e resolvectl query nome para testar uma consulta."
+    },
+    {
+      "front": "Por que DHCP pode falhar em uma sub-rede remota?",
+      "back": "O broadcast inicial não cruza roteadores; é necessário configurar um agente relay alcançável."
+    },
+    {
+      "front": "O que significa normalmente um IPv4 169.254.x.x em um cliente configurado por DHCP?",
+      "back": "O cliente não obteve uma concessão DHCP e usou autoconfiguração local; não é prova de acesso normal à rede."
+    },
+    {
+      "front": "Por que ping sem resposta não prova que um servidor está desligado?",
+      "back": "ICMP pode ser filtrado; investigue também rota, firewall, portas de serviço e registros do destino."
+    },
+    {
+      "front": "Qual sequência básica ajuda a localizar falha de conectividade?",
+      "back": "Link, endereço e prefixo, gateway, alcance por IP, DNS, firewall e serviço de destino."
+    }
+  ],
+  "tips": [
+    "Trate endereço, rota padrão e DNS como parâmetros distintos; uma falha em um deles não implica falha nos outros.",
+    "No Windows, confirme o alias real da interface com Get-NetAdapter antes de configurar endereço ou DNS.",
+    "Planeje exclusões no DHCP para que endereços usados estaticamente nunca sejam concedidos a outro cliente.",
+    "No Ubuntu Server, revise indentação e nome da interface no Netplan antes de aplicar; use netplan try ao trabalhar remotamente.",
+    "Compare ip route ou Get-NetRoute com o destino afetado para ver qual rota será usada.",
+    "Se conexão por endereço IP funciona e por nome falha, priorize testar o resolvedor e os registros DNS."
+  ],
+  "traps": [
+    "Confundir DNS, que resolve nomes, com gateway, que encaminha pacotes a outras redes.",
+    "Achar que ipconfig /flushdns altera o DNS do servidor ou corrige registro ausente na zona.",
+    "Colocar servidores com IP fixo dentro da faixa DHCP sem exclusão ou planejamento de reserva.",
+    "Supor que DHCP atravesse roteadores sem relay ou que um lease renovado resolva falta de escopo.",
+    "Editar diretamente /etc/resolv.conf no Linux sem verificar se ele é gerado por outro serviço.",
+    "Concluir que o host está indisponível apenas porque não respondeu a ping."
+  ],
+  "activeRecall": [
+    "Explique o papel do endereço IP e do prefixo usando um exemplo de sub-rede.",
+    "Diferencie a rota padrão de um servidor DNS e cite uma falha típica de cada um.",
+    "Liste os dados planejados antes de ativar um escopo DHCP para uma sub-rede.",
+    "Explique como proteger do DHCP os endereços configurados manualmente em servidores.",
+    "Descreva o caminho para configurar IP e DNS estáticos em uma NIC Windows com PowerShell.",
+    "Diferencie zona DNS direta, zona reversa, encaminhador e encaminhador condicional.",
+    "Explique como um arquivo Netplan conecta configuração YAML a um backend de rede.",
+    "Descreva a sequência de testes para um computador que acessa IPs, mas não resolve nomes."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre endereçamento, rota e resolução",
+      "summary": "Endereço e prefixo definem a interface e rede local; a rota determina o próximo salto; DNS resolve nomes. Teste cada componente separadamente."
+    },
+    {
+      "key": "e2",
+      "title": "Planejamento incompleto de escopo DHCP",
+      "summary": "Faixas, máscara, exclusões, opções de gateway/DNS, concessão e reservas precisam corresponder à sub-rede e aos endereços estáticos existentes."
+    },
+    {
+      "key": "e3",
+      "title": "Alterar o arquivo ou a interface errados",
+      "summary": "No Netplan, YAML, nome da interface e renderer determinam aplicação; no Windows, confirme alias da NIC. Identifique também arquivos gerados por cloud-init."
+    },
+    {
+      "key": "e4",
+      "title": "Diagnóstico baseado em um único teste",
+      "summary": "Ping pode ser filtrado e resolução de nomes é diferente de conectividade IP. Combine testes de interface, rota, DNS, porta e serviço."
+    },
+    {
+      "key": "e5",
+      "title": "Ignorar segmentação e firewall",
+      "summary": "DHCP em outra sub-rede requer relay; filtros podem bloquear ICMP, DNS ou portas de aplicação sem derrubar o link físico."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma estação acessa um servidor pelo endereço IP, mas não pelo nome completo. Qual hipótese deve ser verificada primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Máscara necessariamente incompatível com a rede local",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Concessão DHCP certamente expirada no servidor",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gateway padrão necessariamente sem resposta",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Placa de rede desligada em todas as camadas",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Falha de DNS ou do resolvedor configurado",
+          "correct": true
+        }
+      ],
+      "explanation": "A conectividade pelo IP mostra que o caminho IP até o destino existe para esse teste; a diferença ao usar o nome aponta primeiro para DNS, sufixo ou registro. Máscara, gateway e DHCP ainda podem merecer investigação conforme o caso, mas não explicam tão diretamente a diferença entre nome e endereço.",
+      "section": "1. O que uma máquina precisa para entrar na rede",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em IPv4, qual é o papel do prefixo /24 em 192.168.10.25/24?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reserva os primeiros 24 endereços para o servidor DHCP",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Define que o gateway deve terminar necessariamente em .24",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Indica que 24 bits identificam a parte de rede do endereço",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Informa que a interface tem 24 servidores DNS configurados",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Determina que o endereço é IPv6 com 24 grupos hexadecimais",
+          "correct": false
+        }
+      ],
+      "explanation": "O prefixo informa quantos bits pertencem à rede. Em IPv4, /24 corresponde à máscara 255.255.255.0; não codifica gateway, quantidade de DNS nem faixa reservada.",
+      "section": "1. O que uma máquina precisa para entrar na rede",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual parâmetro encaminha tráfego para uma rede que não está diretamente conectada à interface?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O servidor DHCP que concedeu o endereço ao cliente",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O sufixo de pesquisa DNS configurado para a conexão",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O endereço MAC apresentado pelo adaptador Ethernet",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O gateway padrão, quando não há rota mais específica",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O registro PTR existente na zona reversa do domínio",
+          "correct": false
+        }
+      ],
+      "explanation": "A tabela de rotas seleciona o próximo salto. Para destinos sem rota mais específica, a rota padrão normalmente envia o pacote ao gateway; DNS resolve nomes e não encaminha o pacote.",
+      "section": "1. O que uma máquina precisa para entrar na rede",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comando PowerShell é apropriado para consultar a configuração IP por interface no Windows?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Show-InterfaceAddressBook", "correct": false },
+        { "key": "B", "text": "Get-DnsServerZoneTransfer", "correct": false },
+        { "key": "C", "text": "Start-DhcpServerScope", "correct": false },
+        { "key": "D", "text": "Get-NetIPConfiguration", "correct": true },
+        { "key": "E", "text": "Resolve-NetRouteCache", "correct": false }
+      ],
+      "explanation": "Get-NetIPConfiguration apresenta configuração IP, gateway e dados relacionados por interface. Os outros nomes não são cmdlets apropriados para essa consulta.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer limpar no computador cliente os resultados DNS temporariamente armazenados. Qual comando atende a esse objetivo no Windows?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "ipconfig /release", "correct": false },
+        { "key": "B", "text": "Clear-DnsServerZone", "correct": false },
+        { "key": "C", "text": "route delete 0.0.0.0", "correct": false },
+        {
+          "key": "D",
+          "text": "netsh interface reset dnszone",
+          "correct": false
+        },
+        { "key": "E", "text": "ipconfig /flushdns", "correct": true }
+      ],
+      "explanation": "ipconfig /flushdns limpa o cache de resolução local. /release libera a concessão DHCP IPv4 e não altera o cache; remover rotas ou zonas teria outros efeitos e não é o procedimento pedido.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação descreve corretamente um escopo DHCP IPv4?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Lista de nomes DNS sem endereços ou parâmetros de interface",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cópia somente leitura de todos os arquivos do servidor DHCP",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Relação de portas TCP abertas em cada estação de trabalho",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tabela de rotas dinâmicas aprendidas por protocolo de roteamento",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Faixa de IP e opções para clientes de uma sub-rede",
+          "correct": true
+        }
+      ],
+      "explanation": "Um escopo agrupa endereços para concessão em uma sub-rede e pode fornecer opções como roteador e servidores DNS. Ele não é uma zona DNS nem uma lista de portas ou rotas dinâmicas.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma faixa DHCP inclui endereços que foram configurados manualmente em servidores. Qual medida reduz o risco de concessão duplicada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Excluir do pool os endereços estáticos",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Reduzir o tempo de concessão até que nenhum servidor use endereço fixo",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apontar todos os clientes para um DNS público diferente",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ativar a zona reversa e remover os registros A dos servidores",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Configurar a mesma faixa em outro escopo da mesma sub-rede",
+          "correct": false
+        }
+      ],
+      "explanation": "Exclusões impedem que o servidor DHCP ofereça endereços reservados para uso manual. Planejamento de faixa também evita sobreposição; DNS e prazo de concessão não resolvem conflito de endereço estático.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um DNS, que tipo de registro é usado para associar um nome a um endereço IPv6?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "NS, que identifica servidores autoritativos de nomes", "correct": false },
+        { "key": "B", "text": "AAAA, usado para associar nome a endereço IPv6", "correct": true },
+        { "key": "C", "text": "PTR", "correct": false },
+        { "key": "D", "text": "A, usado para associar nome a endereço IPv4", "correct": false },
+        { "key": "E", "text": "MX", "correct": false }
+      ],
+      "explanation": "O registro AAAA associa um nome de host a um endereço IPv6. O registro A cumpre a função equivalente para IPv4; PTR permite a pesquisa reversa, MX aponta servidores de correio e NS identifica servidores autoritativos da zona. Por isso, para publicar o endereço IPv6 do nome, a escolha adequada é AAAA.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção descreve uma reserva DHCP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Rota estática que força o tráfego IPv6 a atravessar um gateway IPv4",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Regra permanente de firewall que bloqueia toda consulta DNS externa",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cópia secundária de uma zona DNS, sem relação com a concessão DHCP",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Faixa de endereços excluída do escopo e indisponível aos clientes",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Vincular um endereço do escopo a um cliente identificado pelo servidor",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma reserva associa a identificação de um cliente, como seu identificador de hardware, a um endereço que o servidor DHCP lhe entrega. Assim o endereço pode permanecer previsível sem configuração manual no cliente. Reserva não é exclusão, pois a exclusão impede a concessão daquela faixa, nem altera DNS ou rotas.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Ubuntu Server usando Netplan, em qual local são mantidos os arquivos YAML de configuração de rede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "/proc/network/interfaces/, diretório de arquivos temporários do Netplan", "correct": false },
+        { "key": "B", "text": "/var/log/netplan/, onde seriam guardados os YAML ativos da interface", "correct": false },
+        { "key": "C", "text": "/usr/bin/netplan.yaml/, caminho usado para instalar executáveis de rede", "correct": false },
+        { "key": "D", "text": "/etc/netplan/, diretório de configuração de rede do Netplan", "correct": true },
+        { "key": "E", "text": "/home/root/dns-zones/, pasta pessoal destinada a zonas DNS autoritativas", "correct": false }
+      ],
+      "explanation": "No Ubuntu que usa Netplan, os arquivos YAML de configuração de interfaces ficam em /etc/netplan/. O Netplan lê esses arquivos e traduz as definições para o backend de rede configurado; depois de revisar a sintaxe e o conteúdo, o administrador pode aplicar as mudanças com os comandos apropriados. Diretórios de logs, executáveis ou zonas DNS não são o local desses YAML.",
+      "section": "3. Configurar servidores e estações Linux",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comando Linux mostra a tabela de rotas IPv4 de uma máquina?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "ip route, comando que consulta a tabela de rotas IPv4", "correct": true },
+        { "key": "B", "text": "resolvectl gateway, comando que consulta o gateway padrão da interface", "correct": false },
+        { "key": "C", "text": "netplan nameserver list, ação que imprime os servidores DNS ativos", "correct": false },
+        { "key": "D", "text": "ip dnszone, subcomando destinado a listar zonas DNS locais", "correct": false },
+        { "key": "E", "text": "ss route-table, opção do utilitário de sockets para exibir rotas", "correct": false }
+      ],
+      "explanation": "O comando ip route exibe a tabela de rotas IPv4, incluindo rotas específicas e, quando configurada, a rota default com seu próximo salto. Isso ajuda a verificar por onde o tráfego destinado a outras redes será encaminhado. Para consultar a tabela correspondente ao IPv6, usa-se a família de endereços IPv6 do comando ip.",
+      "section": "3. Configurar servidores e estações Linux",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um técnico precisa consultar os servidores DNS e domínios de pesquisa ativos por link no Ubuntu com systemd-resolved. Qual comando ajuda?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "ss -lntup --dns-only", "correct": false },
+        { "key": "B", "text": "resolvectl status", "correct": true },
+        { "key": "C", "text": "systemctl isolate dns", "correct": false },
+        { "key": "D", "text": "netplan erase-cache", "correct": false },
+        { "key": "E", "text": "ip route flush", "correct": false }
+      ],
+      "explanation": "resolvectl status exibe o estado do resolvedor, incluindo configuração DNS por link quando o systemd-resolved está em uso. Os demais comandos não apresentam essa informação.",
+      "section": "3. Configurar servidores e estações Linux",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência é a mais adequada para investigar uma estação sem conectividade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reinstalar DNS primeiro e remover a rota padrão em seguida",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Testar link, IP, rota, alcance e DNS",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desativar o firewall antes de verificar se a interface tem link",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar IPv4 e IPv6 juntos sem registrar os valores anteriores",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Limpar caches do servidor antes de identificar qual serviço falhou",
+          "correct": false
+        }
+      ],
+      "explanation": "A sequência isola dependências em ordem: interface e configuração básica antes de rota, conectividade IP e resolução de nomes. Alterações simultâneas impedem identificar a causa e podem piorar o incidente.",
+      "section": "4. Validar conectividade e localizar falhas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma estação IPv4 configurada para obter endereço automaticamente mostra um endereço 169.254.x.x. Qual interpretação é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Recebeu necessariamente um endereço público válido do roteador",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pode ter falhado a concessão DHCP e usado IP local",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O DNS confirmou que a estação pertence à zona reversa",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A rota padrão foi validada por um encaminhador condicional",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A interface recebeu automaticamente uma reserva permanente",
+          "correct": false
+        }
+      ],
+      "explanation": "Um endereço IPv4 169.254.x.x costuma ser autoconfiguração local quando o cliente não obtém resposta DHCP. Verifique link, VLAN, relay, disponibilidade do servidor e escopo; esse endereço não demonstra conectividade corporativa normal.",
+      "section": "4. Validar conectividade e localizar falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Clientes de uma VLAN diferente da VLAN do servidor DHCP não recebem concessão, embora clientes na VLAN do servidor recebam. Que item deve ser verificado primeiro na infraestrutura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A métrica de rota default IPv6 do servidor DNS",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A existência de registros PTR para todos os endereços externos",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Configurar relay entre clientes e servidor DHCP",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A limpeza do cache DNS local em todas as estações",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A reserva DHCP da interface de loopback do servidor",
+          "correct": false
+        }
+      ],
+      "explanation": "O broadcast inicial DHCP permanece na sub-rede. O relay encaminha as mensagens entre sub-redes; quando clientes locais funcionam e os remotos não, sua configuração e alcance são hipóteses centrais.",
+      "section": "4. Validar conectividade e localizar falhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente `ipconfig /renew` em um cliente Windows?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remove o gateway padrão de todas as interfaces Windows",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Recria todos os registros da zona DNS autoritativa",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplica os arquivos YAML de uma interface Linux",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cria exclusões no escopo DHCP do Windows Server",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Solicita renovação ou obtenção de concessão DHCP IPv4",
+          "correct": true
+        }
+      ],
+      "explanation": "ipconfig /renew pede renovação ou obtenção de parâmetros DHCP para interfaces configuradas dinamicamente. Não administra escopos no servidor nem altera zonas DNS ou rotas de forma genérica.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um servidor DHCP, uma reserva é associada a um cliente identificado e permite que ele receba o endereço especificado dentro do escopo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A reserva vincula um cliente, normalmente identificado pelo endereço da interface, a um endereço do escopo DHCP. Ela é diferente de uma exclusão, que impede concessão de uma faixa.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando `ipconfig /flushdns` altera os registros A e AAAA gravados na zona autoritativa do servidor DNS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O comando limpa o cache DNS local do cliente. Alterar registros A ou AAAA exige administrar a zona no servidor DNS ou o mecanismo de atualização correspondente.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A configuração YAML do Netplan depende de indentação válida; um erro de recuo pode impedir que a configuração seja interpretada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. YAML usa indentação para expressar estrutura. Um recuo incorreto pode gerar erro de análise ou colocar um parâmetro no nível errado, por isso se deve revisar o arquivo antes de aplicar.",
+      "section": "3. Configurar servidores e estações Linux",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Netplan usa sempre o NetworkManager, inclusive em instalações Ubuntu Server configuradas com networkd.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O renderer pode ser `networkd` ou `NetworkManager`. Em Ubuntu Server, networkd é comum; em Ubuntu Desktop, NetworkManager costuma ser usado. A configuração efetiva determina o backend.",
+      "section": "3. Configurar servidores e estações Linux",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A rota padrão e o servidor DNS executam a mesma função, pois ambos encaminham consultas de nomes para fora da sub-rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A rota padrão encaminha pacotes IP a um próximo salto. O DNS resolve nomes em registros; consultas DNS também usam a rede, mas o servidor DNS não substitui o gateway.",
+      "section": "1. O que uma máquina precisa para entrar na rede",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma zona DNS reversa permite consultar nome associado a um endereço IP por meio de registros PTR.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A pesquisa reversa usa registros PTR para associar endereços a nomes. A zona de pesquisa direta contém registros como A e AAAA para localizar endereços a partir de nomes.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o cliente DHCP e o servidor estiverem em sub-redes distintas, um roteador comum encaminhará automaticamente o broadcast DHCP inicial sem configuração adicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Broadcasts não são encaminhados por roteadores como tráfego IP comum. Configure um agente DHCP relay para transportar as mensagens entre sub-redes.",
+      "section": "4. Validar conectividade e localizar falhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta ausente a ping prova, isoladamente, que o equipamento de destino está desligado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. ICMP pode ser bloqueado por firewall ou filtrado no caminho. Confirme rota, portas de serviço, estado do serviço e logs; ping é apenas um dos testes possíveis.",
+      "section": "4. Validar conectividade e localizar falhas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente consegue abrir um serviço por IP, mas falha ao usar o nome; verificar DNS é mais pertinente que trocar imediatamente o gateway.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O acesso pelo endereço indica que existe um caminho IP para esse serviço. A diferença observada com o nome direciona o diagnóstico para servidor DNS, registro, sufixo de pesquisa ou cache local.",
+      "section": "4. Validar conectividade e localizar falhas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Endereços estáticos em servidores devem ser planejados fora da faixa concedida por DHCP ou protegidos por exclusões adequadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Sem planejamento, o servidor DHCP pode oferecer a outro cliente um endereço já utilizado manualmente, causando conflito. Exclusões e faixas organizadas evitam a sobreposição.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Editar `/etc/resolv.conf` em qualquer Linux é sempre persistente e não pode ser sobrescrito por serviços de rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O arquivo pode ser gerado ou administrado por systemd-resolved, NetworkManager ou outro componente. Identifique quem controla a resolução e configure a fonte apropriada para obter persistência.",
+      "section": "3. Configurar servidores e estações Linux",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se `ping` ao gateway funciona, então a resolução DNS e o acesso a todas as portas de aplicação também estão comprovados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Ping ao gateway verifica uma forma de conectividade IP local, mas não testa resolução DNS nem portas de aplicação. Faça testes separados para cada dependência.",
+      "section": "4. Validar conectividade e localizar falhas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um encaminhador DNS condicional direciona consultas de um namespace específico para servidores designados para esse namespace.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Diferentemente do encaminhamento geral, o condicional escolhe servidores de destino conforme o namespace consultado, útil para integrar domínios administrados separadamente.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O endereço configurado em um servidor DNS substitui a rota padrão necessária para encaminhar pacotes a outras redes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A configuração DNS indica a quem enviar consultas de nomes; a rota define o caminho IP para alcançar esse servidor e outros destinos. Um DNS configurado corretamente continua inacessível sem rota adequada.",
+      "section": "1. O que uma máquina precisa para entrar na rede",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "DHCP failover em Windows Server é configurado para compartilhar escopos e informação de concessões entre dois servidores parceiros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A relação de failover compartilha informações de escopo e leases entre parceiros para redundância ou balanceamento. Ela não elimina a necessidade de planejar relay e sincronizar as mudanças de configuração relevantes.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A opção `dhcp4: true` em uma interface Netplan solicita configuração IPv4 dinâmica por DHCP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. No Netplan, `dhcp4: true` indica que a interface deve usar DHCP para IPv4. Isso não configura automaticamente IPv6 nem garante que exista um servidor DHCP alcançável.",
+      "section": "3. Configurar servidores e estações Linux",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A opção `addresses` do Netplan pode declarar endereço IP estático acompanhado do tamanho do prefixo, como `192.168.10.20/24`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O endereço estático é informado com seu prefixo. Para uma configuração completa, também se avaliam rota padrão e nameservers conforme a rede exige.",
+      "section": "3. Configurar servidores e estações Linux",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor DHCP instalado em domínio Active Directory deve ser autorizado para oferecer serviço no domínio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Em ambientes de domínio, a autorização do servidor DHCP ajuda a impedir que servidores não autorizados distribuam configuração aos clientes. A instalação do papel por si só não substitui essa etapa de implantação.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma zona secundária DNS baseada em arquivo é uma cópia gravável independente da zona primária e não precisa receber transferências.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Uma zona secundária é uma cópia somente leitura que obtém dados por transferência de zona. A zona primária é a cópia gravável nesse modelo; zonas integradas ao Active Directory têm armazenamento e replicação próprios.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma estação chega ao gateway por IP, mas não resolve nomes internos. Qual conjunto de verificações é mais direcionado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registro MX externo, porta de SMTP e zona reversa pública",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Faixa de endereços MAC, máscara do switch e versão do driver gráfico",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Exclusivamente o lease DHCP do servidor de impressão da sub-rede",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Servidor DNS recebido, sufixo de pesquisa, registro interno e acesso ao DNS",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Apenas o estado do cabo, pois o ping ao gateway já respondeu",
+          "correct": false
+        }
+      ],
+      "explanation": "Como o caminho IP ao gateway funciona, a investigação deve seguir a falha de nomes: DNS recebido pelo cliente, sufixo, existência do registro interno e conectividade com o servidor DNS. Registro MX externo não resolve a consulta interna descrita.",
+      "section": "4. Validar conectividade e localizar falhas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao criar um escopo Windows Server para uma sub-rede, qual é a prática correta para opções entregues aos clientes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Distribuir como gateway o endereço do resolvedor público para toda a rede",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir gateway e DNS coerentes com a sub-rede e excluir endereços usados estaticamente",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Incluir no pool todos os endereços fixos para reduzir o espaço não utilizado",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar a zona reversa no escopo e retirar a máscara dos clientes",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar a mesma faixa sobreposta em cada escopo sem considerar a sub-rede",
+          "correct": false
+        }
+      ],
+      "explanation": "O escopo deve corresponder à sub-rede e não sobrepor endereços já usados. As opções de roteador e DNS precisam apontar para serviços corretos e alcançáveis pelos clientes; servidor DNS não substitui automaticamente o gateway.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador quer resolver nomes de um domínio parceiro por servidores DNS específicos, sem encaminhar todas as consultas externas para eles. Qual recurso corresponde ao caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Encaminhador condicional associado ao namespace do parceiro",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Rota padrão IPv4 instalada em cada estação cliente",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reserva DHCP por endereço MAC para cada nome DNS",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exclusão de todos os endereços do escopo DHCP remoto",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registro A de curinga apontando para o gateway local",
+          "correct": false
+        }
+      ],
+      "explanation": "Um encaminhador condicional envia consultas daquele namespace aos DNS designados, preservando outros caminhos de resolução para os demais nomes. Rota padrão e reserva DHCP não selecionam servidores DNS por domínio.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor Ubuntu acessível remotamente receberá IP estático via Netplan. Qual conjunto forma uma configuração coerente para alcançar outras redes e resolver nomes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente endereço sem prefixo, sem rota e com gateway inserido como registro PTR",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "IP/prefixo, rota default e servidores DNS",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Endereço DHCP duplicado, rota default sem próximo salto e zona MX local",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apenas sufixo de pesquisa, pois o DNS fornece máscara e gateway à interface",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Endereço IPv4 e máscara escolhidos sem verificar a sub-rede do gateway",
+          "correct": false
+        }
+      ],
+      "explanation": "A configuração estática precisa associar IP ao prefixo correto, definir próximo salto válido para destinos externos e configurar DNS se nomes forem usados. Não se deve presumir que DNS forneça rota ou parâmetros de interface.",
+      "section": "3. Configurar servidores e estações Linux",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de editar YAML Netplan por uma sessão remota, qual prática reduz o risco de perder acesso por uma configuração incorreta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar os arquivos Netplan e reiniciar a máquina para preservar a sessão remota",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apagar todos os arquivos Netplan antes de testar a nova interface, removendo a configuração existente",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Validar cuidadosamente e usar netplan try antes de confirmar a aplicação",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Alterar somente o arquivo de DNS e presumir que isso substitua o endereço e a rota da interface",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter definições conflitantes nos dois backends e esperar que a sessão escolha a correta",
+          "correct": false
+        }
+      ],
+      "explanation": "O comando netplan try aplica a configuração de modo temporário e solicita confirmação; se ela não for confirmada, a configuração anterior pode ser restaurada. Esse comportamento ajuda a recuperar conectividade quando uma alteração remota afeta a interface ou a rota da sessão. Ainda é necessário revisar o YAML e conferir a interface e o backend utilizados.",
+      "section": "3. Configurar servidores e estações Linux",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor resolve nomes externos, mas não nomes do domínio interno. Estações recebem um DNS público via DHCP. Qual mudança conceitual tende a corrigir o caminho de resolução interna?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Distribuir aos clientes o DNS interno que hospeda ou encaminha a zona corporativa",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cadastrar o gateway como registro AAAA individual de cada estação, usando-o como nomeador DNS",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ampliar a faixa de concessões DHCP e manter inalterada a opção de servidor DNS dos clientes",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover o prefixo IP da interface para obrigar o cliente a consultar diretamente uma zona DNS",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apagar o cache do resolvedor público, embora os clientes continuem consultando esse mesmo servidor",
+          "correct": false
+        }
+      ],
+      "explanation": "Para resolver nomes privados, a estação deve consultar um servidor DNS que hospede a zona corporativa ou encaminhe consultas para quem a hospeda. Um resolvedor público normalmente não possui esses registros internos. Aumentar a faixa DHCP, alterar o prefixo IP ou limpar o cache público não cria nem disponibiliza a informação da zona interna aos clientes.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando `Test-NetConnection servidor -Port 443` é útil quando se deseja verificar especificamente qual condição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se o servidor Linux aplicou corretamente todos os seus arquivos YAML de rede",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Se o escopo DHCP do servidor possui uma exclusão para aquele endereço de destino",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se a zona DNS reversa está integrada ao Active Directory e atualizada pelos clientes",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se todos os pacotes ICMP recebidos em todas as interfaces foram liberados pelo firewall",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se há conectividade TCP até a porta 443 do destino",
+          "correct": true
+        }
+      ],
+      "explanation": "Com o parâmetro de porta, Test-NetConnection tenta estabelecer conectividade TCP com o host indicado naquela porta, permitindo verificar o caminho até o serviço. O resultado não consulta exclusões DHCP, não comprova regras de ICMP nem valida arquivos Netplan. Mesmo uma conexão TCP bem-sucedida não garante que a aplicação responda corretamente após a conexão.",
+      "section": "4. Validar conectividade e localizar falhas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma estação Windows tem duas rotas padrão e usa uma interface inesperada para determinado destino. Qual fonte deve ser inspecionada para entender a seleção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o cache DNS, que escolhe a placa usada por cada endereço resolvido",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tabela de rotas, prefixos de destino e métricas das rotas",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A lista de reservas DHCP, que determina o próximo salto de cada pacote encaminhado",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Registros PTR da zona reversa, que indicam ao sistema operacional a interface de saída",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A zona DNS direta, que informa ao Windows a máscara de rede que deve usar na interface",
+          "correct": false
+        }
+      ],
+      "explanation": "Para entender a saída de um destino, deve-se examinar a tabela de rotas, comparando os prefixos que correspondem ao destino e as métricas das rotas candidatas. Esses dados influenciam o próximo salto e a interface escolhida. DNS pode traduzir o nome em endereço IP, mas registros DNS ou reservas DHCP não selecionam diretamente a rota usada pelos pacotes.",
+      "section": "1. O que uma máquina precisa para entrar na rede",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao usar DHCP failover em duas sub-redes remotas, clientes dependem de relay. O que deve ser considerado no encaminhamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O relay deve permitir que os clientes alcancem os dois parceiros DHCP configurados",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um DNS público único substitui o relay porque distribui leases",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas o parceiro standby precisa estar acessível, inclusive em balanceamento",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O relay deve converter todas as solicitações DHCP em consultas PTR",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A rota IPv6 elimina qualquer necessidade de encaminhar DHCPv4",
+          "correct": false
+        }
+      ],
+      "explanation": "Os clientes precisam alcançar ambos os parceiros da relação de failover, diretamente ou por relay. O serviço DNS não distribui concessões e configuração IPv6 não substitui o caminho DHCPv4.",
+      "section": "4. Validar conectividade e localizar falhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após mudar um servidor Linux para endereço estático, ele alcança a LAN, mas não redes externas. Endereço e DNS parecem corretos. Qual verificação é mais diretamente relacionada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar a rota default e se o gateway pertence a uma rede diretamente alcançável",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar um registro MX para o endereço da interface do servidor",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Limpar cache DNS em todas as máquinas da LAN",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar a duração do lease DHCP que já não está sendo usado",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o renderer sem conferir a tabela de rotas efetiva",
+          "correct": false
+        }
+      ],
+      "explanation": "A comunicação na LAN sugere que link e endereço local estão funcionais. Para sair da sub-rede, é necessária rota padrão válida e gateway alcançável; consulte ip route e compare com prefixo e topologia.",
+      "section": "3. Configurar servidores e estações Linux",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma zona DNS, qual associação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registro PTR para endereço IPv6 direto e MX para máscara de sub-rede",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Registro A para rota default, AAAA para servidor DHCP e PTR para gateway",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Registro A para IPv4, AAAA para IPv6 e PTR para pesquisa reversa",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Registro NS para porta TCP e A para lease DHCP de uma estação",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registro AAAA para IPv4 e A para nome de pesquisa reversa",
+          "correct": false
+        }
+      ],
+      "explanation": "A representa endereço IPv4, AAAA representa IPv6, e PTR é usado na pesquisa reversa. Registros DNS não definem gateway, máscara nem concessão DHCP.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao instalar DHCP em Windows Server associado a um domínio Active Directory, qual etapa é relevante além de instalar o papel e criar o escopo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter todos os registros A em registros MX",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover do cliente a configuração de gateway padrão",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Autorizar o servidor DHCP no ambiente de domínio",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Criar uma zona reversa para cada pool de portas TCP",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar o serviço DNS em todos os controladores de domínio",
+          "correct": false
+        }
+      ],
+      "explanation": "Em domínio Active Directory, a autorização DHCP é uma etapa de implantação para que o servidor possa oferecer concessões nesse ambiente. Ela não substitui o planejamento de escopo, opções e relay.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas interfaces Linux obtêm rota default por DHCP, e uma deve ser preferida. Qual mecanismo pode influenciar a preferência de rota no Netplan?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir métricas de rota DHCP adequadas nas configurações das interfaces",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Atribuir nomes DNS diferentes aos gateways para que o maior nome vença",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar um PTR para a interface preferida e apagar a outra zona",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar a máscara da interface que não deve ser usada",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o tempo de concessão de uma interface para elevar sua prioridade",
+          "correct": false
+        }
+      ],
+      "explanation": "A métrica de rota ajuda a indicar preferência entre rotas comparáveis; valores menores costumam indicar preferência. Nomes DNS e duração da concessão não definem a métrica de saída.",
+      "section": "3. Configurar servidores e estações Linux",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma estação alcança o DNS por IP e recebe resposta para nomes públicos, mas não nomes de uma zona privada. Qual hipótese diferencia melhor o problema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O DNS consultado não hospeda nem encaminha a zona privada",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A interface não possui endereço MAC atribuído pelo fabricante",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A rota default foi removida, embora o DNS por IP responda",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O servidor DHCP está necessariamente sem escopo IPv6",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A porta de impressão local está fechada no firewall",
+          "correct": false
+        }
+      ],
+      "explanation": "O acesso ao DNS e a resolução pública mostram que existe um resolvedor operacional, mas ele pode não conhecer o namespace privado. Configure DNS interno ou encaminhamento condicional apropriado para a zona.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre zonas integradas ao Active Directory é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Elas só existem em estações Windows sem papel DNS instalado",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Dados no AD DS replicados pelo mecanismo do diretório",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Elas substituem a tabela de rotas de cada controlador de domínio",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Elas aceitam apenas registros PTR e não podem conter registros de host",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Elas são necessariamente arquivos somente leitura distribuídos por DHCP",
+          "correct": false
+        }
+      ],
+      "explanation": "Zonas DNS integradas ao Active Directory são armazenadas no AD DS e disponíveis em controladores de domínio que executam o papel DNS, podendo usar replicação do diretório. Isso não as transforma em escopos DHCP ou rotas.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um ambiente Linux com systemd-resolved, qual par de comandos exibe estado DNS e testa uma consulta de nome?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "resolvectl status e resolvectl query nome",
+          "correct": true
+        },
+        { "key": "B", "text": "ip route e ss -lntup", "correct": false },
+        {
+          "key": "C",
+          "text": "netplan apply e ip link set down",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "systemctl status ssh e hostnamectl set-hostname",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "mount -a e resolvectl flush-route",
+          "correct": false
+        }
+      ],
+      "explanation": "resolvectl status inspeciona estado do resolvedor e resolvectl query executa uma consulta. ip route e ss atendem a outras verificações de rede e sockets.",
+      "section": "3. Configurar servidores e estações Linux",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conexão HTTPS falha, mas o host responde a ping e resolve corretamente. Qual teste no Windows ajuda a separar bloqueio de porta de falha DNS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "nslookup do gateway para remover a rota default",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ipconfig /flushdns, sem testar a conexão novamente",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Get-DhcpServerv4Scope no computador cliente sem consultar o servidor",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Test-NetConnection para o nome do servidor e a porta 443",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "route print para provar que o serviço HTTPS está em execução",
+          "correct": false
+        }
+      ],
+      "explanation": "DNS e resposta ICMP já foram observados, mas não demonstram que a porta TCP 443 esteja acessível. Test-NetConnection com a porta testa o caminho TCP; em seguida, examine firewall e serviço se falhar.",
+      "section": "4. Validar conectividade e localizar falhas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mudança de endereço no Netplan não parece produzir efeito após `netplan apply`. Qual verificação inicial é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conferir nome da interface, YAML, renderer e estado efetivo com ip address",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apagar todos os registros DNS públicos para forçar leitura do arquivo",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar um novo escopo DHCP sem conferir se a interface usa DHCP",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar apenas o nome do host e reiniciar o serviço de impressão",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar IPv6 para obrigar o Netplan a ignorar a indentação",
+          "correct": false
+        }
+      ],
+      "explanation": "Verifique se o arquivo YAML é válido e se referencia a interface real e o backend ativo; então compare com o estado de endereços. Também investigue configuração gerada por cloud-init ou outro gerenciador que possa controlar a interface.",
+      "section": "3. Configurar servidores e estações Linux",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando há conflito entre um servidor com endereço estático e um cliente que recebeu o mesmo endereço por DHCP, qual causa de configuração é especialmente provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O endereço estático não foi excluído nem protegido no planejamento do escopo",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O registro AAAA tem um sufixo de pesquisa muito curto",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O gateway padrão encaminha consultas DNS para a zona reversa",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A reserva DHCP foi criada para um nome de serviço TCP",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O comando de consulta DNS foi executado antes de renovar o lease",
+          "correct": false
+        }
+      ],
+      "explanation": "Conflito indica que o endereço fixo permaneceu disponível para concessão ou que a reserva e identificação do cliente foram planejadas incorretamente. Mantenha endereços estáticos fora da faixa distribuída ou configure exclusões adequadas.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual escolha distingue corretamente uma zona secundária baseada em arquivo de uma zona primária baseada em arquivo no DNS Windows?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A secundária é cópia somente leitura; a primária é gravável nesse modelo",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A secundária distribui DHCP e a primária escolhe gateways",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A primária é sempre somente leitura e a secundária altera a fonte original",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ambas são apenas caches temporários sem registros de recursos",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A secundária contém somente nomes IPv6 e a primária somente IPv4",
+          "correct": false
+        }
+      ],
+      "explanation": "Na configuração baseada em arquivo, a zona primária é gravável e a secundária mantém cópia somente leitura obtida por transferência. O armazenamento integrado ao AD DS é outra possibilidade para zonas em domínio.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma estação não obtém endereço DHCP em segmento remoto. A faixa do escopo tem endereços livres e clientes locais funcionam. Qual sequência de análise é mais útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Limpar cache DNS e concluir que a concessão será refeita automaticamente",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Alterar a zona direta para que encaminhe o broadcast DHCP",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Verificar relay, VLAN, ACL/firewall e alcançabilidade do servidor a partir do segmento",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Criar uma segunda faixa sobreposta e remover a opção de roteador",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar IPv4 nos clientes remotos e manter o mesmo escopo",
+          "correct": false
+        }
+      ],
+      "explanation": "Como existe espaço e clientes locais obtêm leases, concentre-se no caminho entre segmento e servidor: relay, VLAN e filtros. DNS não transporta broadcasts DHCP, e faixas sobrepostas agravam o planejamento.",
+      "section": "4. Validar conectividade e localizar falhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador recebe solicitação para corrigir nomes de clientes DHCP que ficaram desatualizados na zona DNS. Qual recurso de integração é pertinente investigar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atualizações DNS dinâmicas feitas pelo cliente ou pelo DHCP em seu nome",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A rota default da estação, que grava registros A diretamente na zona",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Exclusões do escopo, que apagam registros PTR ao renovar cada lease",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A métrica do gateway, que atualiza automaticamente nomes FQDN",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O comando ipconfig /flushdns executado no servidor DNS autoritativo",
+          "correct": false
+        }
+      ],
+      "explanation": "DHCP e DNS podem usar atualizações dinâmicas para acompanhar nomes e endereços concedidos. Verifique a política de atualização, propriedade e credenciais usadas pelo DHCP; limpar cache local não atualiza registros autoritativos.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um firewall local permite ICMP, mas bloqueia TCP na porta do serviço. Qual resultado é compatível com essa regra?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O gateway deixa de constar na tabela de rotas do cliente",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ping e todas as portas TCP precisam falhar juntos",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O DNS deixa de resolver nomes sempre que uma porta TCP é filtrada",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A concessão DHCP expira imediatamente quando ICMP é permitido",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ping pode responder enquanto a conexão TCP à aplicação falha",
+          "correct": true
+        }
+      ],
+      "explanation": "ICMP e TCP são tráfegos distintos e podem receber regras diferentes. Resposta a ping não comprova a disponibilidade da porta do serviço; teste a porta e examine as regras de firewall no caminho.",
+      "section": "4. Validar conectividade e localizar falhas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um técnico compara rotas IPv4 e IPv6 em Linux. Quais comandos consultam respectivamente essas famílias?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "ip route e ip -6 route", "correct": true },
+        { "key": "B", "text": "ip dns e ip -4 nameserver", "correct": false },
+        {
+          "key": "C",
+          "text": "resolvectl route e resolvectl address",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ss -4 gateway e ss -6 gateway",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "netplan ipv4 show e netplan ipv6 flush",
+          "correct": false
+        }
+      ],
+      "explanation": "ip route consulta rotas IPv4; ip -6 route consulta rotas IPv6. Inspecione as duas famílias quando uma aplicação ou destino usa IPv6 mesmo que IPv4 esteja funcional.",
+      "section": "3. Configurar servidores e estações Linux",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma implantação usa duas NICs Windows e nomes de adaptador diferentes do exemplo de documentação. O que deve ser ajustado nos cmdlets de configuração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O valor de InterfaceAlias para corresponder ao adaptador real",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O nome de todos os registros PTR para corresponder à porta",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O sufixo DNS para transformar a NIC em um servidor DHCP",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número de versão do Windows no endereço IP",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O valor de PrefixLength para ser igual ao alias textual da interface",
+          "correct": false
+        }
+      ],
+      "explanation": "Cmdlets como New-NetIPAddress e Set-DnsClientServerAddress aplicam parâmetros à interface indicada pelo alias. Confirme o nome com Get-NetAdapter; usar o alias errado configura outra NIC ou produz erro.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor DNS Windows precisa encaminhar consultas gerais não resolvidas para resolvedores designados. Qual configuração é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar um gateway padrão em cada registro A da zona",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar uma reserva DHCP para cada domínio externo consultado",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Configurar encaminhadores no servidor DNS, por exemplo com Set-DnsServerForwarder",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Configurar uma exclusão de endereço para a raiz DNS",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar recursão e remover qualquer caminho de resolução restante",
+          "correct": false
+        }
+      ],
+      "explanation": "Encaminhadores recebem consultas que o servidor não resolve localmente, e podem ser configurados pelo console DNS ou cmdlet Set-DnsServerForwarder. Encaminhadores condicionais atendem namespaces específicos.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de conferir a concessão DHCP, um cliente apresenta DNS e gateway incorretos embora tenha endereço na faixa esperada. Onde a correção deve ser priorizada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Nas opções efetivas do escopo ou do servidor DHCP e na hierarquia de configuração",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Na zona reversa, pois PTR escolhe opções entregues pelo servidor",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "No cache DNS do cliente, que também armazena o gateway padrão",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "No registro MX, que define o endereço do resolvedor e roteador",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "No nome Netplan do cliente Windows, que substitui as opções DHCP",
+          "correct": false
+        }
+      ],
+      "explanation": "DHCP pode fornecer roteador e servidores DNS por opções configuradas no nível aplicável. Verifique as opções efetivas do escopo e do servidor, renove a concessão e confirme o resultado no cliente.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A configuração do Netplan declara uma interface como `enp3s0`, mas o sistema identifica a placa como `ens160`. Qual consequência é provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O DNS converterá automaticamente enp3s0 em ens160 e corrigirá o YAML",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A interface não é configurada se o nome declarado não existe",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A rota default será aplicada a todas as interfaces sem considerar o nome",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O servidor DHCP renomeará a interface após conceder o endereço",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A diferença de nome altera somente registros PTR, nunca a configuração local",
+          "correct": false
+        }
+      ],
+      "explanation": "A identificação da interface no Netplan precisa corresponder ao dispositivo ou a uma regra de correspondência apropriada. Um nome incorreto pode deixar a configuração sem efeito; confira ip link e a configuração renderizada.",
+      "section": "3. Configurar servidores e estações Linux",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar conectividade até um host com disponibilidade da aplicação, qual afirmação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma resposta DNS positiva prova que a aplicação aceita conexões",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Qualquer ping respondido comprova todos os serviços TCP do host",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alcance IP não comprova que o serviço esteja ouvindo ou que sua porta esteja liberada",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma concessão DHCP ativa abre automaticamente portas no firewall",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma rota válida garante que o processo do serviço esteja em execução",
+          "correct": false
+        }
+      ],
+      "explanation": "Conectividade IP, resolução DNS, porta TCP e processo da aplicação são verificações diferentes. Teste a porta específica e verifique firewall e serviço para concluir onde está a falha.",
+      "section": "4. Validar conectividade e localizar falhas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao configurar DNS de estações de um domínio corporativo, por que normalmente se entrega o DNS interno que conhece a zona do domínio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque o sufixo de pesquisa converte o DNS em agente relay de broadcast",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque DNS público é sempre incapaz de resolver qualquer endereço IPv4",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque o DNS interno funciona como gateway e dispensa a tabela de rotas",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque a zona interna distribui automaticamente leases DHCP aos clientes",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque o DNS interno pode responder pelos nomes privados e encaminhar consultas conforme a política",
+          "correct": true
+        }
+      ],
+      "explanation": "O DNS interno conhece as zonas privadas da organização e pode encaminhar consultas externas. O cliente continua precisando de rotas para alcançar o DNS e de DHCP ou configuração estática para receber os parâmetros.",
+      "section": "2. Configurar Windows cliente e servidor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Install and configure DHCP Server on Windows Server",
+      "publisher": "Microsoft Learn",
+      "reference": "Instalação de papel, criação de escopo, opções de roteador e DNS, exclusões e reservas",
+      "url": "https://learn.microsoft.com/en-us/windows-server/networking/technologies/dhcp/quickstart-install-configure-dhcp-server",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "DHCP scopes in Windows Server",
+      "publisher": "Microsoft Learn",
+      "reference": "Escopos, faixas, concessões, opções, exclusões e reservas",
+      "url": "https://learn.microsoft.com/en-us/windows-server/networking/technologies/dhcp/dhcp-scopes",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Deploy DHCP Using Windows PowerShell",
+      "publisher": "Microsoft Learn",
+      "reference": "Configuração TCP/IP, endereços estáticos e cmdlets de DHCP e rede",
+      "url": "https://learn.microsoft.com/en-us/windows-server/networking/technologies/dhcp/dhcp-deploy-wps",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Install and Configure DNS Server on Windows Server",
+      "publisher": "Microsoft Learn",
+      "reference": "Instalação DNS e configuração de encaminhadores",
+      "url": "https://learn.microsoft.com/en-us/windows-server/networking/dns/quickstart-install-configure-dns-server",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "DNS zones in DNS Server on Windows Server",
+      "publisher": "Microsoft Learn",
+      "reference": "Tipos de zona DNS, armazenamento em arquivo e integração com Active Directory",
+      "url": "https://learn.microsoft.com/en-us/windows-server/networking/dns/zone-types",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Netplan how-to guides",
+      "publisher": "Canonical Netplan",
+      "reference": "Arquivos YAML em /etc/netplan, renderers, aplicação e exemplos de configuração",
+      "url": "https://netplan.readthedocs.io/en/stable/howto/",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Netplan examples",
+      "publisher": "Canonical Netplan",
+      "reference": "DHCP, endereços estáticos, DNS, rotas e métricas de interface",
+      "url": "https://github.com/canonical/netplan/blob/main/doc/examples.md",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "resolvectl(1) Linux manual page",
+      "publisher": "Linux man-pages",
+      "reference": "Consulta e inspeção do resolvedor systemd-resolved",
+      "url": "https://man7.org/linux/man-pages/man1/resolvectl.1.html",
+      "accessedAt": "2026-11-01"
+    }
+  ]
+}

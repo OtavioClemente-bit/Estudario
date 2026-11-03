@@ -1,0 +1,632 @@
+{
+  "id": "informatica.expressoes-regulares-processamento-texto",
+  "subject": "Informática",
+  "title": "Expressões regulares e processamento de texto",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Expressões regulares e processamento de texto",
+    "Expressões regulares em textos e dados",
+    "Padrões de busca em cadeias de caracteres",
+    "Expressões regulares para localizar padrões",
+    "Regex para validação e extração textual",
+    "Metacaracteres e quantificadores de regex",
+    "Grupos e alternativas em expressões regulares",
+    "Âncoras e limites em padrões textuais",
+    "Captura e substituição de texto com regex",
+    "Divisão e limpeza de texto por padrões",
+    "Processamento de texto com padrões regulares",
+    "Busca textual com expressões regulares"
+  ],
+  "scope": {
+    "covers": "Fundamentos de expressões regulares aplicadas ao processamento de texto: literais, metacaracteres, classes, quantificadores gulosos e não gulosos, grupos de captura e não captura, alternância, âncoras, limites, flags, busca e correspondência integral, extração, substituição, divisão, escape em strings de programação, Unicode e diferenças entre mecanismos.",
+    "excludes": "Gramáticas livres de contexto, compiladores, algoritmos de busca aproximada, sintaxe completa de uma linguagem específica e garantia de validade semântica de e-mails, endereços ou documentos complexos por uma única expressão regular."
+  },
+  "theoryTitle": "Padrões regulares para localizar e transformar texto",
+  "chapters": [
+    {
+      "title": "1. Como um padrão descreve texto",
+      "markdown": "### O problema que este assunto resolve\n\nUma expressão regular descreve um **padrão** que um mecanismo procura em uma cadeia de caracteres. Ela ajuda a localizar, validar parcialmente, extrair ou substituir trechos repetidos: números de protocolo, datas em formato conhecido, palavras e separadores. O padrão `\\d{4}` descreve quatro algarismos consecutivos em mecanismos que reconhecem `\\d` como dígito. A expressão não entende o significado do texto: encontrar quatro dígitos não prova que eles formem um ano válido.\n\n> **Siglas e termos deste capítulo**\n> - **Regex / regexp**: abreviação de expressão regular.\n> - **Literal**: caractere que o padrão procura como ele próprio, como `g` em `gato`.\n> - **Metacaractere**: símbolo com função especial, como `.`, `*` ou `[`; pode ser escapado para representar o literal.\n> - **Classe**: conjunto de caracteres escrito entre colchetes, como `[aeiou]`.\n> - **Correspondência**: trecho do texto que satisfaz o padrão.\n\n### Literais, classes e curingas\n\nEm `gato`, cada letra é literal. O ponto `.` costuma representar um caractere qualquer, com ressalvas para quebras de linha e flags. Assim, `c.sa` pode encontrar `casa` e `cosa`; para exigir um ponto literal, use `\\.`. Dentro de `[aeiou]`, procura-se uma vogal por vez. O hífen pode indicar faixa, como `[0-9]`; para buscar um hífen literal, sua posição ou escape depende da sintaxe do mecanismo. A classe negada `[^0-9]` descreve um caractere que não está na faixa indicada.\n\nAtalhos comuns incluem `\\d` para dígitos, `\\s` para espaços em branco e `\\w` para caracteres considerados de palavra. Maiúsculas frequentemente negam o atalho correspondente (`\\D` significa não dígito). A definição de `\\w`, `\\b` e `\\d` pode mudar com o mecanismo, a modalidade Unicode ou uma flag: não presuma que toda abreviação tenha o mesmo alcance em toda linguagem.\n\n### Quantidade e escolha\n\nOs quantificadores seguem o elemento imediatamente anterior: `*` significa zero ou mais repetições; `+`, uma ou mais; `?`, zero ou uma; `{3}` exatamente três; `{2,5}`, de duas a cinco. Em `ab+`, o `+` incide apenas sobre `b`; em `(ab)+`, incide sobre o grupo inteiro. A barra vertical `|` significa alternativa: `gato|cão` aceita uma das duas sequências. Agrupar como `(?:gato|cão)s?` aplica o `?` ao `s` final e aceita singular ou plural simples.\n\n### Como cai na prova\n\n- Diferencie caractere especial de caractere literal escapado: `.` e `\\.` não têm a mesma função.\n- Verifique o elemento sobre o qual o quantificador atua; parênteses mudam esse alcance.\n- Uma classe `[ab]` consome um caractere, não a palavra `ab`. Alternância e agrupamento podem representar sequências.\n- Regex reconhece forma, não necessariamente validade de negócio: `[0-9]{4}` não determina se o ano faz sentido."
+    },
+    {
+      "title": "2. Limites, grupos e quantificadores na prática",
+      "markdown": "### O problema que este assunto resolve\n\nEncontrar um trecho dentro de uma frase não é o mesmo que confirmar que **todo o campo** obedece ao formato. Âncoras e limites permitem controlar a posição; grupos guardam partes úteis; quantificadores determinam quanto texto pode ser consumido.\n\n> **Siglas e termos deste capítulo**\n> - **Âncora**: condição de posição, como início ou fim da entrada.\n> - **Grupo de captura**: trecho agrupado cujo conteúdo pode ser recuperado depois da busca.\n> - **Grupo não capturante**: agrupa sem guardar o trecho como captura.\n> - **Ganância (greedy)**: preferência usual por consumir o máximo que ainda permita a correspondência.\n> - **Lookaround**: condição sobre caracteres vizinhos sem consumi-los, quando disponível no mecanismo.\n\n### Posição importa: início, fim e palavra\n\nEm muitas sintaxes, `^` marca o início da entrada e `$` o fim; com modo multilinha, podem indicar início e fim de cada linha. Alguns mecanismos distinguem o fim absoluto por outro marcador ou permitem que `$` também corresponda antes de uma quebra final. Por isso, leia a documentação do motor e da flag antes de tratar a âncora como universal. Uma busca por `^[0-9]+$` costuma exigir que a linha inteira contenha apenas algarismos, enquanto `[0-9]+` pode encontrar apenas uma parte dentro de `ref. 52-A`.\n\nO limite `\\b` testa uma transição entre caractere de palavra e não palavra segundo a definição do motor; não representa um espaço literal e pode comportar-se de forma surpreendente com acentos e Unicode. Para procurar a palavra `rio` sem capturá-la dentro de `prioridade`, uma fronteira pode ajudar, mas testar nomes com acentos exige conhecer a modalidade Unicode da implementação.\n\n### Capturar, agrupar e referenciar\n\nEm `([0-9]{2})/([0-9]{2})/([0-9]{4})`, os parênteses agrupam e capturam dia, mês e ano separadamente. Uma forma nomeada, como `(?<ano>[0-9]{4})` em JavaScript moderno, permite referenciar a captura pelo nome na API. `(?:...)` agrupa sem criar captura numerada. Backreferences como `\\1` em alguns mecanismos exigem que o mesmo texto capturado apareça novamente; por exemplo, `([A-Z]).*?\\1` tenta parear aspas iguais em sintaxes compatíveis. A disponibilidade e a escrita exata variam entre motores.\n\n### Ganância, preguiça e limites de custo\n\n`<.*>` aplicado a `<b>um</b><i>dois</i>` pode engolir desde o primeiro `<` até o último `>`, porque `.*` é normalmente guloso. `<.*?>` pede a menor extensão possível em motores que aceitam o quantificador preguiçoso e tende a parar no primeiro `>`. Essa diferença altera o trecho capturado, mas não transforma o padrão em um analisador de HTML. Padrões ambíguos com repetições aninhadas podem tentar muitas combinações e ficar lentos em certos mecanismos; prefira padrões delimitados e limites de tamanho em entradas não confiáveis.\n\n### Como cai na prova\n\n- Uma âncora restringe posição; não consome o caractere seguinte como uma classe.\n- Parênteses capturantes e não capturantes agrupam, mas só os primeiros guardam o trecho.\n- Quantificador preguiçoso reduz a extensão conforme a correspondência, não significa que o mecanismo seja sempre mais rápido.\n- Um padrão de formato pode aceitar datas impossíveis; a validação semântica requer etapa adicional."
+    },
+    {
+      "title": "3. Busca, extração, substituição e divisão",
+      "markdown": "### O problema que este assunto resolve\n\nO padrão só descreve o que procurar. A função usada pela linguagem define **como** procurar: uma ocorrência, todas, correspondência desde uma posição ou igualdade da entrada inteira. Também define o formato das capturas e da substituição.\n\n> **Siglas e termos deste capítulo**\n> - **Busca**: procura uma ocorrência que satisfaça o padrão, possivelmente no meio do texto.\n> - **Correspondência integral (full match)**: exige que a entrada completa satisfaça o padrão.\n> - **Substituição**: troca correspondências por texto fixo ou resultado de uma função.\n> - **Divisão (split)**: separa uma cadeia nos pontos em que um separador ou padrão corresponde.\n> - **Flag global**: em algumas APIs, solicita várias ocorrências; seu estado e comportamento dependem da API.\n\n### Operações comuns com texto\n\nPara localizar ocorrências, a API pode devolver só a primeira correspondência ou iterar sobre todas. Uma busca parcial por `[0-9]+` encontra dígitos em `OS-2048-A`; uma validação integral do mesmo padrão rejeita esse identificador porque há outros caracteres. Em Python, `re.search` procura em qualquer posição, `re.match` começa no início e `re.fullmatch` exige a cadeia inteira. Em JavaScript, `RegExp.prototype.test` testa se existe correspondência e `String.prototype.match` retorna dados de correspondência segundo as flags; para validar o texto completo, normalmente se usam âncoras cuidadosamente escolhidas. Não transfira o nome nem a semântica de uma API para outra linguagem.\n\nGrupos permitem extrair campos sem recortar índices manualmente. Um padrão de log como `^(?<nivel>INFO|ERRO) (?<id>[0-9]+): (?<msg>.*)$` pode separar nível, identificador e mensagem em uma linha, se o mecanismo aceitar grupos nomeados. A expressão só delimita campos conforme o formato assumido; mensagens com quebras de linha podem exigir tratamento adicional.\n\n### Substituição e divisão\n\nA substituição pode normalizar sequências de espaços, remover sinais escolhidos ou rearranjar capturas. Por exemplo, uma busca por ` +` pode ser substituída por um espaço para reduzir espaços ASCII repetidos; isso não inclui automaticamente tabulações nem todas as separações Unicode. Referências a grupos no texto de substituição têm sintaxe própria da linguagem: uma barra invertida pode indicar grupo em uma API e cifrão em outra. Para inserir texto fornecido pelo usuário como conteúdo literal, evite tratá-lo como código de substituição.\n\nDividir por `\\s+` separa em espaços em branco reconhecidos pelo motor; dividir por `,` separa em vírgulas simples. Em dados CSV reais, uma vírgula dentro de campo entre aspas não pode ser tratada como delimitador simples. Há ainda APIs em que capturas incluídas no padrão de divisão aparecem no resultado, enquanto outras omitem; confirme a documentação.\n\n### A barra invertida dentro de strings\n\nQuando o padrão é escrito dentro de uma string de programação, há duas camadas: a linguagem de strings e a linguagem de regex. Python usa strings cruas (`r\\d+`) para reduzir escapes duplicados; numa string comum, a barra precisa ser representada para chegar ao mecanismo. JavaScript aceita literal `/\\d+/` ou o construtor RegExp, que exige escape adicional na string. A forma literal e a forma de string não são intercambiáveis sem considerar o escape.\n\n### Como cai na prova\n\n- Busca parcial pode encontrar um trecho em entrada maior; validação integral tem outro requisito.\n- Substituição usa capturas e regras da API, não necessariamente a mesma sintaxe do padrão.\n- Delimitadores complexos como CSV pedem um analisador apropriado, não uma divisão ingênua por vírgula.\n- Escape da linguagem hospedeira e escape da regex são camadas distintas."
+    },
+    {
+      "title": "4. Unicode, portabilidade e uso seguro",
+      "markdown": "### O problema que este assunto resolve\n\nTexto moderno inclui acentos, alfabetos diversos, emojis e sequências compostas. Um caractere percebido pelo leitor pode corresponder a mais de um ponto de código Unicode; mecanismos também diferem na interpretação de classes, fronteiras, normalização e flags. Uma regex portátil precisa declarar suas suposições.\n\n> **Siglas e termos deste capítulo**\n> - **Unicode**: padrão que atribui códigos a caracteres usados em diferentes sistemas de escrita.\n> - **Ponto de código**: valor numérico Unicode; não é sempre igual a um caractere visual.\n> - **Normalização**: transformação que pode representar texto equivalente em sequências de pontos de código diferentes.\n> - **Flag**: opção que altera a interpretação ou a busca, como ignorar caixa ou modo multilinha.\n> - **ReDoS**: negação de serviço por avaliação excessivamente custosa de regex, em especial por retrocesso patológico.\n\n### Não presuma equivalência entre motores\n\nA notação mais comum (`[]`, `*`, `+`, grupos) é amplamente reconhecida, mas funcionalidades como grupos nomeados, lookbehind, propriedades Unicode, flags e referências variam. Em JavaScript, `i` ignora diferenças de caixa, `m` altera `^` e `$` para linhas, `s` inclui terminadores de linha no ponto e `u` habilita interpretação Unicode; há ainda diferenças de versão e suporte. Python expõe opções próprias, como `re.I`, `re.M`, `re.S` e o comportamento Unicode de strings. Uma expressão válida em um motor pode falhar ou significar outra coisa em outro.\n\n`[A-Z]` é uma faixa de letras latinas ASCII maiúsculas em muitas sintaxes, não uma classe universal de letras maiúsculas. `\\w` também pode ser ASCII ou incluir caracteres Unicode, conforme motor e configuração. Para alfabetos variados, procure suporte documentado a propriedades como `\\p{L}` e defina normalização e caixa de modo consistente. Uma letra acentuada pré-composta e a sequência letra mais acento combinante podem parecer iguais e não ser idênticas sem normalização apropriada.\n\n### Segurança e limites de validação\n\nNão aceite uma regex complexa de usuário sem avaliar custo e limites. Padrões como `(a+)+$` podem levar certos motores com retrocesso a explorar muitas combinações quando recebem longas sequências de `a` seguidas de caractere incompatível. Limite tamanho de entrada, evite repetições aninhadas ambíguas, escolha mecanismos com garantias adequadas ao cenário e aplique timeout quando disponível. O risco depende do motor, do padrão e da entrada; não é uma propriedade inevitável de toda expressão regular.\n\nUse regex para padrões locais e delimitados; use parser ou validador especializado quando a estrutura for aninhada ou tiver regras semânticas. Uma correspondência de e-mail em formato plausível não prova que a caixa postal exista; um padrão de data não prova que o dia exista naquele mês. Separe reconhecimento lexical, validação de domínio e confirmação externa.\n\n### Como cai na prova\n\n- Regex não normaliza Unicode automaticamente nem torna idênticas todas as formas visualmente iguais.\n- Flags e classes dependem do mecanismo; consulte a referência da linguagem usada no enunciado.\n- Evite afirmar que `\\w` significa sempre `[A-Za-z0-9_]` ou sempre todas as letras Unicode.\n- A regex pode reconhecer uma estrutura simples; parsers são mais adequados a estruturas recursivas e formatos completos."
+    }
+  ],
+  "summary": "Expressões regulares descrevem padrões para localizar, validar parcialmente, extrair, substituir e dividir texto. Literais e classes escolhem caracteres; quantificadores indicam repetição; alternância oferece escolhas; âncoras e limites restringem posições; grupos agrupam ou capturam partes. Busca parcial não equivale a correspondência integral. APIs e sintaxes variam entre Python, JavaScript e outros mecanismos, inclusive no uso de flags, escapes, Unicode e substituições. O padrão reconhece forma, mas não garante validade semântica; estruturas aninhadas pedem parsers e entradas não confiáveis exigem atenção ao custo de avaliação.",
+  "flashcards": [
+    { "front": "O que uma expressão regular descreve?", "back": "Um padrão de caracteres e posições que um mecanismo usa para reconhecer trechos de uma cadeia; ela não compreende por si só o significado de negócio." },
+    { "front": "O que significa o ponto em uma regex?", "back": "Em geral, corresponde a um caractere qualquer, com exceções como terminadores de linha que variam conforme a flag e o motor." },
+    { "front": "Como representar um ponto literal?", "back": "Escapando-o como `\\.` nas sintaxes usuais, pois o ponto sem escape costuma ser metacaractere." },
+    { "front": "O que `[0-9]` corresponde?", "back": "Um caractere da faixa de algarismos ASCII de zero a nove, em sintaxes usuais; não corresponde automaticamente a vários algarismos." },
+    { "front": "Qual a diferença entre `*` e `+`?", "back": "`*` permite zero ou mais repetições do elemento anterior; `+` exige uma ou mais." },
+    { "front": "O que `{2,4}` quantifica?", "back": "De duas a quatro repetições do átomo ou grupo imediatamente anterior, conforme a sintaxe do motor." },
+    { "front": "Para que servem parênteses em regex?", "back": "Agrupam partes para aplicar operadores ao conjunto; parênteses comuns também capturam o trecho em muitas sintaxes." },
+    { "front": "O que faz `(?:...)`?", "back": "Agrupa a subexpressão sem criar uma captura numerada em mecanismos que suportam essa forma." },
+    { "front": "Qual o papel de `|`?", "back": "Representa alternância: o padrão pode corresponder à alternativa à esquerda ou à direita." },
+    { "front": "Âncoras como `^` e `$` consomem caracteres?", "back": "Não; testam posição de início ou fim, com detalhes que podem mudar por flag e mecanismo." },
+    { "front": "O que `\\b` testa normalmente?", "back": "Uma fronteira entre caracteres de palavra e não palavra segundo a definição do mecanismo; não representa um espaço literal." },
+    { "front": "O que é quantificador guloso?", "back": "É a forma usual de quantificador que tenta consumir o máximo possível sem impedir a correspondência restante." },
+    { "front": "O que muda com um quantificador preguiçoso?", "back": "Ele tenta a menor extensão que permita a correspondência, quando o motor oferece essa sintaxe." },
+    { "front": "Busca parcial e correspondência integral são iguais?", "back": "Não. Busca encontra padrão em alguma posição; correspondência integral exige que toda a entrada satisfaça o padrão." },
+    { "front": "Para que servem grupos de captura?", "back": "Guardam trechos correspondidos para extração, referência posterior ou rearranjo em substituições, conforme a API." },
+    { "front": "O escape da regex e o escape da string são a mesma camada?", "back": "Não. A string da linguagem hospedeira é interpretada primeiro; o padrão recebido ainda é interpretado como regex." },
+    { "front": "Uma regex de data valida que a data existe?", "back": "Não necessariamente. Ela pode validar o formato; regras de calendário precisam de validação semântica adicional." },
+    { "front": "`\\d` tem definição universal entre linguagens?", "back": "Não. O alcance pode depender do mecanismo, da modalidade Unicode e das flags." },
+    { "front": "O que a flag multilinha costuma alterar?", "back": "Em mecanismos comuns, faz `^` e `$` considerarem inícios e fins de linha além dos limites da entrada." },
+    { "front": "Por que uma divisão por vírgula falha para CSV?", "back": "Porque um campo CSV pode conter vírgula entre aspas; a divisão literal não interpreta aspas nem regras de escape do formato." }
+  ],
+  "tips": [
+    "Leia cada metacaractere e verifique se está dentro ou fora de uma classe entre colchetes.",
+    "Ao ver um quantificador, pergunte qual átomo ou grupo imediatamente anterior ele repete.",
+    "Identifique se a operação procura em qualquer trecho ou exige correspondência integral.",
+    "Em padrões com parênteses, diferencie captura comum de grupo não capturante.",
+    "Confira a linguagem e as flags antes de assumir o significado de `\\w`, `\\b` ou `.`.",
+    "Separe validação de formato de validação semântica e de confirmação externa."
+  ],
+  "traps": [
+    "Tratar o ponto sem escape como ponto literal: em geral ele é um curinga.",
+    "Achar que `[abc]` corresponde à sequência `abc`; a classe consome um caractere por vez.",
+    "Supor que `^padrão$` tem idêntico comportamento em todos os motores e modos multilinha.",
+    "Confundir quantificador preguiçoso com garantia de desempenho; ele só muda a preferência de extensão.",
+    "Supor que padrão de formato confirma validade de calendário, existência de e-mail ou semântica do dado.",
+    "Dividir conteúdo estruturado por separador simples sem considerar aspas, escapes ou campos aninhados."
+  ],
+  "activeRecall": [
+    { "question": "Como você distinguiria busca parcial de validação da cadeia inteira?", "answer": "Busca parcial procura uma ocorrência em qualquer posição; validação integral exige que todos os caracteres da entrada sejam abrangidos, usando a operação integral ou limites apropriados ao motor." },
+    { "question": "Por que agrupar `ab` antes de aplicar `+`?", "answer": "Sem grupo, `ab+` repete apenas `b`; `(ab)+` repete a sequência inteira formada por `a` e `b`." },
+    { "question": "Como capturas ajudam a extrair uma data textual?", "answer": "Grupos em torno de dia, mês e ano separam os componentes para que a API os devolva individualmente; a existência da data ainda requer validação adicional." },
+    { "question": "Por que uma regex pode não reconhecer letras acentuadas como esperado?", "answer": "Faixas ASCII e atalhos de palavra podem ter alcance limitado; o motor, o modo Unicode, propriedades usadas e normalização influenciam o reconhecimento." },
+    { "question": "Quando um parser é melhor que uma regex?", "answer": "Quando o formato tem estrutura aninhada, regras gramaticais amplas ou semântica que não cabe em um padrão local simples; o parser entende a estrutura segundo uma gramática." },
+    { "question": "Como reduzir o risco de avaliação excessivamente custosa?", "answer": "Limitar entradas, evitar repetições aninhadas ambíguas, selecionar mecanismo com garantias adequadas e usar timeout quando disponível." },
+    { "question": "O que muda entre um grupo capturante e `(?:...)`?", "answer": "Ambos agrupam, mas o grupo capturante guarda o trecho para recuperação; o não capturante evita criar essa captura." },
+    { "question": "Por que o escape pode duplicar em código?", "answer": "A linguagem de strings processa barras invertidas antes de entregar o texto à regex; uma forma crua ou literal pode reduzir essa camada de escape." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Busca parcial confundida com validação integral", "summary": "Uma busca pode achar uma ocorrência dentro de texto maior. Para validar campo completo, a operação ou os limites precisam abranger toda a entrada, respeitando o motor e suas regras de linha final." },
+    { "key": "e2", "title": "Quantificador aplicado ao elemento errado", "summary": "Um quantificador atua sobre o átomo ou grupo imediatamente anterior; `ab+` repete b, enquanto `(ab)+` repete o par. Classes também consomem um caractere por repetição." },
+    { "key": "e3", "title": "Regex tratada como validador semântico", "summary": "Reconhecer a forma de uma data, endereço ou identificador não garante que seu conteúdo seja possível ou verdadeiro; regras semânticas e verificações externas são outra etapa." },
+    { "key": "e4", "title": "Sintaxe presumida portátil", "summary": "Grupos nomeados, escapes, classes Unicode, flags, limites e substituições variam entre motores. Confirme a documentação da implementação e não transporte regras sem verificar." },
+    { "key": "e5", "title": "Unicode reduzido a ASCII", "summary": "Faixas como `[A-Z]` cobrem letras ASCII, e atalhos como `\\w` dependem do motor. Caracteres visualmente iguais podem ter representações Unicode distintas sem normalização." },
+    { "key": "e6", "title": "Padrão ambíguo sem limite de custo", "summary": "Repetições aninhadas podem provocar retrocesso custoso em mecanismos vulneráveis. Limites de entrada, padrões menos ambíguos e controles do motor reduzem o risco." }
+  ],
+  "questions": [
+    {
+      "statement": "Em uma expressão regular comum, `.` representa qualquer caractere, inclusive necessariamente toda quebra de linha, mesmo sem flag especial.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "O ponto costuma corresponder a qualquer caractere exceto terminadores de linha, salvo quando o modo ou a flag do mecanismo permite incluí-los. O alcance exato deve ser conferido na implementação usada.",
+      "section": "1. Como um padrão descreve texto", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na classe `[0-9]`, a faixa representa um algarismo por ocorrência; para exigir quatro algarismos consecutivos, pode-se quantificá-la com `{4}.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "A classe seleciona um único caractere da faixa. O quantificador `{4}` aplicado à classe exige quatro repetições consecutivas, embora isso apenas reconheça a forma e não o significado dos dígitos.",
+      "section": "1. Como um padrão descreve texto", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O padrão `ab+` repete a sequência completa `ab` uma ou mais vezes, pois o quantificador se aplica ao trecho literal mais próximo.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "O `+` incide apenas sobre o átomo imediatamente anterior, que é `b`; portanto, `ab+` aceita `ab`, `abb` e similares. Para repetir a sequência inteira, é preciso agrupá-la como `(ab)+`.",
+      "section": "1. Como um padrão descreve texto", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Parênteses comuns agrupam uma subexpressão e, nas sintaxes usuais, também tornam o trecho correspondente disponível como captura.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "O grupo capturante serve tanto para aplicar operadores ao conjunto quanto para recuperar o trecho identificado. A forma de acessar a captura depende da API e da linguagem usada.",
+      "section": "2. Limites, grupos e quantificadores na prática", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma busca por `[0-9]+` pode encontrar os dígitos de `OS-2048-A`, mesmo que a cadeia inteira não seja composta somente por algarismos.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "A operação de busca parcial procura uma ocorrência em qualquer posição e pode retornar `2048`. Uma validação integral do campo exige que todos os caracteres da entrada satisfaçam a regra.",
+      "section": "3. Busca, extração, substituição e divisão", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A sintaxe `(?:...)` é usada em mecanismos compatíveis para agrupar uma subexpressão sem criar uma captura numerada.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "O grupo não capturante mantém a utilidade de agrupamento para alternância ou quantificação, evitando armazenar aquela correspondência como captura numerada. A disponibilidade deve ser verificada no mecanismo.",
+      "section": "2. Limites, grupos e quantificadores na prática", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A âncora `^` corresponde a um caractere que aparece antes do primeiro caractere da cadeia e, portanto, é consumida pela correspondência.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Uma âncora é uma asserção de posição, não um caractere consumido. `^` verifica início da entrada ou, em modo multilinha, início de linha conforme as regras do mecanismo.",
+      "section": "2. Limites, grupos e quantificadores na prática", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em muitas sintaxes, a barra vertical em `gato|cão` expressa alternância entre duas sequências possíveis.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "A alternância oferece uma escolha entre o padrão à esquerda e o padrão à direita. Parênteses podem delimitar o alcance da escolha quando outros elementos devem ser compartilhados.",
+      "section": "1. Como um padrão descreve texto", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A utilização de `\\d{4}` assegura que os quatro dígitos encontrados formem um ano válido no calendário gregoriano.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "O padrão reconhece quatro caracteres considerados dígitos pelo mecanismo, mas não restringe valores a anos possíveis nem interpreta seu contexto. Validade semântica exige regra adicional.",
+      "section": "1. Como um padrão descreve texto", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A divisão de uma cadeia por vírgula literal interpreta automaticamente aspas e preserva como campo único uma vírgula que esteja entre aspas em CSV.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Separar por vírgula simples não processa a gramática de CSV. Campos entre aspas podem conter vírgulas e regras de escape; deve-se usar um leitor compatível com o formato.",
+      "section": "3. Busca, extração, substituição e divisão", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No uso comum, o quantificador preguiçoso tenta uma correspondência mais curta que ainda permita satisfazer o restante do padrão.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "O modificador preguiçoso altera a preferência de extensão, por exemplo em `.*?`, que tenta consumir o mínimo necessário. Isso não assegura menor custo nem substitui uma análise estrutural adequada.",
+      "section": "2. Limites, grupos e quantificadores na prática", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A classe `[A-Z]` cobre necessariamente todas as letras maiúsculas de qualquer alfabeto Unicode, inclusive letras acentuadas.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Essa faixa costuma descrever letras latinas ASCII maiúsculas, não todas as letras Unicode. Propriedades Unicode, normalização e opções do motor precisam ser consideradas para outros alfabetos.",
+      "section": "4. Unicode, portabilidade e uso seguro", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma regex que reconhece uma sequência visualmente válida pode deixar de encontrar um texto acentuado se os pontos de código estiverem em forma decomposta.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Um caractere acentuado pode ser representado por ponto pré-composto ou por letra seguida de marca combinante. Sem padrão apropriado ou normalização consistente, sequências visualmente iguais podem diferir.",
+      "section": "4. Unicode, portabilidade e uso seguro", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Padrões com repetições aninhadas ambíguas podem causar avaliação muito custosa em mecanismos que fazem retrocesso sobre as tentativas.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Alguns motores exploram muitas combinações quando um padrão ambíguo falha perto do fim da entrada, criando risco de ReDoS. O efeito depende do padrão, do motor e do tamanho do dado.",
+      "section": "4. Unicode, portabilidade e uso seguro", "errorConceptKey": "e6", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao construir regex em uma string de programação, a linguagem hospedeira pode interpretar barras invertidas antes que o mecanismo receba o padrão.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Há duas camadas de interpretação: primeiro os escapes da string e depois os metacaracteres da regex. Strings cruas ou literais específicos da linguagem podem reduzir a duplicação de barras.",
+      "section": "3. Busca, extração, substituição e divisão", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer procurar o caractere ponto final literal em nomes como `relatorio.v2`. Qual padrão representa o ponto sem tratá-lo como curinga?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Usar `\\.` para escapar o metacaractere e procurar um ponto literal.", "correct": true },
+        { "key": "B", "text": "Usar `.` sem escape, pois o ponto sempre procura sua própria forma escrita.", "correct": false },
+        { "key": "C", "text": "Usar `[.]` apenas em motores que desligam a busca global.", "correct": false },
+        { "key": "D", "text": "Usar `\\d`, que corresponde a pontuação em nomes de arquivo.", "correct": false },
+        { "key": "E", "text": "Usar `^`, que procura o ponto no fim de cada nome.", "correct": false }
+      ],
+      "explanation": "O ponto sem escape costuma ser metacaractere para um caractere qualquer. A barra invertida o faz representar a pontuação literal; em uma string de código, ainda pode haver escape adicional da linguagem hospedeira.",
+      "section": "1. Como um padrão descreve texto", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um campo deve conter exatamente cinco algarismos ASCII e nada mais. Qual opção expressa esse requisito em uma sintaxe usual de regex?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Encontrar `[0-9]{5}` em qualquer parte do campo.", "correct": false },
+        { "key": "B", "text": "Exigir início, cinco ocorrências de `[0-9]` e fim da entrada.", "correct": true },
+        { "key": "C", "text": "Usar `[0-9]+` sem limites, pois mais dígitos serão ignorados.", "correct": false },
+        { "key": "D", "text": "Usar `\\d?` cinco vezes, pois `?` exige um dígito.", "correct": false },
+        { "key": "E", "text": "Usar `[0-9]{1,5}` para impedir qualquer caractere extra.", "correct": false }
+      ],
+      "explanation": "A classe `[0-9]` seleciona algarismos ASCII e `{5}` exige cinco repetições. Limites de entrada ou uma operação de correspondência integral impedem que caracteres adicionais fiquem fora do trecho reconhecido.",
+      "section": "2. Limites, grupos e quantificadores na prática", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Para aceitar `cor` e `cores`, pretende-se tornar opcional somente o `es` final. Qual padrão agrupa corretamente essa parte opcional?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`core?s`, pois o ponto de interrogação torna opcional toda a palavra.", "correct": false },
+        { "key": "B", "text": "`cor+es`, pois o sinal de mais indica que es pode faltar.", "correct": false },
+        { "key": "C", "text": "`cor(es)?`, pois o grupo inteiro fica opcional.", "correct": true },
+        { "key": "D", "text": "`cor[es]`, pois a classe representa a sequência es opcional.", "correct": false },
+        { "key": "E", "text": "`(cor)?es`, pois a expressão aceita cor e cores igualmente.", "correct": false }
+      ],
+      "explanation": "O quantificador `?` afeta apenas o átomo imediatamente anterior. Ao agrupar `es`, a forma `cor(es)?` permite que ambos os caracteres finais apareçam ou não, mantendo `cor` obrigatório.",
+      "section": "1. Como um padrão descreve texto", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um mecanismo compatível deve capturar separadamente o código de área e o restante de um telefone no formato `(31) 3333-4444`. Qual construção atende ao pedido?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Usar um grupo capturante ao redor de cada componente que será recuperado.", "correct": false },
+        { "key": "B", "text": "Colocar os componentes em uma única classe de caracteres entre colchetes.", "correct": false },
+        { "key": "C", "text": "Usar `^` e `$` ao redor do padrão para armazenar as duas partes.", "correct": false },
+        { "key": "D", "text": "Usar dois grupos capturantes, um por componente numérico.", "correct": true },
+        { "key": "E", "text": "Aplicar `*` ao hífen para criar duas capturas nomeadas.", "correct": false }
+      ],
+      "explanation": "Parênteses capturantes podem guardar os trechos numéricos de interesse em grupos separados. Limites podem validar posição e classes descrevem caracteres, mas nenhum deles cria capturas de campos por si só.",
+      "section": "2. Limites, grupos e quantificadores na prática", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um script Python deve procurar a primeira ocorrência de uma sequência de dígitos em qualquer posição da frase `pedido 73 recebido`. Qual operação é apropriada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`re.search`, que procura uma correspondência dentro da entrada.", "correct": true },
+        { "key": "B", "text": "`re.fullmatch`, que procura em qualquer posição e ignora o restante.", "correct": false },
+        { "key": "C", "text": "`re.escape`, que localiza grupos numéricos no texto recebido.", "correct": false },
+        { "key": "D", "text": "`re.sub`, que sempre retorna a primeira captura sem substituir.", "correct": false },
+        { "key": "E", "text": "`re.split`, que devolve apenas a posição da primeira ocorrência.", "correct": false }
+      ],
+      "explanation": "Em Python, `re.search` examina a cadeia e retorna a primeira ocorrência adequada. `fullmatch` exige que a cadeia inteira corresponda, enquanto `sub` substitui e `split` separa o texto.",
+      "section": "3. Busca, extração, substituição e divisão", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um padrão que já reconhece o elemento repetido, qual quantificador exige ao menos uma ocorrência e permite várias?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`?`, porque exige ao menos uma repetição e permite muitas.", "correct": false },
+        { "key": "B", "text": "`*`, porque exige uma ocorrência antes de permitir novas.", "correct": false },
+        { "key": "C", "text": "`{0}`, porque aceita uma ocorrência ou várias do elemento.", "correct": false },
+        { "key": "D", "text": "`+`, porque pede uma ocorrência ou mais do elemento anterior.", "correct": true },
+        { "key": "E", "text": "`{0,1}`, porque permite repetir o elemento sem limite superior.", "correct": false }
+      ],
+      "explanation": "O quantificador `+` significa uma ou mais repetições do átomo anterior. `*` permite zero ou mais e `?` permite zero ou uma; limites numéricos também podem especificar faixas.",
+      "section": "1. Como um padrão descreve texto", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um cadastro admite exatamente `ativo` ou `inativo`, e nenhuma outra palavra. Qual princípio completa a expressão para validar o campo inteiro?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Usar alternância e também limitar a correspondência aos extremos do campo.", "correct": true },
+        { "key": "B", "text": "Usar somente `ativo|inativo` em busca parcial, aceitando ocorrências dentro de texto maior.", "correct": false },
+        { "key": "C", "text": "Usar a classe `[ativo,inativo]` para representar as duas palavras.", "correct": false },
+        { "key": "D", "text": "Usar `ativo+inativo`, que significa escolher uma das palavras completas.", "correct": false },
+        { "key": "E", "text": "Usar um ponto curinga no início e no fim para rejeitar texto extra.", "correct": false }
+      ],
+      "explanation": "A alternância representa as duas palavras, mas uma busca parcial poderia encontrá-las dentro de texto maior. Para validar o campo, deve-se exigir correspondência integral ou limites adequados à semântica do motor.",
+      "section": "2. Limites, grupos e quantificadores na prática", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em JavaScript, qual flag tradicionalmente faz `^` e `$` também operarem nos inícios e fins de linhas dentro da cadeia?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A flag `g`, que muda as âncoras para cada linha encontrada.", "correct": false },
+        { "key": "B", "text": "A flag `m`, que ativa o modo multilinha para as âncoras.", "correct": true },
+        { "key": "C", "text": "A flag `i`, que ignora quebras de linha e muda os limites.", "correct": false },
+        { "key": "D", "text": "A flag `s`, que faz as âncoras corresponderem a espaços em branco.", "correct": false },
+        { "key": "E", "text": "A flag `y`, que força o começo da regex no início de cada linha.", "correct": false }
+      ],
+      "explanation": "Na sintaxe de JavaScript, `m` é o modo multilinha que altera a interpretação de `^` e `$` para limites de linha. `g` controla busca global; as demais flags têm funções diferentes.",
+      "section": "4. Unicode, portabilidade e uso seguro", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o efeito de trocar um grupo comum por `(?:...)` em uma sintaxe que oferece grupos não capturantes?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O trecho passa a ser consumido sem poder ser recuperado como captura numerada.", "correct": true },
+        { "key": "B", "text": "A subexpressão deixa de participar da correspondência do padrão.", "correct": false },
+        { "key": "C", "text": "O mecanismo transforma o grupo em uma classe de caracteres Unicode.", "correct": false },
+        { "key": "D", "text": "O grupo se torna obrigatório mesmo se tiver quantificador opcional.", "correct": false },
+        { "key": "E", "text": "A expressão passa a procurar o mesmo conteúdo em qualquer linha.", "correct": false }
+      ],
+      "explanation": "O grupo não capturante ainda agrupa e participa normalmente do reconhecimento; ele apenas não armazena a captura numerada. A disponibilidade e a interação com grupos nomeados dependem do motor.",
+      "section": "2. Limites, grupos e quantificadores na prática", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe reduz espaços ASCII repetidos usando busca por ` +` e substituição por um único espaço. O que essa transformação garante?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Que toda categoria Unicode de espaço será reduzida sem configuração.", "correct": false },
+        { "key": "B", "text": "Que caracteres de tabulação serão removidos junto com os espaços.", "correct": false },
+        { "key": "C", "text": "Que sequências de um ou mais espaços literais serão trocadas por um espaço.", "correct": true },
+        { "key": "D", "text": "Que espaços iniciais e finais também serão removidos automaticamente.", "correct": false },
+        { "key": "E", "text": "Que a frase inteira será convertida para minúsculas e normalizada.", "correct": false }
+      ],
+      "explanation": "O padrão contém um espaço literal seguido de `+`, então seleciona uma ou mais ocorrências desse espaço específico. Tabs, remoção nas extremidades e conversão de caixa exigem regras ou operações adicionais.",
+      "section": "3. Busca, extração, substituição e divisão", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual expressão descreve um caractere que não seja algarismo entre zero e nove, em uma sintaxe usual de classes?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`[0-9]`, pois a faixa exclui os algarismos que enumera.", "correct": false },
+        { "key": "B", "text": "`[^0-9]`, pois o acento circunflexo nega a classe no início dela.", "correct": true },
+        { "key": "C", "text": "`(0-9)`, pois parênteses negam os caracteres internos.", "correct": false },
+        { "key": "D", "text": "`\\d`, pois a letra minúscula d significa qualquer não dígito.", "correct": false },
+        { "key": "E", "text": "`{0-9}`, pois chaves definem uma classe complementar.", "correct": false }
+      ],
+      "explanation": "Em uma classe de caracteres, `^` no início normalmente nega o conjunto. `[0-9]` corresponde a algarismo; a forma negada descreve um caractere fora dessa faixa.",
+      "section": "1. Como um padrão descreve texto", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um parser CSV é recomendado em vez de dividir toda linha por vírgulas. Qual propriedade do formato explica melhor essa escolha?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "CSV exige que todos os campos tenham o mesmo número de caracteres.", "correct": false },
+        { "key": "B", "text": "CSV não permite vírgulas como delimitadores entre campos.", "correct": false },
+        { "key": "C", "text": "CSV armazena cada campo obrigatoriamente como uma expressão regular.", "correct": false },
+        { "key": "D", "text": "Campos podem conter delimitadores protegidos por aspas e regras de escape.", "correct": true },
+        { "key": "E", "text": "Uma divisão simples converte vírgulas em caracteres de quebra de linha.", "correct": false }
+      ],
+      "explanation": "Um campo entre aspas pode conter a própria vírgula delimitadora e aspas escapadas. Um parser aplica as regras do formato, enquanto uma divisão simples não distingue vírgulas de conteúdo das separadoras.",
+      "section": "3. Busca, extração, substituição e divisão", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa diferencia corretamente os métodos `search`, `match` e `fullmatch` do módulo `re` de Python?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "`search` procura em qualquer posição; `match` começa no início; `fullmatch` exige a cadeia inteira.", "correct": true },
+        { "key": "B", "text": "`search` exige a cadeia toda, `match` começa após o fim e `fullmatch` aceita um prefixo qualquer.", "correct": false },
+        { "key": "C", "text": "`search` substitui ocorrências; `match` divide; `fullmatch` retorna todas as capturas.", "correct": false },
+        { "key": "D", "text": "Os três métodos fazem busca parcial idêntica e diferem somente no tipo de resultado.", "correct": false },
+        { "key": "E", "text": "`match` sempre busca em qualquer ponto quando o padrão contém um grupo.", "correct": false }
+      ],
+      "explanation": "A documentação do Python distingue as posições de início da busca: `search` varre a entrada, `match` inicia na posição inicial e `fullmatch` aceita apenas se toda a cadeia corresponder.",
+      "section": "3. Busca, extração, substituição e divisão", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O padrão guloso `<.*>` é aplicado a `<b>um</b><i>dois</i>`. Qual comportamento é típico de um mecanismo com quantificador guloso?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Seleciona necessariamente apenas `<b>` porque ponto significa uma letra.", "correct": false },
+        { "key": "B", "text": "Falha sempre que há mais de um par de sinais angulares.", "correct": false },
+        { "key": "C", "text": "Captura desde o primeiro `<` até o primeiro `>` e encerra a busca.", "correct": false },
+        { "key": "D", "text": "Consome a maior extensão possível que ainda permita fechar a correspondência.", "correct": true },
+        { "key": "E", "text": "Ignora os sinais angulares porque eles são sempre âncoras.", "correct": false }
+      ],
+      "explanation": "`.*` costuma ser guloso e tentar consumir o máximo possível, retrocedendo apenas o necessário para completar o restante. Por isso pode alcançar o último `>`; isso não o torna um parser de HTML.",
+      "section": "2. Limites, grupos e quantificadores na prática", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual padrão procura um par simples de parênteses sem deixar o curinga atravessar outro par de delimitadores?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Usar `\\([^()]*\\)` para restringir o conteúdo aos caracteres internos permitidos.", "correct": true },
+        { "key": "B", "text": "Usar `.*` sem limites, pois o curinga sempre para no primeiro fechamento.", "correct": false },
+        { "key": "C", "text": "Usar somente `$`, que limita o conteúdo a um único parêntese.", "correct": false },
+        { "key": "D", "text": "Usar `\\d+`, que impede letras e parênteses de serem percorridos.", "correct": false },
+        { "key": "E", "text": "Usar `^`, que captura automaticamente ambos os delimitadores.", "correct": false }
+      ],
+      "explanation": "A classe negada pode restringir o conteúdo aos caracteres diferentes dos delimitadores e evitar a expansão sobre diversos pares simples. A técnica não reconhece estruturas arbitrariamente aninhadas, que pedem parser apropriado.",
+      "section": "2. Limites, grupos e quantificadores na prática", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um padrão reconhece a forma `2024-02-31` como quatro dígitos, hífen, dois dígitos, hífen e dois dígitos. Qual conclusão é válida?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O texto representa uma data existente porque os grupos têm tamanhos corretos.", "correct": false },
+        { "key": "B", "text": "O formato foi reconhecido, mas falta verificar se a data existe.", "correct": true },
+        { "key": "C", "text": "O reconhecimento converteu a cadeia em data tipada automaticamente.", "correct": false },
+        { "key": "D", "text": "O padrão comprovou a origem e a autenticidade da data recebida.", "correct": false },
+        { "key": "E", "text": "A expressão tornou o mês e o dia irrelevantes para o resultado.", "correct": false }
+      ],
+      "explanation": "Uma regex pode conferir o desenho lexical sem saber quantos dias há em fevereiro ou se o ano é bissexto. Para afirmar que a data existe, é necessário aplicar validação de calendário.",
+      "section": "4. Unicode, portabilidade e uso seguro", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em JavaScript, qual flag tradicionalmente faz `^` e `$` também se aplicarem aos limites de linhas dentro da cadeia?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A flag `g`, que faz as âncoras mudarem de linha em linha.", "correct": false },
+        { "key": "B", "text": "A flag `m`, que ativa o comportamento de âncoras multilinha.", "correct": true },
+        { "key": "C", "text": "A flag `i`, que transforma todas as letras em caixa baixa.", "correct": false },
+        { "key": "D", "text": "A flag `s`, que redefine o início e fim de cada linha.", "correct": false },
+        { "key": "E", "text": "A flag `y`, que força o início antes de cada quebra.", "correct": false }
+      ],
+      "explanation": "Na regex de JavaScript, `m` é o modo multilinha para âncoras de início e fim. A flag global controla busca repetida, enquanto ignorar caixa e incluir terminadores de linha são funções distintas.",
+      "section": "4. Unicode, portabilidade e uso seguro", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Por que a abreviação `\\w` não deve ser considerada definição universal de letras, números e sublinhado para qualquer mecanismo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Porque o conjunto correspondente pode depender do motor e do modo Unicode.", "correct": true },
+        { "key": "B", "text": "Porque `\\w` é sempre uma âncora que verifica o fim da palavra.", "correct": false },
+        { "key": "C", "text": "Porque `\\w` corresponde apenas a espaços em todas as linguagens.", "correct": false },
+        { "key": "D", "text": "Porque `\\w` sempre inclui qualquer símbolo e pontuação Unicode.", "correct": false },
+        { "key": "E", "text": "Porque a classe muda para `\\s` quando não há busca global.", "correct": false }
+      ],
+      "explanation": "A classe abreviada de palavra pode ter alcance ASCII em certo modo ou incluir mais caracteres com suporte Unicode. O motor e suas opções determinam a semântica que se deve assumir.",
+      "section": "4. Unicode, portabilidade e uso seguro", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, deseja-se trocar cada sequência de um ou mais algarismos por `<n>`. Qual operação corresponde a esse objetivo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Usar `re.sub` com o padrão numérico e o texto de substituição desejado.", "correct": true },
+        { "key": "B", "text": "Usar `re.search`, que modifica diretamente todos os trechos encontrados.", "correct": false },
+        { "key": "C", "text": "Usar `re.fullmatch`, que substitui cada ocorrência sem retornar resultado.", "correct": false },
+        { "key": "D", "text": "Usar `re.escape`, que remove sequências numéricas da cadeia de entrada.", "correct": false },
+        { "key": "E", "text": "Usar `re.split`, que sempre insere o texto escolhido no lugar do padrão.", "correct": false }
+      ],
+      "explanation": "`re.sub` executa substituições de correspondências pelo texto fornecido. A busca localiza, `fullmatch` verifica correspondência integral, `escape` trata texto literal e `split` divide a cadeia.",
+      "section": "3. Busca, extração, substituição e divisão", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em JavaScript, um padrão com `g` é reutilizado em chamadas sucessivas a `test`. Qual aspecto pode produzir resultados diferentes entre chamadas?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A flag global transforma todas as capturas em grupos nomeados.", "correct": false },
+        { "key": "B", "text": "A propriedade `lastIndex` pode manter estado de posição entre chamadas.", "correct": true },
+        { "key": "C", "text": "A regex deixa de reconhecer literais depois da primeira chamada.", "correct": false },
+        { "key": "D", "text": "O modo global converte automaticamente a expressão em multilinha.", "correct": false },
+        { "key": "E", "text": "A chamada seguinte passa a exigir correspondência integral do texto.", "correct": false }
+      ],
+      "explanation": "Em JavaScript, regex global e sticky podem atualizar `lastIndex`; esse estado influencia onde a próxima chamada começa. Código que reutiliza a instância deve compreender ou reinicializar essa posição quando necessário.",
+      "section": "3. Busca, extração, substituição e divisão", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma regex deve reconhecer letras de vários alfabetos, sem supor uma faixa ASCII. Qual recurso pode ser usado em mecanismos que oferecem propriedades Unicode?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Aplicar `[A-Z]`, pois essa faixa sempre inclui letras de qualquer escrita.", "correct": false },
+        { "key": "B", "text": "Aplicar `\\b`, que enumera diretamente todas as propriedades de letra.", "correct": false },
+        { "key": "C", "text": "Usar uma propriedade como `\\p{L}`, se o mecanismo a suportar.", "correct": true },
+        { "key": "D", "text": "Ativar a flag global `g`, que amplia a classe de caracteres.", "correct": false },
+        { "key": "E", "text": "Usar somente `[a-z]`, pois inclui qualquer letra Unicode em minúsculas.", "correct": false }
+      ],
+      "explanation": "Propriedades Unicode, quando implementadas e habilitadas, permitem selecionar categorias como letras de diferentes escritas. Faixas ASCII não abrangem todos os alfabetos; suporte e sintaxe variam entre engines.",
+      "section": "4. Unicode, portabilidade e uso seguro", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao escapar uma entrada fornecida pelo usuário antes de inseri-la como parte literal de um padrão, que risco se pretende reduzir?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Que caracteres fornecidos sejam interpretados como metacaracteres ativos da regex.", "correct": false },
+        { "key": "B", "text": "Que a entrada deixe de ser processada como texto Unicode.", "correct": false },
+        { "key": "C", "text": "Que quantificadores transformem automaticamente busca parcial em integral.", "correct": true },
+        { "key": "D", "text": "Que a operação de substituição remova espaços do texto original.", "correct": false },
+        { "key": "E", "text": "Que a API retorne capturas em uma ordem diferente da expressão.", "correct": false }
+      ],
+      "explanation": "Se dados externos forem incorporados ao padrão sem escape, caracteres como `.` ou `*` podem ganhar significado de regex em vez de serem literais. A função de escape da linguagem ajuda a neutralizar esse efeito.",
+      "section": "3. Busca, extração, substituição e divisão", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma linha contém `INFO 12: pronto`. Qual recurso permite recuperar separadamente o nível, o número e a mensagem?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Usar três âncoras, que armazenam automaticamente as partes da linha.", "correct": false },
+        { "key": "B", "text": "Criar grupos de captura delimitados pelo formato conhecido da linha.", "correct": true },
+        { "key": "C", "text": "Usar uma classe `[INFO12]` para obter três campos completos.", "correct": false },
+        { "key": "D", "text": "Aplicar a flag global, que transforma palavras em capturas nomeadas.", "correct": false },
+        { "key": "E", "text": "Usar somente `\\b`, que retorna o conteúdo entre limites de palavra.", "correct": false }
+      ],
+      "explanation": "Grupos capturantes ao redor de cada componente permitem recuperar os valores pela API. Âncoras e limites verificam posições, mas não armazenam campos automaticamente para extração.",
+      "section": "3. Busca, extração, substituição e divisão", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina quer remover hífens de uma sequência numérica, preservando os algarismos. Que operação seleciona diretamente o caractere que deve desaparecer?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Substituir toda sequência `[0-9]+` por uma cadeia vazia.", "correct": false },
+        { "key": "B", "text": "Separar o texto por qualquer caractere usando ponto curinga.", "correct": false },
+        { "key": "C", "text": "Substituir cada ocorrência de algarismo por um hífen.", "correct": false },
+        { "key": "D", "text": "Buscar o hífen literal e substituí-lo por texto vazio.", "correct": true },
+        { "key": "E", "text": "Usar `^` como substituto do hífen em posição intermediária.", "correct": false }
+      ],
+      "explanation": "A substituição deve selecionar o separador literal que se deseja remover. Se apenas hífens entre algarismos puderem ser eliminados, o padrão também deve restringir o contexto conforme os recursos do motor.",
+      "section": "3. Busca, extração, substituição e divisão", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um código tem duas letras maiúsculas ASCII, hífen e três algarismos ASCII, sem prefixo ou sufixo. O que falta além de descrever seus componentes?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Substituir as faixas por `\\w+`, que impõe a ordem e as quantidades fixas.", "correct": false },
+        { "key": "B", "text": "Usar somente `[A-Z0-9-]+`, que determina a sequência completa dos campos.", "correct": false },
+        { "key": "C", "text": "Exigir correspondência integral ou limites para rejeitar prefixo e sufixo.", "correct": true },
+        { "key": "D", "text": "Acrescentar `*` ao hífen para obrigar exatamente três dígitos depois dele.", "correct": false },
+        { "key": "E", "text": "Ativar busca global para que qualquer ocorrência seja um código isolado.", "correct": false }
+      ],
+      "explanation": "Faixas, hífen e quantidades descrevem o formato, mas uma busca parcial poderia aceitar esses caracteres dentro de texto maior. Correspondência integral ou limites apropriados verificam o campo completo.",
+      "section": "2. Limites, grupos e quantificadores na prática", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma busca deve aceitar `azul` ou `verde` como palavras completas, mas rejeitar `azulado` e `esverdeado`. Qual mecanismo pode impor essa condição?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Acrescentar `*` às palavras para proibir letras antes e depois.", "correct": false },
+        { "key": "B", "text": "Colocar os nomes em uma única classe de caracteres entre colchetes.", "correct": false },
+        { "key": "C", "text": "Usar um ponto literal após a alternância para exigir limite de palavra.", "correct": false },
+        { "key": "D", "text": "Agrupar a alternância e testar fronteiras de palavra nas duas extremidades.", "correct": true },
+        { "key": "E", "text": "Ativar a flag global, que restringe as ocorrências a palavras isoladas.", "correct": false }
+      ],
+      "explanation": "Uma fronteira pode testar a transição para fora de caracteres de palavra antes e depois da alternância agrupada. Essa abordagem depende da definição do motor, sobretudo para letras acentuadas e Unicode.",
+      "section": "2. Limites, grupos e quantificadores na prática", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma expressão precisa reconhecer letras de diferentes alfabetos, sem se limitar a faixas ASCII. Qual recurso pode ajudar em engines que o implementam?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Aplicar `[A-Z]`, pois essa faixa contém todas as letras maiúsculas Unicode.", "correct": false },
+        { "key": "B", "text": "Aplicar `\\b`, que enumera diretamente as propriedades de cada letra.", "correct": false },
+        { "key": "C", "text": "Usar propriedade Unicode como `\\p{L}`, se houver suporte no motor.", "correct": true },
+        { "key": "D", "text": "Ativar a flag global `g`, que amplia qualquer classe de caracteres.", "correct": false },
+        { "key": "E", "text": "Usar `[a-z]`, que abrange qualquer letra minúscula Unicode.", "correct": false }
+      ],
+      "explanation": "Uma propriedade Unicode como a categoria de letra pode selecionar caracteres de diversas escritas quando a engine oferece esse recurso. Faixas ASCII não cobrem alfabetos universais, e a sintaxe precisa ser confirmada.",
+      "section": "4. Unicode, portabilidade e uso seguro", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao escolher entre regex e parser para interpretar uma estrutura com elementos arbitrariamente aninhados, qual critério favorece um parser?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A entrada contém uma pontuação que também aparece em texto comum.", "correct": false },
+        { "key": "B", "text": "A rotina só precisa localizar uma sequência curta de algarismos.", "correct": false },
+        { "key": "C", "text": "O padrão precisa ignorar diferenças de caixa em palavras simples.", "correct": false },
+        { "key": "D", "text": "A gramática exige acompanhar aninhamento e relações estruturais recursivas.", "correct": true },
+        { "key": "E", "text": "A busca pode ser descrita por uma alternativa entre dois literais.", "correct": false }
+      ],
+      "explanation": "Um parser acompanha a estrutura conforme uma gramática e pode lidar com aninhamento recursivo. Regex continua útil para padrões locais, mas nem sempre é adequada para interpretar o formato completo.",
+      "section": "4. Unicode, portabilidade e uso seguro", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em JavaScript, qual diferença de escape existe entre a forma literal de regex e a forma criada pelo construtor `RegExp`?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O literal sempre procura barras invertidas, mas o construtor procura algarismos.", "correct": false },
+        { "key": "B", "text": "O construtor dispensa escapes porque recebe diretamente a sintaxe da regex.", "correct": false },
+        { "key": "C", "text": "O literal só funciona com busca global, enquanto o construtor não aceita flags.", "correct": false },
+        { "key": "D", "text": "Ambas as formas são sempre escritas com a mesma quantidade de barras.", "correct": false },
+        { "key": "E", "text": "A string do construtor exige escapar a barra para que a regex receba `\\d+`.", "correct": true }
+      ],
+      "explanation": "O literal de regex entrega o padrão diretamente à sintaxe regex, enquanto o construtor recebe primeiro uma string JavaScript. Por isso a barra invertida precisa ser escapada nessa string para chegar ao mecanismo.",
+      "section": "3. Busca, extração, substituição e divisão", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um padrão precisa confirmar que `kg` aparece depois de um número, mas sem incluir `kg` no texto capturado. Qual recurso pode atender a esse requisito em motores compatíveis?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Um quantificador `+` aplicado a `kg`, que consome o sufixo sem capturá-lo.", "correct": false },
+        { "key": "B", "text": "Uma classe `[kg]`, que verifica a sequência sem consumir caracteres.", "correct": false },
+        { "key": "C", "text": "Uma âncora `$`, que testa qualquer sufixo textual no meio da entrada.", "correct": false },
+        { "key": "D", "text": "Uma captura comum em torno de `kg`, que exclui o conteúdo do resultado.", "correct": false },
+        { "key": "E", "text": "Um lookahead positivo após a captura numérica, se o motor o suportar.", "correct": true }
+      ],
+      "explanation": "Um lookahead positivo verifica o padrão seguinte sem consumi-lo, permitindo exigir `kg` após o número sem incluí-lo na captura numérica. Lookaround não existe ou não tem a mesma sintaxe em todos os motores.",
+      "section": "2. Limites, grupos e quantificadores na prática", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "re — Regular expression operations",
+      "publisher": "Python Software Foundation",
+      "reference": "Sintaxe de padrões, classes, grupos, flags e APIs de busca, correspondência, substituição e divisão",
+      "url": "https://docs.python.org/3/library/re.html",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Regular expressions — JavaScript Guide",
+      "publisher": "MDN Web Docs",
+      "reference": "Padrões, grupos, classes, quantificadores, assertions, flags e uso das APIs JavaScript",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_expressions",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RegExp — JavaScript Reference",
+      "publisher": "MDN Web Docs",
+      "reference": "Construtor RegExp, flags, métodos e comportamento de estado das expressões JavaScript",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Unicode Technical Standard #18: Unicode Regular Expressions",
+      "publisher": "Unicode Consortium",
+      "reference": "Diretrizes para adaptar mecanismos de regex ao Unicode e discussão de propriedades e pontos de código",
+      "url": "https://www.unicode.org/reports/tr18/",
+      "accessedAt": "2026-11-01"
+    }
+  ]
+}

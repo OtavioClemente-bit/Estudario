@@ -1,0 +1,1843 @@
+{
+  "id": "informatica.configuracao-administracao-logs-servicos",
+  "subject": "Informática",
+  "title": "Configuração, administração e logs de serviços",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Configuração, administração e logs de serviços",
+    "Administração de serviços do sistema operacional",
+    "Gerenciamento de serviços Linux com systemd",
+    "Gerenciamento de serviços no Windows",
+    "Configuração de unidades de serviço systemd",
+    "Inicialização e parada de serviços Linux",
+    "Inicialização e parada de serviços Windows",
+    "Logs de serviços no journal do systemd",
+    "Logs de serviços no Visualizador de Eventos",
+    "Comandos systemctl e journalctl para serviços",
+    "Service Control Manager e serviços Windows",
+    "Configuração de inicialização automática de serviços"
+  ],
+  "scope": {
+    "covers": "Conceito e ciclo de vida de serviços em segundo plano; administração de unidades .service do systemd, seções [Unit], [Service] e [Install], diretivas de inicialização, dependências e comandos systemctl; consulta e retenção de logs com systemd-journald e journalctl; administração de serviços Windows pelo Service Control Manager, console Serviços e sc.exe; tipos de inicialização, estados, configuração, recuperação e consulta de eventos no Visualizador de Eventos.",
+    "excludes": "Criação de serviços em código, configuração detalhada de aplicações específicas, auditoria avançada, SIEM, rotação de logs de aplicações externas, administração de drivers, políticas corporativas de domínio e comandos específicos de distribuições que não usem systemd."
+  },
+  "theoryTitle": "Serviços: configuração, ciclo de vida e registros",
+  "chapters": [
+    {
+      "title": "1. O que é um serviço e como o sistema o controla",
+      "markdown": "### O problema que este assunto resolve\n\nUm serviço é um programa executado em segundo plano para oferecer uma função contínua ou sob demanda: servidor web, sincronização de horário, impressão ou banco de dados. Ao contrário de um aplicativo interativo, ele pode iniciar durante a inicialização do sistema e continuar sem uma sessão de usuário aberta. O sistema operacional mantém o estado do serviço, inicia ou para processos e registra falhas.\n\nNo Linux com systemd, o serviço é descrito por uma unidade cujo nome termina em `.service`. O gerenciador systemd lê o arquivo de unidade, aplica dependências e supervisiona o processo. Arquivos locais de unidade do sistema ficam comumente em `/etc/systemd/system/`; unidades fornecidas por pacotes costumam estar em `/usr/lib/systemd/system/` ou `/lib/systemd/system/`, conforme a distribuição.\n\n> **Siglas e termos deste capítulo**\n> - **Daemon**: processo de serviço que executa em segundo plano.\n> - **Unidade (unit)**: objeto de configuração e controle do systemd, como serviço, socket, timer ou target.\n> - **SCM**: Service Control Manager do Windows, que mantém a base de serviços e recebe pedidos de controle.\n> - **Estado**: situação atual do serviço, por exemplo ativo, parado, iniciando ou falho.\n\n### Linux e Windows: controles equivalentes, implementações distintas\n\n| Tarefa | Linux com systemd | Windows\n| --- | --- | ---\n| Consultar | `systemctl status sshd.service` | console Serviços ou `sc.exe query`\n| Iniciar/parar | `systemctl start` / `stop` | `sc.exe start` / `stop`\n| Inicialização no boot | `systemctl enable` / `disable` | tipo de inicialização nas propriedades ou `sc.exe config`\n| Logs | `journalctl -u nome.service` | Visualizador de Eventos, normalmente Logs do Windows > Aplicativo ou Sistema\n\nO SCM inicia no boot do Windows, mantém a base de serviços instalados, enumera serviços, informa seu estado e encaminha solicitações de controle. `sc.exe` é uma interface de linha de comando para consultar e modificar essa base. No Linux, `systemctl` conversa com o gerenciador systemd; o comando não é um substituto universal em sistemas que usam outro init.\n\n### Estados não são a mesma coisa que inicialização\n\nUm serviço pode estar parado agora e ainda estar configurado para iniciar no próximo boot. No systemd, `active` descreve estado atual e `enabled` descreve vínculo de inicialização. `systemctl enable` não inicia necessariamente o serviço; `systemctl start` não o habilita para reinicializações futuras. No Windows, `sc query` mostra estado operacional, enquanto o tipo de inicialização define quando o SCM tentará iniciá-lo.\n\n### Como cai na prova\n\n- A questão separa “está rodando?” de “inicia no boot?”: são propriedades distintas.\n- Serviço automático pode existir sem usuário conectado.\n- SCM é componente do Windows; systemd é gerenciador de unidades em sistemas Linux que o adotam.\n- Um serviço não é sinônimo de tarefa agendada: tarefas periódicas ou pontuais podem ser melhor atendidas por um agendador."
+    },
+    {
+      "title": "2. Definição, dependências e operação no systemd",
+      "markdown": "### O problema que este assunto resolve\n\nUm arquivo `.service` descreve o que executar e em que condições. Ele usa sintaxe semelhante a INI e normalmente organiza as diretivas em `[Unit]`, `[Service]` e `[Install]`. `[Unit]` identifica a unidade e suas relações; `[Service]` configura o processo; `[Install]` indica como habilitá-la em um target.\n\n> **Siglas e termos deste capítulo**\n> - **`ExecStart=`**: comando principal iniciado pelo gerenciador.\n> - **`Type=`**: informa como systemd reconhece que o serviço concluiu a inicialização.\n> - **Target**: unidade que agrupa outras unidades para um estado ou etapa de inicialização.\n> - **Drop-in**: arquivo adicional que modifica parte da configuração de uma unidade existente.\n\n### Exemplo de unidade simples\n\n```ini\n[Unit]\nDescription=Exemplo de serviço de relatório\nAfter=network-online.target\n\n[Service]\nType=oneshot\nExecStart=/usr/local/bin/gerar-relatorio\n\n[Install]\nWantedBy=multi-user.target\n```\n\n`After=` define ordem relativa; sozinho, não puxa a outra unidade para inicialização. `Wants=` e `Requires=` expressam relações de dependência com diferentes consequências quando a unidade relacionada falha. `WantedBy=` em `[Install]` é usado na criação dos vínculos por `enable`. Para um daemon contínuo, `Type=simple` ou `Type=exec` são comuns; `oneshot` representa uma ação que termina. `ExecStart=` deve apontar para um executável e argumentos adequados, não para uma linha de shell arbitrária com encadeamento de comandos.\n\n### Comandos administrativos\n\n| Comando | Efeito principal |\n| --- | --- |\n| `systemctl list-units --type=service` | Lista unidades de serviço carregadas/ativas conforme filtros |\n| `systemctl list-unit-files --type=service` | Consulta arquivos instalados e estado de habilitação |\n| `systemctl status nome.service` | Resume estado, processo e mensagens recentes |\n| `systemctl start nome.service` | Inicia agora |\n| `systemctl stop nome.service` | Para agora |\n| `systemctl restart nome.service` | Para e inicia novamente |\n| `systemctl enable nome.service` | Liga a unidade à inicialização configurada |\n| `systemctl disable nome.service` | Remove esse vínculo de inicialização |\n| `systemctl daemon-reload` | Faz o gerenciador reler arquivos de unidade alterados |\n\nDepois de editar um arquivo de unidade manualmente, execute `daemon-reload` antes de aplicar a configuração. Se uma mudança exige reinício do processo, recarregar a definição não equivale a reiniciar o serviço. Para alterar apenas uma unidade de fornecedor, prefira um drop-in administrativo a editar diretamente o arquivo instalado pelo pacote; isso facilita manter a alteração após atualização.\n\n### Como cai na prova\n\n- `After=` ordena; `Requires=` e `Wants=` declaram dependências.\n- `enable` altera a ativação futura, `start` altera o estado atual.\n- Arquivo de unidade modificado precisa ser relido com `daemon-reload`.\n- `systemctl status` ajuda a ver estado e mensagens; `journalctl` permite pesquisa mais ampla."
+    },
+    {
+      "title": "3. Logs no journal: consulta, filtros e armazenamento",
+      "markdown": "### O problema que este assunto resolve\n\nQuando o processo não inicia ou encerra inesperadamente, o estado do serviço raramente explica a causa completa. `systemd-journald` coleta mensagens do kernel, mensagens syslog e saídas padrão e de erro de unidades de serviço. O `journalctl` consulta esse journal estruturado, que permite filtrar por unidade, boot, prioridade e intervalo de tempo.\n\n> **Siglas e termos deste capítulo**\n> - **Journal**: repositório indexado de registros coletados pelo journald.\n> - **`stdout` / `stderr`**: saídas padrão e de erro de um processo; serviços podem enviá-las ao journal.\n> - **Boot**: uma inicialização do sistema; `-b -1` seleciona a inicialização anterior.\n> - **Prioridade**: gravidade da mensagem, como erro, aviso, informação ou depuração.\n\n### Comandos de investigação\n\n| Comando | Uso\n| --- | ---\n| `journalctl -u nginx.service` | Mensagens associadas à unidade indicada\n| `journalctl -u nginx.service -b` | Mensagens da unidade no boot atual\n| `journalctl -u nginx.service -b -1` | Mensagens dela no boot anterior\n| `journalctl -f -u nginx.service` | Acompanha novas mensagens em tempo real\n| `journalctl --since today -p warning` | Filtra por período e prioridade mínima indicada\n| `journalctl -k` | Mensagens do kernel\n\nUma investigação objetiva começa pelo `systemctl status`, que frequentemente mostra as últimas linhas, e continua com `journalctl -u` para obter contexto. Se o processo inicia e falha repetidamente, procure a mensagem mais antiga da sequência: ela pode apontar a causa inicial, enquanto linhas posteriores mostram apenas consequências. Combine filtros com cuidado; selecionar unidade e intervalo restringe o resultado.\n\n### Persistência e espaço\n\nA configuração do journald fica em `/etc/systemd/journald.conf`, com possibilidade de arquivos drop-in. A opção `Storage=` controla o destino: `volatile` mantém dados em `/run/log/journal` (memória/armazenamento temporário), `persistent` prefere `/var/log/journal`, `auto` depende da existência desse diretório e `none` descarta armazenamento local, embora ainda possa haver encaminhamento. A rotação e os limites de espaço evitam crescimento ilimitado; parâmetros como `SystemMaxUse=` ajustam limites do journal. A retenção local não substitui cópia externa quando há exigência de preservação independente do host.\n\n### Como cai na prova\n\n- Para acompanhar saída ao vivo: `journalctl -f -u serviço`.\n- Para falhas após reinicialização: filtre por `-b -1`.\n- Logs em `/run` são voláteis; `/var/log/journal` permite persistência local.\n- journald coleta saídas do serviço e mensagens do kernel; journalctl é o cliente de consulta."
+    },
+    {
+      "title": "4. Serviços Windows, inicialização, falhas e eventos",
+      "markdown": "### O problema que este assunto resolve\n\nNo Windows, o SCM mantém a configuração e o estado dos serviços. A interface gráfica **Serviços** permite iniciar, parar, reiniciar e examinar propriedades. `sc.exe` fornece operações de consulta e configuração, por exemplo `sc.exe query Spooler`, `sc.exe qc Spooler` e `sc.exe config NomeDoServico start= auto`. A sintaxe de `sc.exe config` exige espaço entre o sinal de igual e o valor (`start= auto`).\n\n> **Siglas e termos deste capítulo**\n> - **SCM**: gerenciador de controle de serviços do Windows.\n> - **Auto-start**: serviço iniciado automaticamente na inicialização do sistema.\n> - **Trigger-start**: serviço iniciado quando ocorre um evento gatilho registrado.\n> - **Visualizador de Eventos**: ferramenta que permite examinar logs do Windows por registro e origem.\n\n### Tipos de inicialização e ações\n\nAs opções de inicialização comuns incluem automática, automática atrasada, manual/sob demanda e desabilitada. Automática tenta iniciar no boot; atrasada inicia após os serviços automáticos iniciais; manual permite início por solicitação ou por outro componente; desabilitada impede que seja iniciado até que a configuração seja alterada. O modo trigger-start permite reagir a eventos, como chegada de dispositivo ou mudança de rede, sem manter o serviço em execução o tempo todo. O tipo escolhido deve refletir a função real, porque iniciar tudo automaticamente consome recursos.\n\n`sc.exe query` exibe nome, tipo e estado do serviço e campos como código de saída, checkpoint e wait hint. `sc.exe qc` consulta configuração, incluindo caminho do binário, tipo de início, conta e dependências. `sc.exe config` altera configuração; requer privilégios administrativos e o nome interno correto do serviço. A conta de execução deve ter apenas os direitos necessários; usar conta privilegiada sem necessidade amplia o impacto de uma falha ou comprometimento.\n\n### Eventos e recuperação\n\nNo Visualizador de Eventos, consulte **Logs do Windows > Sistema** para eventos do Service Control Manager e **Logs do Windows > Aplicativo** para eventos emitidos por aplicações. Filtre por período, nível e origem; registre horário e identificador do evento para cruzar com a tentativa de inicialização. A configuração de recuperação pode pedir reinício do serviço após falha, mas uma sequência de reinícios não corrige uma causa persistente: examine dependências, caminho do executável, conta, permissões e eventos correspondentes.\n\n### Como cai na prova\n\n- `sc query` consulta estado; `sc qc` consulta parâmetros configurados; `sc config` altera configuração.\n- `start= disabled` impede início até reconfigurar; `start= demand` corresponde a início sob demanda.\n- SCM registra falha e estado; os detalhes podem estar no log Sistema ou Aplicativo.\n- Trigger-start atende a eventos específicos e não significa início automático contínuo."
+    }
+  ],
+  "summary": "Serviços executam tarefas em segundo plano e são controlados por gerenciadores do sistema operacional. Em Linux com systemd, unidades `.service` têm seções [Unit], [Service] e [Install]; `systemctl status/start/stop/restart` controla o estado atual, `enable/disable` configura a inicialização e `daemon-reload` relê unidades alteradas. `After=` ordena unidades, enquanto `Wants=` e `Requires=` expressam dependências. `systemd-journald` coleta mensagens do kernel e saídas dos serviços; `journalctl -u`, `-f`, `-b -1` e `-p` filtram registros. `Storage=` diferencia armazenamento volátil em `/run/log/journal`, persistente em `/var/log/journal`, automático e desativado. No Windows, o SCM mantém serviços e encaminha pedidos. Serviços pode gerenciá-los graficamente; `sc.exe query` consulta estado, `qc` consulta configuração e `config` altera parâmetros como inicialização. Tipos comuns: automático, automático atrasado, manual/sob demanda, desabilitado e acionado por gatilho. O Visualizador de Eventos permite investigar registros Sistema e Aplicativo; políticas de recuperação não substituem análise da causa. Serviços devem operar com permissões mínimas e a inicialização deve refletir a necessidade do sistema.",
+  "flashcards": [
+    {
+      "front": "O que é um serviço do sistema operacional?",
+      "back": "Um processo em segundo plano que fornece função contínua ou sob demanda e cujo ciclo de vida é supervisionado pelo sistema."
+    },
+    {
+      "front": "Qual gerenciador controla serviços Windows?",
+      "back": "O Service Control Manager (SCM), que mantém a base, estados e pedidos de controle."
+    },
+    {
+      "front": "Que sufixo identifica unidade de serviço do systemd?",
+      "back": "`.service`."
+    },
+    {
+      "front": "Para que serve a seção [Unit]?",
+      "back": "Descrição da unidade e relações de dependência ou ordenação."
+    },
+    {
+      "front": "Para que serve [Service]?",
+      "back": "Configura o processo supervisionado, como tipo, comando de início e ambiente."
+    },
+    {
+      "front": "Para que serve [Install]?",
+      "back": "Define relações usadas ao habilitar a unidade, como `WantedBy=`."
+    },
+    {
+      "front": "O que distingue systemctl start de enable?",
+      "back": "Start inicia agora; enable configura vínculo para inicialização futura."
+    },
+    {
+      "front": "O que faz systemctl daemon-reload?",
+      "back": "Faz systemd reler arquivos de unidade alterados."
+    },
+    {
+      "front": "After= inicia a unidade indicada?",
+      "back": "Não. Define ordem relativa, mas não cria sozinho uma dependência de ativação."
+    },
+    {
+      "front": "Como consultar o estado de um serviço systemd?",
+      "back": "`systemctl status nome.service`."
+    },
+    {
+      "front": "Como ver mensagens de uma unidade no journal?",
+      "back": "`journalctl -u nome.service`."
+    },
+    {
+      "front": "Como seguir logs novos de um serviço?",
+      "back": "`journalctl -f -u nome.service`."
+    },
+    {
+      "front": "Como consultar o boot anterior?",
+      "back": "Use `journalctl -b -1`, podendo acrescentar `-u` para filtrar a unidade."
+    },
+    {
+      "front": "Quem coleta mensagens no systemd?",
+      "back": "systemd-journald coleta mensagens do kernel, syslog e saídas padrão/erro de serviços."
+    },
+    {
+      "front": "Onde o journal persistente costuma ficar?",
+      "back": "Em `/var/log/journal`; o modo volátil usa `/run/log/journal`."
+    },
+    {
+      "front": "Que opções Storage= são comuns no journald?",
+      "back": "`volatile`, `persistent`, `auto` e `none`."
+    },
+    {
+      "front": "O que consulta sc.exe query?",
+      "back": "Estado e informações de enumeração do serviço ou serviços selecionados."
+    },
+    {
+      "front": "O que consulta sc.exe qc?",
+      "back": "A configuração do serviço, como caminho do executável e tipo de início."
+    },
+    {
+      "front": "O que altera sc.exe config?",
+      "back": "Parâmetros registrados para o serviço, por exemplo tipo de inicialização."
+    },
+    {
+      "front": "Onde procurar evento do SCM no Windows?",
+      "back": "Visualizador de Eventos, Logs do Windows > Sistema."
+    },
+    {
+      "front": "O que significa início trigger-start?",
+      "back": "O serviço inicia em resposta a evento gatilho registrado, em vez de permanecer sempre iniciado."
+    },
+    {
+      "front": "O que faz início desabilitado?",
+      "back": "Impede iniciar até que o tipo de inicialização seja alterado."
+    }
+  ],
+  "tips": [
+    "Separe estado atual e configuração de boot: `start` não habilita, e `enable` não é sinônimo de iniciar agora.",
+    "Em systemd, identifique `[Unit]`, `[Service]` e `[Install]` antes de interpretar uma diretiva.",
+    "Após editar unidade, use `daemon-reload`; reinicie o serviço se a alteração exigir novo processo.",
+    "Para rastrear falha Linux, cruze `systemctl status` com `journalctl -u` e o boot relevante.",
+    "No Windows, lembre a sequência: `sc query` estado, `sc qc` configuração, `sc config` alteração.",
+    "Use tipo de início e conta de serviço compatíveis com a necessidade; evite privilégio e início automático sem motivo."
+  ],
+  "traps": [
+    "Confundir `systemctl enable` com `start`: um prepara inicialização futura e o outro muda estado agora.",
+    "Afirmar que `After=` por si só inicia ou exige a outra unidade: trata apenas da ordem.",
+    "Confundir `daemon-reload` com reinício do processo: recarregar definição não necessariamente reinicia o serviço.",
+    "Tratar `journalctl` como coletor: journald coleta e journalctl consulta.",
+    "Dizer que `sc.exe query` altera o serviço: ele consulta; `sc.exe config` é que muda configuração.",
+    "Supor que todos os logs Windows ficam em Aplicativo: falhas do SCM costumam ser consultadas em Sistema, e aplicações podem registrar em Aplicativo."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como você diferenciaria o estado atual de uma unidade systemd de sua habilitação no boot?",
+      "answer": "Consultaria estado com `systemctl status` e habilitação com `systemctl is-enabled` ou a listagem de unit files; start/stop mudam estado atual, enable/disable mudam ativação futura."
+    },
+    {
+      "question": "O que fazer depois de editar um arquivo `.service`?",
+      "answer": "Executar `systemctl daemon-reload` para reler a definição e, se a alteração requer novo processo, reiniciar a unidade."
+    },
+    {
+      "question": "Qual é o efeito de After= comparado a Requires=?",
+      "answer": "After= define ordem; Requires= expressa uma relação de dependência. Para inicializar também a unidade, a dependência precisa ser apropriada, não apenas uma ordenação."
+    },
+    {
+      "question": "Como acompanhar em tempo real logs do serviço web no boot atual?",
+      "answer": "Usar `journalctl -f -u nome.service -b`."
+    },
+    {
+      "question": "Como verificar mensagens do serviço antes da última reinicialização?",
+      "answer": "Usar `journalctl -u nome.service -b -1`."
+    },
+    {
+      "question": "Compare armazenamento volátil e persistente do journald.",
+      "answer": "Volátil fica sob `/run/log/journal` e se perde com reinicialização; persistente prefere `/var/log/journal` e conserva dados localmente."
+    },
+    {
+      "question": "Como consultar parâmetros registrados de um serviço Windows?",
+      "answer": "`sc.exe qc NomeInterno` ou as propriedades do serviço no console Serviços."
+    },
+    {
+      "question": "Em que logs do Windows procurar uma falha de inicialização do SCM?",
+      "answer": "No Visualizador de Eventos, Logs do Windows > Sistema, filtrando por origem e horário; aplicações também podem registrar em Aplicativo."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Estado confundido com inicialização",
+      "summary": "Start e stop afetam a execução atual; enable e disable afetam vínculos de ativação futura. No Windows, estado consultado e tipo de início também são propriedades distintas."
+    },
+    {
+      "key": "e2",
+      "title": "Ordenação confundida com dependência",
+      "summary": "`After=` ordena unidades, mas não faz, sozinho, com que a outra seja puxada para a inicialização. `Wants=` e `Requires=` declaram dependências."
+    },
+    {
+      "key": "e3",
+      "title": "Releitura de configuração incompleta",
+      "summary": "Após editar unidade, systemd precisa de `daemon-reload`; a alteração de definição não equivale necessariamente a reiniciar o processo que já executa."
+    },
+    {
+      "key": "e4",
+      "title": "Coleta e consulta de logs trocadas",
+      "summary": "systemd-journald coleta e mantém os registros conforme sua configuração; journalctl filtra e exibe entradas. Armazenamento volátil em `/run` não oferece persistência após reiniciar."
+    },
+    {
+      "key": "e5",
+      "title": "Comandos Windows e local de eventos confundidos",
+      "summary": "`sc query` consulta estado, `sc qc` consulta configuração e `sc config` altera opções. Eventos do SCM são examinados no log Sistema; registros de aplicações podem estar em Aplicativo."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No Linux que usa systemd, o arquivo de unidade de um serviço normalmente termina em `.service`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O sufixo `.service` identifica uma unidade cujo arquivo descreve um processo controlado e supervisionado pelo systemd. Há outros sufixos de unidade, como `.socket`, `.target` e `.timer`, cada qual com função própria.",
+      "section": "1. O que é um serviço e como o sistema o controla",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço do Windows depende de uma sessão de usuário aberta para continuar em execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Serviços podem iniciar no boot e executar mesmo quando nenhum usuário está conectado; essa é uma característica que os diferencia de aplicativos interativos comuns.",
+      "section": "1. O que é um serviço e como o sistema o controla",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No systemd, `systemctl enable` e `systemctl start` têm efeitos distintos: um prepara a inicialização futura e o outro inicia no momento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Habilitar configura vínculos de inicialização; iniciar solicita a execução atual. Uma unidade pode estar ativa sem estar habilitada para o próximo boot.",
+      "section": "1. O que é um serviço e como o sistema o controla",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Service Control Manager mantém dados dos serviços instalados e encaminha pedidos de controle no Windows.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O SCM mantém a base de serviços, acompanha estados e recebe solicitações para iniciar, parar ou controlar esses serviços.",
+      "section": "1. O que é um serviço e como o sistema o controla",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando `systemctl start` garante que um serviço será iniciado automaticamente em toda reinicialização posterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. `start` muda a execução atual. A ativação futura é configurada separadamente com `enable`, respeitadas as dependências da unidade.",
+      "section": "1. O que é um serviço e como o sistema o controla",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço configurado para início manual no Windows pode ser iniciado sob demanda por um administrador ou componente que o solicite.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O modo manual, também descrito como sob demanda, não tenta iniciar automaticamente no boot, mas permite que um pedido explícito o inicie.",
+      "section": "1. O que é um serviço e como o sistema o controla",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O SCM é o gerenciador nativo de serviços do Linux e interpreta arquivos `.service` do systemd.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. SCM é o Service Control Manager do Windows. Em Linux com systemd, o gerenciador systemd supervisiona unidades como arquivos `.service`.",
+      "section": "1. O que é um serviço e como o sistema o controla",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma unidade pode estar ativa agora e desabilitada para o boot seguinte, pois estado operacional e vínculo de inicialização são conceitos separados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O estado atual informa se o processo está em execução; a habilitação informa se há vínculo para inicialização. Alterar uma dessas propriedades não implica automaticamente alterar a outra.",
+      "section": "1. O que é um serviço e como o sistema o controla",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O console Serviços e `sc.exe` são interfaces administrativas do Windows para operações com serviços.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O console gráfico permite examinar propriedades e controlar serviços; `sc.exe` oferece comandos para consultar e modificar a base mantida pelo SCM.",
+      "section": "1. O que é um serviço e como o sistema o controla",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual componente do Windows mantém a base de serviços instalados e encaminha solicitações de controle?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O SCM, gerenciador da base de serviços do Windows.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O Visualizador de Eventos, responsável por iniciar e encerrar processos de serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O Agendador de Tarefas, responsável por manter a base de serviços e seus estados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Explorador de Arquivos, responsável por encaminhar pedidos para serviços instalados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Gerenciador de Dispositivos, responsável por executar aplicações em segundo plano.",
+          "correct": false
+        }
+      ],
+      "explanation": "O SCM mantém a base de serviços, inicia-os quando necessário, enumera instalações e encaminha pedidos de controle. As outras ferramentas têm funções distintas, como visualizar eventos, agendar tarefas ou administrar dispositivos.",
+      "section": "1. O que é um serviço e como o sistema o controla",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comando mostra o estado resumido de uma unidade systemd chamada `cron.service`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`systemctl enable cron.service`, que consulta apenas o estado atual do processo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`systemctl status cron.service`, que resume estado e contexto recente da unidade.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`journalctl enable cron.service`, que lista configuração e dependências da unidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`systemd query cron.service`, que inicia o processo e mostra seu estado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`sc.exe qc cron.service`, que consulta unidades Linux pelo SCM do Windows.",
+          "correct": false
+        }
+      ],
+      "explanation": "`systemctl status` consulta estado, processo e mensagens recentes de uma unidade. Enable altera vínculos de boot, journalctl consulta registros, e os comandos sc.exe administram serviços Windows.",
+      "section": "1. O que é um serviço e como o sistema o controla",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer iniciar um serviço Linux agora, mas não necessariamente em boots futuros. Qual ação atende ao pedido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar `systemctl daemon-reload` para iniciar e habilitar a unidade ao mesmo tempo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar `systemctl enable nome.service` para iniciar imediatamente o processo supervisionado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar `systemctl start nome.service` para iniciar a unidade agora.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Executar `journalctl -u nome.service` para iniciar a unidade enquanto consulta os logs.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar `systemctl list-unit-files` para iniciar o serviço listado na configuração.",
+          "correct": false
+        }
+      ],
+      "explanation": "`start` solicita a execução atual. Enable prepara a ativação futura; daemon-reload relê configurações; journalctl e list-unit-files são comandos de consulta.",
+      "section": "1. O que é um serviço e como o sistema o controla",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Windows, qual tipo de inicialização impede que o serviço seja iniciado até que a configuração seja alterada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trigger-start, que impede início mesmo quando seu evento de gatilho ocorre.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Automática atrasada, que bloqueia qualquer início até uma alteração administrativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manual, que proíbe pedidos explícitos do administrador e de outros componentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitada, que bloqueia a inicialização enquanto esse tipo estiver configurado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Automática, que só permite iniciar durante uma sessão de usuário interativa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Desabilitada impede iniciar o serviço até que seu tipo seja alterado. Manual permite pedido explícito; automática e atrasada tentam iniciar no boot; trigger-start responde ao gatilho configurado.",
+      "section": "1. O que é um serviço e como o sistema o controla",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa periódico de manutenção que pode aguardar o sistema ficar ocioso sempre exige um serviço permanente em execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Uma tarefa periódica ou pontual pode ser adequada ao Agendador de Tarefas, evitando manter um serviço contínuo quando a função não exige disponibilidade permanente. A documentação do Windows cita manutenção periódica como exemplo de trabalho que pode ser adiado para períodos ociosos.",
+      "section": "1. O que é um serviço e como o sistema o controla",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma unidade systemd, a seção `[Service]` contém configurações do processo supervisionado, incluindo opções de execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A seção `[Service]` reúne opções específicas do serviço, como `Type=` e `ExecStart=`; relações gerais ficam em `[Unit]` e instalação em `[Install]`.",
+      "section": "2. Definição, dependências e operação no systemd",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A diretiva `After=network.target` por si só faz o systemd iniciar `network.target` sempre que iniciar o serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. `After=` define ordem quando ambas as unidades estão envolvidas; sozinho não puxa a unidade indicada. Dependências como `Wants=` ou `Requires=` tratam da relação de ativação.",
+      "section": "2. Definição, dependências e operação no systemd",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de alterar um arquivo de unidade systemd, `daemon-reload` faz o gerenciador reler a configuração instalada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O comando atualiza a visão do gerenciador sobre os arquivos de unidade. Se a mudança deve afetar processo já em execução, pode ser necessário reiniciar a unidade também.",
+      "section": "2. Definição, dependências e operação no systemd",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`WantedBy=` aparece tipicamente em `[Install]` e indica o target que receberá vínculo ao habilitar a unidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Ao habilitar a unidade, systemd pode criar vínculo no target informado por `WantedBy=`. A diretiva não substitui o comando `start` para executar imediatamente.",
+      "section": "2. Definição, dependências e operação no systemd",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O valor `Type=oneshot` descreve tipicamente uma ação que executa e termina, em vez de um daemon contínuo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. `oneshot` é adequado a uma tarefa de execução pontual; serviços persistentes normalmente usam tipos que representam um processo de longa duração.",
+      "section": "2. Definição, dependências e operação no systemd",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Editar diretamente o arquivo instalado pelo fornecedor é sempre preferível a criar um drop-in local, pois atualizações preservam edições no arquivo original.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Um drop-in administrativo é a forma indicada para sobrescrever parte da configuração sem modificar diretamente o arquivo fornecido pelo pacote, que pode ser substituído em atualização.",
+      "section": "2. Definição, dependências e operação no systemd",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`Requires=` e `Wants=` declaram relações de dependência, enquanto `After=` expressa ordenação entre unidades.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Dependências e ordenação são dimensões diferentes da configuração. `After=` não substitui a declaração de dependência por `Wants=` ou `Requires=`.",
+      "section": "2. Definição, dependências e operação no systemd",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A diretiva `ExecStart=` é usada para especificar o comando principal do serviço systemd.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. `ExecStart=` informa o executável e seus argumentos para a inicialização do processo principal supervisionado pela unidade. Outras diretivas, como `ExecStop=`, podem definir ações executadas em momentos diferentes do ciclo de vida.",
+      "section": "2. Definição, dependências e operação no systemd",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Rodar `daemon-reload` sempre encerra e recria o processo de serviço já ativo para aplicar mudanças em seu ambiente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. `daemon-reload` relê as definições de unidades. Reiniciar o processo é uma operação separada, necessária quando a mudança deve ser aplicada ao serviço em execução.",
+      "section": "2. Definição, dependências e operação no systemd",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual seção de uma unidade reúne relações de dependência e ordem entre unidades?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`[System]`, onde ficam os parâmetros de toda unidade de serviço instalada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`[Service]`, onde ficam apenas vínculos usados pelo comando enable.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`[Install]`, onde ficam o executável principal e o diretório de trabalho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`[Journal]`, onde ficam dependências e comandos de execução da unidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`[Unit]`, onde ficam descrição, dependências e relações gerais de ordenação.",
+          "correct": true
+        }
+      ],
+      "explanation": "`[Unit]` contém opções gerais como descrição, requisitos e ordenação. `[Service]` descreve o processo e `[Install]` indica relações usadas para habilitação.",
+      "section": "2. Definição, dependências e operação no systemd",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador alterou um arquivo `.service` e quer que systemd releia a definição. Qual comando deve usar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`systemctl enable`, para recarregar todos os arquivos de unidade e iniciar o serviço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`systemctl daemon-reload`, para o gerenciador reler as unidades após a edição do arquivo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`journalctl --reload`, para reler unidades e reiniciar seus processos automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`systemctl list-units`, para importar a configuração alterada para o gerenciador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`systemctl mask`, para reler configuração e reativar a unidade modificada.",
+          "correct": false
+        }
+      ],
+      "explanation": "`daemon-reload` faz systemd reler arquivos de unidade. Enable cria relações de ativação, list-units consulta, journalctl exibe logs e mask impede ativação normal.",
+      "section": "2. Definição, dependências e operação no systemd",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência procura uma dependência e depois estabelece ordem para que o serviço só rode após a rede estar disponível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `WantedBy=network-online.target` em `[Service]`, que define toda ordenação e requisito.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar somente `After=network-online.target`, que sempre puxa e aguarda a rede automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Combinar `Wants=network-online.target` com `After=network-online.target`.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar `ExecStart=network-online.target`, para que o target funcione como executável de rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `Type=network-online.target`, que declara uma dependência obrigatória do serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "A dependência e a ordenação devem ser consideradas separadamente. `Wants=` puxa a unidade de forma menos rígida e `After=` define a ordem; somente `After=` não garante sua ativação.",
+      "section": "2. Definição, dependências e operação no systemd",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comando desabilita a ativação futura de um serviço sem necessariamente pará-lo agora?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`journalctl -u nome.service`, que altera a política de ativação futura da unidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`systemctl stop nome.service`, que remove os vínculos de boot e encerra o processo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`systemctl daemon-reload nome.service`, que impede a unidade de iniciar em qualquer contexto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`systemctl disable nome.service`, que remove os vínculos de inicialização futura.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`systemctl restart nome.service`, que remove vínculos e mantém o processo parado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Disable remove vínculos usados para inicialização futura, sem equivaler necessariamente a stop. Stop encerra agora; restart reinicia agora; journalctl consulta registros.",
+      "section": "2. Definição, dependências e operação no systemd",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção descreve corretamente o propósito de `Type=oneshot`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar o journal para guardar apenas uma mensagem por inicialização do host.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter o processo principal continuamente ativo até ordem explícita de encerramento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Indicar que o serviço será iniciado somente por evento de socket do systemd.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fazer o gerenciador ignorar o código de saída do comando executado pela unidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Indicar uma ação de serviço que executa e pode terminar.",
+          "correct": true
+        }
+      ],
+      "explanation": "`oneshot` é usado para tarefas que executam e terminam, como uma ação pontual. Não significa ativação por socket nem define política de armazenamento de logs.",
+      "section": "2. Definição, dependências e operação no systemd",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma unidade que utiliza `WantedBy=multi-user.target`, qual é o papel típico dessa diretiva?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Informar o target associado quando a unidade é habilitada para inicialização do sistema.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Declarar que o serviço depende obrigatoriamente da rede e deve iniciar antes dela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir o nome do executável que systemd deve iniciar para esse serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Determinar o nível máximo de mensagens que journald armazenará para a unidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Iniciar imediatamente o serviço e mantê-lo ativo em todas as sessões de usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "`WantedBy=` é usado na seção `[Install]` e indica o target para o qual se cria vínculo ao habilitar. Não identifica executável, nível de log nem dependência obrigatória de rede.",
+      "section": "2. Definição, dependências e operação no systemd",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para acompanhar novas mensagens de `sshd.service`, qual comando é mais direto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`systemctl enable -u sshd.service`, que transmite novas mensagens ao terminal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`journalctl -f -u sshd.service`, que acompanha continuamente novas entradas da unidade.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`systemctl daemon-reload sshd.service`, que acompanha a saída de erro em tempo real.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`journalctl --boot sshd.service`, que segue mensagens futuras da unidade continuamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`sc.exe query sshd.service`, que consulta em tempo real o journal Linux.",
+          "correct": false
+        }
+      ],
+      "explanation": "A combinação `-f -u` segue o journal e filtra pela unidade indicada. Os comandos systemctl atuam na unidade, enquanto `sc.exe` consulta serviços Windows.",
+      "section": "3. Logs no journal: consulta, filtros e armazenamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "systemd-journald pode coletar a saída padrão e a saída de erro de unidades de serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Além de mensagens do kernel e syslog, journald coleta saída padrão e erro dos serviços, que pode ser consultada depois com journalctl.",
+      "section": "3. Logs no journal: consulta, filtros e armazenamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando `journalctl -b -1` seleciona mensagens do boot anterior, não do boot atual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. `-b` seleciona uma inicialização e o índice `-1` identifica a anterior; filtros como `-u` podem restringir ainda mais os registros.",
+      "section": "3. Logs no journal: consulta, filtros e armazenamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Com `Storage=volatile`, os dados do journal são armazenados somente sob `/var/log/journal` e persistem após reinicialização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. `volatile` mantém dados em `/run/log/journal`, que é temporário. `persistent` prefere `/var/log/journal` para armazenamento local que persiste ao reboot.",
+      "section": "3. Logs no journal: consulta, filtros e armazenamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A opção `Storage=none` impede armazenamento local do journal, mas não necessariamente impede encaminhamento a outros destinos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. `none` descarta armazenamento local, embora encaminhamento para console, buffer do kernel ou socket syslog ainda possa ser configurado.",
+      "section": "3. Logs no journal: consulta, filtros e armazenamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem de journal filtrada por `-u` identifica entradas associadas à unidade indicada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. `journalctl -u nome.service` é a forma direta de restringir a consulta às mensagens relacionadas à unidade de serviço.",
+      "section": "3. Logs no journal: consulta, filtros e armazenamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`journalctl -k` é a opção apropriada para filtrar mensagens emitidas pelo kernel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A opção `-k` limita a consulta às mensagens do kernel; para a saída de uma unidade, use também ou em vez disso `-u`.",
+      "section": "3. Logs no journal: consulta, filtros e armazenamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A diretiva `Storage=auto` armazena sempre os registros apenas em memória, independentemente de `/var/log/journal` existir.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. `auto` comporta-se como persistente quando `/var/log/journal` existe e como volátil quando esse diretório não existe.",
+      "section": "3. Logs no journal: consulta, filtros e armazenamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A retenção de journal pode ser limitada por parâmetros de uso de disco, como `SystemMaxUse=`, para reduzir crescimento local sem controle.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. journald administra arquivos e remove registros arquivados antigos conforme limites de espaço configurados; `SystemMaxUse=` é um dos parâmetros que controlam o uso total.",
+      "section": "3. Logs no journal: consulta, filtros e armazenamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comando mostra apenas mensagens do serviço `api.service` na inicialização anterior?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`systemctl status api.service -b -1`, que lista todas as mensagens históricas do journal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`journalctl -f api.service -b`, que seleciona o boot anterior e encerra o acompanhamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`journalctl -u api.service -b -1`, filtrando unidade e boot anterior.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`journalctl -k -u api.service`, que sempre seleciona o boot anterior da unidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`systemctl enable api.service -b -1`, que consulta eventos sem alterar inicialização.",
+          "correct": false
+        }
+      ],
+      "explanation": "`-u` restringe à unidade e `-b -1` seleciona o boot anterior. `-f` acompanha novas mensagens, `-k` filtra kernel, e enable altera habilitação futura.",
+      "section": "3. Logs no journal: consulta, filtros e armazenamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual configuração do journald prefere manter dados em disco quando o diretório persistente está disponível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`Storage=auto`, que sempre ignora `/var/log/journal` e usa memória temporária.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`Storage=volatile`, que força gravação permanente em `/var/log/journal`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`Storage=none`, que salva cada registro localmente antes de encaminhá-lo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`Storage=persistent`, que prefere `/var/log/journal` para manter dados em disco.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`Storage=kernel`, que redireciona o journal para arquivos de serviço em `/etc`.",
+          "correct": false
+        }
+      ],
+      "explanation": "`persistent` prefere armazenamento em `/var/log/journal`; pode recorrer a `/run` durante boot inicial ou se o disco não estiver gravável. `volatile` é temporário e `none` descarta armazenamento local.",
+      "section": "3. Logs no journal: consulta, filtros e armazenamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após a reinicialização, o administrador quer investigar por que um serviço falhou antes dela. Qual abordagem é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar `systemctl enable serviço`, que copia os registros anteriores para `/var/log`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar `systemctl start serviço -b -1`, que reabre o processo anterior e seus logs.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `journalctl -k -f`, que recupera somente logs de serviços do boot encerrado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Consultar `journalctl -u serviço -b -1` e verificar se os logs persistiram.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Consultar apenas `systemctl status`, que contém necessariamente todo o histórico anterior.",
+          "correct": false
+        }
+      ],
+      "explanation": "`journalctl -b -1` consulta o boot anterior e `-u` limita à unidade. A disponibilidade após reboot depende da retenção: armazenamento volátil em `/run` se perde com a reinicialização.",
+      "section": "3. Logs no journal: consulta, filtros e armazenamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para um serviço que gera muito log, qual medida reduz risco de crescimento indefinido do armazenamento local?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar `journalctl -u` por `systemctl enable`, que limpa arquivos de log antigos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Configurar limites de uso e retenção do journal, por exemplo com `SystemMaxUse=`, para controlar espaço.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Definir `Storage=none` sem considerar necessidade de registro ou encaminhamento externo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar a prioridade para debug, que faz journald remover entradas antigas automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar a unidade investigada, o que apaga todo registro já coletado dela.",
+          "correct": false
+        }
+      ],
+      "explanation": "Parâmetros de limite e retenção controlam o espaço consumido e a remoção de arquivos arquivados antigos. Desabilitar serviço não apaga registros; aumentar detalhamento tende a gerar mais mensagens, e `none` descarta armazenamento local sem resolver requisitos de preservação.",
+      "section": "3. Logs no journal: consulta, filtros e armazenamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição distingue corretamente journald de journalctl?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "journald configura o SCM do Windows; journalctl altera tipos de início de serviço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "journald consulta entradas pela linha de comando; journalctl inicia processos de serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "journald recebe e armazena mensagens; journalctl consulta e filtra o journal por unidade ou período.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "journald habilita unidades no boot; journalctl cria arquivos `.service` de sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "journald reinicia serviços com falha; journalctl configura dependências do target.",
+          "correct": false
+        }
+      ],
+      "explanation": "systemd-journald é o serviço que recebe e armazena registros; journalctl é a ferramenta para consultá-los, por unidade, período, boot, prioridade e outros filtros.",
+      "section": "3. Logs no journal: consulta, filtros e armazenamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como consultar mensagens de prioridade warning ou mais graves no journal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `journalctl -k warning`, que configura a prioridade do próximo boot do kernel.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `systemctl warning`, que consulta apenas serviços habilitados no boot atual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `journalctl --unit warning`, que seleciona somente unidades chamadas warning.service.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `journalctl -p warning` para filtrar entradas por prioridade e incluir gravidades superiores.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar `systemctl enable warning`, que reduz mensagens abaixo desse nível.",
+          "correct": false
+        }
+      ],
+      "explanation": "A opção `-p` filtra pelo nível de prioridade; filtros de unidade e período podem ser acrescentados conforme necessário. Os comandos systemctl não fazem essa consulta de gravidade.",
+      "section": "3. Logs no journal: consulta, filtros e armazenamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Windows, `sc.exe query` consulta informações e estado de serviços, sem ter como operação principal mudar sua configuração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. `query` exibe informações do serviço e seu estado; a alteração de parâmetros é feita por comandos de configuração, como `sc.exe config`.",
+      "section": "4. Serviços Windows, inicialização, falhas e eventos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No comando `sc.exe config Nome start= auto`, a forma documentada exige espaço entre `start=` e `auto`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A sintaxe de opções de `sc.exe` exige o sinal de igual no nome do parâmetro e um espaço entre a opção e o valor, como `start= auto`.",
+      "section": "4. Serviços Windows, inicialização, falhas e eventos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O início automático atrasado tenta iniciar o serviço algum tempo depois dos serviços automáticos iniciais do sistema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A modalidade automática atrasada posterga o início em relação aos serviços automáticos iniciais; ela não equivale a início manual nem a desabilitado.",
+      "section": "4. Serviços Windows, inicialização, falhas e eventos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço Windows desabilitado pode ser iniciado normalmente sem alterar seu tipo de inicialização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O tipo desabilitado impede que o serviço seja iniciado até que se altere a configuração para outro tipo de início.",
+      "section": "4. Serviços Windows, inicialização, falhas e eventos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Trigger-start permite que um serviço seja iniciado em resposta a um evento gatilho registrado, como chegada de dispositivo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Serviços acionados por gatilho respondem a eventos como chegada de dispositivo ou mudança de rede e podem permanecer parados enquanto não forem necessários.",
+      "section": "4. Serviços Windows, inicialização, falhas e eventos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Falhas do Service Control Manager devem ser investigadas exclusivamente em Logs do Windows > Aplicativo, pois o log Sistema não registra eventos de serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Eventos de controle e inicialização de serviços são comumente consultados em Logs do Windows > Sistema; aplicações também podem produzir registros no log Aplicativo.",
+      "section": "4. Serviços Windows, inicialização, falhas e eventos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A conta de execução de um serviço deve ter somente os direitos necessários à função, para limitar o impacto de falha ou comprometimento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O princípio do menor privilégio reduz a capacidade de dano caso o serviço tenha vulnerabilidade ou seja comprometido; a conta deve receber apenas permissões exigidas pelo trabalho.",
+      "section": "4. Serviços Windows, inicialização, falhas e eventos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A configuração de recuperação pode reiniciar um serviço após falha, mas não identifica nem corrige automaticamente uma causa persistente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A ação de recuperação pode tentar restaurar disponibilidade, porém uma falha repetida exige examinar eventos, dependências, caminho do binário, conta e permissões.",
+      "section": "4. Serviços Windows, inicialização, falhas e eventos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual par de comandos consulta, respectivamente, o estado e a configuração de um serviço Windows?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`sc.exe failure Nome` para estado e `sc.exe query Nome` para alterar configuração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`sc.exe config Nome` para estado e `sc.exe start Nome` para configuração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`sc.exe stop Nome` para configuração e `sc.exe delete Nome` para estado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`journalctl -u Nome` para estado e `systemctl status Nome` para configuração Windows.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`sc.exe query Nome` para estado e `sc.exe qc Nome` para configuração, sem alterar parâmetros.",
+          "correct": true
+        }
+      ],
+      "explanation": "`query` consulta estado e informações; `qc` consulta a configuração registrada. `config` altera opções, e comandos journalctl/systemctl são de sistemas Linux com systemd.",
+      "section": "4. Serviços Windows, inicialização, falhas e eventos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual tipo de início do Windows é mais adequado quando um serviço só é necessário após um evento específico e pode ficar parado até lá?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trigger-start, para iniciar como resposta a um gatilho registrado pelo sistema.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Automático, para manter o serviço ativo desde o boot independentemente da necessidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desabilitado, para iniciar automaticamente quando o evento especificado ocorrer.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Automático atrasado, para responder somente a eventos de chegada de dispositivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manual, para impedir que qualquer componente solicite o início do serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "Trigger-start permite ativação por evento, reduzindo execução desnecessária. Automático inicia no boot; atrasado posterga esse início; desabilitado bloqueia; manual permite início sob demanda explícita.",
+      "section": "4. Serviços Windows, inicialização, falhas e eventos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador precisa descobrir o caminho do executável e o tipo de início registrados no Windows. Qual opção atende diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`sc.exe query NomeInterno`, que altera o caminho e define início automático.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`sc.exe qc NomeInterno`, que consulta a configuração registrada, inclusive o tipo de início.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`sc.exe start NomeInterno`, que exibe apenas a configuração sem iniciar o processo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`sc.exe failure NomeInterno`, que consulta o caminho e a conta em uso e configura o início automático.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`sc.exe delete NomeInterno`, que exibe configuração sem modificar a base SCM.",
+          "correct": false
+        }
+      ],
+      "explanation": "`qc` consulta a configuração, incluindo caminho do binário e tipo de início. `query` mostra informações e estado; start inicia; failure trata de ações após falha; delete remove o serviço.",
+      "section": "4. Serviços Windows, inicialização, falhas e eventos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de uma falha de inicialização, qual investigação combina corretamente evidências do Windows?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar os logs Aplicativo e Sistema antes de tentar iniciar, para renovar a configuração do SCM.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar apenas `sc.exe start` repetidamente, pois cada tentativa identifica a causa raiz no SCM.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Consultar eventos do Sistema e verificar estado, dependências, caminho e conta do serviço.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Alterar o tipo para automático, pois isso corrige caminhos inválidos e permissões ausentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar as dependências do serviço, pois dependências nunca interferem na inicialização.",
+          "correct": false
+        }
+      ],
+      "explanation": "O diagnóstico cruza o evento e horário com o estado e a configuração registrados; caminhos inválidos, conta, permissões e dependências são causas concretas a verificar. Repetir tentativas ou alterar o tipo não corrige necessariamente a falha.",
+      "section": "4. Serviços Windows, inicialização, falhas e eventos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador quer configurar início automático pela linha de comando e também verificar depois o que foi registrado. Qual sequência é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `sc.exe stop Nome start= auto` e depois `sc.exe query Nome` para salvar o tipo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `sc.exe query Nome start= auto` e depois `sc.exe start Nome` para exibir a configuração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `sc.exe qc Nome start= auto` e depois `sc.exe config Nome` para consultar o estado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `sc.exe config Nome start= auto` e depois `sc.exe qc Nome` para conferir.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar `journalctl config Nome` e depois `systemctl qc Nome` para atualizar o SCM.",
+          "correct": false
+        }
+      ],
+      "explanation": "`sc.exe config` altera e `sc.exe qc` consulta parâmetros registrados; a sintaxe documentada usa espaço após o sinal de igual, como `start= auto`. `query` consulta estado e não altera o tipo.",
+      "section": "4. Serviços Windows, inicialização, falhas e eventos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma máquina deve continuar executando um serviço web essencial sem usuário conectado. Qual configuração geral é coerente com esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar a aplicação em uma janela de usuário e fechar a sessão após a inicialização.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Configurar início manual e exigir que um usuário faça logon após cada reinicialização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar o serviço e iniciá-lo por uma tarefa que dependa de sessão interativa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar trigger-start sem evento definido e conceder privilégios máximos à conta de execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Iniciar automaticamente com o sistema para manter disponibilidade sem logon e limitar os direitos da conta.",
+          "correct": true
+        }
+      ],
+      "explanation": "Serviços de longa duração que precisam estar disponíveis podem iniciar com o sistema e operar sem logon. A conta deve seguir menor privilégio; início manual ou dependência de sessão não atende ao requisito de disponibilidade contínua.",
+      "section": "4. Serviços Windows, inicialização, falhas e eventos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência é mais apropriada para consultar todas as unidades de serviço instaladas e distinguir arquivos habilitados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `journalctl -f --type=service` e examinar os processos que iniciarão no próximo boot.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `systemctl list-unit-files --type=service` e examinar o estado de habilitação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar `systemctl start --type=service` e examinar somente arquivos desabilitados no disco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `systemctl status --all` e assumir que toda unidade listada está habilitada no boot.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `sc.exe query type= service` e interpretar o resultado como configuração do systemd.",
+          "correct": false
+        }
+      ],
+      "explanation": "`list-unit-files --type=service` lista arquivos de unidades e o respectivo estado de habilitação. Listar unidades carregadas ou consultar status não equivale a verificar a política de ativação futura.",
+      "section": "2. Definição, dependências e operação no systemd",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "systemd.service — Service unit configuration",
+      "publisher": "freedesktop.org",
+      "reference": "Formato e opções de unidades .service, tipos de serviço e dependências implícitas",
+      "url": "https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "systemd.unit — Unit configuration",
+      "publisher": "freedesktop.org",
+      "reference": "Arquivos e caminhos de unidades, sintaxe, relações comuns e alvos de instalação",
+      "url": "https://www.freedesktop.org/software/systemd/man/latest/systemd.unit.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "systemd-journald.service — Journal service",
+      "publisher": "freedesktop.org",
+      "reference": "Fontes coletadas, locais de armazenamento e gestão de espaço do journal",
+      "url": "https://www.freedesktop.org/software/systemd/man/latest/systemd-journald.service.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "journalctl — Query the systemd journal",
+      "publisher": "freedesktop.org",
+      "reference": "Consulta, filtros por unidade, boot, prioridade e acompanhamento ao vivo",
+      "url": "https://www.freedesktop.org/software/systemd/man/latest/journalctl.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "journald.conf — Journal service configuration files",
+      "publisher": "freedesktop.org",
+      "reference": "Arquivos de configuração, precedência de drop-ins e opções Storage=",
+      "url": "https://www.freedesktop.org/software/systemd/man/latest/journald.conf.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "About Services",
+      "publisher": "Microsoft Learn",
+      "reference": "Papel do SCM, serviços auto-start e trigger-start, tarefas de manutenção e recursos administrativos",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/services/about-services",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Configuring a Service Using SC",
+      "publisher": "Microsoft Learn",
+      "reference": "Sintaxe do sc.exe e comandos de consulta ou configuração da base de serviços",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/services/configuring-a-service-using-sc",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Sc.exe query",
+      "publisher": "Microsoft Learn",
+      "reference": "Sintaxe e campos de estado exibidos pela consulta de serviços",
+      "url": "https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/sc-query",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "sc.exe config",
+      "publisher": "Microsoft Learn",
+      "reference": "Opções de tipo de inicialização e configuração por linha de comando",
+      "url": "https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/sc-config",
+      "accessedAt": "2026-10-31"
+    }
+  ]
+}

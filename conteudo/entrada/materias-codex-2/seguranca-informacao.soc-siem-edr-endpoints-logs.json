@@ -1,0 +1,909 @@
+{
+  "id": "seguranca-informacao.soc-siem-edr-endpoints-logs",
+  "subject": "Segurança da Informação",
+  "title": "SOC, SIEM, EDR, endpoints e gestão de logs",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "SOC, SIEM, EDR e segurança de endpoints",
+    "Centro de operações de segurança (SOC)",
+    "Gestão de logs de segurança da informação",
+    "Correlação de eventos e logs de segurança",
+    "Monitoramento de endpoints com EDR",
+    "SIEM e análise centralizada de eventos",
+    "Operações de segurança cibernética SOC",
+    "Security Operations Center e resposta",
+    "Security Information and Event Management",
+    "Endpoint Detection and Response",
+    "Detecção e resposta em endpoints corporativos",
+    "Centralização de registros de auditoria",
+    "Análise de eventos em um centro SOC"
+  ],
+  "scope": {
+    "covers": "Função e operação de SOC; coleta e análise com SIEM; EDR e segurança de endpoints; ciclo de vida, normalização, centralização, retenção, integridade e controle de acesso a logs; correlação de eventos, alertas, triagem, investigação e resposta; integração e limites entre SOC, SIEM e EDR.",
+    "excludes": "Configuração detalhada de produtos comerciais, regras específicas de fabricantes, administração de sistemas operacionais e resposta forense aprofundada a incidentes."
+  },
+  "theoryTitle": "Operações de segurança, telemetria e investigação de eventos",
+  "chapters": [
+    {
+      "title": "1. SOC: pessoas, processos e operação contínua",
+      "markdown": "### O problema que este assunto resolve\n\nUma organização produz sinais de segurança em muitos lugares: autenticações, estações, servidores, firewalls, serviços de nuvem e aplicações. Sem uma operação organizada, esses sinais ficam dispersos; um alerta pode passar horas sem triagem, ou equipes diferentes podem investigar o mesmo evento sem compartilhar contexto. O **SOC** (Security Operations Center, centro de operações de segurança) organiza pessoas, processos e tecnologia para monitorar o ambiente, identificar atividade suspeita, investigar alertas e coordenar a resposta.\n\n> **Siglas e termos deste capítulo**\n> - **SOC**: função ou unidade operacional de segurança cibernética. Pode ser interna, terceirizada ou híbrida; o nome não exige uma sala física específica.\n> - **Analista de segurança**: examina alertas, reúne evidências e recomenda ou executa ações conforme autorização e procedimento.\n> - **Triagem**: classificação inicial de um alerta para decidir prioridade, contexto e próximos passos.\n> - **Incidente**: evento que compromete ou ameaça a confidencialidade, integridade ou disponibilidade e requer tratamento coordenado.\n> - **Escalonamento**: encaminhamento de um caso a profissionais com maior especialização ou autoridade.\n\n### Como o trabalho se organiza\n\nUm fluxo comum começa com a geração de telemetria e alertas. O analista verifica se o sinal é confiável, identifica ativo e usuário envolvidos, consulta eventos relacionados e estima impacto. Se for falso positivo ou atividade legítima, registra a justificativa e pode ajustar a detecção. Se houver indícios de incidente, preserva dados pertinentes, escala o caso e coordena contenção, erradicação e recuperação com as equipes responsáveis. O registro do caso deve permitir entender o que foi observado, quando, por quem e quais decisões foram tomadas.\n\n| Atividade | Exemplo concreto |\n| --- | --- |\n| Monitorar | Acompanhar falhas de autenticação, execução de processos e alertas de rede |\n| Triar | Distinguir uma varredura autorizada de tentativas externas contra um servidor |\n| Investigar | Correlacionar login, processo iniciado e conexão de saída na mesma estação |\n| Responder | Isolar um endpoint comprometido conforme plano e autoridade aprovados |\n| Aprimorar | Ajustar uma regra que gerou ruído e documentar a mudança |\n\nO SOC pode operar em turnos e usar níveis de atendimento. Uma equipe inicial trata alertas padronizados; casos complexos sobem para especialistas em detecção, resposta, engenharia ou inteligência. Essa divisão é organizacional, não uma taxonomia universal obrigatória. A responsabilidade por desligar contas, isolar máquinas ou interromper serviços deve estar definida: um analista não deve presumir autoridade que o procedimento não lhe concedeu.\n\n### Como cai na prova\n\n- SOC é uma capacidade operacional composta por pessoas, processos e tecnologia; não é sinônimo do SIEM.\n- O SIEM pode apoiar o SOC, mas sozinho não investiga nem decide a resposta: pessoas e procedimentos interpretam o contexto.\n- Métricas úteis incluem tempo até triagem, tempo de contenção, alertas reabertos e falsos positivos; uma métrica isolada não demonstra maturidade.\n- Um alerta é uma hipótese para analisar, não prova automática de ataque."
+    },
+    {
+      "title": "2. SIEM: coleta, normalização, consulta e detecção",
+      "markdown": "### O problema que este assunto resolve\n\nO SIEM (Security Information and Event Management) reúne dados de segurança de componentes diferentes e os apresenta de forma pesquisável e acionável. Um serviço de identidade pode registrar uma autenticação, um firewall uma conexão e um endpoint a criação de um processo. Ao coletar esses registros em um ponto central, o SIEM facilita pesquisa, análise temporal, alertas e correlação entre fontes. O glossário do NIST descreve a ferramenta como aplicação que reúne dados de segurança de componentes do sistema e os apresenta como informação acionável por uma interface.\n\n> **Siglas e termos deste capítulo**\n> - **Evento**: registro de uma ocorrência observada por um sistema, como login, bloqueio ou alteração de configuração.\n> - **SIEM**: plataforma de coleta, pesquisa e análise de eventos de segurança de várias fontes.\n> - **Normalização**: conversão de campos e formatos distintos para uma representação comum.\n> - **Parser**: componente que interpreta o formato de uma fonte e extrai campos.\n> - **Regra de detecção**: lógica que identifica condição ou sequência relevante e pode gerar alerta.\n> - **UEBA**: análise de comportamento de usuários e entidades para encontrar desvios em relação a padrões.\n\n### Da origem ao alerta\n\nA ingestão pode usar agentes instalados nos hosts, encaminhamento nativo, APIs ou coletores. O sistema identifica a origem, interpreta o formato e mapeia campos como horário, usuário, endereço de origem, ativo, ação e resultado. A normalização permite consultar em conjunto fontes que nomeiam o mesmo conceito de formas diferentes. Se o fuso horário estiver incorreto, o campo de usuário for perdido ou um parser quebrar após atualização, uma correlação poderá falhar; por isso, a qualidade da ingestão precisa ser monitorada.\n\nUma regra simples pode alertar sobre muitas falhas de autenticação em curto intervalo. Uma correlação mais útil combina eventos: falhas repetidas, login bem-sucedido de origem incomum e acesso administrativo em seguida. O SIEM não torna automaticamente correta uma regra: limites mal escolhidos geram alertas excessivos, e cobertura insuficiente deixa lacunas. Analistas ajustam regras com contexto de ativos, contas, horários e mudanças autorizadas.\n\n| Função do SIEM | O que permite |\n| --- | --- |\n| Agregação | Consultar em um lugar logs antes separados |\n| Normalização | Comparar campos equivalentes de fontes distintas |\n| Pesquisa | Investigar usuário, host, intervalo e sequência temporal |\n| Correlação | Relacionar eventos que isoladamente parecem comuns |\n| Alerta e painel | Priorizar padrões detectados e acompanhar tendências |\n\n### Limites e operação\n\nUm SIEM depende de fontes habilitadas, configuração de encaminhamento, relógios razoavelmente sincronizados, parsers corretos e armazenamento disponível. Nem todo dado deve ser coletado indiscriminadamente: volume, custo, privacidade, risco de exposição e finalidade precisam ser considerados. A retenção deve seguir as necessidades operacionais e regras aplicáveis à organização; não existe um prazo universal único para qualquer log. Dados centralizados também precisam de controles de acesso, proteção contra alteração e cópias resilientes.\n\n### Como cai na prova\n\n- SIEM centraliza e analisa registros de múltiplas fontes; EDR observa principalmente atividade nos endpoints.\n- Uma regra que cruza identidade, endpoint e rede consegue revelar uma sequência que nenhuma fonte isolada mostra.\n- Um painel sem logs completos, relógios coerentes e parsers funcionais pode transmitir uma visão enganosa."
+    },
+    {
+      "title": "3. EDR e segurança de endpoints",
+      "markdown": "### O problema que este assunto resolve\n\nEndpoints são dispositivos que executam ou acessam recursos da organização: estações, notebooks, servidores e, conforme a solução, dispositivos móveis ou outros equipamentos gerenciados. São alvos frequentes porque executam programas, recebem arquivos e mantêm sessões de usuário. O EDR (Endpoint Detection and Response) monitora continuamente atividades nos endpoints, coleta contexto para detectar comportamento suspeito e oferece recursos de investigação e resposta, como encerrar processo ou isolar o equipamento da rede.\n\n> **Siglas e termos deste capítulo**\n> - **Endpoint**: dispositivo conectado ou administrado no ambiente, como estação de trabalho ou servidor.\n> - **EDR**: detecção e resposta em endpoints; registra telemetria e permite investigar ou conter atividade suspeita.\n> - **Telemetria**: observações técnicas como processos, linha de comando, conexões, arquivos e alterações relevantes.\n> - **EPP**: plataforma de proteção de endpoint, frequentemente focada em prevenção; pode coexistir ou integrar recursos de EDR.\n> - **Isolamento de rede**: restrição de comunicações do dispositivo para conter propagação, mantendo em geral um canal de gerenciamento da ferramenta.\n\n### Que contexto o EDR fornece\n\nEm vez de apenas informar que um arquivo foi detectado, um EDR pode mostrar o processo que o criou, seu processo pai, a conta em uso, a linha de comando e conexões associadas. Essa cadeia ajuda o investigador a reconstruir a sequência. Por exemplo, um documento aberto por um usuário inicia um interpretador de comandos, que grava um executável e estabelece conexão externa. Cada sinal sozinho pode parecer ambíguo; a sequência e o contexto do endpoint ajudam a decidir se é atividade legítima ou maliciosa.\n\n| Recurso | Uso típico |\n| --- | --- |\n| Inventário e postura | Verificar agente ativo, versão e configuração do host |\n| Detecção comportamental | Identificar execução ou sequência incomum |\n| Linha do tempo | Relacionar processos, arquivos, usuários e conexões |\n| Contenção | Isolar host ou interromper processo suspeito |\n| Busca retrospectiva | Procurar indicador ou comportamento em vários endpoints |\n\nEDR não substitui correções, controle de privilégios, configuração segura, proteção de identidade ou cópias de segurança. A cobertura também não é automática: hosts sem agente, agentes desatualizados, políticas inadequadas ou telemetria não encaminhada criam pontos cegos. Ações de contenção podem interromper trabalho legítimo; devem ser proporcionais ao risco e autorizadas por procedimento.\n\n### Endpoints, hardening e investigação\n\nA segurança de endpoint inclui inventariar ativos, manter sistemas e aplicações atualizados, limitar privilégios locais, controlar execução quando apropriado, habilitar auditoria útil e monitorar alterações persistentes. A CISA recomenda logs detalhados de atividade relevante, inclusive linha de comando e atividades de PowerShell ou WMI em ambientes Windows; aponta que EDR pode coletar e centralizar logs. Para macOS, cita observabilidade de comandos e tarefas agendadas; para Linux, a revisão de cron e timers do systemd é um exemplo de busca por persistência. Essas são recomendações técnicas, não uma lista universal que sirva sem adaptação.\n\n### Como cai na prova\n\n- EDR oferece visibilidade e resposta no endpoint; não é apenas antivírus por assinatura nem um SIEM completo.\n- Isolar um host limita comunicações e ajuda a conter propagação, mas pode afetar a operação.\n- Telemetria detalhada aumenta capacidade investigativa e também requer controle de acesso, finalidade e proteção dos dados coletados."
+    },
+    {
+      "title": "4. Gestão de logs e correlação de eventos",
+      "markdown": "### O problema que este assunto resolve\n\nUm log é um registro cronológico produzido por sistema, aplicação ou dispositivo. Ele pode ajudar a reconstruir ações, detectar abuso, investigar falhas e demonstrar o estado observado. Gestão de logs é o conjunto de decisões e práticas sobre o que registrar, como transportar, armazenar, proteger, pesquisar, reter e descartar. O NIST SP 800-92 trata de infraestrutura e processos para gestão de logs em toda a organização; não é um manual passo a passo de um produto específico.\n\n> **Siglas e termos deste capítulo**\n> - **Log**: registro de atividade ou evento com campos como horário, origem, ação e resultado.\n> - **Timestamp**: marca temporal do evento; fuso e sincronização influenciam a ordem investigativa.\n> - **Syslog**: protocolo e formato amplamente usados para encaminhar mensagens de registro, sobretudo em equipamentos de rede e Unix.\n> - **Retenção**: período durante o qual os registros ficam disponíveis segundo necessidade e política.\n> - **Integridade**: propriedade de detectar ou impedir alteração não autorizada de registros.\n> - **Correlação**: associação de eventos por atributos, tempo, sequência ou contexto comum.\n\n### Um ciclo de vida prático\n\n1. **Definir fontes e finalidade**: priorizar identidade, endpoints, servidores, controles de rede, aplicações e serviços de nuvem relevantes para os riscos.\n2. **Habilitar e encaminhar**: configurar auditoria útil e envio para coletor central; proteger o transporte e evitar depender somente do armazenamento local.\n3. **Normalizar e conferir**: validar campos, relógios, volume, perdas, duplicações e mudanças no formato.\n4. **Armazenar e proteger**: separar funções administrativas, limitar leitura e alteração, monitorar acesso e manter resiliência apropriada.\n5. **Pesquisar e correlacionar**: construir linhas do tempo, regras e consultas para detecção e investigação.\n6. **Reter e descartar**: estabelecer prazo coerente com risco, operação, capacidade e obrigações aplicáveis; eliminar com procedimento controlado quando terminar a finalidade.\n\nLogs locais são vulneráveis se um invasor controlar o host: ele pode apagá-los, alterá-los ou esperar que sejam sobrescritos. Encaminhar registros para repositório central com acesso restrito dificulta essa adulteração e preserva histórico mesmo se o equipamento for perdido. Centralização, por si só, não torna os dados imutáveis: controles de privilégio, trilhas de auditoria, armazenamento protegido e verificação de integridade continuam importantes.\n\n### Correlação: de ocorrências a uma hipótese\n\nUma correlação usa chaves comuns — conta, host, endereço, sessão ou identificador — e proximidade temporal para conectar registros. Imagine uma conta de serviço que autentica de um servidor em horário incomum, cria uma tarefa agendada em um endpoint e inicia conexão para destino raramente observado. Relacionar autenticação, auditoria do host e telemetria de rede constrói uma hipótese de comprometimento mais forte do que qualquer registro sozinho. O analista ainda verifica mudanças autorizadas, manutenção e contexto do ativo antes de classificar o caso.\n\nRelógios desalinhados podem inverter a ordem dos eventos; nomes de usuário escritos de formas diferentes podem impedir junções; regras amplas podem gerar ruído. Uma linha de base de ferramentas, contas, horários e tráfego ajuda a distinguir variação esperada de desvio digno de investigação. A CISA recomenda agregação centralizada fora do alcance de adulteração por adversários, auditoria da integridade e testes para verificar se eventos chegam e acionam alertas como previsto.\n\n### Como cai na prova\n\n- Registro centralizado melhora busca e resistência à perda local, mas exige controles no repositório.\n- Correlação combina sinais relacionados; um evento isolado pode não confirmar incidente.\n- Sincronização temporal, cobertura de fontes, qualidade dos campos e retenção são requisitos operacionais concretos."
+    },
+    {
+      "title": "5. Integração, triagem e resposta coordenada",
+      "markdown": "### O problema que este assunto resolve\n\nSOC, SIEM e EDR têm papéis complementares. O EDR observa e age nos endpoints; o SIEM reúne eventos de múltiplas fontes e ajuda a correlacioná-los; o SOC fornece pessoas, processos e autoridade operacional para analisar e responder. Uma arquitetura útil permite que o alerta do SIEM abra uma investigação com dados do endpoint e identidade, sem confundir a ferramenta com a decisão humana.\n\n> **Siglas e termos deste capítulo**\n> - **Caso**: registro de investigação que reúne alerta, evidências, decisões, responsáveis e estado.\n> - **Falso positivo**: alerta disparado por atividade legítima ou por regra sem contexto suficiente.\n> - **Falso negativo**: atividade maliciosa que não gerou alerta identificável.\n> - **Playbook**: sequência documentada de ações para um cenário recorrente.\n> - **Contenção**: ação para limitar impacto ou propagação enquanto a investigação continua.\n\n### Exemplo integrado\n\nUm usuário recebe um alerta de login atípico. O SIEM consulta eventos de autenticação e percebe que, poucos minutos depois, o mesmo usuário acessou um servidor que normalmente não utiliza. O EDR desse servidor mostra uma ferramenta administrativa iniciada por processo incomum. O SOC valida se havia manutenção aprovada, confere o proprietário do ativo e a origem da conexão, classifica a gravidade e abre um caso. Se os indicadores sustentarem comprometimento, o plano pode determinar revogação de sessões, isolamento do host, preservação da linha do tempo e acionamento da equipe de resposta. A ordem e a autoridade dependem do procedimento da organização.\n\n| Elemento | Pergunta operacional |\n| --- | --- |\n| Detecção | Que condição observada gerou o alerta? |\n| Contexto | Quais contas, ativos, horários e mudanças se relacionam? |\n| Validação | Existe explicação legítima comprovável? |\n| Impacto | Que dados, sistemas ou usuários podem estar afetados? |\n| Ação | Quem pode conter, aprovar e comunicar a medida? |\n| Aprendizado | Que lacuna de log ou regra precisa ser corrigida? |\n\n### Qualidade contínua\n\nA equipe deve testar se cada fonte envia o que se espera, acompanhar falhas de ingestão, revisar permissões, confirmar alertas com exercícios e ajustar limiares com evidência. Uma atualização de sistema pode mudar o formato de eventos ou desabilitar auditoria; por isso, qualidade de logs e eficácia dos alertas precisam ser reavaliadas após mudanças. Uma regra útil registra sua finalidade, fontes exigidas, condição, limitações e procedimento de triagem.\n\n### Como cai na prova\n\n- O fluxo correto conecta tecnologia, análise e autoridade: ferramenta sinaliza, analista valida e o procedimento orienta a resposta.\n- A ausência de alerta não prova ausência de atividade; pode haver falta de cobertura ou falha de ingestão.\n- Correlação melhora o contexto, mas não substitui verificação de mudança autorizada e avaliação de impacto."
+    }
+  ],
+  "summary": "O SOC é a capacidade operacional que reúne pessoas, processos e tecnologia para monitorar, triar, investigar e coordenar a resposta a eventos de segurança. O SIEM centraliza e normaliza logs de várias fontes, permitindo pesquisa, detecção e correlação; sua eficácia depende de cobertura, parsers, relógios, armazenamento e regras bem ajustadas. O EDR monitora telemetria do endpoint — processos, arquivos, contas e conexões — e pode apoiar investigação e contenção, como o isolamento de uma máquina. Gestão de logs define fontes, coleta, encaminhamento, qualidade, acesso, integridade, retenção e descarte. Logs centralizados e protegidos preservam histórico e ajudam a relacionar eventos que, vistos isoladamente, seriam ambíguos. Alertas são hipóteses: SOC valida contexto, impacto e mudanças autorizadas antes de agir conforme playbooks e autoridade definidos. Nenhuma ferramenta substitui cobertura adequada, configuração segura, revisão humana e testes regulares da ingestão e das detecções.",
+  "flashcards": [
+    { "front": "O que significa SOC?", "back": "Security Operations Center: função operacional com pessoas, processos e tecnologia para monitorar, investigar e coordenar resposta a eventos de segurança." },
+    { "front": "SOC e SIEM são sinônimos?", "back": "Não. SOC é a capacidade operacional; SIEM é uma plataforma que coleta e analisa eventos e pode apoiar o SOC." },
+    { "front": "Qual é a função central de um SIEM?", "back": "Reunir dados de segurança de componentes diferentes e apresentá-los como informação pesquisável e acionável." },
+    { "front": "O que é normalização de logs?", "back": "Mapear registros de fontes distintas para campos e formatos comuns que possam ser pesquisados e comparados." },
+    { "front": "O que é correlação de eventos?", "back": "Associar registros por atributos, tempo, sequência ou contexto para investigar uma atividade mais ampla." },
+    { "front": "O que significa EDR?", "back": "Endpoint Detection and Response: detecção e resposta em endpoints por meio de telemetria e recursos investigativos ou de contenção." },
+    { "front": "Que eventos podem compor telemetria de EDR?", "back": "Processos e seus pais, linhas de comando, arquivos, contas, conexões e alterações relevantes observadas no endpoint." },
+    { "front": "O que o isolamento de endpoint busca fazer?", "back": "Limitar comunicações do host para ajudar a conter propagação, mantendo, conforme a solução, comunicação de gerenciamento." },
+    { "front": "Por que encaminhar logs para fora do host?", "back": "Reduzir dependência do registro local, que pode ser apagado, alterado ou sobrescrito se o host for comprometido." },
+    { "front": "Centralizar logs torna-os imutáveis?", "back": "Não. Ainda são necessários controles de acesso, proteção contra alteração, auditoria e verificação de integridade." },
+    { "front": "Como relógios desalinhados afetam a investigação?", "back": "Podem distorcer a sequência temporal e prejudicar correlações entre fontes diferentes." },
+    { "front": "O que é triagem de alerta?", "back": "Avaliação inicial de confiabilidade, prioridade e contexto para decidir os próximos passos da investigação." },
+    { "front": "Um alerta confirma um ataque?", "back": "Não. É um sinal ou hipótese que deve ser verificado à luz de evidências e contexto." },
+    { "front": "O que é um falso positivo?", "back": "Alerta disparado por atividade legítima ou por uma regra que não dispõe de contexto suficiente." },
+    { "front": "Cite uma fonte de logs típica para SIEM.", "back": "Identidade, endpoint, servidor, firewall, aplicação ou serviço de nuvem são exemplos de fontes que podem ser encaminhadas." },
+    { "front": "Por que revisar parsers após atualizações?", "back": "Mudanças de formato podem fazer campos deixarem de ser extraídos, comprometendo pesquisas e regras de correlação." },
+    { "front": "O que é linha de base comportamental?", "back": "Referência do comportamento esperado de contas, ferramentas, hosts ou tráfego, usada para identificar desvios investigáveis." },
+    { "front": "Por que SIEM e EDR se complementam?", "back": "O EDR oferece detalhe do endpoint; o SIEM relaciona esse detalhe com identidade, rede, nuvem e outras fontes." },
+    { "front": "O que é retenção de logs?", "back": "Período durante o qual registros ficam disponíveis conforme necessidade operacional, capacidade e obrigações aplicáveis." },
+    { "front": "Qual prática ajuda a manter a qualidade da ingestão?", "back": "Monitorar perda, atraso, duplicação, volume, campos e mudanças nas fontes encaminhadas." },
+    { "front": "O que um playbook descreve?", "back": "Passos documentados para tratar um cenário recorrente, incluindo validação, escalonamento e ações autorizadas." },
+    { "front": "O que é contenção de incidente?", "back": "Ação para limitar impacto ou propagação enquanto a investigação e o tratamento continuam." },
+    { "front": "Por que limitar quem altera logs?", "back": "Para reduzir adulteração, proteger evidências e preservar confiança no histórico de auditoria." },
+    { "front": "Dê um exemplo de correlação útil.", "back": "Relacionar falhas de login, autenticação bem-sucedida de origem incomum e acesso administrativo posterior na mesma conta." },
+    { "front": "O que pode criar ponto cego no EDR?", "back": "Endpoint sem agente, agente desatualizado, política inadequada ou telemetria que não chega ao sistema central." }
+  ],
+  "tips": [
+    "Associe SOC a operação e SIEM a plataforma de agregação, busca e correlação.",
+    "Na investigação, monte uma linha do tempo com conta, host, horário, processo e conexão.",
+    "Confira qualidade da fonte: agente ativo, encaminhamento funcionando, parser e timestamp coerentes.",
+    "Ao ler uma questão sobre EDR, procure detalhes de processo e ações no endpoint.",
+    "Trate alertas como hipóteses que precisam de triagem e contexto.",
+    "Lembre que centralizar logs ajuda a preservar histórico, mas o repositório também precisa de controle e integridade."
+  ],
+  "traps": [
+    "Afirmar que SIEM é o próprio SOC confunde ferramenta com função operacional.",
+    "Tratar um alerta como prova conclusiva ignora falso positivo e contexto legítimo.",
+    "Supor que centralização impede qualquer alteração ignora permissões e proteção do repositório.",
+    "Confundir EDR com proteção apenas por assinatura ignora telemetria e resposta investigativa.",
+    "Correlacionar eventos sem considerar fuso ou relógio pode produzir uma sequência falsa.",
+    "Afirmar prazo universal de retenção ignora política, finalidade, capacidade e obrigação aplicável."
+  ],
+  "activeRecall": [
+    { "question": "Descreva a diferença entre SOC, SIEM e EDR.", "answer": "SOC é a capacidade de operação; SIEM agrega e analisa eventos de várias fontes; EDR monitora e apoia detecção e resposta nos endpoints." },
+    { "question": "Quais são as etapas essenciais da gestão de logs?", "answer": "Definir fontes e finalidade, habilitar e encaminhar, normalizar e verificar qualidade, armazenar com proteção, pesquisar/correlacionar e reter ou descartar conforme política." },
+    { "question": "Por que é importante enviar logs para um repositório central?", "answer": "Permite busca conjunta e reduz dependência de registros locais que podem ser apagados, adulterados ou sobrescritos no host." },
+    { "question": "Como uma correlação pode transformar eventos comuns em um alerta relevante?", "answer": "Relacionando conta, host, tempo e sequência; falha de login, acesso incomum e processo suspeito em seguida podem formar uma hipótese que cada evento isolado não sustentaria." },
+    { "question": "Que controles ajudam a preservar a confiança nos logs?", "answer": "Encaminhamento protegido, acesso limitado, auditoria de acesso e alteração, armazenamento resiliente e verificação de integridade." },
+    { "question": "Que limitações do EDR devem entrar na avaliação de cobertura?", "answer": "Hosts sem agente, agente desatualizado, configuração inadequada e telemetria ausente ou não encaminhada podem criar pontos cegos." },
+    { "question": "O que deve acontecer após um alerta de alto risco?", "answer": "Triar e validar evidências, contextualizar ativos e mudanças, avaliar impacto, seguir escalonamento e executar apenas ações autorizadas pelo procedimento." },
+    { "question": "Como verificar que uma regra de SIEM continua útil?", "answer": "Testar eventos de entrada, validar campos e sequência, confirmar acionamento esperado, revisar falsos positivos e reavaliar após alterações nas fontes." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Ferramenta confundida com operação", "summary": "SOC descreve pessoas, processos e capacidade operacional; SIEM é uma ferramenta de coleta e análise que pode dar suporte ao SOC." },
+    { "key": "e2", "title": "Alerta tomado como confirmação", "summary": "Um alerta inicia triagem. Contexto, evidência, mudanças autorizadas e impacto precisam ser verificados antes da classificação e resposta." },
+    { "key": "e3", "title": "Logs centralizados presumidos como invioláveis", "summary": "A cópia central reduz dependência do host, mas precisa de controle de acesso, auditoria, proteção contra alteração e verificação de integridade." },
+    { "key": "e4", "title": "Cobertura presumida em todos os endpoints", "summary": "Agentes ausentes, desatualizados ou sem telemetria adequada deixam lacunas; inventário e monitoramento da ingestão são necessários." },
+    { "key": "e5", "title": "Correlação sem qualidade temporal ou semântica", "summary": "Relógios, fusos, campos e parsers inconsistentes prejudicam a linha do tempo e podem impedir ou falsear relações entre registros." }
+  ],
+  "questions": [
+    {
+      "statement": "Qual descrição caracteriza melhor a função de um SOC em uma organização?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Centralizar somente os backups dos servidores e restaurar máquinas após falhas de hardware.", "correct": false },
+        { "key": "B", "text": "Administrar exclusivamente permissões de usuários e aprovar cada solicitação de acesso corporativo.", "correct": false },
+        { "key": "C", "text": "Monitorar sinais de segurança, investigar alertas e coordenar respostas com equipes responsáveis.", "correct": true },
+        { "key": "D", "text": "Substituir a equipe de infraestrutura e executar toda mudança em sistemas e redes da empresa.", "correct": false },
+        { "key": "E", "text": "Desenvolver aplicações de negócio e corrigir defeitos funcionais reportados pelos usuários finais.", "correct": false }
+      ],
+      "explanation": "SOC é uma capacidade operacional de monitoramento, triagem, investigação e coordenação de resposta a eventos de segurança. Pode trabalhar com infraestrutura e identidade, mas não substitui essas equipes nem se limita a uma sala física.",
+      "section": "1. SOC: pessoas, processos e operação contínua", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um ambiente com logs de firewall, identidade e servidores, qual recurso permite consultá-los em conjunto e construir alertas correlacionados?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Um SIEM que ingere registros, interpreta campos e oferece pesquisa e correlação entre fontes.", "correct": true },
+        { "key": "B", "text": "Um EDR instalado em cada estação, usado como repositório único de todos os registros de rede.", "correct": false },
+        { "key": "C", "text": "Um sistema de cópia de segurança que replica os arquivos de log sem indexar eventos ou usuários.", "correct": false },
+        { "key": "D", "text": "Um antivírus local que compara executáveis com assinaturas e descarta eventos de autenticação.", "correct": false },
+        { "key": "E", "text": "Um servidor DHCP que atribui endereços IP e define a gravidade de incidentes corporativos.", "correct": false }
+      ],
+      "explanation": "O SIEM centraliza e analisa eventos de fontes diversas. EDR acrescenta observabilidade e resposta no endpoint, mas não substitui por definição a plataforma de correlação ampla.",
+      "section": "2. SIEM: coleta, normalização, consulta e detecção", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer reconstruir quais processos, contas e conexões ocorreram em uma estação após a execução suspeita de um arquivo. Qual ferramenta fornece principalmente esse contexto do host?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Um servidor de nomes que converte domínios em endereços e não registra processos locais.", "correct": false },
+        { "key": "B", "text": "Um sistema de arquivo que mantém cópias periódicas de documentos e configurações do usuário.", "correct": false },
+        { "key": "C", "text": "Um balanceador que distribui conexões entre servidores e não observa atividade do endpoint.", "correct": false },
+        { "key": "D", "text": "Uma plataforma EDR que coleta telemetria do endpoint e apresenta a sequência para investigação.", "correct": true },
+        { "key": "E", "text": "Um catálogo de ativos que lista equipamentos sem acompanhar eventos de execução ou conexão.", "correct": false }
+      ],
+      "explanation": "EDR observa atividade no endpoint e pode relacionar processos, contas, arquivos e conexões. Outros sistemas podem contribuir com contexto, mas não registram por si a linha do tempo local detalhada.",
+      "section": "3. EDR e segurança de endpoints", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma organização encaminha logs de hosts para armazenamento central protegido?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Para dispensar controles locais e permitir que qualquer usuário consulte todos os registros históricos.", "correct": false },
+        { "key": "B", "text": "Para facilitar busca conjunta e preservar registros caso sejam apagados ou sobrescritos no host.", "correct": true },
+        { "key": "C", "text": "Para garantir que nenhum administrador consiga alterar qualquer dado em toda a infraestrutura.", "correct": false },
+        { "key": "D", "text": "Para transformar automaticamente os eventos armazenados em incidentes confirmados e resolvidos.", "correct": false },
+        { "key": "E", "text": "Para reduzir o número de sistemas que precisam gerar eventos de auditoria e autenticação.", "correct": false }
+      ],
+      "explanation": "O armazenamento central favorece pesquisa entre fontes e mantém histórico fora do host comprometido. Ele não torna os logs automaticamente invioláveis: permissões, auditoria e integridade ainda precisam ser protegidas.",
+      "section": "4. Gestão de logs e correlação de eventos", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra de SIEM produz muitos alertas porque compara campos em formatos diferentes sem convertê-los para uma representação comum. Qual etapa deve ser corrigida?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A política de backup, para restaurar a configuração anterior dos equipamentos de rede.", "correct": false },
+        { "key": "B", "text": "A lista de ativos, para remover máquinas que ainda precisam enviar eventos ao sistema.", "correct": false },
+        { "key": "C", "text": "O procedimento de resposta, para que analistas fechem os casos antes de validá-los.", "correct": false },
+        { "key": "D", "text": "A política de retenção, para que todos os registros sejam apagados após cada consulta.", "correct": false },
+        { "key": "E", "text": "A normalização e o mapeamento de campos dos parsers das fontes envolvidas.", "correct": true }
+      ],
+      "explanation": "Normalização mapeia campos e formatos de fontes diferentes para conceitos comuns. Sem isso, regras podem comparar valores incompatíveis ou perder o contexto necessário à detecção.",
+      "section": "2. SIEM: coleta, normalização, consulta e detecção", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint apresenta uma cadeia incomum: documento aberto, interpretador de comandos iniciado e conexão externa logo depois. Qual uso do EDR é mais diretamente pertinente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Examinar a relação entre processos, usuário e conexão e, se autorizado, conter o host.", "correct": true },
+        { "key": "B", "text": "Alterar a política de retenção legal dos registros de todos os sistemas corporativos.", "correct": false },
+        { "key": "C", "text": "Calcular o custo mensal de licenças e redistribuir recursos entre áreas de negócio.", "correct": false },
+        { "key": "D", "text": "Reiniciar automaticamente todos os servidores conectados ao mesmo segmento de rede.", "correct": false },
+        { "key": "E", "text": "Substituir a investigação por uma cópia completa dos arquivos de todos os usuários.", "correct": false }
+      ],
+      "explanation": "A EDR fornece contexto da cadeia de processos, usuário e conexões e pode apoiar contenção. A ação deve ser autorizada, pois pode interromper atividade legítima.",
+      "section": "3. EDR e segurança de endpoints", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma correlação combina falhas de login, autenticação bem-sucedida de origem incomum e acesso administrativo posterior. Qual é o tratamento correto do alerta resultante?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Excluir os registros iniciais, pois somente o último evento da sequência tem valor investigativo.", "correct": false },
+        { "key": "B", "text": "Declarar comprometimento confirmado sem consultar o usuário ou verificar mudanças autorizadas.", "correct": false },
+        { "key": "C", "text": "Desconsiderar a origem porque a autenticação foi bem-sucedida e não houve bloqueio.", "correct": false },
+        { "key": "D", "text": "Desativar permanentemente a conta e apagar o histórico para impedir novos acessos.", "correct": false },
+        { "key": "E", "text": "Tratar a sequência como hipótese e validar contexto, evidências e atividade autorizada.", "correct": true }
+      ],
+      "explanation": "A correlação aumenta a relevância do sinal, mas o analista ainda verifica atividade legítima, mudança autorizada, evidência e impacto antes da classificação e da resposta.",
+      "section": "5. Integração, triagem e resposta coordenada", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Após uma atualização, eventos do sistema continuam chegando ao SIEM, mas a regra baseada em usuário e processo deixou de funcionar. Qual verificação é prioritária?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A capacidade do SOC de transferir todos os analistas para a equipe de desenvolvimento.", "correct": false },
+        { "key": "B", "text": "O calendário de retenção dos registros antigos antes de examinar os eventos atuais.", "correct": false },
+        { "key": "C", "text": "O inventário de licenças do firewall, mesmo sem mudança no encaminhamento de rede.", "correct": false },
+        { "key": "D", "text": "A configuração do relógio do usuário final, sem verificar os timestamps recebidos.", "correct": false },
+        { "key": "E", "text": "O parser e o mapeamento dos campos após a alteração do formato dos eventos.", "correct": true }
+      ],
+      "explanation": "Atualizações podem alterar formato e campos. A ingestão aparente não garante extração correta; validar parser e mapeamento é essencial para a regra baseada em usuário e processo.",
+      "section": "2. SIEM: coleta, normalização, consulta e detecção", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um analista detecta indícios de atividade maliciosa em uma estação e pretende isolá-la da rede. O que deve orientar a ação?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A decisão individual do analista, independentemente da criticidade do ativo ou da autoridade definida.", "correct": false },
+        { "key": "B", "text": "O procedimento de resposta, a avaliação do risco e a autoridade prevista para contenção.", "correct": true },
+        { "key": "C", "text": "A necessidade de aguardar que todos os logs do período de retenção sejam exportados manualmente.", "correct": false },
+        { "key": "D", "text": "A obrigação de desligar todos os equipamentos da mesma unidade organizacional.", "correct": false },
+        { "key": "E", "text": "A recomendação de manter o endpoint conectado para que não perca acesso à internet.", "correct": false }
+      ],
+      "explanation": "Isolamento pode conter propagação, mas interrompe comunicações legítimas. A resposta deve seguir autoridade e procedimento, considerando risco, criticidade e preservação de evidências.",
+      "section": "5. Integração, triagem e resposta coordenada", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de dados tende a ajudar mais na reconstrução de uma linha do tempo de atividade suspeita em endpoint?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Somente o total de espaço livre no disco e a quantidade de memória instalada no equipamento.", "correct": false },
+        { "key": "B", "text": "O número de licenças compradas pela organização e a data de renovação contratual.", "correct": false },
+        { "key": "C", "text": "O nome do departamento do usuário, sem horário, processo, ação ou conexão observada.", "correct": false },
+        { "key": "D", "text": "A versão do navegador registrada no inventário, sem eventos de execução durante o incidente.", "correct": false },
+        { "key": "E", "text": "Horários, conta, processos e processos pais, arquivos e conexões associados ao host.", "correct": true }
+      ],
+      "explanation": "A linha do tempo depende de eventos contextualizados do endpoint: horário, conta, cadeia de processos, arquivos e conexões permitem reconstruir a sequência observada.",
+      "section": "3. EDR e segurança de endpoints", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma auditoria constata que o repositório central aceita alteração de logs por qualquer administrador de aplicação. Qual controle reduz diretamente esse risco?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Ampliar o acesso de leitura e escrita a todos os integrantes das equipes de desenvolvimento.", "correct": false },
+        { "key": "B", "text": "Manter apenas cópias locais em cada host para que cada equipe controle seus próprios eventos.", "correct": false },
+        { "key": "C", "text": "Restringir privilégios de alteração, auditar acessos e proteger a integridade do armazenamento.", "correct": true },
+        { "key": "D", "text": "Desabilitar a geração de logs administrativos para evitar que dados sensíveis sejam coletados.", "correct": false },
+        { "key": "E", "text": "Aumentar a quantidade de painéis sem modificar as permissões de escrita existentes.", "correct": false }
+      ],
+      "explanation": "Acesso restrito e auditado reduz alterações não autorizadas e preserva a confiabilidade do histórico. Mais painéis ou apenas cópias locais não resolvem o privilégio excessivo.",
+      "section": "4. Gestão de logs e correlação de eventos", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação constitui um ponto cego plausível na cobertura de EDR?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Um endpoint sem agente ou cujo agente parou de enviar telemetria ao sistema central.", "correct": true },
+        { "key": "B", "text": "Uma regra de correlação que cruza autenticação e rede para formar um alerta único.", "correct": false },
+        { "key": "C", "text": "Um analista que valida com a equipe de infraestrutura se havia manutenção programada.", "correct": false },
+        { "key": "D", "text": "Um repositório que indexa eventos de servidores, identidade e dispositivos de rede.", "correct": false },
+        { "key": "E", "text": "Uma política que exige aprovação antes de isolar um servidor de alta criticidade.", "correct": false }
+      ],
+      "explanation": "Sem agente ativo ou telemetria entregue, a equipe perde visibilidade do host. Inventário e monitoramento da saúde do agente ajudam a descobrir essa lacuna.",
+      "section": "3. EDR e segurança de endpoints", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Dois sistemas registram eventos equivalentes com fusos horários distintos. Qual problema isso pode causar na correlação?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A substituição automática de alertas por cópias de segurança incrementais do endpoint.", "correct": false },
+        { "key": "B", "text": "A remoção dos registros de autenticação sempre que o relógio de uma fonte divergir.", "correct": false },
+        { "key": "C", "text": "A conversão de toda atividade suspeita em evento de baixa prioridade sem investigação.", "correct": false },
+        { "key": "D", "text": "Uma ordenação temporal incorreta que faça a sequência parecer diferente da atividade real.", "correct": true },
+        { "key": "E", "text": "A impossibilidade de limitar quem tem permissão para alterar a configuração central.", "correct": false }
+      ],
+      "explanation": "Fusos e relógios inconsistentes distorcem a ordem aparente. A normalização temporal e a validação dos timestamps são importantes para reconstruir sequências confiáveis.",
+      "section": "4. Gestão de logs e correlação de eventos", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Depois de correlacionar eventos, o analista encontra uma janela de manutenção aprovada que explica os acessos atípicos. Qual conclusão é mais adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A manutenção deve ser ignorada, porque uma regra de SIEM sempre prevalece sobre evidência operacional.", "correct": false },
+        { "key": "B", "text": "O caso deve ser classificado com o contexto validado e a regra pode ser ajustada se gerou ruído.", "correct": true },
+        { "key": "C", "text": "Todos os registros da janela devem ser apagados para evitar que voltem a gerar alertas.", "correct": false },
+        { "key": "D", "text": "A equipe deve declarar incidente confirmado para evitar revisar futuras mudanças planejadas.", "correct": false },
+        { "key": "E", "text": "O SIEM precisa deixar de receber logs de autenticação do ambiente de manutenção.", "correct": false }
+      ],
+      "explanation": "A validação de mudança autorizada pode explicar a atividade. O caso deve documentar a justificativa; se a regra gerar ruído recorrente, pode ser refinada com contexto, sem eliminar fontes úteis.",
+      "section": "5. Integração, triagem e resposta coordenada", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A equipe precisa descobrir por que a investigação não encontra autenticações anteriores a determinado dia, embora o host as tenha registrado. Qual verificação inicial é mais útil?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Revisar apenas a lista de nomes dos analistas escalados para o próximo turno do SOC.", "correct": false },
+        { "key": "B", "text": "Aumentar o limite de alertas por regra sem verificar quais registros foram encaminhados.", "correct": false },
+        { "key": "C", "text": "Verificar encaminhamento, conectividade, perdas e retenção do período investigado.", "correct": true },
+        { "key": "D", "text": "Alterar a senha de todos os usuários sem determinar se os eventos foram coletados.", "correct": false },
+        { "key": "E", "text": "Desabilitar o agente EDR para reduzir tráfego durante a investigação em curso.", "correct": false }
+      ],
+      "explanation": "A presença local não demonstra que os registros chegaram nem que ainda estão retidos no repositório. A equipe deve verificar ingestão, perdas e política de retenção.",
+      "section": "4. Gestão de logs e correlação de eventos", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática ajuda a reduzir falsos positivos sem eliminar fontes relevantes de eventos?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Desativar a coleta de autenticação e aceitar que acessos administrativos não sejam investigados.", "correct": false },
+        { "key": "B", "text": "Remover todos os limiares e considerar cada evento isolado como incidente confirmado.", "correct": false },
+        { "key": "C", "text": "Ignorar alertas repetidos sem registrar a causa ou ajustar condições da regra.", "correct": false },
+        { "key": "D", "text": "Aumentar indiscriminadamente os limites até que quase nenhum alerta seja produzido.", "correct": false },
+        { "key": "E", "text": "Usar contexto de ativo, usuário e mudanças autorizadas para refinar regras e triagem.", "correct": true }
+      ],
+      "explanation": "Contexto ajuda a distinguir comportamento legítimo de sinal suspeito. Ajustes devem manter a cobertura desejada e ser testados para evitar esconder atividade maliciosa.",
+      "section": "2. SIEM: coleta, normalização, consulta e detecção", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint Windows gera eventos de linha de comando, mas a política atual não os encaminha ao coletor. Que ajuste amplia diretamente a visibilidade central?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Alterar o nome do host para que o SIEM o classifique automaticamente como servidor crítico.", "correct": false },
+        { "key": "B", "text": "Remover a conta local de administrador sem revisar as fontes de auditoria habilitadas.", "correct": false },
+        { "key": "C", "text": "Aumentar a capacidade de retenção antes de ativar coleta para a fonte ausente.", "correct": false },
+        { "key": "D", "text": "Habilitar o registro necessário e configurar encaminhamento seguro para o coletor.", "correct": true },
+        { "key": "E", "text": "Criar um painel vazio e considerá-lo equivalente à coleta de telemetria do endpoint.", "correct": false }
+      ],
+      "explanation": "Para que o SIEM analise a atividade, a fonte precisa gerar o evento e encaminhá-lo. Armazenamento e painéis não compensam uma fonte que não foi habilitada ou enviada.",
+      "section": "3. EDR e segurança de endpoints", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A organização precisa escolher quais fontes enviar primeiro ao SIEM. Qual critério é mais defensável?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Priorizar fontes relacionadas a riscos, ativos críticos, identidade e cenários que se pretende detectar.", "correct": true },
+        { "key": "B", "text": "Enviar somente registros de baixo volume, ainda que não contribuam para investigação de riscos relevantes.", "correct": false },
+        { "key": "C", "text": "Coletar todos os dados indiscriminadamente, sem avaliar custo, finalidade ou sensibilidade.", "correct": false },
+        { "key": "D", "text": "Escolher as fontes pela ordem alfabética dos nomes de fabricantes de cada equipamento.", "correct": false },
+        { "key": "E", "text": "Desconsiderar identidade e endpoints porque o firewall resume toda atividade individual do usuário.", "correct": false }
+      ],
+      "explanation": "A priorização deve relacionar fontes com riscos, ativos e objetivos de detecção. Volume e sensibilidade também importam, mas não devem substituir a relevância operacional.",
+      "section": "2. SIEM: coleta, normalização, consulta e detecção", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um EDR identifica execução suspeita em um servidor que hospeda serviço essencial. Qual medida inicial melhor equilibra contenção e continuidade?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Apagar imediatamente os discos e reinstalar o servidor antes de preservar evidência ou avaliar impacto.", "correct": false },
+        { "key": "B", "text": "Aplicar o procedimento de resposta, avaliar criticidade e decidir contenção proporcional com responsáveis.", "correct": true },
+        { "key": "C", "text": "Ignorar o alerta porque servidores essenciais nunca podem ser isolados em qualquer circunstância.", "correct": false },
+        { "key": "D", "text": "Desconectar todo o centro de dados sem consultar dependências ou equipe de operação.", "correct": false },
+        { "key": "E", "text": "Encerrar o caso e aguardar que o SIEM confirme o evento por outra regra independente.", "correct": false }
+      ],
+      "explanation": "Em ativo crítico, a contenção exige ponderar propagação, continuidade, evidências e autoridade. O procedimento orienta uma ação proporcional; nem ignorar nem interromper indiscriminadamente é adequado.",
+      "section": "5. Integração, triagem e resposta coordenada", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe observa que logs de autenticação e EDR usam identificadores diferentes para a mesma conta. O que melhora a capacidade de correlação?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Excluir um dos fluxos para que cada ferramenta mantenha sua nomenclatura original sem pesquisa conjunta.", "correct": false },
+        { "key": "B", "text": "Aumentar a retenção dos logs sem alterar campos ou identificadores usados nas consultas.", "correct": false },
+        { "key": "C", "text": "Mapear identificadores equivalentes para um campo comum e validar a transformação.", "correct": true },
+        { "key": "D", "text": "Marcar todos os eventos como críticos para compensar a ausência de uma chave comum.", "correct": false },
+        { "key": "E", "text": "Trocar o agente EDR por uma ferramenta de backup que preserve nomes de usuário.", "correct": false }
+      ],
+      "explanation": "O mapeamento e a normalização permitem que consultas relacionem identidades equivalentes. A transformação deve ser validada para não juntar contas diferentes por engano.",
+      "section": "2. SIEM: coleta, normalização, consulta e detecção", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um analista encontra nos logs locais de um servidor um evento de remoção de registros após uma autenticação suspeita. Qual decisão de gestão de logs teria reduzido a perda de contexto?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Manter somente o histórico local e aumentar o espaço em disco sem encaminhamento externo.", "correct": false },
+        { "key": "B", "text": "Permitir que a conta suspeita administre o coletor para facilitar exportações posteriores.", "correct": false },
+        { "key": "C", "text": "Desativar a auditoria no servidor para evitar que o invasor identifique os eventos gerados.", "correct": false },
+        { "key": "D", "text": "Encaminhar os registros relevantes para armazenamento central com acesso e integridade protegidos.", "correct": true },
+        { "key": "E", "text": "Reduzir a retenção central para manter apenas os registros posteriores à investigação.", "correct": false }
+      ],
+      "explanation": "Encaminhamento para repositório central dificulta que a administração do host apague todo o histórico disponível. O repositório também precisa de controles contra alteração e acesso indevido.",
+      "section": "4. Gestão de logs e correlação de eventos", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A regra de SIEM detecta uma conta de serviço usada fora de seu horário e host habituais. Que informação de linha de base torna a investigação mais útil?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O perfil esperado da conta, incluindo horários, hosts de origem e sistemas que ela acessa.", "correct": true },
+        { "key": "B", "text": "O tamanho total do banco de dados de logs, sem distinção entre usuários ou sistemas.", "correct": false },
+        { "key": "C", "text": "A lista de endereços de suporte ao cliente, sem relação com a conta de serviço observada.", "correct": false },
+        { "key": "D", "text": "A configuração de idioma do painel, que determina se a atividade é legítima ou maliciosa.", "correct": false },
+        { "key": "E", "text": "A quantidade de alertas encerrados no mês anterior, sem consultar os eventos da conta.", "correct": false }
+      ],
+      "explanation": "Uma linha de base da conta de serviço especifica usos esperados: horário, origem, destino e finalidade. Desvios orientam investigação, mas devem ser verificados com mudanças e tarefas autorizadas.",
+      "section": "2. SIEM: coleta, normalização, consulta e detecção", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A auditoria mostra que alguns hosts enviam eventos duplicados e outros deixam de enviar após reinicialização. Qual melhoria trata a confiabilidade do pipeline?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Aumentar a severidade das regras de alerta até que a duplicação deixe de aparecer nos painéis.", "correct": false },
+        { "key": "B", "text": "Desativar a observabilidade em hosts reiniciados para padronizar o volume ingerido.", "correct": false },
+        { "key": "C", "text": "Verificar agentes, filas, conectividade, identificação de eventos e monitoramento de perda.", "correct": true },
+        { "key": "D", "text": "Alterar a política de resposta a incidentes sem revisar a coleta e o encaminhamento.", "correct": false },
+        { "key": "E", "text": "Excluir os registros repetidos manualmente e assumir que os eventos ausentes são benignos.", "correct": false }
+      ],
+      "explanation": "A confiabilidade depende da fonte e do transporte: saúde do agente, filas, conexão, identificadores e detecção de perda precisam ser acompanhados. Editar resultados manualmente mascara a falha.",
+      "section": "4. Gestão de logs e correlação de eventos", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação descreve uma arquitetura integrada e coerente para monitoramento de segurança?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O SOC produz todos os eventos, o SIEM substitui o analista e o EDR define a política de retenção legal.", "correct": false },
+        { "key": "B", "text": "O EDR monitora endpoints, o SIEM relaciona várias fontes e o SOC analisa e coordena resposta.", "correct": true },
+        { "key": "C", "text": "O SIEM substitui agentes em endpoints e o SOC atua apenas na administração de inventário de hardware.", "correct": false },
+        { "key": "D", "text": "O EDR armazena todos os logs de rede, enquanto o SIEM executa contenção física de servidores.", "correct": false },
+        { "key": "E", "text": "O SOC é um protocolo de transporte, o EDR normaliza toda fonte e o SIEM administra usuários finais.", "correct": false }
+      ],
+      "explanation": "EDR dá visibilidade e recursos de resposta em endpoints; SIEM agrega e correlaciona fontes diversas; SOC usa pessoas e procedimentos para validar alertas e coordenar ações.",
+      "section": "5. Integração, triagem e resposta coordenada", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma investigação precisa reconstruir atividade em um ambiente de nuvem após alteração administrativa. Que grupo de eventos é especialmente pertinente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Somente o espaço usado por arquivos temporários em notebooks que não acessaram o serviço.", "correct": false },
+        { "key": "B", "text": "A contagem de chamados de atendimento, sem identidade, horário ou operação registrada.", "correct": false },
+        { "key": "C", "text": "As preferências de exibição do painel e a resolução de tela do administrador.", "correct": false },
+        { "key": "D", "text": "As chamadas de API, logins, leituras e gravações e mudanças de configuração do plano de controle.", "correct": true },
+        { "key": "E", "text": "Apenas os registros de impressão de estações de trabalho sem vínculo com a conta investigada.", "correct": false }
+      ],
+      "explanation": "Eventos de plano de controle e autenticação permitem reconstruir quem acessou o serviço e quais operações administrativas ou de dados ocorreram. A cobertura precisa estar habilitada nos serviços pertinentes.",
+      "section": "4. Gestão de logs e correlação de eventos", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Após identificar possível comprometimento de uma conta, qual sequência de trabalho é mais consistente com triagem e resposta coordenada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Validar alerta e contexto, estimar impacto, seguir escalonamento e executar ações autorizadas.", "correct": true },
+        { "key": "B", "text": "Apagar os logs, encerrar a investigação e aguardar que a conta volte a ser usada.", "correct": false },
+        { "key": "C", "text": "Bloquear toda a organização antes de identificar ativos, dependências ou sessões envolvidas.", "correct": false },
+        { "key": "D", "text": "Declarar incidente confirmado sempre que uma regra produzir alerta de risco elevado.", "correct": false },
+        { "key": "E", "text": "Atribuir a decisão ao mecanismo de alerta e dispensar documentação do que foi executado.", "correct": false }
+      ],
+      "explanation": "O SOC valida sinais, entende contexto e impacto e segue escalonamento e autoridade. Ações ficam documentadas no caso para permitir continuidade e revisão.",
+      "section": "5. Integração, triagem e resposta coordenada", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização coleta logs ricos, mas usuários comuns conseguem consultar registros de autenticação de outras áreas. Qual princípio operacional deve ser aplicado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Dar acesso amplo porque a centralização só é útil quando todos veem todos os registros.", "correct": false },
+        { "key": "B", "text": "Remover campos de identidade para manter a coleta, sem controlar as permissões de leitura.", "correct": false },
+        { "key": "C", "text": "Restringir leitura por necessidade e função, registrando e revisando acessos ao repositório.", "correct": true },
+        { "key": "D", "text": "Aumentar a retenção para compensar o risco de divulgação de dados a pessoas não autorizadas.", "correct": false },
+        { "key": "E", "text": "Permitir acesso durante o expediente e desabilitar auditoria para reduzir alertas de consulta.", "correct": false }
+      ],
+      "explanation": "Logs podem conter dados sensíveis sobre usuários e sistemas. O acesso deve ser limitado à necessidade de trabalho e auditado; retenção maior não corrige exposição indevida.",
+      "section": "4. Gestão de logs e correlação de eventos", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer testar se uma regra de detecção ainda funciona após alterar o parser de uma fonte. Qual procedimento oferece evidência direta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Verificar somente que o serviço do SIEM está ativo, sem consultar os campos recebidos ou o alerta.", "correct": false },
+        { "key": "B", "text": "Aumentar a retenção e inferir que uma regra está válida se o volume de dados crescer.", "correct": false },
+        { "key": "C", "text": "Encerrar alertas antigos e usar sua quantidade como substituto de teste da nova configuração.", "correct": false },
+        { "key": "D", "text": "Desabilitar a regra durante a mudança e presumir que o formato anterior continuará compatível.", "correct": false },
+        { "key": "E", "text": "Enviar eventos controlados, conferir campos normalizados e observar o resultado esperado da regra.", "correct": true }
+      ],
+      "explanation": "Um teste controlado verifica o pipeline completo: chegada, extração e normalização dos campos e comportamento da regra. Apenas verificar serviço ativo ou volume não demonstra detecção correta.",
+      "section": "5. Integração, triagem e resposta coordenada", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma estação apresenta processo suspeito e conexão externa. Qual dado adicional do EDR pode ajudar a diferenciar atividade maliciosa de ferramenta administrativa autorizada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A cor escolhida pelo usuário para o fundo da área de trabalho no momento da detecção.", "correct": false },
+        { "key": "B", "text": "A árvore de processos, a conta, a linha de comando e o contexto do host observado.", "correct": true },
+        { "key": "C", "text": "A quantidade de espaço contratado para backup sem indicação de quando o processo iniciou.", "correct": false },
+        { "key": "D", "text": "A lista geral de softwares aprovados, sem associação com processo, usuário ou horário.", "correct": false },
+        { "key": "E", "text": "A duração da retenção de logs da rede, sem qualquer evento do endpoint investigado.", "correct": false }
+      ],
+      "explanation": "A cadeia de processos, usuário, linha de comando e host fornece contexto para comparar com uso administrativo esperado. Uma lista genérica ou metadado sem vínculo não explica a execução observada.",
+      "section": "3. EDR e segurança de endpoints", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra combina login, processo e conexão em intervalo curto, mas registros chegam com atraso variável. Qual abordagem evita conclusões temporais precipitadas?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Usar o horário de ingestão como se fosse sempre o horário em que a atividade ocorreu.", "correct": false },
+        { "key": "B", "text": "Descartar timestamps de origem e ordenar eventos pelo nome do sistema que os gerou.", "correct": false },
+        { "key": "C", "text": "Desativar fontes lentas e tratar os eventos restantes como sequência completa do incidente.", "correct": false },
+        { "key": "D", "text": "Validar timestamps de origem, fuso, sincronização e atraso antes de interpretar a sequência.", "correct": true },
+        { "key": "E", "text": "Aumentar a severidade da regra para compensar diferenças de relógio entre as fontes.", "correct": false }
+      ],
+      "explanation": "Horário de ocorrência e horário de ingestão podem divergir. Fuso, relógios e atraso devem ser compreendidos antes de afirmar a ordem causal de eventos correlacionados.",
+      "section": "4. Gestão de logs e correlação de eventos", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O SOC deseja usar a mesma regra de correlação após uma mudança no sistema de identidade. Qual medida reduz o risco de uma lacuna silenciosa?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Monitorar volume e campos recebidos, testar autenticações conhecidas e revisar o mapeamento da fonte.", "correct": true },
+        { "key": "B", "text": "Manter a regra sem teste, pois mudanças de identidade não afetam os registros de autenticação.", "correct": false },
+        { "key": "C", "text": "Desativar a fonte antiga antes de habilitar a nova e apagar consultas históricas do SIEM.", "correct": false },
+        { "key": "D", "text": "Criar alertas para todos os usuários e dispensar a validação de campos normalizados.", "correct": false },
+        { "key": "E", "text": "Verificar apenas a tela de login, sem confirmar se eventos chegam ao coletor central.", "correct": false }
+      ],
+      "explanation": "Mudanças de fonte podem alterar formato, campos ou identificadores. Monitoramento de ingestão, teste conhecido e revisão do mapeamento detectam quebra antes que uma ausência de alertas seja confundida com ausência de risco.",
+      "section": "5. Integração, triagem e resposta coordenada", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint crítico tem agente EDR ativo, mas o console central não mostra eventos recentes. Qual hipótese deve ser investigada antes de concluir que não houve atividade?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O host não pode ter atividade suspeita se o agente aparece instalado no inventário.", "correct": false },
+        { "key": "B", "text": "A ausência de alerta confirma que todos os controles preventivos bloquearam qualquer ação.", "correct": false },
+        { "key": "C", "text": "Falha de comunicação, política, fila ou ingestão pode explicar a ausência de telemetria recente.", "correct": true },
+        { "key": "D", "text": "A equipe deve excluir o host da cobertura para evitar investigar uma lacuna incerta.", "correct": false },
+        { "key": "E", "text": "Os registros locais podem ser considerados centrais mesmo sem encaminhamento ao console.", "correct": false }
+      ],
+      "explanation": "Agente instalado não garante comunicação ou coleta efetiva. Saúde do agente, política, conectividade e ingestão devem ser verificadas; falta de evento não prova ausência de atividade.",
+      "section": "3. EDR e segurança de endpoints", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A política de retenção atual mantém logs por período curto demais para investigar incidentes descobertos tardiamente. Como a equipe deve tratar a lacuna?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Fixar o mesmo prazo para qualquer organização sem avaliar risco ou requisito aplicável.", "correct": false },
+        { "key": "B", "text": "Avaliar necessidades investigativas, capacidade, sensibilidade e obrigações aplicáveis ao definir retenção.", "correct": true },
+        { "key": "C", "text": "Armazenar indefinidamente todo registro, independentemente de finalidade ou proteção necessária.", "correct": false },
+        { "key": "D", "text": "Apagar logs recentes para liberar espaço e preservar apenas alertas já encerrados.", "correct": false },
+        { "key": "E", "text": "Deixar a retenção a cargo de cada usuário final, sem política institucional ou monitoramento.", "correct": false }
+      ],
+      "explanation": "Retenção precisa equilibrar investigação, operação, capacidade, sensibilidade e obrigações que se aplicam à organização. Não há prazo único que sirva para todo ambiente.",
+      "section": "4. Gestão de logs e correlação de eventos", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um login anômalo é seguido por acesso a um ativo crítico e execução suspeita, mas há uma mudança emergencial registrada. Que informação é decisiva para avaliar a hipótese?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A existência de uma regra acionada, que basta para confirmar a intenção maliciosa.", "correct": false },
+        { "key": "B", "text": "A quantidade de alertas fechados no mês, sem consultar a mudança ou as evidências.", "correct": false },
+        { "key": "C", "text": "O nome do fornecedor da ferramenta, independentemente do usuário e do horário observado.", "correct": false },
+        { "key": "D", "text": "A validade, o escopo, o responsável e a janela autorizada da mudança emergencial.", "correct": true },
+        { "key": "E", "text": "A exclusão dos eventos da janela para evitar que a correlação seja executada novamente.", "correct": false }
+      ],
+      "explanation": "A mudança pode explicar atividade legítima, mas precisa ser verificada quanto a autorização, escopo e horário; evidências fora desses limites ainda podem indicar abuso ou comprometimento.",
+      "section": "5. Integração, triagem e resposta coordenada", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um time quer proteger evidências durante contenção de endpoint e manter o caso auditável. Qual prática atende melhor aos dois objetivos?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Apagar a telemetria após isolar o host e registrar somente que a ação ocorreu.", "correct": false },
+        { "key": "B", "text": "Permitir que qualquer administrador edite a linha do tempo para corrigir dados divergentes.", "correct": false },
+        { "key": "C", "text": "Documentar evidências e decisões, preservar registros e limitar ações de alteração por função.", "correct": true },
+        { "key": "D", "text": "Adiar toda contenção até que cada registro disponível tenha sido revisado por todos os analistas.", "correct": false },
+        { "key": "E", "text": "Compartilhar credenciais do console para que mais equipes possam atualizar o caso simultaneamente.", "correct": false }
+      ],
+      "explanation": "Documentação de evidências, decisões e responsáveis mantém rastreabilidade; controles de acesso reduzem alterações indevidas. A contenção segue risco e procedimento sem dispensar preservação adequada.",
+      "section": "5. Integração, triagem e resposta coordenada", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra baseada em endereço IP gera alertas incorretos porque endereços são reutilizados e traduzidos por um serviço intermediário. Qual refinamento melhora a atribuição?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Associar o IP a timestamps, identidade, host e registros do serviço intermediário antes de atribuir atividade.", "correct": true },
+        { "key": "B", "text": "Considerar que todo evento do mesmo IP foi produzido pelo mesmo usuário em qualquer horário.", "correct": false },
+        { "key": "C", "text": "Remover os logs de autenticação para que a regra dependa apenas do endereço observado.", "correct": false },
+        { "key": "D", "text": "Aumentar a severidade do alerta e ignorar relações de NAT, proxy ou atribuição temporal.", "correct": false },
+        { "key": "E", "text": "Usar a localização geográfica aproximada como prova suficiente da identidade do usuário.", "correct": false }
+      ],
+      "explanation": "Endereço IP sozinho pode não identificar usuário ou host por causa de NAT, proxy e reuso. Timestamp, identidade e registros intermediários adicionam contexto antes da atribuição.",
+      "section": "2. SIEM: coleta, normalização, consulta e detecção", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Após uma regra correlacionada indicar comportamento incomum, como a equipe avalia se deve escalar o caso para resposta a incidente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Escalar todos os alertas sem triagem, pois priorização pode ocultar atividade que pareça legítima.", "correct": false },
+        { "key": "B", "text": "Fechar o caso se não houver confirmação automática do SIEM no mesmo minuto.", "correct": false },
+        { "key": "C", "text": "Pedir ao usuário envolvido que altere os logs antes de registrar evidências no caso.", "correct": false },
+        { "key": "D", "text": "Comparar sinais, contexto, confiança e impacto com critérios de severidade e escalonamento definidos.", "correct": true },
+        { "key": "E", "text": "Basear a decisão somente no volume total de armazenamento consumido pelo SIEM.", "correct": false }
+      ],
+      "explanation": "Critérios de escalonamento relacionam evidência, confiança, ativo, impacto e severidade. Triagem documentada prioriza casos sem considerar uma detecção automática como veredito.",
+      "section": "5. Integração, triagem e resposta coordenada", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação demonstra uma falha de cobertura de logs mesmo que o SIEM e seus painéis estejam disponíveis?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O analista abre uma consulta e encontra eventos de autenticação de várias fontes.", "correct": false },
+        { "key": "B", "text": "A regra identifica uma sequência de eventos e registra sua justificativa no caso.", "correct": false },
+        { "key": "C", "text": "Uma fonte crítica deixou de encaminhar eventos, mas o painel não monitora a saúde da ingestão.", "correct": true },
+        { "key": "D", "text": "A equipe armazena logs centrais e restringe alterações a administradores autorizados.", "correct": false },
+        { "key": "E", "text": "O SOC documenta um falso positivo após verificar uma mudança aprovada.", "correct": false }
+      ],
+      "explanation": "A plataforma pode estar disponível enquanto uma fonte deixa de enviar dados. Sem monitoração de saúde e ausência de eventos esperados, a lacuna pode parecer ausência de atividade.",
+      "section": "4. Gestão de logs e correlação de eventos", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A contenção automatizada por EDR pode isolar endpoints. Qual condição operacional é importante antes de habilitar a ação automática para toda a frota?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Confirmar escopo, critérios de confiança, exceções de ativos críticos e mecanismo de revisão.", "correct": true },
+        { "key": "B", "text": "Permitir que qualquer regra de baixa confiança desligue todos os dispositivos relacionados.", "correct": false },
+        { "key": "C", "text": "Remover a possibilidade de resposta manual para evitar decisões humanas em incidentes.", "correct": false },
+        { "key": "D", "text": "Desativar os registros de auditoria para que as ações automáticas não gerem alertas adicionais.", "correct": false },
+        { "key": "E", "text": "Aplicar a ação somente quando o endpoint deixar de enviar telemetria por longo período.", "correct": false }
+      ],
+      "explanation": "A automação pode interromper atividades legítimas. Critérios de confiança, escopo, exceções e revisão ajudam a conter risco operacional e garantem que a ação permaneça auditável.",
+      "section": "3. EDR e segurança de endpoints", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer identificar uso de ferramenta administrativa fora do padrão. Qual combinação de telemetria e análise é mais adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Apenas o nome do equipamento no inventário, sem eventos de conta, horário ou execução.", "correct": false },
+        { "key": "B", "text": "Processos, linha de comando, conta, host e horário comparados com uma linha de base validada.", "correct": true },
+        { "key": "C", "text": "A quantidade de conexões totais da rede, sem classificar origem, destino ou ferramenta.", "correct": false },
+        { "key": "D", "text": "A lista de arquivos de backup, sem identificar quem executou a ferramenta ou quando.", "correct": false },
+        { "key": "E", "text": "A cor de severidade do último alerta, sem revisar comportamento recorrente ou autorizado.", "correct": false }
+      ],
+      "explanation": "Telemetria de execução com contexto de usuário, horário e host pode ser comparada ao uso administrativo esperado. O desvio orienta investigação; sozinho não prova abuso.",
+      "section": "3. EDR e segurança de endpoints", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um SOC quer medir o desempenho sem incentivar o fechamento apressado de alertas. Qual abordagem é mais equilibrada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Contar apenas quantos alertas foram encerrados, sem avaliar qualidade, reabertura ou impacto.", "correct": false },
+        { "key": "B", "text": "Medir somente o total de eventos coletados, independentemente de cobertura ou utilidade investigativa.", "correct": false },
+        { "key": "C", "text": "Acompanhar tempos de triagem e contenção junto a qualidade, reabertura e falsos positivos.", "correct": true },
+        { "key": "D", "text": "Premiar a ausência de incidentes registrados, mesmo quando fontes ou regras ficaram indisponíveis.", "correct": false },
+        { "key": "E", "text": "Comparar áreas pelo número de endpoints sem considerar criticidade ou exposição diferente.", "correct": false }
+      ],
+      "explanation": "Tempos são úteis, mas precisam ser lidos com qualidade e resultados: reabertura, falsos positivos, cobertura e impacto evitam que uma métrica isolada incentive encerramento superficial.",
+      "section": "1. SOC: pessoas, processos e operação contínua", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma fonte gera mais logs após habilitação de auditoria detalhada. Qual decisão de armazenamento é mais adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Descartar a fonte sem avaliar os eventos que ela pode revelar sobre atividade de risco.", "correct": false },
+        { "key": "B", "text": "Reter tudo indefinidamente para que nenhuma decisão de capacidade seja necessária.", "correct": false },
+        { "key": "C", "text": "Permitir que cada equipe exclua seus próprios registros sempre que o volume aumentar.", "correct": false },
+        { "key": "D", "text": "Avaliar relevância, finalidade, sensibilidade, custo e prazo apropriado de retenção.", "correct": true },
+        { "key": "E", "text": "Desabilitar a auditoria detalhada sem testar se ela é necessária para detectar ameaças.", "correct": false }
+      ],
+      "explanation": "A gestão do volume deve equilibrar valor de detecção, finalidade, sensibilidade, capacidade e obrigações. Coleta indiscriminada ou descarte sem avaliação reduz utilidade e controle.",
+      "section": "4. Gestão de logs e correlação de eventos", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra detecta uma conexão externa incomum, mas não associa o tráfego ao processo que a originou. Que melhoria amplia a investigação do endpoint?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Correlacionar evento de rede com telemetria EDR de processo, conta e horário no host.", "correct": true },
+        { "key": "B", "text": "Aumentar o número de painéis e considerar o endereço remoto suficiente para atribuição.", "correct": false },
+        { "key": "C", "text": "Remover eventos de endpoint porque a rede já registra o destino da conexão.", "correct": false },
+        { "key": "D", "text": "Trocar a retenção para um prazo maior sem integrar registros de processo e rede.", "correct": false },
+        { "key": "E", "text": "Desativar a regra de rede e usar somente alertas de arquivos detectados por assinatura.", "correct": false }
+      ],
+      "explanation": "O registro de rede informa destino e horário, enquanto a telemetria EDR pode identificar o processo e a conta associados. Correlacioná-los acrescenta contexto à investigação.",
+      "section": "2. SIEM: coleta, normalização, consulta e detecção", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um incidente foi descoberto semanas depois, mas o repositório perdeu registros antigos por sobrescrita. Qual aspecto do ciclo de gestão falhou diretamente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A normalização de nomes de processo entre sistemas operacionais distintos.", "correct": false },
+        { "key": "B", "text": "A retenção e a capacidade de armazenamento compatíveis com a necessidade investigativa.", "correct": true },
+        { "key": "C", "text": "A autorização para que o analista de plantão pudesse alterar um endpoint.", "correct": false },
+        { "key": "D", "text": "A distinção entre uma equipe SOC interna e um serviço terceirizado.", "correct": false },
+        { "key": "E", "text": "A criação de um painel com métricas mensais de alertas e falsos positivos.", "correct": false }
+      ],
+      "explanation": "A sobrescrita prematura tornou indisponível o período necessário. Retenção e capacidade devem refletir risco e necessidade, respeitando também finalidade e obrigações aplicáveis.",
+      "section": "4. Gestão de logs e correlação de eventos", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Durante investigação, um analista precisa registrar uma hipótese ainda não confirmada. Como deve descrevê-la no caso?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Como comprometimento comprovado, pois um caso deve conter conclusões definitivas desde a abertura.", "correct": false },
+        { "key": "B", "text": "Como atividade irrelevante, para que outros turnos não revisem as mesmas evidências.", "correct": false },
+        { "key": "C", "text": "Como hipótese com sinais observados, contexto faltante e verificações pendentes.", "correct": true },
+        { "key": "D", "text": "Como decisão de contenção executada, mesmo que nenhuma ação tenha sido aprovada.", "correct": false },
+        { "key": "E", "text": "Sem descrição, para reduzir a quantidade de informação armazenada no SIEM.", "correct": false }
+      ],
+      "explanation": "Separar fatos observados de hipóteses e registrar verificações pendentes preserva precisão e continuidade entre turnos. A classificação muda conforme a evidência evolui.",
+      "section": "1. SOC: pessoas, processos e operação contínua", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Que conjunto caracteriza um processo de melhoria de detecção após um incidente confirmado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Preservar a regra sem revisão e evitar registrar quais fontes faltaram durante a investigação.", "correct": false },
+        { "key": "B", "text": "Apagar os alertas incorretos e tratar o incidente como exceção sem aprendizado operacional.", "correct": false },
+        { "key": "C", "text": "Aumentar a severidade de todas as regras para que incidentes futuros ganhem prioridade.", "correct": false },
+        { "key": "D", "text": "Revisar cobertura, evidências e ruído; ajustar regra e testar a detecção com eventos representativos.", "correct": true },
+        { "key": "E", "text": "Substituir a equipe de resposta por uma ferramenta que encerre casos sem documentação.", "correct": false }
+      ],
+      "explanation": "A melhoria usa o que ocorreu para corrigir lacunas de fonte e regra, reduzir ruído e testar o resultado. Documentar a mudança preserva contexto e permite avaliar seu efeito.",
+      "section": "5. Integração, triagem e resposta coordenada", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um analista recomenda isolar um servidor após observar atividade suspeita em ferramenta administrativa. Qual registro deve acompanhar a decisão?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Evidências consideradas, risco e impacto, responsável pela aprovação e horário da ação.", "correct": true },
+        { "key": "B", "text": "Somente o nome do analista, sem descrever alerta, motivo ou resultado da contenção.", "correct": false },
+        { "key": "C", "text": "A senha administrativa usada para acessar o host e repetir a mesma ação em outros sistemas.", "correct": false },
+        { "key": "D", "text": "A confirmação de que todos os outros servidores serão isolados sem avaliação de dependências.", "correct": false },
+        { "key": "E", "text": "A exclusão do alerta original para que o caso contenha apenas a decisão final.", "correct": false }
+      ],
+      "explanation": "O caso deve permitir reconstruir evidências, raciocínio, aprovação, execução e resultado. Isso apoia continuidade, auditoria e avaliação de efeitos operacionais.",
+      "section": "5. Integração, triagem e resposta coordenada", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta mostra que uma conta acessou dois países em poucos minutos, mas a organização usa proxy de saída global. Qual interpretação é mais rigorosa?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Concluir que a conta foi roubada, porque geolocalização de IP é prova conclusiva de presença física.", "correct": false },
+        { "key": "B", "text": "Ignorar o sinal, pois o uso de proxy torna impossível investigar qualquer atividade de identidade.", "correct": false },
+        { "key": "C", "text": "Verificar identidade, sessão, proxy, dispositivo e outros eventos antes de classificar a anomalia.", "correct": true },
+        { "key": "D", "text": "Excluir todos os registros de rede e identidade associados à conta para evitar duplicidade.", "correct": false },
+        { "key": "E", "text": "Bloquear todos os usuários que usaram o mesmo proxy durante o período analisado.", "correct": false }
+      ],
+      "explanation": "Geolocalização de IP é um indício sujeito a proxy e roteamento. A equipe deve correlacionar sessão, dispositivo, autenticação e infraestrutura antes de atribuir a atividade à conta.",
+      "section": "2. SIEM: coleta, normalização, consulta e detecção", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual característica distingue uma gestão de logs madura de simples acumulação de arquivos?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Guardar qualquer arquivo disponível sem finalidade, controles, monitoramento ou critério de descarte.", "correct": false },
+        { "key": "B", "text": "Definir fontes e uso, verificar qualidade, proteger acesso e integridade e gerir retenção.", "correct": true },
+        { "key": "C", "text": "Armazenar somente capturas de tela de painéis sem eventos pesquisáveis ou timestamps.", "correct": false },
+        { "key": "D", "text": "Permitir que cada aplicação altere e apague os registros centralizados sem trilha de auditoria.", "correct": false },
+        { "key": "E", "text": "Substituir procedimentos de investigação pelo aumento contínuo do volume coletado.", "correct": false }
+      ],
+      "explanation": "Gestão inclui infraestrutura e processos: finalidade, coleta, qualidade, proteção, pesquisa, retenção e descarte. Volume sozinho não assegura utilidade nem confiabilidade.",
+      "section": "4. Gestão de logs e correlação de eventos", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? O SIEM pode reunir dados de componentes diversos e apresentá-los por uma interface como informação útil para análise de segurança.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A função de SIEM inclui reunir dados de segurança de componentes do sistema e apresentá-los de forma acionável, facilitando pesquisa e análise conjunta.",
+      "section": "2. SIEM: coleta, normalização, consulta e detecção", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? SOC designa exclusivamente a sala física onde operadores observam telas, sem incluir processos ou coordenação de resposta.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. SOC refere-se à função ou unidade operacional de segurança, que envolve pessoas, processos e tecnologia; o modelo pode ser interno, terceirizado ou híbrido e não depende de uma sala específica.",
+      "section": "1. SOC: pessoas, processos e operação contínua", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Um EDR pode coletar contexto de processos, arquivos e conexões em endpoints para apoiar detecção e investigação.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A telemetria de endpoint pode incluir cadeia de processos, usuário, arquivos e conexões, permitindo reconstruir atividade e apoiar resposta.",
+      "section": "3. EDR e segurança de endpoints", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? A centralização de logs elimina, por si só, a necessidade de limitar quem pode ler ou alterar o repositório.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Centralizar facilita pesquisa e reduz dependência do armazenamento local, mas o repositório exige controle de acesso, auditoria e proteção contra alteração.",
+      "section": "4. Gestão de logs e correlação de eventos", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Um alerta produzido por correlação deve ser tratado como sinal para validação de contexto e evidências.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A correlação aumenta o contexto, mas atividade legítima, manutenção autorizada e falsos positivos precisam ser examinados antes da classificação final.",
+      "section": "5. Integração, triagem e resposta coordenada", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Depois que logs chegam ao repositório central, controles de acesso e integridade deixam de ser necessários.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O repositório central também precisa de controles de acesso, auditoria e proteção contra alteração. A centralização reduz dependência do host, mas não torna os registros invioláveis.",
+      "section": "4. Gestão de logs e correlação de eventos", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Divergência de relógio entre fontes pode prejudicar a ordem aparente dos eventos em uma investigação.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Horário, fuso e atraso de ingestão influenciam a linha do tempo; comparar timestamps sem validar essas condições pode distorcer a sequência.",
+      "section": "4. Gestão de logs e correlação de eventos", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Um host com agente EDR instalado necessariamente envia ao console central todos os eventos necessários para qualquer investigação.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Agente instalado não garante política adequada, comunicação ativa, cobertura de eventos ou ingestão. A saúde e a telemetria recebida precisam ser verificadas.",
+      "section": "3. EDR e segurança de endpoints", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Normalização mapeia campos e formatos distintos para permitir pesquisas e comparações coerentes entre fontes.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O parser extrai campos e o mapeamento os representa em um modelo comum, permitindo correlacionar conceitos equivalentes com formatos originais diferentes.",
+      "section": "2. SIEM: coleta, normalização, consulta e detecção", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Um processo SOC pode encaminhar casos complexos a especialistas com maior experiência ou autoridade.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Escalonamento transfere casos que exigem especialização ou autoridade, mantendo o fluxo e a responsabilidade definidos no procedimento operacional.",
+      "section": "1. SOC: pessoas, processos e operação contínua", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Como um SIEM centraliza fontes, a equipe pode dispensar a verificação de perda de eventos e da qualidade dos parsers.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Centralização não assegura cobertura ou interpretação correta. Perdas, mudanças de formato, timestamps e parsers podem comprometer alertas e buscas e devem ser monitorados.",
+      "section": "2. SIEM: coleta, normalização, consulta e detecção", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Isolar um endpoint pode conter comunicações suspeitas, mas também pode interromper atividade legítima.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O isolamento restringe comunicações para limitar propagação, porém pode afetar serviços e usuários; risco, criticidade e autoridade devem orientar a medida.",
+      "section": "3. EDR e segurança de endpoints", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? A orientação conjunta da CISA recomenda manter logs somente nos dispositivos de origem para evitar correlação entre fontes.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A orientação recomenda logs detalhados e agregação em localização central protegida para análise comportamental, detecção de anomalias e busca proativa; manter apenas registros locais aumenta risco de perda ou adulteração.",
+      "section": "4. Gestão de logs e correlação de eventos", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Um endpoint sem agente EDR pode ser considerado coberto se o SIEM recebe logs de firewall do segmento onde ele está conectado.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Logs de rede podem fornecer contexto, mas não substituem a telemetria local de processos, arquivos e contas do endpoint. A cobertura deve registrar essa lacuna.",
+      "section": "3. EDR e segurança de endpoints", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? O NIST SP 800-92 é um tutorial de configuração de um produto SIEM específico, com comandos detalhados de instalação.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O NIST descreve a SP 800-92 como orientação prática para desenvolver e manter gestão de logs em toda a organização, em nível geral; não é tutorial de instalação ou configuração de um SIEM específico.",
+      "section": "4. Gestão de logs e correlação de eventos", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? A ausência de alerta no SIEM demonstra que a atividade não ocorreu, ainda que uma fonte crítica tenha parado de encaminhar eventos.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Sem dados da fonte, a regra não consegue avaliar eventos que não recebeu. A ausência de alerta pode refletir lacuna de cobertura, perda ou falha de ingestão.",
+      "section": "5. Integração, triagem e resposta coordenada", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? A escolha de retenção de logs deve considerar necessidade operacional, capacidade, sensibilidade e obrigações aplicáveis.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O prazo depende de finalidade, risco investigativo, capacidade e regras aplicáveis. Não há um valor universal que seja adequado a qualquer organização e conjunto de logs.",
+      "section": "4. Gestão de logs e correlação de eventos", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Testes periódicos devem confirmar que eventos são registrados, encaminhados ao repositório e acionam as detecções esperadas.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A revisão regular da integridade dos logs e da eficiência dos alertas verifica o fluxo de ponta a ponta e encontra alterações de software ou configuração que prejudiquem a detecção.",
+      "section": "5. Integração, triagem e resposta coordenada", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Joint Guidance: Identifying and Mitigating Living Off the Land Techniques",
+      "publisher": "CISA e agências parceiras",
+      "reference": "Logging centralizado, dados de eventos, SIEM, EDR, correlação, linhas de base e revisão da integridade e eficácia de alertas",
+      "url": "https://www.cisa.gov/sites/default/files/2025-03/Joint-Guidance-Identifying-and-Mitigating-LOTL508.pdf",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SP 800-92, Guide to Computer Security Log Management",
+      "publisher": "NIST",
+      "reference": "Infraestrutura e processos de gestão de logs de segurança em uma organização",
+      "url": "https://csrc.nist.gov/pubs/sp/800/92/final",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Security Information and Event Management (SIEM) Tool — Glossary",
+      "publisher": "NIST CSRC",
+      "reference": "Definição de SIEM como aplicação que reúne dados de segurança e apresenta informação acionável por interface única",
+      "url": "https://csrc.nist.gov/glossary/term/security_information_and_event_management_tool",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Endpoint Detection and Response — Glossary",
+      "publisher": "NIST CSRC",
+      "reference": "Entrada terminológica para Endpoint Detection and Response e sigla EDR",
+      "url": "https://csrc.nist.gov/glossary/term/endpoint_detection_and_response",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

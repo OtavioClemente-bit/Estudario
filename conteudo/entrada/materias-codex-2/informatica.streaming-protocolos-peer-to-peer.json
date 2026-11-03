@@ -1,0 +1,1430 @@
+{
+  "id": "informatica.streaming-protocolos-peer-to-peer",
+  "subject": "Informática",
+  "title": "Protocolos de streaming e redes peer-to-peer",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Protocolos de streaming",
+    "Princípios de redes peer-to-peer",
+    "Streaming de áudio e vídeo pela Internet",
+    "Protocolos para transmissão de mídia em tempo real",
+    "Redes P2P e distribuição entre pares",
+    "Peer-to-peer e streaming de mídia",
+    "RTP, RTCP e RTSP para streaming",
+    "HTTP Live Streaming e bitrate adaptativo",
+    "HLS para vídeo ao vivo e sob demanda",
+    "BitTorrent e distribuição P2P de arquivos",
+    "WebRTC e conexão direta entre pares"
+  ],
+  "scope": {
+    "covers": "Fundamentos de streaming, mídia ao vivo e sob demanda, codificação, segmentação, buffer e adaptação de taxa; funções e diferenças entre RTP, RTCP, RTSP, HLS e WebRTC; princípios de redes peer-to-peer, pares, rastreadores, enxames, semeadores, partes, integridade, tit-for-tat e travessia de NAT; benefícios, limites, riscos e comparação entre distribuição cliente-servidor, CDN e P2P.",
+    "excludes": "Implementação detalhada de codecs, configuração de equipamentos de rede, sintaxe completa de playlists e mensagens, engenharia de congestionamento e configuração de serviços comerciais específicos."
+  },
+  "theoryTitle": "Como mídia em fluxo e redes entre pares entregam conteúdo",
+  "chapters": [
+    {
+      "title": "1. Streaming",
+      "markdown": "### O problema que este assunto resolve\n\nBaixar um arquivo inteiro antes de abri-lo pode levar muito tempo. No **streaming**, o cliente recebe uma sequência de dados, mantém uma parte em memória ou armazenamento temporário e começa a reproduzir antes de terminar a transferência. O fluxo pode ser **ao vivo**, produzido enquanto se assiste, ou **sob demanda**, referente a conteúdo previamente gravado. Streaming descreve um modo de entrega e reprodução; não é um único protocolo.\n\n> **Siglas e termos deste capítulo**\n> - **Codec**: codificador e decodificador que comprime e reconstrói áudio ou vídeo.\n> - **Bitrate**: quantidade de bits transmitida por unidade de tempo.\n> - **Buffer**: reserva temporária de dados para compensar variações na chegada.\n> - **Latência**: atraso entre a captura ou solicitação e a reprodução.\n> - **VOD**: vídeo sob demanda, em que o conteúdo já existe antes da solicitação.\n\n### Do conteúdo ao player\n\nUma cadeia típica contém uma fonte (câmera ou arquivo), codificação, segmentação ou empacotamento, servidor de origem, distribuição pela rede e player. O codec determina como representar a mídia; o protocolo e o formato de entrega organizam seu transporte e descrição. O cliente acumula dados no buffer e decodifica os quadros ou amostras. Se a rede variar, o buffer pode crescer ou esvaziar: quando esvazia ocorre interrupção; quando é muito grande, aumenta o atraso percebido.\n\n| Cenário | Prioridade comum | Consequência de um buffer maior |\n| --- | --- | --- |\n| Vídeo sob demanda | Continuidade e qualidade | Mais tolerância a variações, com início ou busca potencialmente mais lentos |\n| Transmissão ao vivo | Equilíbrio entre continuidade e atualidade | Menos interrupções, mas maior distância temporal do evento |\n| Chamada interativa | Baixa latência | Atrasos grandes prejudicam a conversa mesmo com imagem estável |\n\n### Como cai na prova\n\nStreaming não significa ausência de armazenamento temporário, nem exige que cada quadro chegue sem atraso. O buffer reduz o efeito de variações, mas não cria largura de banda. Diferencie o formato/codec do protocolo de controle e do protocolo de transporte."
+    },
+    {
+      "title": "2. RTP, RTCP e RTSP",
+      "markdown": "### O problema que este assunto resolve\n\nMídia interativa precisa identificar a ordem e o tempo dos dados e, ao mesmo tempo, permitir iniciar, pausar ou encerrar uma sessão. A família de protocolos separa funções em vez de tratar tudo como uma única transmissão.\n\n> **Siglas e termos deste capítulo**\n> - **RTP**: Real-time Transport Protocol, carrega dados de mídia com numeração e marca temporal.\n> - **RTCP**: RTP Control Protocol, acompanha a sessão e fornece relatórios de participantes e recepção.\n> - **RTSP**: Real-Time Streaming Protocol, controla a apresentação e a entrega.\n> - **SSRC**: identificador de uma fonte de sincronização RTP dentro da sessão.\n> - **Jitter**: variação no intervalo de chegada dos pacotes.\n\n### Funções que não devem ser confundidas\n\nO **RTP** leva blocos de áudio ou vídeo e inclui número de sequência, timestamp e identificação de payload/fonte. O número de sequência ajuda a detectar perda e reordenar pacotes; o timestamp auxilia a reconstruir o ritmo e sincronizar fluxos. RTP não garante entrega confiável, largura de banda nem qualidade de serviço. É comum usá-lo sobre UDP em aplicações sensíveis a atraso, mas RTP não é definido como sinônimo de UDP.\n\nO **RTCP** acompanha RTP: relatórios de remetente e receptor trazem informações de temporização e qualidade de recepção, além de identificação. Ele não carrega o conteúdo audiovisual principal. Já o **RTSP** é um protocolo de aplicação para configurar e controlar sessões: métodos como DESCRIBE, SETUP, PLAY, PAUSE e TEARDOWN representam descrição, preparação, reprodução, pausa e encerramento. O transporte efetivo da mídia pode ser negociado separadamente, por exemplo com RTP sobre UDP ou TCP.\n\n| Protocolo | Papel típico | Não confundir com |\n| --- | --- | --- |\n| RTP | Transporte de pacotes de mídia em tempo real | Garantia de entrega ou controle completo da sessão |\n| RTCP | Relatórios e controle auxiliar da sessão RTP | Canal principal de áudio e vídeo |\n| RTSP | Comandos de controle de reprodução e configuração | Protocolo que necessariamente carrega a mídia |\n\n### Como cai na prova\n\nSe o enunciado falar de PLAY/PAUSE, pense em RTSP; sequência, timestamps e pacotes de mídia apontam para RTP; relatórios de perda, jitter ou participantes apontam para RTCP. RTP/RTCP não corrigem magicamente uma rede congestionada e RTP não promete que todo pacote chegará."
+    },
+    {
+      "title": "3. HLS e DASH",
+      "markdown": "### O problema que este assunto resolve\n\nConexões variam entre usuários e até durante uma mesma reprodução. Protocolos adaptativos oferecem representações do conteúdo em qualidades diferentes, divididas em segmentos. O player escolhe uma representação e pode mudar de nível conforme estima a rede e observa o buffer.\n\n> **Siglas e termos deste capítulo**\n> - **HLS**: HTTP Live Streaming, tecnologia de streaming adaptativo da Apple baseada em HTTP.\n> - **DASH**: Dynamic Adaptive Streaming over HTTP, padrão de streaming adaptativo sobre HTTP.\n> - **Playlist/manifesto**: documento que descreve variantes e segmentos disponíveis.\n> - **Segmento**: trecho finito de mídia solicitado como objeto.\n> - **CDN**: rede de distribuição de conteúdo, com cópias em pontos próximos aos usuários.\n\n### Segmentos, manifesto e adaptação\n\nEm HLS, o servidor publica playlists que descrevem segmentos e, em transmissões multivariantes, alternativas de qualidade. O cliente busca os segmentos por HTTP, usando servidores web e caches/CDNs comuns. A Apple documenta suporte a conteúdo ao vivo e VOD, variantes de bitrate e mudança adaptativa diante das condições da rede. DASH adota a ideia geral de descrever apresentações e segmentos entregues via HTTP; HLS e DASH compartilham princípios, mas têm manifestos e detalhes próprios.\n\nO player estima a capacidade disponível e considera o enchimento do buffer. Pode baixar um segmento de qualidade menor para evitar esvaziamento ou escolher melhor qualidade quando há margem. A decisão é do cliente; não é uma garantia de bitrate fixo. Segmentação facilita cache e distribuição escalável, mas costuma introduzir latência ligada ao tamanho/produção dos segmentos e à política do player.\n\n| Modelo | Exemplo | Traço marcante |\n| --- | --- | --- |\n| HTTP adaptativo | HLS, DASH | Segmentos solicitados por HTTP; cliente seleciona variante |\n| Transporte em tempo real | RTP com RTCP | Pacotes com informação temporal e retorno de recepção |\n| Controle de sessão | RTSP | Comandos para configurar e controlar entrega |\n\n### Como cai na prova\n\nHLS usa HTTP e pode aproveitar servidores e CDNs comuns; não é sinônimo de RTP. O cliente adapta a qualidade com base nas condições observadas. A troca de representação pode reduzir travamentos, mas a qualidade visual pode variar e a latência não desaparece."
+    },
+    {
+      "title": "4. Arquiteturas de distribuição",
+      "markdown": "### O problema que este assunto resolve\n\nQuando muitos usuários pedem o mesmo conteúdo, uma única origem pode se tornar gargalo. Em **peer-to-peer (P2P)**, os participantes também contribuem com recursos: cada par pode receber e enviar dados. A comunicação é distribuída, embora possa haver componentes centrais de descoberta ou coordenação.\n\n> **Siglas e termos deste capítulo**\n> - **Peer/par**: participante que pode atuar como consumidor e fornecedor de dados.\n> - **Enxame (swarm)**: conjunto de pares interessados em distribuir o mesmo conteúdo.\n> - **Seeder/semeador**: participante que possui o conteúdo completo e o compartilha.\n> - **Leecher**: participante que ainda está obtendo partes; também pode enviar as partes já obtidas.\n> - **Tracker/rastreador**: serviço de descoberta que informa pares de um enxame.\n\n### Distribuição e seus compromissos\n\nNo modelo cliente-servidor, clientes recebem do servidor de origem. Uma CDN replica objetos em pontos de presença próximos e reduz distância/carga na origem, mantendo a distribuição sob controle do provedor. Em P2P, os próprios pares compartilham capacidade de upload e cópias parciais. À medida que usuários chegam, podem aumentar tanto a demanda quanto a capacidade agregada, desde que tenham conectividade e continuem servindo conteúdo.\n\nP2P não significa ausência obrigatória de servidor: trackers, índices, sinalização ou bootstrap podem ajudar a localizar participantes. Um desenho pode ser híbrido, com servidor de origem mais pares. A disponibilidade depende de haver cópias suficientes e pares alcançáveis; se todos os detentores saem, certas partes podem ficar indisponíveis. A velocidade não cresce automaticamente: upload assimétrico, NAT, churn, políticas do provedor e poucos pares podem limitar o sistema.\n\n| Aspecto | Cliente-servidor/CDN | P2P\n| --- | --- | --- |\n| Quem envia dados | Origem e caches administrados | Pares, possivelmente também uma origem |\n| Coordenação | Centralizada ou controlada pelo serviço | Distribuída ou híbrida; descoberta pode ser central |\n| Escalabilidade | Exige ampliar origem/CDN conforme demanda | Pares podem acrescentar capacidade de envio |\n| Dependência | Serviço e infraestrutura do provedor | Disponibilidade e alcançabilidade dos pares |\n\n### Como cai na prova\n\nO princípio distintivo de P2P é a participação dos pares na troca, não a eliminação de qualquer servidor. Tracker ajuda na descoberta, mas não é necessariamente quem transfere os blocos."
+    },
+    {
+      "title": "5. BitTorrent",
+      "markdown": "### O problema que este assunto resolve\n\nTransferir um arquivo grande a partir de uma só origem repete o custo de saída dessa origem para cada usuário. BitTorrent divide o conteúdo em partes, e os participantes podem trocar partes diferentes entre si. Assim, a capacidade de upload dos participantes passa a compor a distribuição.\n\n> **Siglas e termos deste capítulo**\n> - **Metainfo .torrent**: dicionário codificado que descreve o conteúdo e informações de descoberta.\n> - **info-hash**: resumo que identifica os metadados do conteúdo compartilhado.\n> - **Piece/parte**: divisão lógica do arquivo usada para distribuição e verificação.\n> - **Tracker**: recebe anúncios e devolve contatos de pares do mesmo conteúdo.\n> - **Choke/unchoke**: estado em que um par temporariamente suspende ou permite envio ao outro.\n\n### Fluxo essencial\n\nO cliente lê metadados, identifica o conteúdo pelo info-hash e busca pares por tracker ou mecanismos de descoberta. A conexão entre pares começa com handshake, que confirma que ambos tratam o mesmo conteúdo. Em seguida, mensagens informam interesse e disponibilidade de partes; pedidos solicitam blocos, e respostas carregam dados. Cada parte concluída é verificada pelo hash previsto nos metadados antes de ser anunciada como disponível. O hash permite detectar corrupção, mas não prova por si só a identidade ou confiabilidade de quem enviou.\n\nUm **seeder** possui todas as partes; um participante incompleto pode simultaneamente baixar e enviar partes verificadas. A lógica de choking limita a quem um par envia em cada momento e incentiva reciprocidade: estratégias comuns favorecem pares que contribuem, com períodos de exploração para encontrar parceiros melhores. Não se trata de uma regra simples de que cada usuário sempre envia apenas a quem já o enviou.\n\nA especificação tradicional descreve protocolo de pares sobre TCP ou uTP. O tracker não é o plano de dados obrigatório: sua função típica é devolver uma lista de contatos, enquanto os pares fazem a troca. A saída de usuários (churn) e a distribuição desigual de partes afetam disponibilidade e velocidade.\n\n### Como cai na prova\n\nNão confunda peer, tracker e seeder. Peers trocam blocos; tracker auxilia a localizar pares; seeder tem o conteúdo completo. Integridade por hash detecta parte alterada, e a verificação precede a divulgação como parte válida."
+    },
+    {
+      "title": "6. WebRTC e NAT",
+      "markdown": "### O problema que este assunto resolve\n\nDois dispositivos podem querer trocar mídia ou dados diretamente, mas roteadores NAT e firewalls dificultam conexões de entrada. WebRTC combina negociação de sessão com mecanismos de conectividade e transporte para permitir comunicação em tempo real entre navegadores e aplicações.\n\n> **Siglas e termos deste capítulo**\n> - **WebRTC**: tecnologias e protocolos para comunicação em tempo real entre endpoints.\n> - **ICE**: Interactive Connectivity Establishment, reúne e testa caminhos de conectividade.\n> - **STUN**: auxilia o endpoint a descobrir o endereço/porta reflexivos observados na rede.\n> - **TURN**: retransmite tráfego quando não se consegue estabelecer caminho direto adequado.\n> - **NAT**: tradução de endereços, frequentemente usada em roteadores para compartilhar endereço público.\n\n### Direto quando possível, retransmitido quando necessário\n\nICE coleta candidatos de conexão (por exemplo, locais, reflexivos obtidos com STUN e retransmitidos por TURN) e testa pares de candidatos. STUN ajuda a descobrir como o endpoint aparece fora do NAT, mas não garante que qualquer NAT permitirá conexão direta. TURN oferece um relay: a mídia/dados passam por um servidor intermediário, com custo de banda e infraestrutura, quando o caminho direto falha. Portanto, “P2P” pode usar relays sem deixar de oferecer uma sessão lógica entre pares.\n\nEm WebRTC, mídia usa SRTP; canais de dados usam SCTP encapsulado em DTLS sobre ICE/UDP, conforme os RFCs do IETF. Canais de dados podem oferecer entrega ordenada ou não ordenada e confiável ou parcialmente confiável. Isso é diferente de dizer que toda comunicação WebRTC é sempre um fluxo de arquivos confiável.\n\nP2P também traz questões operacionais: participantes não confiáveis, conteúdo malicioso, exposição de endereço de rede, disponibilidade variável, upload consumido e distribuição de dados a terceiros. Criptografia protege confidencialidade em trânsito quando configurada no protocolo, mas não substitui validação de conteúdo, autorização ou cuidado com arquivos recebidos.\n\n### Como cai na prova\n\nICE organiza tentativas de conectividade; STUN auxilia a descobrir mapeamento/endereço reflexivo; TURN retransmite quando necessário. A comunicação direta é tentada, não garantida. WebRTC pode usar relay e ainda manter o modelo de sessão entre endpoints."
+    }
+  ],
+  "summary": "Streaming permite reproduzir mídia durante sua chegada, com buffer para absorver variações. RTP transporta mídia temporizada, RTCP acompanha qualidade e participantes, e RTSP controla sessões. HLS e DASH dividem mídia em segmentos HTTP e deixam o player adaptar a representação à rede. Em redes P2P, os pares também enviam dados: BitTorrent descobre pares, troca partes e verifica integridade por hashes. WebRTC tenta caminhos diretos com ICE/STUN e pode recorrer a TURN. Nenhuma dessas tecnologias, isoladamente, garante qualidade, disponibilidade ou baixa latência em qualquer rede.",
+  "flashcards": [
+    {
+      "front": "O que caracteriza streaming?",
+      "back": "A reprodução pode começar enquanto os dados ainda estão sendo recebidos, com armazenamento temporário em buffer."
+    },
+    {
+      "front": "Qual a diferença entre ao vivo e VOD?",
+      "back": "Ao vivo é produzido durante a transmissão; VOD já está gravado e é solicitado pelo usuário."
+    },
+    {
+      "front": "Para que serve o buffer?",
+      "back": "Absorve variações na taxa de chegada; não cria capacidade de rede."
+    },
+    {
+      "front": "Qual é a função principal do RTP?",
+      "back": "Transportar pacotes de mídia com números de sequência e timestamps úteis à reconstrução temporal."
+    },
+    {
+      "front": "O RTP garante entrega confiável?",
+      "back": "Não. Ele não garante entrega, largura de banda nem qualidade de serviço."
+    },
+    {
+      "front": "O que o número de sequência RTP ajuda a perceber?",
+      "back": "Perdas e reordenação de pacotes."
+    },
+    {
+      "front": "Para que servem timestamps RTP?",
+      "back": "Indicam o tempo de amostragem para reprodução e sincronização dos fluxos."
+    },
+    {
+      "front": "Qual o papel do RTCP?",
+      "back": "Acompanhar sessão RTP com relatórios de envio/recepção e identificação."
+    },
+    {
+      "front": "RTSP transporta necessariamente o vídeo?",
+      "back": "Não. Controla/configura sessões; a mídia pode ser transportada separadamente, como por RTP."
+    },
+    {
+      "front": "Cite comandos de controle RTSP.",
+      "back": "DESCRIBE, SETUP, PLAY, PAUSE e TEARDOWN."
+    },
+    {
+      "front": "O que significa bitrate adaptativo?",
+      "back": "O player alterna entre representações de qualidades distintas conforme condições estimadas da rede e buffer."
+    },
+    {
+      "front": "Como HLS entrega mídia?",
+      "back": "Por segmentos e playlists via HTTP, podendo usar servidores web e CDNs comuns."
+    },
+    {
+      "front": "HLS e RTP são a mesma coisa?",
+      "back": "Não. HLS é entrega adaptativa baseada em HTTP; RTP transporta mídia em tempo real em pacotes."
+    },
+    {
+      "front": "O que é peer numa rede P2P?",
+      "back": "Participante que pode receber e também fornecer dados."
+    },
+    {
+      "front": "O que é um enxame BitTorrent?",
+      "back": "Conjunto de pares que compartilham o mesmo conteúdo."
+    },
+    {
+      "front": "O que faz um tracker BitTorrent?",
+      "back": "Ajuda a descobrir contatos de outros pares; a troca de dados ocorre entre peers."
+    },
+    {
+      "front": "Quem é seeder?",
+      "back": "Par que possui todas as partes do conteúdo."
+    },
+    {
+      "front": "Como BitTorrent verifica partes?",
+      "back": "Compara o hash da parte recebida com o valor esperado dos metadados."
+    },
+    {
+      "front": "STUN e TURN têm o mesmo papel?",
+      "back": "Não. STUN auxilia a descobrir mapeamentos; TURN retransmite tráfego por um relay."
+    },
+    {
+      "front": "O que faz ICE?",
+      "back": "Reúne e testa candidatos de conectividade para selecionar um caminho de comunicação."
+    }
+  ],
+  "tips": [
+    "Associe verbo de prova ao protocolo: controlar sessão = RTSP; transportar mídia = RTP; reportar recepção = RTCP.",
+    "Se houver playlist, segmentos HTTP e troca de qualidade, pense em HLS/DASH e decisão do player.",
+    "P2P significa que os participantes contribuem para a troca; não exige eliminar tracker, sinalização ou origem.",
+    "No BitTorrent, valide a ordem mental: descoberta, handshake, anúncio de interesse/peças, pedido, dados e verificação.",
+    "Seeder tem tudo; um peer incompleto ainda pode enviar as partes que já verificou.",
+    "Para NAT, lembre: ICE coordena/testa, STUN descobre mapeamento, TURN retransmite."
+  ],
+  "traps": [
+    "Afirmar que RTP sempre usa UDP ou garante entrega: falso; RTP é independente do transporte e não promete confiabilidade.",
+    "Dizer que RTCP é o canal de vídeo: falso; sua função é controle e relatórios auxiliares.",
+    "Tratar RTSP como equivalente a RTP: um controla a sessão, o outro leva mídia.",
+    "Afirmar que HLS requer servidor especializado ou não usa HTTP: falso; segmentos usam HTTP e infraestrutura web pode servir o conteúdo.",
+    "Supor que tracker armazena e distribui necessariamente os blocos: sua função típica é anunciar pares.",
+    "Afirmar que STUN resolve todo NAT ou que TURN sempre é conexão direta: STUN não garante travessia e TURN é relay."
+  ],
+  "activeRecall": [
+    "Explique por que o buffer reduz travamentos e por que não resolve falta persistente de banda.",
+    "Compare os campos de RTP com a função dos relatórios RTCP.",
+    "Descreva uma sequência de controle RTSP para preparar e iniciar uma reprodução.",
+    "Explique como um player adaptativo escolhe entre duas representações de vídeo.",
+    "Compare servidor de origem, CDN e pares quanto a quem envia os segmentos/blocos.",
+    "Descreva o papel de tracker, seeder e peer incompleto num enxame BitTorrent.",
+    "Explique por que hash de parte detecta corrupção, mas não autentica a pessoa que enviou.",
+    "Descreva como ICE usa caminhos reflexivos e retransmitidos quando a conexão direta falha."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Mistura entre transporte e controle",
+      "summary": "RTP transporta mídia, RTCP monitora/acompanha a sessão e RTSP controla a entrega. São funções diferentes."
+    },
+    {
+      "key": "e2",
+      "title": "Promessas indevidas sobre RTP",
+      "summary": "RTP inclui sequência e tempo, mas não garante entrega, ausência de perdas ou QoS."
+    },
+    {
+      "key": "e3",
+      "title": "Centralidade presumida em P2P",
+      "summary": "P2P distribui dados entre pares, mas pode usar trackers, sinalização, índices ou servidores de origem."
+    },
+    {
+      "key": "e4",
+      "title": "Confusão entre descoberta e transferência",
+      "summary": "Tracker auxilia a localizar peers; os peers trocam blocos no protocolo BitTorrent."
+    },
+    {
+      "key": "e5",
+      "title": "Confusão entre STUN e TURN",
+      "summary": "STUN auxilia a descobrir o mapeamento visível; TURN retransmite o tráfego por um servidor relay."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma aplicação reproduz um vídeo enquanto ainda recebe seus dados e conserva alguns segundos à frente em memória. Esse comportamento é compatível com streaming.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Streaming permite iniciar a reprodução antes de receber todo o conteúdo; o buffer guarda temporariamente dados futuros para compensar variações de chegada.",
+      "section": "1. Streaming",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O buffer de um player aumenta a largura de banda disponível no enlace e, por isso, impede interrupções mesmo quando a conexão permanece abaixo da taxa mínima do vídeo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Buffer é uma reserva temporal: pode absorver oscilações curtas, mas não cria capacidade de rede. Se a chegada ficar continuamente abaixo do consumo, o buffer acaba esvaziando.",
+      "section": "1. Streaming",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um evento capturado e transmitido enquanto acontece é um caso de mídia ao vivo; um episódio gravado solicitado depois é VOD.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A distinção está no momento de produção e disponibilidade: live é produzido durante a transmissão; VOD já foi gravado antes da solicitação.",
+      "section": "1. Streaming",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em toda aplicação de streaming, o aumento do buffer reduz simultaneamente o atraso e o risco de interrupção, sem qualquer compromisso entre eles.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Um buffer maior tende a oferecer mais margem contra variação e interrupção, mas pode aumentar o atraso. Em chamada interativa ou live, essa demora pode ser indesejável.",
+      "section": "1. Streaming",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No RTP, o número de sequência e o timestamp cumprem funções distintas: o primeiro auxilia a detectar perda/ordem, e o segundo representa informação temporal da mídia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. RTP carrega sequência e timestamp com finalidades diferentes. O timestamp auxilia a reconstrução do ritmo, enquanto a sequência ajuda a reconhecer lacunas ou reordenação.",
+      "section": "2. RTP, RTCP e RTSP",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como RTP enumera pacotes, ele garante que todos chegarão ao receptor, na ordem correta e dentro do prazo de reprodução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A numeração permite perceber perda e reordenação, mas não faz retransmissão obrigatória nem garante prazo, largura de banda ou qualidade de serviço.",
+      "section": "2. RTP, RTCP e RTSP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Relatórios RTCP podem informar estatísticas de recepção e ajudar a acompanhar participantes sem carregar o fluxo audiovisual principal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. RTCP complementa a sessão RTP com relatórios e identificação. Os pacotes de áudio e vídeo são transportados no fluxo RTP.",
+      "section": "2. RTP, RTCP e RTSP",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando o usuário pressiona PAUSE numa sessão controlada por RTSP, esse comando demonstra que o próprio RTSP necessariamente carrega os quadros do vídeo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. PAUSE é controle da sessão. O transporte efetivo da mídia pode ocorrer separadamente, por exemplo em RTP, conforme a configuração negociada.",
+      "section": "2. RTP, RTCP e RTSP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um player HLS pode trocar para uma representação de bitrate menor quando percebe que a capacidade da rede caiu.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. HLS oferece variantes e o cliente pode adaptar a escolha à rede para manter a reprodução, ainda que a qualidade visual varie.",
+      "section": "3. HLS e DASH",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "HLS exige que os segmentos sejam enviados por RTP sobre UDP, pois HTTP não pode transportar conteúdo audiovisual segmentado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. HLS entrega segmentos usando HTTP, podendo aproveitar servidores web e CDNs. RTP é outro mecanismo de transporte de mídia em tempo real.",
+      "section": "3. HLS e DASH",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "HLS e DASH usam a ideia de descrever conteúdo segmentado acessível por HTTP, embora tenham manifestos e detalhes próprios.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Ambos representam abordagens adaptativas baseadas em HTTP, mas não são nomes intercambiáveis para um formato único: cada tecnologia define seus próprios documentos e convenções.",
+      "section": "3. HLS e DASH",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A segmentação em objetos HTTP elimina toda latência de streaming, porque cada requisição de segmento é independente das anteriores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Segmentação facilita distribuição e cache, mas a produção e o tamanho dos segmentos, as requisições e o buffer ainda influenciam a latência percebida.",
+      "section": "3. HLS e DASH",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma CDN distribui cópias administradas do provedor em pontos próximos aos usuários, ao passo que P2P permite que os próprios participantes contribuam enviando dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A CDN desloca cópias para infraestrutura de distribuição; em P2P, os pares também podem servir dados uns aos outros.",
+      "section": "4. Arquiteturas de distribuição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede P2P deixa de ser peer-to-peer assim que utiliza um tracker para informar endereços de participantes interessados no mesmo conteúdo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. P2P caracteriza a participação dos pares na troca de dados. Um serviço central pode auxiliar descoberta ou coordenação sem ser o canal obrigatório de transferência dos blocos.",
+      "section": "4. Arquiteturas de distribuição",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Adicionar muitos participantes a um enxame garante maior velocidade mesmo que nenhum deles aceite enviar dados e que a origem tenha saído do ar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A capacidade P2P depende de pares alcançáveis que contribuam e possuam as partes necessárias. Muitos participantes inativos ou sem as partes não garantem disponibilidade ou velocidade.",
+      "section": "4. Arquiteturas de distribuição",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um peer BitTorrent que ainda não completou o arquivo pode enviar partes já baixadas e verificadas a outros participantes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Os participantes incompletos podem baixar e enviar partes que possuem; não é preciso esperar o arquivo inteiro para contribuir.",
+      "section": "5. BitTorrent",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O tracker BitTorrent é obrigatoriamente o servidor que armazena todas as peças e as envia aos peers solicitantes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O tracker costuma responder a anúncios com contatos de pares. O protocolo de pares realiza a troca de dados diretamente entre participantes.",
+      "section": "5. BitTorrent",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A verificação de hash das partes ajuda o cliente a rejeitar dados corrompidos antes de anunciar a parte como disponível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O cliente compara a parte recebida com o resumo esperado nos metadados. Uma parte que não confere não deve ser divulgada como válida.",
+      "section": "5. BitTorrent",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como o hash de uma peça coincide com o valor esperado, o usuário provou que o peer remetente é confiável e que o arquivo não contém conteúdo malicioso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O hash verifica correspondência e integridade em relação aos metadados, mas não autentica a identidade ou a intenção do remetente nem declara benigno o conteúdo.",
+      "section": "5. BitTorrent",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em WebRTC, ICE pode testar candidatos de conectividade direta e o uso de TURN permite retransmitir o tráfego quando um caminho direto adequado não funciona.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. ICE reúne e verifica caminhos possíveis; TURN fornece um relay como alternativa quando a conectividade direta não é viável.",
+      "section": "6. WebRTC e NAT",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "STUN e TURN são servidores equivalentes: ambos sempre retransmitem todo pacote da chamada e ocultam que existe um caminho entre os endpoints.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. STUN auxilia a descobrir endereço e mapeamento observados externamente. TURN é o serviço de retransmissão; nem todo fluxo precisa passar por TURN.",
+      "section": "6. WebRTC e NAT",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual mecanismo caracteriza melhor streaming em comparação com baixar um arquivo inteiro antes de abri-lo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O servidor precisa enviar todos os bytes e fechar a conexão antes que qualquer reprodução seja possível.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O cliente pode começar a reproduzir após receber parte suficiente e continuar recebendo os dados restantes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O codec elimina a necessidade de rede ao reconstruir localmente quadros que ainda não chegaram.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cada pacote recebido é reproduzido sem buffer, mesmo quando a rede entrega dados em rajadas irregulares.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A mídia é transmitida sempre em uma única taxa fixa e não pode ser armazenada temporariamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Streaming permite iniciar a reprodução antes do término da transferência e normalmente usa buffer. As demais opções descrevem download completo prévio ou atribuem ao codec e ao transporte capacidades que eles não têm.",
+      "section": "1. Streaming",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma videoconferência precisa reduzir atrasos para que os participantes conversem sem longas pausas. Qual decisão sobre o buffer é mais coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o buffer ao máximo, pois isso simultaneamente reduz o atraso e remove qualquer perda de pacote.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar uma reserva controlada, aceitando que buffer curto oferece menos tolerância a oscilações da rede.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Eliminar o buffer e exigir que o codec regenere amostras perdidas sem informação transmitida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter todo áudio em arquivo VOD para garantir comunicação bidirecional em tempo real.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o tamanho dos segmentos HTTP, pois isso sempre diminui o tempo entre fala e reprodução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma reserva menor ajuda a conter o atraso, mas deixa menos margem para absorver variação. Buffer máximo tende a acrescentar demora, e não recupera automaticamente pacotes perdidos.",
+      "section": "1. Streaming",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma análise de fluxo RTP, o receptor observa lacunas na numeração e diferenças entre a chegada esperada e a efetiva. Que interpretação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A sequência controla PLAY e PAUSE, enquanto o jitter indica qual servidor HTTP publicou o manifesto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sequência revela lacunas; a variação de chegada caracteriza jitter.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O timestamp enumera os arquivos do tracker, e as lacunas provam que o servidor RTSP apagou o conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A lacuna demonstra que RTP retransmitiu corretamente o pacote, mesmo sem confirmação do receptor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O jitter é um mecanismo que escolhe a variante HLS e substitui os números de sequência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Números de sequência ajudam a detectar lacunas e reordenação; jitter descreve variação nos tempos de chegada. Nenhum deles é comando de controle RTSP ou prova automática de retransmissão.",
+      "section": "2. RTP, RTCP e RTSP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa medir estatísticas de recepção e identificar participantes de uma sessão RTP. Qual protocolo atende melhor a essa função auxiliar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "HLS, que transmite estatísticas como quadros audiovisuais dentro de uma playlist de variantes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RTSP, que transforma todos os relatórios de recepção em segmentos de vídeo sob demanda.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RTCP, que acompanha a sessão com relatórios e informação de controle dos participantes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "TURN, que registra perda de pacotes e substitui a aplicação de relatórios de sessão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "BitTorrent, que ordena participantes por timestamps para escolher a qualidade do fluxo.",
+          "correct": false
+        }
+      ],
+      "explanation": "RTCP fornece relatórios de controle e recepção em conjunto com RTP. RTP carrega mídia, e RTSP controla a sessão; HLS, TURN e BitTorrent têm outros papéis.",
+      "section": "2. RTP, RTCP e RTSP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O operador deseja que o cliente prepare uma sessão, inicie a reprodução e depois encerre a entrega sob demanda. Que protocolo de controle é associado a esses comandos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RTP, que negocia a apresentação inteira por meio dos métodos PLAY e TEARDOWN.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RTCP, cujos comandos obrigatórios são SETUP, PLAY e TEARDOWN para o fluxo de vídeo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RTSP, com operações de sessão como SETUP, PLAY e TEARDOWN.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "HLS, que define esses métodos como campos obrigatórios de cada segmento HTTP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "STUN, que inicia e pausa apresentações ao consultar o mapeamento do roteador NAT.",
+          "correct": false
+        }
+      ],
+      "explanation": "RTSP é o protocolo de controle de sessões de streaming e inclui métodos como SETUP, PLAY e TEARDOWN. RTP e RTCP não exercem esse papel de controle de apresentação.",
+      "section": "2. RTP, RTCP e RTSP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao projetar mídia sobre RTP, qual afirmação descreve corretamente o limite do protocolo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RTP reserva largura de banda em todos os roteadores e impede congestionamento durante a sessão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RTP exige uma confirmação por pacote e retransmite perdas até assegurar reprodução sem falhas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RTP informa sequência e tempo, mas não garante entrega ou QoS.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "RTP é exclusivamente um protocolo de controle que substitui RTSP e RTCP em qualquer cenário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RTP só funciona quando cada pacote transporta um segmento HTTP completo com playlist própria.",
+          "correct": false
+        }
+      ],
+      "explanation": "A especificação RTP fornece funções de transporte em tempo real e informação temporal, mas não reserva recursos nem garante QoS ou entrega. RTCP pode acompanhar recepção; isso não transforma RTP em transporte confiável garantido.",
+      "section": "2. RTP, RTCP e RTSP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço publica três qualidades de vídeo em segmentos HTTP e deixa o player escolher a próxima qualidade. Qual tecnologia corresponde diretamente a essa descrição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "TURN, que mantém uma playlist de segmentos e sempre retransmite a maior resolução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RTCP, que divide a gravação em arquivos HTTP e escolhe sua qualidade visual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "HLS, que descreve variantes e segmentos entregues por HTTP para reprodução adaptativa.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "BitTorrent, que exige que todo participante reproduza exclusivamente uma cópia completa local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RTSP, que codifica as três resoluções dentro do comando PLAY e dispensa objetos de mídia.",
+          "correct": false
+        }
+      ],
+      "explanation": "HLS oferece streaming adaptativo por HTTP com playlists/variantes e segmentos. RTSP pode controlar sessão, mas não é o mecanismo de manifesto HTTP descrito; os outros protocolos têm papéis diferentes.",
+      "section": "3. HLS e DASH",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante a reprodução HLS, a estimativa de rede cai e o buffer começa a diminuir. Qual reação é compatível com adaptação adaptativa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter o manifesto HLS em relatório RTCP e bloquear qualquer segmento subsequente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar a resolução, pois o player precisa consumir mais banda para preencher o buffer rapidamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Solicitar segmentos seguintes de uma representação menor para reduzir a taxa de dados necessária.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ignorar as condições de rede, porque a qualidade da variante é sempre imposta pelo servidor de origem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Interromper HTTP e pedir ao tracker que retransmita a mesma peça para todos os clientes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O player pode selecionar uma variante de bitrate menor quando estima capacidade insuficiente ou buffer em queda. A adaptação procura evitar interrupção, mas não assegura qualidade fixa.",
+      "section": "3. HLS e DASH",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma emissora quer distribuir conteúdo HTTP para milhões de usuários aproveitando caches de borda e também aceita contribuição de espectadores que retransmitem dados. Qual descrição é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A participação P2P elimina a necessidade de validar integridade e de monitorar disponibilidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É impossível combinar CDN e P2P, porque uma arquitetura precisa excluir todo servidor central.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A CDN passa a ser um tracker sempre que entrega segmento HTTP a mais de um navegador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pode combinar CDN e P2P: a CDN mantém cópias gerenciadas e pares podem compartilhar dados entre si.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Os espectadores deixam de ser peers se o conteúdo original também estiver hospedado em um servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Arquiteturas híbridas são possíveis. CDN e origem distribuem conteúdo gerenciado; participantes podem somar capacidade P2P. A existência de servidor não invalida a troca entre pares.",
+      "section": "4. Arquiteturas de distribuição",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual frase descreve o princípio que distingue P2P de uma arquitetura em que cada cliente apenas recebe dados de uma origem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os roteadores passam a armazenar permanentemente os arquivos e a autenticar todos os usuários.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cada cliente precisa solicitar todos os bytes exclusivamente ao servidor que criou o conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Toda coordenação, descoberta e transferência precisa ser executada por um único servidor central.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Participantes podem atuar tanto como consumidores quanto como fornecedores de recursos e dados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Os clientes recebem somente cópias imutáveis de CDN e nunca enviam dados a outros clientes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em P2P, os participantes podem enviar dados a outros participantes além de recebê-los. Isso contrasta com o cliente puramente receptor, embora possa haver coordenação central ou infraestrutura híbrida.",
+      "section": "4. Arquiteturas de distribuição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um enxame tem muitos peers, mas poucos possuem as peças raras e os usuários que as possuem saem. Que conclusão é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A saída dos peers reduz a latência e assegura que os demais recebam automaticamente todas as partes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A disponibilidade fica garantida pelo tracker, que recria as peças ausentes a partir dos endereços anunciados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O info-hash reconstrói as peças raras no cliente mesmo quando nenhum participante as possui.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A disponibilidade cai se uma peça rara não tiver outra cópia alcançável.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O choking transfere a posse das peças ausentes para o seeder mais próximo da rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "A disponibilidade depende da existência de cópias alcançáveis de cada parte. Um tracker lista contatos, mas não gera dados ausentes; o hash verifica dados recebidos, não os reconstrói.",
+      "section": "4. Arquiteturas de distribuição",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No BitTorrent, qual componente normalmente auxilia o cliente a descobrir contatos de outros participantes do mesmo conteúdo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O codec, que traduz nomes de arquivos em portas TCP para localizar cada participante.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O seeder, que funciona como registro obrigatório de todos os nomes e endereços da Internet.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O RTCP, que mantém a lista de usuários e os arquivos completos de cada torrent.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O tracker, que recebe anúncios e pode responder com informações de peers do enxame.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O timestamp RTP, que registra o endereço do próximo usuário a iniciar um download.",
+          "correct": false
+        }
+      ],
+      "explanation": "O tracker auxilia a descoberta e pode devolver uma lista de contatos. A troca de blocos acontece no protocolo de pares; tracker não é sinônimo de seeder ou de armazenamento de arquivos.",
+      "section": "5. BitTorrent",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência resume corretamente o trabalho de um cliente BitTorrent ao receber uma nova parte?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter a peça em playlist HTTP, pedir ao seeder uma chave de sessão e aprová-la sem conferência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Anunciar a parte primeiro, pedir ao tracker que crie seu conteúdo e verificar o hash ao concluir o arquivo inteiro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Enviar o bloco ao servidor central, receber um timestamp RTCP e dispensar comparação com metadados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Solicitar blocos a um peer, montar a parte e verificar seu hash esperado antes de anunciá-la.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aceitar o primeiro conteúdo recebido, pois o handshake garante que todos os bytes serão íntegros.",
+          "correct": false
+        }
+      ],
+      "explanation": "A especificação prevê verificar a parte concluída contra o hash esperado e só então anunciá-la. O handshake identifica o conteúdo da conexão, mas não torna dispensável a conferência de integridade de cada parte.",
+      "section": "5. BitTorrent",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um participante terminou o download de todo o conteúdo e continua oferecendo peças a outros. Como é denominado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cliente RTSP, pois conteúdo completo só pode ser enviado por comandos de controle de sessão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tracker, pois qualquer usuário completo passa a registrar todos os peers do enxame.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Leecher incompleto, pois a posse integral impede o envio de peças a outros participantes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Relay TURN, pois possuir todas as peças transforma a conexão em retransmissão por servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Seeder, pois possui o conjunto completo e o mantém disponível para compartilhamento.",
+          "correct": true
+        }
+      ],
+      "explanation": "Seeder é o peer que possui o conteúdo completo e pode semeá-lo. Tracker é uma função de descoberta, enquanto TURN é relay de tráfego WebRTC.",
+      "section": "5. BitTorrent",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um enxame com upload limitado, o cliente deixa de enviar temporariamente para determinado peer e pode favorecer participantes que contribuam. Qual conceito está relacionado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manifesto DASH, que escolhe o peer ao qual cada participante deve enviar seu arquivo completo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SETUP e PLAY, métodos RTSP que organizam o compartilhamento de peças entre todos os torrents.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Jitter, que bloqueia intencionalmente peers cuja sequência de segmentos HTTP está incompleta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "STUN, que distribui turnos de upload conforme o endereço público observado pelo roteador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Choking e estratégias de reciprocidade, que regulam a quem um peer envia dados em cada momento.",
+          "correct": true
+        }
+      ],
+      "explanation": "Choking é o estado de suspensão de envio a um peer; estratégias de reciprocidade ajudam a distribuir capacidade limitada. Isso não é função de RTSP, STUN ou manifestos HTTP adaptativos.",
+      "section": "5. BitTorrent",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um documento .torrent contém metadados e um identificador derivado do dicionário info. Para que esse identificador serve principalmente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Codificar o vídeo em um codec específico e determinar a resolução de cada segmento HLS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Provar que o peer é uma pessoa autenticada e impedir que o conteúdo compartilhado tenha malware.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Indicar o endereço IP fixo do seeder e substituir qualquer mecanismo de descoberta de participantes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reservar banda para cada peça e ordenar o tráfego em todos os roteadores intermediários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Identificar o torrent durante descoberta e handshake entre peers.",
+          "correct": true
+        }
+      ],
+      "explanation": "O info-hash identifica os metadados do conteúdo e aparece em interações de descoberta e no handshake. Não é credencial de identidade nem mecanismo de segurança contra arquivos maliciosos.",
+      "section": "5. BitTorrent",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois navegadores precisam tentar conexão direta apesar de estarem atrás de NAT. Qual conjunto descreve melhor a função dos mecanismos relevantes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "RTP e HLS abrem portas no roteador automaticamente, dispensando negociação de conectividade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "TURN escolhe codecs; RTP descobre o mapeamento NAT; ICE armazena o arquivo completo em cache.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "STUN controla PLAY/PAUSE; TURN publica playlists; RTCP cria o endereço IP público do navegador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ICE garante caminho direto em todo NAT; STUN e TURN são dispensados quando há firewall.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ICE testa caminhos; STUN auxilia a descobrir o mapeamento externo; TURN pode retransmitir quando necessário.",
+          "correct": true
+        }
+      ],
+      "explanation": "ICE organiza candidatos e testes de conectividade, STUN auxilia a descobrir endereços reflexivos, e TURN oferece um relay caso o caminho direto não funcione.",
+      "section": "6. WebRTC e NAT",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma chamada WebRTC, a conexão direta entre navegadores não foi possível e o tráfego passou por um servidor de relay. Qual interpretação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A conexão só pode ser chamada P2P se nenhum pacote passar por infraestrutura intermediária.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A presença de relay prova que a aplicação deixou de usar WebRTC e passou obrigatoriamente a ser HLS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O relay transforma todo canal de dados SCTP em protocolo RTSP e encerra a negociação ICE.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O servidor TURN armazena permanentemente a gravação e substitui os dois participantes da chamada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "TURN pode retransmitir o tráfego; isso acrescenta custo de relay sem mudar a lógica de sessão entre endpoints.",
+          "correct": true
+        }
+      ],
+      "explanation": "TURN é um relay usado quando a conectividade direta não é adequada. A sessão continua sendo entre endpoints WebRTC, ainda que o caminho de transporte inclua infraestrutura intermediária.",
+      "section": "6. WebRTC e NAT",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação representa o transporte de canais de dados WebRTC descrito pelos padrões do IETF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SCTP sobre DTLS e ICE/UDP, com ordenação e confiabilidade configuráveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "RTP sobre HTTP com RTCP encapsulado em playlist e entrega sempre confiável por retransmissão de arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "BitTorrent sobre RTSP, no qual cada canal depende de um tracker que armazena todas as mensagens.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "HLS sobre STUN, em que segmentos de vídeo são os únicos dados que podem cruzar uma PeerConnection.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "UDP puro sem criptografia nem negociação, pois canais WebRTC não suportam transporte confiável.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os canais de dados WebRTC usam SCTP encapsulado em DTLS sobre ICE/UDP. O padrão prevê entrega ordenada ou não e modos confiáveis ou parcialmente confiáveis, conforme configuração.",
+      "section": "6. WebRTC e NAT",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+    ,{
+      "statement": "Um stream ao vivo precisa de retransmissão confiável de todo pacote perdido, ainda que a recuperação chegue depois do momento de reprodução. Qual escolha exige avaliar esse compromisso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {"key":"A","text":"Usar RTP e supor que sua numeração já obriga cada rede a retransmitir pacotes perdidos.","correct":false},
+        {"key":"B","text":"Entrega confiável pode aumentar atraso; RTP não garante recuperação de perdas.","correct":true},
+        {"key":"C","text":"Trocar RTCP por codec sem perdas, pois relatórios de recepção reconstroem automaticamente qualquer quadro.","correct":false},
+        {"key":"D","text":"Usar HLS sem segmentos, porque HTTP sempre entrega conteúdo ao vivo com latência nula.","correct":false},
+        {"key":"E","text":"Configurar TURN para reservar largura de banda e confirmar a recepção de cada pacote RTP.","correct":false}
+      ],
+      "explanation":"RTP fornece numeração e informação temporal, mas não garante entrega ou retransmissão. Aplicações interativas equilibram recuperação com o atraso que ela pode introduzir.",
+      "section":"2. RTP, RTCP e RTSP","errorConceptKey":"e2","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement": "Uma empresa deseja que os segmentos de vídeo possam ser servidos por caches HTTP já existentes. Qual arquitetura se alinha diretamente a esse objetivo?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"HLS, pois entrega segmentos via HTTP e pode aproveitar servidores web e CDNs comuns.","correct":true},
+        {"key":"B","text":"RTCP, pois seus relatórios são objetos de mídia armazenáveis em cache como segmentos audiovisuais.","correct":false},
+        {"key":"C","text":"TURN, pois seu relay publica playlists permanentes nos caches de todos os roteadores.","correct":false},
+        {"key":"D","text":"RTSP, pois todo comando de sessão contém os bytes completos do segmento a reproduzir.","correct":false},
+        {"key":"E","text":"ICE, pois a seleção de candidato de rede replica automaticamente arquivos de vídeo em CDNs.","correct":false}
+      ],
+      "explanation":"HLS usa HTTP para buscar segmentos e pode aproveitar infraestrutura web e CDNs. RTSP controla sessão, RTCP relata controle e TURN/ICE tratam de conectividade WebRTC.",
+      "section":"3. HLS e DASH","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement": "Em uma rede P2P, qual risco decorre de participantes entrarem e saírem enquanto partes do conteúdo estão distribuídas de forma desigual?",
+      "format":"MULTIPLE_CHOICE","difficulty":"DIFICIL",
+      "options":[
+        {"key":"A","text":"A saída de um peer pode reduzir a disponibilidade de uma parte rara se não houver outra cópia alcançável.","correct":true},
+        {"key":"B","text":"O tracker sempre cria uma nova cópia da parte que ficou indisponível e a envia aos demais peers.","correct":false},
+        {"key":"C","text":"O hash da parte reconstrói os bytes ausentes a partir do identificador, sem fonte de dados ativa.","correct":false},
+        {"key":"D","text":"O aumento do churn garante que cada participante receba todas as peças em ordem cronológica.","correct":false},
+        {"key":"E","text":"O protocolo converte automaticamente todo peer incompleto em uma CDN de origem permanente.","correct":false}
+      ],
+      "explanation":"A disponibilidade depende de cópias alcançáveis das partes. Tracker localiza peers, e hash verifica dados recebidos; nenhum dos dois recria uma parte que não existe em participantes acessíveis.",
+      "section":"4. Arquiteturas de distribuição","errorConceptKey":"e3","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement": "Dois peers estabeleceram uma conexão BitTorrent, mas os identificadores de conteúdo informados no handshake não correspondem. Qual reação é coerente?",
+      "format":"MULTIPLE_CHOICE","difficulty":"DIFICIL",
+      "options":[
+        {"key":"A","text":"Continuar trocando partes, pois o handshake serve somente para negociar o codec e não identifica o conteúdo.","correct":false},
+        {"key":"B","text":"Encerrar a conexão, pois o handshake confirma que os dois lados tratam do mesmo conteúdo identificado.","correct":true},
+        {"key":"C","text":"Pedir ao RTCP que converta o identificador de um arquivo no info-hash do outro peer.","correct":false},
+        {"key":"D","text":"Aceitar a divergência desde que um dos clientes possua todas as peças como seeder.","correct":false},
+        {"key":"E","text":"Usar o tracker para substituir os bytes do arquivo e manter a mesma sessão sem novo handshake.","correct":false}
+      ],
+      "explanation":"O handshake BitTorrent inclui o identificador do conteúdo. Se os valores não correspondem, os peers não estão negociando o mesmo torrent e a conexão deve ser encerrada.",
+      "section":"5. BitTorrent","errorConceptKey":"e4","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente a limitação de STUN ao lidar com NAT?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"STUN pode revelar o mapeamento observado externamente, mas não garante que uma conexão direta sempre será possível.","correct":true},
+        {"key":"B","text":"STUN retransmite obrigatoriamente todo áudio e vídeo, portanto TURN nunca é necessário em WebRTC.","correct":false},
+        {"key":"C","text":"STUN autentica o conteúdo recebido e substitui o hash de integridade em transferências P2P.","correct":false},
+        {"key":"D","text":"STUN controla o início e a pausa de fluxos RTP com comandos equivalentes a SETUP e PLAY.","correct":false},
+        {"key":"E","text":"STUN remove o NAT do caminho de rede e abre portas permanentes em todo firewall intermediário.","correct":false}
+      ],
+      "explanation":"STUN ajuda o endpoint a descobrir seu endereço e mapeamento reflexivos. O teste de conectividade pode ainda falhar; TURN oferece retransmissão quando necessário.",
+      "section":"6. WebRTC e NAT","errorConceptKey":"e5","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 3550: RTP: A Transport Protocol for Real-Time Applications",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Formato e função de RTP e RTCP; relatórios de recepção; ausência de garantia de QoS.",
+      "url": "https://www.rfc-editor.org/rfc/rfc3550.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 7826: Real-Time Streaming Protocol Version 2.0",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Controle de sessões de entrega de mídia, métodos RTSP e negociação de transporte.",
+      "url": "https://www.rfc-editor.org/rfc/rfc7826.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "HTTP Live Streaming",
+      "publisher": "Apple Developer Documentation",
+      "reference": "Streaming adaptativo por HTTP, conteúdo ao vivo/VOD, variantes de bitrate e uso de servidores/CDNs.",
+      "url": "https://developer.apple.com/documentation/http-live-streaming",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The BitTorrent Protocol Specification (BEP 3)",
+      "publisher": "BitTorrent.org",
+      "reference": "Metainfo, tracker, protocolo de pares, handshake, peças, estados choke/interested e verificação.",
+      "url": "https://www.bittorrent.org/beps/bep_0003.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 8445: Interactive Connectivity Establishment (ICE)",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Travessia de NAT por candidatos de conectividade e uso de STUN/TURN.",
+      "url": "https://datatracker.ietf.org/doc/html/rfc8445",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 8831: WebRTC Data Channels",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Canais de dados SCTP sobre DTLS e ICE/UDP, entrega ordenada e confiabilidade parcial.",
+      "url": "https://datatracker.ietf.org/doc/html/rfc8831",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 8835: Transports for WebRTC",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Requisitos de transporte WebRTC, incluindo suporte a ICE e STUN/TURN.",
+      "url": "https://datatracker.ietf.org/doc/html/rfc8835",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

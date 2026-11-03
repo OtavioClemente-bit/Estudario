@@ -1,0 +1,925 @@
+{
+  "id": "redes-computadores.vpn-corporativa-acesso-remoto-seguro",
+  "subject": "Redes de computadores",
+  "title": "VPN corporativa e acesso remoto seguro",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "VPN corporativa e acesso remoto seguro",
+    "Redes privadas virtuais corporativas",
+    "Acesso remoto seguro a redes empresariais",
+    "VPN de acesso remoto para funcionários",
+    "Túnel VPN corporativo criptografado",
+    "IPsec e VPN para trabalho remoto",
+    "VPN SSL para acesso remoto empresarial",
+    "Segurança de conexão remota corporativa",
+    "Autenticação multifator em VPN corporativa",
+    "Túnel dividido em redes VPN empresariais"
+  ],
+  "scope": {
+    "covers": "Conceito, finalidade e limites de VPN corporativa; arquiteturas de acesso remoto (host-to-gateway), gateway-to-gateway e host-to-host; túneis, encapsulamento e proteção de confidencialidade, integridade e autenticação; noções de IPsec, ESP, AH e IKE; VPN baseada em TLS; túnel completo e dividido; autenticação multifator, autorização, menor privilégio, postura do dispositivo, segmentação, registros, atualização do gateway e resposta a incidentes; alternativas e complementaridade com zero trust, proxy de aplicação e acesso por recurso.",
+    "excludes": "Configuração específica de fabricante, comandos de sistemas operacionais, algoritmos e parâmetros criptográficos detalhados, exploração ofensiva de vulnerabilidades e normas legais de teletrabalho."
+  },
+  "theoryTitle": "VPN corporativa: conexão protegida com acesso controlado",
+  "chapters": [
+    {
+      "title": "1. O que uma VPN corporativa protege",
+      "markdown": "### O problema que este assunto resolve\n\nUma pessoa em casa, num hotel ou numa rede pública precisa consultar um sistema interno da organização. A rede usada para chegar à empresa pode ser observada ou controlada por terceiros. A **rede privada virtual (VPN)** cria uma conexão lógica protegida sobre uma infraestrutura que continua sendo pública ou compartilhada. O cliente e o gateway formam as pontas de um **túnel**: os pacotes corporativos são encapsulados e protegidos durante o trecho entre elas. A VPN não transforma a internet física numa rede privada; ela aplica controles criptográficos e de acesso sobre ela.\n\n> **Siglas e termos deste capítulo**\n> - **VPN**: virtual private network, rede privada virtual.\n> - **Túnel**: associação lógica que transporta tráfego encapsulado entre pontas.\n> - **Gateway VPN**: equipamento ou serviço que termina a conexão protegida e encaminha tráfego autorizado.\n> - **Confidencialidade**: proteção contra leitura não autorizada do conteúdo.\n> - **Integridade**: capacidade de detectar alteração dos dados em trânsito.\n> - **Autenticação**: verificação da identidade de usuário, dispositivo ou ponta de rede.\n\n### O que o túnel oferece — e o que não oferece\n\nUma VPN bem configurada pode oferecer confidencialidade e integridade ao tráfego no túnel, autenticar as pontas e restringir o acesso conforme uma política. Em IPsec, a carga útil pode ser protegida pelo ESP; IKE negocia parâmetros e chaves da conexão. Uma implementação pode oferecer ainda proteção contra repetição de pacotes. Esses serviços dependem da configuração e dos algoritmos selecionados.\n\nO túnel protege apenas o percurso coberto por ele. Numa VPN de acesso remoto que termina no gateway da organização, o tráfego entre o gateway e o servidor interno continua dependendo dos controles dessa rede. Se o equipamento remoto estiver infectado, a VPN pode transportar tráfego malicioso para dentro. Se uma conta for roubada, o atacante pode autenticar-se como usuário legítimo. A VPN não corrige servidor vulnerável, não faz backup, não substitui antivírus, firewall, autorização granular nem monitoração.\n\n| Propriedade ou controle | O que resolve | O que não garante sozinho |\n| --- | --- | --- |\n| Criptografia do túnel | Reduz leitura do tráfego no percurso protegido | Segurança do endpoint ou do servidor de destino |\n| Integridade e autenticação da conexão | Detecta alterações e verifica pontas conforme o método | Que o usuário autenticado tenha direito a todos os sistemas |\n| VPN conectada | Cria caminho para recursos definidos | Que a rede interna possa ser confiável sem nova verificação |\n| MFA | Dificulta acesso com senha roubada | Proteção contra sessão já capturada ou dispositivo comprometido |\n\n### Arquiteturas que caem em prova\n\nNa arquitetura **gateway-to-gateway**, dois gateways conectam redes, como sede e filial; os usuários costumam não perceber o túnel. Na arquitetura **host-to-gateway**, também chamada acesso remoto, um dispositivo individual estabelece conexão com o gateway corporativo. É o padrão para empregado viajante ou em teletrabalho. Em **host-to-host**, dois computadores específicos protegem a comunicação entre si. Uma VPN em malha estabelece conexões individuais entre vários hosts.\n\nNão confunda VPN de acesso remoto com acesso remoto por protocolo de administração exposto diretamente à internet. O serviço remoto deve ficar atrás de controles apropriados; publicar uma porta administrativa não é equivalente a criar uma VPN segura.\n\n### Como cai na prova\n\n- Funcionário e laptop conectando-se ao gateway da empresa: **host-to-gateway**.\n- Roteador da filial conectando-se ao roteador da sede: **gateway-to-gateway**.\n- Um túnel pode proteger o tráfego em trânsito, mas não autoriza automaticamente o usuário a acessar qualquer segmento.\n- “VPN torna anônimo”, “VPN elimina malware” ou “VPN protege todo o caminho até o servidor” são afirmações amplas demais."
+    },
+    {
+      "title": "2. Protocolos, túneis e roteamento do tráfego",
+      "markdown": "### O problema que este assunto resolve\n\nÉ preciso entender como a VPN cria a proteção sem confundir os protocolos que participam da conexão. **IPsec** é um conjunto de padrões de segurança para comunicações IP na camada de rede. **IKE** é o protocolo normalmente usado para negociar parâmetros, autenticar as pontas, estabelecer chaves de sessão e administrar associações de segurança IPsec. IKE e IPsec trabalham juntos, mas não são sinônimos.\n\n> **Siglas e termos deste capítulo**\n> - **IPsec**: segurança para comunicações do Protocolo IP.\n> - **IKE/IKEv2**: Internet Key Exchange, negociação e gerenciamento de conexões IPsec.\n> - **ESP**: Encapsulating Security Payload, protocolo que transporta e pode criptografar e autenticar os pacotes protegidos.\n> - **AH**: Authentication Header, mecanismo mais antigo de autenticação e integridade sem confidencialidade; a orientação atual do NIST não o recomenda para novas implementações.\n> - **TLS**: Transport Layer Security, proteção usada por soluções de VPN que operam sobre TLS.\n> - **MTU**: unidade máxima de transmissão de um enlace; encapsulamento acrescenta cabeçalhos e pode afetar fragmentação.\n\n### IPsec, ESP e IKE\n\nO IPsec atua na camada de rede e pode proteger tráfego entre hosts ou redes. O ESP transporta o tráfego protegido e pode fornecer confidencialidade e integridade/autenticação. O IKE negocia as configurações da associação IPsec, autentica as pontas e estabelece material de chave. A versão IKEv2 é a versão atual tratada no guia NIST consultado. O AH é uma alternativa histórica que não cifra o conteúdo e não é recomendada pelo guia para novos projetos.\n\nHá dois modos de encapsulamento IPsec frequentemente descritos: **transporte**, em que se protege principalmente a carga do pacote IP original, e **túnel**, em que o pacote original é encapsulado dentro de outro pacote IP. Em conexões entre gateways, o modo túnel é comum. O desenho exato depende da arquitetura e da implementação.\n\nVPNs baseadas em TLS também criam acesso protegido, comumente por meio de um cliente ou portal de acesso. “VPN SSL” é um nome corrente, embora implementações modernas utilizem TLS. A escolha de IPsec ou TLS depende de requisitos, compatibilidade, política e desenho; nenhum nome de protocolo, isoladamente, prova que a solução esteja bem configurada.\n\n### Túnel completo e túnel dividido\n\nNo **túnel completo**, o dispositivo envia pelo gateway VPN tanto o tráfego destinado à organização quanto, em geral, o tráfego de internet. A organização pode inspecionar esse tráfego no seu perímetro, mas assume maior consumo de banda e capacidade. No **túnel dividido (split tunneling)**, somente destinos corporativos seguem pelo túnel; outros destinos usam a conexão local do usuário. Isso reduz tráfego no gateway, mas o dispositivo fica simultaneamente conectado à rede corporativa pela VPN e a outra rede pela internet local. Um endpoint comprometido pode criar um caminho de risco entre esses contextos.\n\nA escolha é decisão de risco e arquitetura. Se túnel dividido for permitido, as rotas e os destinos devem ser definidos cuidadosamente, com controles no endpoint e na rede. Se a política exigir inspeção central do tráfego web, túnel completo ou controles equivalentes podem ser necessários. Não há uma regra universal segundo a qual um modo seja sempre mais seguro para qualquer cenário.\n\n| Item | Túnel completo | Túnel dividido |\n| --- | --- | --- |\n| Tráfego corporativo | Vai ao gateway corporativo | Vai ao gateway corporativo |\n| Tráfego de internet não corporativo | Também pode passar pela empresa | Usa a conexão local, conforme as rotas |\n| Inspeção central | Mais viável no perímetro corporativo | Parcial; depende de controles adicionais |\n| Uso de banda do gateway | Tende a ser maior | Tende a ser menor |\n\n### Detalhes operacionais úteis\n\nO encapsulamento adiciona cabeçalhos; portanto, o tamanho útil do pacote pode diminuir. Incompatibilidade de MTU, fragmentação ou bloqueio de tráfego necessário ao protocolo pode impedir a conexão ou causar lentidão. Em redes com tradução de endereços, certas implementações IPsec usam mecanismos de encapsulamento apropriados. Esses problemas de transporte não se resolvem concedendo permissões amplas ao usuário.\n\n### Como cai na prova\n\n- IKE negocia e administra a conexão IPsec; ESP transporta o tráfego protegido.\n- Split tunneling significa que parte do tráfego não passa pelo gateway da organização.\n- A criptografia do túnel não implica que todos os pacotes até o servidor final estejam criptografados.\n- VPN por TLS e VPN IPsec são abordagens diferentes para oferecer acesso protegido; a política e o desenho importam mais que o rótulo comercial."
+    },
+    {
+      "title": "3. Identidade, autorização e proteção do dispositivo remoto",
+      "markdown": "### O problema que este assunto resolve\n\nUma conexão criptografada pode ser usada por uma pessoa não autorizada se as credenciais forem roubadas. Além disso, uma conta legítima não deve receber acesso irrestrito só porque estabeleceu o túnel. A segurança de acesso remoto combina identidade forte, decisão de autorização, condição do dispositivo e limites de rede.\n\n> **Siglas e termos deste capítulo**\n> - **MFA**: autenticação multifator, que combina fatores de categorias distintas.\n> - **Postura do dispositivo**: sinais como sistema atualizado, proteção ativa, configuração gerenciada e estado de risco.\n> - **Menor privilégio**: conceder somente o acesso necessário à tarefa.\n> - **Segmentação**: separar redes e serviços em zonas, restringindo fluxos entre elas.\n> - **AAA**: autenticação, autorização e contabilização/auditoria de acesso.\n> - **Zero trust (confiança zero)**: modelo que não presume confiança apenas pela localização na rede e avalia cada acesso ao recurso.\n\n### Autenticar não é autorizar\n\n**Autenticação** responde “quem está tentando conectar?”. **Autorização** responde “quais recursos essa identidade pode usar?”. Um diretório corporativo pode autenticar a conta; grupos, funções e políticas podem limitar os sistemas acessíveis. Uma VPN pode integrar-se a servidor de autenticação e a mecanismos centralizados de AAA. Uma conexão aceita não deve equivaler a ingresso irrestrito em toda a rede interna.\n\nA MFA reduz o risco de senha reutilizada ou roubada, pois exige mais de uma categoria de fator, por exemplo conhecimento (senha) e posse (aplicativo ou chave física). Dois códigos derivados da mesma senha não são necessariamente dois fatores independentes. MFA também não elimina todo o risco: roubo de sessão, aprovação inadvertida de notificações e comprometimento do dispositivo continuam possíveis.\n\n### Endpoint confiável e acesso limitado\n\nA organização pode exigir dispositivo gerenciado, sistema suportado e atualizado, criptografia local, bloqueio de tela e proteção contra malware. A checagem pode ocorrer antes ou durante a sessão, de acordo com a solução. Um equipamento pessoal sem gerenciamento não deve receber automaticamente a mesma confiança de um laptop corporativo monitorado. Se houver risco, a política pode negar a conexão, permitir apenas um portal isolado ou limitar o acesso a aplicações específicas.\n\nApós a conexão, segmentação e regras de firewall devem restringir destinos e portas. Um fornecedor que precisa administrar um único sistema não deveria receber uma rota irrestrita para a rede de usuários e servidores. Contas individuais, privilégios temporários, registro de sessões administrativas e revisão periódica das permissões reduzem o impacto de credenciais comprometidas. O encerramento do vínculo ou da necessidade de negócio exige desativar o acesso correspondente.\n\n### Zero trust e alternativas de acesso\n\nO modelo zero trust não concede confiança implícita a uma conta ou dispositivo por estar dentro da rede ou conectado por VPN. A autorização é feita para o recurso solicitado, considerando identidade, contexto e política; interações podem ser monitoradas e reavaliadas. VPN continua podendo fazer parte de uma arquitetura zero trust, mas um túnel amplo que dá acesso à rede inteira não é, sozinho, zero trust.\n\nProxy de aplicação, perímetro definido por software e serviços de acesso seguro podem publicar aplicações específicas sem colocar o usuário em toda a rede corporativa. São alternativas ou complementos conforme o caso. NIST descreve arquiteturas zero trust para recursos locais e em nuvem; CISA alerta que falhas, configuração inadequada e privilégio excessivo em VPN podem abrir caminho para movimentação lateral.\n\n### Como cai na prova\n\n- MFA reforça autenticação; não define sozinha as permissões do usuário.\n- Postura do dispositivo e segmentação reduzem o risco depois da autenticação.\n- Em zero trust, localização interna ou conexão VPN não substitui autorização para cada recurso.\n- Conceder acesso amplo a prestador porque ele “passou pela VPN” viola o menor privilégio."
+    },
+    {
+      "title": "4. Operação segura, monitoramento e resposta",
+      "markdown": "### O problema que este assunto resolve\n\nO gateway VPN fica exposto a redes externas e concentra conexões de muitas pessoas. Uma vulnerabilidade nesse equipamento ou um erro em sua configuração pode dar ao invasor um ponto de entrada de alto impacto. A operação segura exige manutenção, configuração restritiva, visibilidade e procedimentos para revogar acesso e investigar incidentes.\n\n> **Siglas e termos deste capítulo**\n> - **Gateway exposto**: componente acessível a partir de redes externas para receber conexões VPN.\n> - **Log**: registro de eventos de autenticação, autorização, conexão e atividade.\n> - **CVE**: identificador público de uma vulnerabilidade divulgada.\n> - **Revogação**: remoção de credencial, certificado, sessão ou permissão anteriormente concedida.\n> - **Plano de resposta**: procedimento para conter, investigar, recuperar e comunicar incidente.\n> - **Disponibilidade**: capacidade de usuários autorizados acessarem o serviço quando necessário.\n\n### Higiene do gateway e da configuração\n\nMantenha firmware e software do gateway atualizados, acompanhe avisos do fornecedor e remova serviços de administração desnecessários da interface pública. Use configuração criptográfica suportada e consistente, desative protocolos obsoletos e proteja as credenciais administrativas. A configuração deve ser revisada e testada, pois regra de rota, DNS ou firewall incorreta pode expor redes que deveriam permanecer isoladas.\n\nRestrinja a origem e o destino quando possível, use regras de firewall por serviço, limite tentativas de autenticação e encerre sessões ociosas conforme a política. Controle a capacidade do gateway e planeje redundância: disponibilidade é requisito de segurança operacional, mas redundância mal configurada pode ampliar a superfície de ataque. Não exponha interfaces administrativas junto ao serviço de usuário sem controles separados.\n\n### Registros, detecção e incidente\n\nRegistre tentativas de autenticação aceitas e recusadas, identidade, horário, origem, duração, endereço atribuído e decisões relevantes de autorização. Correlacione esses eventos com diretório, endpoint, firewall e alertas de segurança. Proteja os registros contra alteração, restrinja seu acesso e retenha-os conforme política. Um pico de falhas seguido de conexão bem-sucedida, login de local incomum ou sessão privilegiada fora do padrão merece investigação.\n\nSe houver suspeita de conta comprometida, revogue ou redefina credenciais, encerre sessões ativas, bloqueie o dispositivo conforme necessário e preserve evidências. Se o gateway estiver potencialmente comprometido, aplicar um patch sozinho não prova que o equipamento esteja limpo: isole ou substitua o componente conforme avaliação, procure persistência e revise credenciais e sessões que passaram por ele. Confirme a integridade dos sistemas conectados e acompanhe os avisos oficiais do fabricante e das equipes de resposta.\n\n### Política de acesso remoto\n\nA política deve dizer quem pode usar o acesso, para quais finalidades, com quais dispositivos e métodos de autenticação; como o túnel é roteado; quais requisitos mínimos de atualização e proteção se aplicam; como terceiros são autorizados; como sessões e eventos são monitorados; e como permissões são encerradas. NIST recomenda que requisitos de autenticação, perfil de rede, versões e correções do host remoto e eventual verificação automatizada sejam tratados na política. Uma lista de usuários autorizados deve ser mantida e revisada.\n\n### Como cai na prova\n\n- A VPN concentra risco no gateway: atualizar, reduzir exposição e monitorar são atividades contínuas.\n- MFA não corrige gateway vulnerável; corrigir o gateway não revoga credenciais já roubadas.\n- Logs apoiam detecção e investigação, mas não impedem sozinhos uma invasão.\n- Terceiros precisam de identidade individual, escopo restrito, prazo ou necessidade definida e remoção de acesso ao fim do serviço."
+    }
+  ],
+  "summary": "VPN corporativa cria um túnel lógico protegido para transportar tráfego entre dispositivos e redes por infraestrutura compartilhada. Na VPN de acesso remoto, um host conecta-se ao gateway da organização; em VPN gateway-to-gateway, redes inteiras se conectam. IPsec atua na camada de rede: IKE negocia e administra a conexão e ESP transporta tráfego que pode receber confidencialidade e integridade. Túnel completo encaminha pela organização também o tráfego não corporativo; split tunneling manda somente destinos corporativos pelo túnel. Autenticação forte, MFA, autorização por recurso, dispositivos atualizados, menor privilégio, segmentação e logs são controles complementares. A VPN não torna confiável um endpoint comprometido, não garante acesso seguro a toda rede interna e não substitui manutenção do gateway, firewall ou resposta a incidentes. Zero trust evita presumir confiança com base apenas na conexão ou localização do usuário.",
+  "flashcards": [
+    { "front": "O que é uma VPN corporativa?", "back": "Uma rede lógica que cria conexões protegidas entre hosts ou redes por uma infraestrutura compartilhada, como a internet." },
+    { "front": "O que é o túnel VPN?", "back": "O caminho lógico que encapsula e protege o tráfego entre as pontas da conexão." },
+    { "front": "Qual é a arquitetura de acesso remoto?", "back": "Host-to-gateway: um dispositivo individual conecta-se ao gateway da rede da organização." },
+    { "front": "O que conecta uma VPN gateway-to-gateway?", "back": "Duas redes por meio de seus gateways, como uma filial e a sede." },
+    { "front": "Para que serve IKE em IPsec?", "back": "Negociar parâmetros, autenticar as pontas, estabelecer chaves de sessão e gerenciar associações IPsec." },
+    { "front": "Qual é o papel do ESP?", "back": "Transportar tráfego IPsec protegido, podendo oferecer criptografia e integridade/autenticação." },
+    { "front": "O que significa split tunneling?", "back": "Somente parte do tráfego, geralmente o destinado à organização, segue pela VPN; outros destinos usam a conexão local." },
+    { "front": "O que é túnel completo?", "back": "Encaminhar pelo gateway VPN corporativo o tráfego destinado à empresa e, em geral, também o tráfego de internet do usuário." },
+    { "front": "Autenticação e autorização são a mesma coisa?", "back": "Não. Autenticação verifica a identidade; autorização decide quais recursos essa identidade pode acessar." },
+    { "front": "O que MFA acrescenta ao acesso remoto?", "back": "Exige fatores de categorias distintas, reduzindo o risco de acesso baseado apenas em senha roubada." },
+    { "front": "O que é postura do endpoint?", "back": "Condição de segurança observada no dispositivo, como atualização, gerenciamento e proteção contra malware." },
+    { "front": "Por que aplicar menor privilégio na VPN?", "back": "Para limitar o acesso aos sistemas necessários e reduzir o impacto de conta ou dispositivo comprometido." },
+    { "front": "Por que segmentar a rede atrás da VPN?", "back": "Para impedir que uma conexão autorizada alcance indiscriminadamente todos os segmentos e serviços internos." },
+    { "front": "VPN torna seguro um computador infectado?", "back": "Não. O túnel pode transportar tráfego originado por um endpoint comprometido; postura e detecção continuam necessárias." },
+    { "front": "O que zero trust presume sobre a localização do usuário?", "back": "Não presume confiança só porque o usuário está dentro da rede ou conectado por VPN; avalia o acesso ao recurso." },
+    { "front": "Por que atualizar o gateway VPN?", "back": "O gateway exposto pode conter falhas exploráveis; atualizações corrigem vulnerabilidades conforme orientação do fornecedor." },
+    { "front": "Quais eventos ajudam a monitorar VPN?", "back": "Tentativas de autenticação, identidade, origem, horário, duração, endereço atribuído e decisões de autorização." },
+    { "front": "O que fazer com acesso remoto de prestador encerrado?", "back": "Remover permissões e credenciais e encerrar sessões que não sejam mais necessárias." },
+    { "front": "A VPN remota cifra todo o caminho até o servidor final?", "back": "Não necessariamente. A proteção do túnel termina no gateway; o trecho interno até o servidor depende de outros controles." },
+    { "front": "O que pode causar problemas de MTU numa VPN?", "back": "O encapsulamento adiciona cabeçalhos e reduz o espaço útil do pacote; fragmentação ou MTU incompatível pode afetar a conexão." }
+  ],
+  "tips": [
+    "Associe acesso remoto a host-to-gateway e conexão entre filiais a gateway-to-gateway.",
+    "Lembre que IKE negocia e gerencia a associação IPsec; ESP transporta o tráfego protegido.",
+    "Leia split tunneling como separação de rotas: parte passa pela VPN e parte sai localmente.",
+    "Separe autenticação (identidade) de autorização (recursos permitidos) em qualquer cenário.",
+    "Em questões de segurança, considere endpoint, gateway, identidade, rede interna e logs como camadas distintas.",
+    "Zero trust não é sinônimo de VPN: acesso deve ser autorizado por recurso e contexto, mesmo com túnel ativo."
+  ],
+  "traps": [
+    "Afirmar que VPN impede malware de entrar: o tráfego de um dispositivo infectado pode atravessar o túnel.",
+    "Tratar MFA como autorização: vários fatores comprovam identidade, mas não definem o escopo de acesso.",
+    "Dizer que split tunneling manda todo o tráfego pela rede corporativa: essa é a descrição do túnel completo.",
+    "Confundir IKE com IPsec: IKE negocia e administra parâmetros; IPsec aplica proteção à comunicação IP.",
+    "Supor que o gateway criptografa automaticamente o trecho interno até cada servidor: o túnel pode terminar no gateway.",
+    "Conceder rede inteira a prestador porque usa VPN: o princípio adequado é restringir por recurso e necessidade."
+  ],
+  "activeRecall": [
+    { "question": "Uma empregada conecta o laptop a um gateway corporativo pela internet. Qual arquitetura descreve a conexão?", "answer": "Host-to-gateway, a arquitetura típica de VPN de acesso remoto." },
+    { "question": "Por que estabelecer um túnel não autoriza acesso a toda a intranet?", "answer": "Porque autenticação verifica a identidade, enquanto políticas de autorização e segmentação devem definir os recursos permitidos." },
+    { "question": "Explique a diferença de roteamento entre túnel completo e dividido.", "answer": "No completo, tráfego corporativo e tráfego geral de internet seguem pelo gateway; no dividido, somente rotas selecionadas, em geral corporativas, passam pelo túnel." },
+    { "question": "Qual é a relação funcional entre IKE e ESP?", "answer": "IKE negocia parâmetros e chaves e autentica as pontas; ESP transporta os pacotes IPsec protegidos." },
+    { "question": "Que risco permanece quando a autenticação VPN funciona corretamente?", "answer": "O dispositivo pode estar comprometido, a conta pode estar roubada e a rede interna pode estar mal segmentada; por isso são necessários controles adicionais." },
+    { "question": "Como zero trust muda a interpretação de uma conexão VPN estabelecida?", "answer": "A conexão não dá confiança implícita; cada acesso a recurso deve ser avaliado segundo identidade, contexto e política." },
+    { "question": "Quais dados de conexão VPN podem apoiar uma investigação?", "answer": "Identidade, resultado da autenticação, origem, horário, duração, endereço atribuído, destino autorizado e alertas correlatos." },
+    { "question": "Após suspeita de comprometimento do gateway, por que patch isolado pode ser insuficiente?", "answer": "O invasor pode ter mantido persistência ou roubado credenciais; é necessário investigar, conter, revisar sessões e validar a integridade." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Túnel como proteção total", "summary": "A VPN protege o tráfego no trecho coberto pelo túnel. Não assegura endpoint, servidor, rede interna ou todo o percurso após o gateway." },
+    { "key": "e2", "title": "Autenticação confundida com autorização", "summary": "A prova de identidade não determina, por si só, quais sistemas podem ser acessados. A política precisa conceder permissões específicas." },
+    { "key": "e3", "title": "Rota confundida com criptografia", "summary": "Túnel dividido e completo diferem no tráfego encaminhado ao gateway; a rota não é, por si, prova de que o endpoint está seguro." },
+    { "key": "e4", "title": "VPN como confiança implícita", "summary": "Uma conexão VPN não torna qualquer usuário ou dispositivo confiável nem elimina a necessidade de segmentação e verificação por recurso." },
+    { "key": "e5", "title": "Gateway fora do ciclo de segurança", "summary": "Gateway público precisa de correções, configuração restritiva, monitoramento, proteção administrativa e resposta a comprometimento." }
+  ],
+  "questions": [
+    {
+      "statement": "Uma analista em viagem precisa acessar correio e sistemas internos por um laptop conectado a uma rede de hotel. Qual arquitetura VPN corresponde a esse caso?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Host-to-gateway: o laptop inicia túnel protegido ao gateway da organização.", "correct": true },
+        { "key": "B", "text": "Gateway-to-gateway, com o roteador do hotel formando túnel dedicado à sede corporativa.", "correct": false },
+        { "key": "C", "text": "Host-to-host, com o laptop formando conexão exclusiva com cada estação da rede interna.", "correct": false },
+        { "key": "D", "text": "Rede em malha, com computadores conectados ao laptop para alcançar cada segmento interno.", "correct": false },
+        { "key": "E", "text": "VLAN local, com o ponto de acesso do hotel estendendo a rede física da empresa.", "correct": false }
+      ],
+      "explanation": "No acesso remoto típico, um host individual estabelece o túnel com o gateway da organização, configuração chamada host-to-gateway. Gateway-to-gateway conecta redes por seus roteadores; host-to-host conecta dois computadores específicos. A rede do hotel não se torna uma VLAN corporativa nem integra uma malha com todos os computadores internos.",
+      "section": "1. O que uma VPN corporativa protege", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A equipe de redes precisa conectar permanentemente a LAN de uma filial à LAN da sede por gateways, sem exigir que cada usuário inicie manualmente a conexão. Qual desenho atende ao caso?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Host-to-host, com cada estação da filial pareada a uma estação da sede.", "correct": false },
+        { "key": "B", "text": "Gateway-to-gateway: os gateways conectam as redes da sede e da filial.", "correct": true },
+        { "key": "C", "text": "Host-to-gateway, com cada empregado abrindo seu próprio túnel de usuário.", "correct": false },
+        { "key": "D", "text": "Portal de aplicação, publicando um atalho web para cada computador da filial.", "correct": false },
+        { "key": "E", "text": "Túnel dividido, enviando toda a sub-rede da filial pela internet local sem gateway.", "correct": false }
+      ],
+      "explanation": "Gateway-to-gateway protege a comunicação entre duas redes específicas, por exemplo filial e sede, e tende a ser transparente aos usuários. Host-to-gateway atende a dispositivos individuais remotos. Host-to-host não interliga as LANs como redes inteiras, e túnel dividido é uma política de roteamento, não uma arquitetura que dispensa gateways.",
+      "section": "1. O que uma VPN corporativa protege", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um empregado pergunta se a VPN garante que os dados permaneçam criptografados desde seu notebook até a aplicação interna, mesmo depois de o túnel terminar no concentrador. Qual resposta é tecnicamente correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Sim, porque uma conexão VPN protege automaticamente todas as redes atravessadas até o servidor final.", "correct": false },
+        { "key": "B", "text": "Sim, desde que o usuário tenha usado MFA antes de iniciar o túnel.", "correct": false },
+        { "key": "C", "text": "Não necessariamente: o túnel termina no gateway, e o trecho seguinte precisa de proteção própria.", "correct": true },
+        { "key": "D", "text": "Não, pois qualquer VPN corporativa oferece somente autenticação e nunca criptografia.", "correct": false },
+        { "key": "E", "text": "Não, salvo quando o notebook recebe um endereço IP pertencente à rede interna.", "correct": false }
+      ],
+      "explanation": "O túnel de acesso remoto normalmente termina no gateway da organização. A proteção entre esse gateway e o servidor final depende do desenho da rede e dos protocolos usados nesse segmento. MFA trata da autenticação, e endereço IP interno não prolonga a criptografia. Também é incorreto afirmar que VPN nunca cifra: muitas soluções protegem o tráfego durante o túnel.",
+      "section": "1. O que uma VPN corporativa protege", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização substitui um acesso administrativo exposto à internet por VPN, mas mantém servidores internos sem segmentação. Qual conclusão melhor descreve o efeito da mudança?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A VPN impede que qualquer credencial roubada alcance um servidor interno.", "correct": false },
+        { "key": "B", "text": "A VPN elimina a necessidade de corrigir os servidores atrás do gateway.", "correct": false },
+        { "key": "C", "text": "A VPN torna desnecessário registrar os acessos feitos depois da conexão.", "correct": false },
+        { "key": "D", "text": "O túnel reduz exposição, enquanto segmentação e autorização limitam o acesso interno.", "correct": true },
+        { "key": "E", "text": "A VPN garante que o laptop remoto esteja livre de código malicioso.", "correct": false }
+      ],
+      "explanation": "A VPN reduz a exposição do serviço administrativo ao criar um caminho autenticado e protegido, mas não torna seguro um endpoint comprometido nem impede movimentação lateral quando a rede interna é plana. Segmentação, autorização por destino, correções e monitoração continuam necessários. O túnel não substitui registros nem verificação do dispositivo.",
+      "section": "1. O que uma VPN corporativa protege", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma VPN por TLS e uma VPN por IPsec são comparadas em um projeto. Qual afirmação evita tratar o nome do protocolo como garantia automática de segurança?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "TLS protege apenas arquivos armazenados, enquanto IPsec protege apenas credenciais de usuário.", "correct": false },
+        { "key": "B", "text": "IPsec funciona somente entre roteadores e não pode atender hosts remotos individuais.", "correct": false },
+        { "key": "C", "text": "VPN por TLS não pode autenticar usuários nem restringir aplicações corporativas.", "correct": false },
+        { "key": "D", "text": "A VPN por IPsec sempre é mais segura porque opera em uma camada inferior.", "correct": false },
+        { "key": "E", "text": "Ambas podem proteger o acesso; configuração, implementação e política também importam.", "correct": true }
+      ],
+      "explanation": "Soluções baseadas em IPsec e em TLS podem suportar acesso protegido, mas suas propriedades concretas dependem de configuração, implementação, autenticação e regras de autorização. IPsec pode ser usado para acesso remoto, e uma solução TLS pode controlar acesso a aplicações. A camada do protocolo não determina, por si só, que um produto seja sempre superior.",
+      "section": "2. Protocolos, túneis e roteamento do tráfego", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário está conectado à VPN. Rotas corporativas seguem pelo gateway da empresa, mas o acesso a sites públicos sai diretamente pela conexão residencial. Como se chama essa configuração?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Túnel completo, porque todo pacote IP utiliza o gateway corporativo como destino inicial.", "correct": false },
+        { "key": "B", "text": "Split tunneling envia destinos corporativos e públicos por rotas diferentes.", "correct": true },
+        { "key": "C", "text": "Gateway-to-gateway, porque a residência passa a representar uma rede da empresa.", "correct": false },
+        { "key": "D", "text": "Host-to-host, porque os sites públicos iniciam conexões com o computador remoto.", "correct": false },
+        { "key": "E", "text": "Modo transporte, pois o tipo de encapsulamento define os destinos de navegação web.", "correct": false }
+      ],
+      "explanation": "Split tunneling seleciona rotas: destinos corporativos passam pela VPN e outros destinos usam a interface local. No túnel completo, o tráfego de internet também pode seguir pelo gateway corporativo. Gateway-to-gateway descreve uma arquitetura entre redes; host-to-host descreve pontas; modo transporte não define essa política de saída web.",
+      "section": "2. Protocolos, túneis e roteamento do tráfego", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização precisa inspecionar no perímetro corporativo o tráfego de internet gerado por empregados remotos conectados à VPN. Qual política de roteamento tende a atender melhor a esse requisito?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Split tunneling irrestrito, mantendo qualquer destino público fora do gateway corporativo.", "correct": false },
+        { "key": "B", "text": "Host-to-host, fazendo cada navegador conectar-se diretamente ao firewall da sede.", "correct": false },
+        { "key": "C", "text": "Túnel completo encaminha também o tráfego geral de internet ao gateway corporativo.", "correct": true },
+        { "key": "D", "text": "MFA, pois um segundo fator transfere os pacotes web para a rede corporativa.", "correct": false },
+        { "key": "E", "text": "Segmentação de VLAN, sem alterar rotas ou caminhos do tráfego remoto.", "correct": false }
+      ],
+      "explanation": "O túnel completo encaminha o tráfego geral pelo gateway corporativo, permitindo que firewall e ferramentas centrais o inspecionem. Split tunneling envia parte desse tráfego diretamente pela rede local. MFA autentica a pessoa e VLAN segmenta redes, mas nenhum dos dois altera sozinho o caminho dos pacotes web.",
+      "section": "2. Protocolos, túneis e roteamento do tráfego", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um analista precisa descrever corretamente as funções de IPsec, IKE e ESP em uma conexão VPN. Qual associação está correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "IKE transporta os dados de aplicação e ESP autentica a senha no diretório corporativo.", "correct": false },
+        { "key": "B", "text": "ESP escolhe usuários autorizados e IKE substitui as regras de firewall da organização.", "correct": false },
+        { "key": "C", "text": "IPsec é um método de compressão; IKE e ESP são nomes alternativos para MFA.", "correct": false },
+        { "key": "D", "text": "IKE negocia parâmetros e chaves; ESP transporta os pacotes IPsec protegidos.", "correct": true },
+        { "key": "E", "text": "ESP cria contas de rede e IKE atualiza automaticamente o sistema operacional remoto.", "correct": false }
+      ],
+      "explanation": "IPsec fornece proteção para comunicações IP; IKE normalmente negocia parâmetros, autentica as pontas e estabelece chaves para a conexão. ESP é o protocolo usado para transportar o tráfego IPsec e pode prover confidencialidade e integridade/autenticação. Nenhum dos dois substitui diretório, firewall ou manutenção do endpoint.",
+      "section": "2. Protocolos, túneis e roteamento do tráfego", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Após ativar split tunneling, a equipe observa que o laptop remoto mantém simultaneamente uma rota local para a internet e uma rota VPN para redes internas. Qual risco deve entrar na avaliação?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Um endpoint comprometido pode expor a sessão VPN e criar risco para a rede corporativa.", "correct": true },
+        { "key": "B", "text": "IKE deixa de negociar chaves sempre que o navegador acessa um destino público.", "correct": false },
+        { "key": "C", "text": "O gateway perde a capacidade de autenticar o usuário depois de distribuir um endereço IP.", "correct": false },
+        { "key": "D", "text": "O servidor interno passa a enviar todas as respostas por uma rede de telefonia móvel.", "correct": false },
+        { "key": "E", "text": "A criptografia do túnel é removida de todos os pacotes corporativos pelo roteador residencial.", "correct": false }
+      ],
+      "explanation": "Com split tunneling, o host está conectado ao ambiente corporativo e a uma rede externa ao mesmo tempo. Se o endpoint for comprometido ou mal configurado, pode servir de ponte ou expor sessões e serviços corporativos. Essa é uma razão para avaliar postura, regras e necessidade do túnel dividido; os outros efeitos não decorrem automaticamente da configuração.",
+      "section": "2. Protocolos, túneis e roteamento do tráfego", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um empregado apresenta credencial válida e conclui MFA, mas tenta acessar um banco de dados que sua função não utiliza. Qual controle deve decidir se o acesso é permitido?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A autenticação, pois a confirmação em dois fatores concede automaticamente acesso interno.", "correct": false },
+        { "key": "B", "text": "A resolução DNS, pois localizar o nome do banco equivale a autorizar a identidade.", "correct": false },
+        { "key": "C", "text": "A autorização decide se a identidade pode acessar o banco segundo função e política.", "correct": true },
+        { "key": "D", "text": "A criptografia do túnel, que identifica quais tabelas o empregado pode consultar.", "correct": false },
+        { "key": "E", "text": "A atribuição do endereço IP, que substitui regras de acesso por aplicação.", "correct": false }
+      ],
+      "explanation": "MFA fortalece a autenticação, mas não concede todas as permissões. A autorização deve verificar se a identidade pode acessar aquele banco de dados, conforme função e política. DNS resolve nomes, criptografia protege dados em trânsito e endereço IP permite roteamento; nenhum desses elementos substitui a decisão de autorização.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um prestador precisa administrar apenas um servidor por duas semanas. Qual concessão de acesso remoto aplica melhor o princípio do menor privilégio?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Permitir a conta compartilhada de administrador em todos os segmentos durante o contrato.", "correct": false },
+        { "key": "B", "text": "Conceder só o serviço necessário, com identidade individual e remoção ao fim do prazo.", "correct": true },
+        { "key": "C", "text": "Liberar a rede inteira ao prestador porque o cliente VPN registra seu endereço de origem.", "correct": false },
+        { "key": "D", "text": "Usar uma conta pessoal do empregado que o acompanha, sem registrar a sessão externa.", "correct": false },
+        { "key": "E", "text": "Desativar a segmentação enquanto durar o trabalho para evitar erros de conectividade.", "correct": false }
+      ],
+      "explanation": "Menor privilégio significa conceder somente o acesso requerido, com identidade individual e escopo limitado ao servidor e serviço necessários. O vínculo temporário precisa ser removido quando a atividade terminar. Conta compartilhada, acesso amplo e suspensão de segmentação elevam o impacto de erro ou comprometimento e dificultam auditoria.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A política exige que o dispositivo remoto esteja atualizado e com proteção ativa antes de conectar-se. Qual aspecto do controle está sendo avaliado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A topologia gateway-to-gateway, que mede a saúde dos roteadores de duas filiais.", "correct": false },
+        { "key": "B", "text": "A confidencialidade, que confirma a versão de todos os programas instalados.", "correct": false },
+        { "key": "C", "text": "O split tunneling, que verifica se o dispositivo recebeu correções de segurança.", "correct": false },
+        { "key": "D", "text": "Postura avalia a segurança do endpoint para condicionar ou limitar o acesso.", "correct": true },
+        { "key": "E", "text": "O encapsulamento ESP, que decide se a conta pertence ao quadro de funcionários.", "correct": false }
+      ],
+      "explanation": "Postura do endpoint reúne sinais sobre a condição do dispositivo, como gerenciamento, atualização e proteção ativa. A organização pode negar ou limitar a sessão quando os requisitos não são cumpridos. Confidencialidade protege dados; split tunneling trata de rotas; ESP transporta tráfego protegido, sem avaliar a versão do sistema operacional.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa afirma que seu acesso remoto segue zero trust porque todos os usuários precisam primeiro conectar-se à VPN. Qual avaliação é mais precisa?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Correto, pois qualquer túnel VPN transforma a rede interna em perímetro de confiança zero.", "correct": false },
+        { "key": "B", "text": "Correto, desde que a VPN use endereço privado atribuído pelo gateway corporativo.", "correct": false },
+        { "key": "C", "text": "Incorreto, pois uma VPN não pode fazer parte de nenhuma arquitetura zero trust.", "correct": false },
+        { "key": "D", "text": "Incorreto, porque MFA e logs deixam de ser permitidos quando há acesso por recurso.", "correct": false },
+        { "key": "E", "text": "A afirmação não basta; zero trust exige decisões por recurso, contexto e política.", "correct": true }
+      ],
+      "explanation": "Zero trust não concede confiança implícita apenas pela localização ou conexão à rede. A VPN pode ser um componente, mas a arquitetura precisa avaliar identidade, dispositivo, contexto e permissão para o recurso pedido, além de monitorar interações. Usar endereço interno ou MFA sem autorização granular não demonstra, por si só, essa abordagem.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Durante uma revisão, a equipe encontra uma conta de fornecedor ainda habilitada meses após o encerramento do contrato. Qual medida corrige diretamente a falha observada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Desabilitar a identidade e revogar permissões e sessões que não tenham mais finalidade válida.", "correct": true },
+        { "key": "B", "text": "Alterar a MTU do túnel, para impedir que a conta antiga seja autenticada no gateway.", "correct": false },
+        { "key": "C", "text": "Manter a conta ativa, mas trocar o nome exibido no diretório por um identificador genérico.", "correct": false },
+        { "key": "D", "text": "Mover a conta para a mesma rede de visitantes usada pelos empregados em viagem.", "correct": false },
+        { "key": "E", "text": "Desligar o registro de autenticação, evitando alertas sobre acessos fora do contrato.", "correct": false }
+      ],
+      "explanation": "Quando a necessidade de negócio termina, o acesso deve ser removido: desabilitar a identidade, retirar permissões e encerrar sessões pertinentes. Alterações de MTU ou nome não revogam autorização. Manter a conta ou desligar logs preserva o risco e reduz a capacidade de auditoria.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma conexão VPN está criptografada, mas a conta usada pertence a várias pessoas e tem privilégios administrativos amplos. Qual problema permanece?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A criptografia faz com que a conta compartilhada não possa acessar recursos internos.", "correct": false },
+        { "key": "B", "text": "O tráfego deixa de poder ser roteado assim que uma conta administrativa se conecta.", "correct": false },
+        { "key": "C", "text": "Persistem excesso de privilégio e baixa responsabilização.", "correct": true },
+        { "key": "D", "text": "A identidade coletiva garante autorização individual por recurso em cada sessão.", "correct": false },
+        { "key": "E", "text": "O túnel converte automaticamente privilégios administrativos em permissões temporárias.", "correct": false }
+      ],
+      "explanation": "Criptografia protege o tráfego no percurso do túnel, mas não corrige uma conta compartilhada nem reduz seus privilégios. Identidades individuais permitem atribuir ações a pessoas específicas; autorização restrita por recurso reduz o impacto de comprometimento. A segurança do canal e o controle de acesso são dimensões diferentes.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O gateway de VPN é acessível pela internet e o fabricante publica uma correção para uma vulnerabilidade relevante. Qual ação operacional é mais adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Ignorar a atualização, pois o túnel criptografado impede exploração do software do gateway.", "correct": false },
+        { "key": "B", "text": "Aplicar a correção e verificar possível exposição do gateway.", "correct": true },
+        { "key": "C", "text": "Desativar MFA temporariamente para reduzir a quantidade de conexões que usam o gateway.", "correct": false },
+        { "key": "D", "text": "Reiniciar as senhas dos usuários e considerar o gateway corrigido sem alterar seu software.", "correct": false },
+        { "key": "E", "text": "Abrir a interface administrativa ao público para que o fornecedor aplique a correção remotamente.", "correct": false }
+      ],
+      "explanation": "O gateway é um componente exposto e vulnerabilidades podem permitir comprometimento antes ou durante a autenticação. A equipe deve seguir o aviso do fornecedor, aplicar correção após o processo de mudança e avaliar se houve exploração e se o equipamento permanece íntegro. Trocar senhas ou desativar MFA não corrige falha de software.",
+      "section": "4. Operação segura, monitoramento e resposta", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A equipe quer investigar tentativas suspeitas de acesso remoto e correlacioná-las com alertas de endpoint e firewall. Qual conjunto de registros da VPN é mais útil?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Apenas o número total de bytes trafegados pelo gateway ao fim de cada trimestre.", "correct": false },
+        { "key": "B", "text": "Somente o nome público do produto VPN, sem eventos de identidade ou conexão.", "correct": false },
+        { "key": "C", "text": "A lista de servidores existentes, sem vínculo com sessões, usuários ou horários.", "correct": false },
+        { "key": "D", "text": "Identidade, origem, horário e resultado do acesso.", "correct": true },
+        { "key": "E", "text": "A chave privada de cada usuário armazenada em texto nos registros de auditoria.", "correct": false }
+      ],
+      "explanation": "Registros de autenticação e sessão com identidade, resultado, origem, horário, duração, endereço e decisão de autorização permitem correlacionar atividade com outros controles. Métricas agregadas sem contexto são insuficientes. Segredos privados não devem ser armazenados em logs, pois isso cria risco adicional em vez de apoiar investigação.",
+      "section": "4. Operação segura, monitoramento e resposta", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma conta de empregado foi usada por um invasor para iniciar uma sessão VPN. A equipe confirma o comprometimento da credencial. Qual sequência é mais coerente com contenção e investigação?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Manter a sessão até o fim do expediente e apagar os logs para proteger a privacidade do usuário.", "correct": false },
+        { "key": "B", "text": "Desligar o firewall interno, pois a sessão VPN já passou pela autenticação corporativa.", "correct": false },
+        { "key": "C", "text": "Revogar sessões, conter o endpoint e preservar registros.", "correct": true },
+        { "key": "D", "text": "Alterar apenas as rotas do split tunneling sem invalidar a sessão já estabelecida.", "correct": false },
+        { "key": "E", "text": "Confiar no MFA concluído e encerrar o caso sem examinar acessos posteriores.", "correct": false }
+      ],
+      "explanation": "A resposta deve interromper o acesso comprometido, revogando credenciais ou sessões conforme o caso, e conter o dispositivo suspeito. Preservar logs e correlacioná-los com endpoint, firewall e aplicações ajuda a identificar o alcance e possíveis movimentos. MFA não impede uso de sessão roubada e não elimina a investigação.",
+      "section": "4. Operação segura, monitoramento e resposta", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma falha do gateway VPN permite que atacantes executem código com privilégios elevados. Depois de instalar o patch, qual conclusão é prudente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O patch prova que não houve invasão, então sessões e credenciais anteriores podem ser mantidas.", "correct": false },
+        { "key": "B", "text": "O patch elimina automaticamente qualquer persistência que tenha sido instalada pelo invasor.", "correct": false },
+        { "key": "C", "text": "A equipe deve desativar os registros para impedir que o invasor veja alertas de auditoria.", "correct": false },
+        { "key": "D", "text": "A VPN deve ser substituída por túnel dividido, que remove a vulnerabilidade do gateway.", "correct": false },
+        { "key": "E", "text": "Ainda é preciso investigar sessões e credenciais expostas.", "correct": true }
+      ],
+      "explanation": "Corrigir uma vulnerabilidade fecha a falha conhecida, mas não demonstra que o gateway não foi comprometido antes da correção nem remove necessariamente mecanismos de persistência. A equipe deve investigar, avaliar integridade, revisar sessões e credenciais e seguir orientação oficial. Reconfigurar rotas ou desligar logs não substitui essa análise.",
+      "section": "4. Operação segura, monitoramento e resposta", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um gateway VPN registra muitas falhas de autenticação, seguidas por login bem-sucedido de uma origem incomum e acesso a sistemas fora do padrão do usuário. Qual interpretação é mais adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Os eventos são sinais para investigação e correlação, embora não provem isoladamente um ataque.", "correct": true },
+        { "key": "B", "text": "A conexão é certamente legítima porque uma autenticação bem-sucedida ocorreu após as falhas.", "correct": false },
+        { "key": "C", "text": "As falhas demonstram que o túnel está criptografando corretamente todo o tráfego.", "correct": false },
+        { "key": "D", "text": "A origem incomum comprova defeito de MTU e pode ser descartada sem análise adicional.", "correct": false },
+        { "key": "E", "text": "A melhor resposta é apagar a conta para que o evento não apareça em auditorias futuras.", "correct": false }
+      ],
+      "explanation": "Uma sequência de falhas, autenticação bem-sucedida fora do padrão e acesso incomum pode indicar tentativa de adivinhação seguida de uso de credencial comprometida. Os sinais devem ser correlacionados com MFA, dispositivo, localidade e atividade em aplicações; não constituem prova isolada. Logs precisam ser preservados para apuração.",
+      "section": "4. Operação segura, monitoramento e resposta", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação interna exige confidencialidade entre o laptop remoto e o próprio servidor, inclusive depois do ponto em que termina a VPN. Qual medida adicional atende ao trecho restante?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Aumentar o tempo de sessão da VPN, mantendo inalterado o tráfego entre gateway e servidor.", "correct": false },
+        { "key": "B", "text": "Usar proteção criptográfica também na comunicação da aplicação até o servidor final.", "correct": true },
+        { "key": "C", "text": "Atribuir ao laptop um IP da sub-rede do servidor, sem alterar o protocolo da aplicação.", "correct": false },
+        { "key": "D", "text": "Ativar split tunneling para fazer o pacote evitar o segmento interno após o gateway.", "correct": false },
+        { "key": "E", "text": "Exigir MFA novamente, pois o segundo fator criptografa os dados em cada segmento.", "correct": false }
+      ],
+      "explanation": "Se a exigência cobre o trecho posterior ao término da VPN, a própria comunicação com a aplicação precisa ser protegida, por exemplo com protocolo criptográfico de ponta a ponta apropriado ao serviço. Aumentar a sessão, usar IP interno ou pedir MFA não estende a criptografia do túnel além do gateway.",
+      "section": "1. O que uma VPN corporativa protege", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador configura split tunneling para que a navegação pública não consuma a capacidade do gateway. Qual justificativa descreve o benefício operacional esperado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Todo o tráfego passa a ser inspecionado no perímetro, sem uso da conexão local do empregado.", "correct": false },
+        { "key": "B", "text": "As aplicações deixam de precisar de autorização porque os pacotes não atravessam a VPN.", "correct": false },
+        { "key": "C", "text": "Rotas selecionadas reduzem o tráfego no gateway.", "correct": true },
+        { "key": "D", "text": "A conexão local se torna parte da rede corporativa e recebe as mesmas regras internas.", "correct": false },
+        { "key": "E", "text": "A criptografia do túnel é substituída por compactação dos pacotes de navegação pública.", "correct": false }
+      ],
+      "explanation": "Split tunneling pode reduzir o volume encaminhado pelo gateway corporativo ao deixar tráfego não corporativo na conexão local. O benefício precisa ser avaliado com o risco de caminhos simultâneos e com controles de endpoint e rede. A configuração não elimina autorização nem transforma a rede residencial em segmento corporativo.",
+      "section": "2. Protocolos, túneis e roteamento do tráfego", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe confunde negociação de chaves com transporte dos pacotes e afirma que ESP é o protocolo que autentica as pontas e combina os parâmetros IKE. Qual correção é adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "ESP atribui endereços de rede e IKE define permissões de aplicação para o diretório.", "correct": false },
+        { "key": "B", "text": "AH cifra os dados e IKE substitui as associações de segurança do IPsec.", "correct": false },
+        { "key": "C", "text": "IKE e ESP são nomes equivalentes para o túnel inteiro, sem funções separadas.", "correct": false },
+        { "key": "D", "text": "IKE negocia e autentica as pontas; ESP carrega os pacotes protegidos da associação.", "correct": true },
+        { "key": "E", "text": "ESP realiza a troca de chaves; IKE verifica somente o checksum de arquivos do cliente.", "correct": false }
+      ],
+      "explanation": "IKE negocia os parâmetros de segurança, autentica as pontas e estabelece chaves para associações IPsec. ESP é o protocolo que transporta os pacotes protegidos e pode fornecer confidencialidade e integridade. AH é um mecanismo antigo sem confidencialidade e não deve ser confundido com IKE ou ESP.",
+      "section": "2. Protocolos, túneis e roteamento do tráfego", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma política exige MFA, mas o usuário aprova uma solicitação inesperada e entrega também o código de recuperação a um terceiro. Qual inferência é correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "MFA reduz riscos, mas não impede engenharia social.", "correct": true },
+        { "key": "B", "text": "A conexão não pode ser comprometida porque fatores múltiplos tornam impossível o roubo de sessão.", "correct": false },
+        { "key": "C", "text": "A organização deve retirar controles de autorização, pois MFA já determina todos os acessos.", "correct": false },
+        { "key": "D", "text": "A solução é permitir split tunneling, que impede que códigos de recuperação sejam usados.", "correct": false },
+        { "key": "E", "text": "A criptografia de ESP faz com que o usuário não consiga autorizar solicitações fraudulentas.", "correct": false }
+      ],
+      "explanation": "MFA reduz o risco de acesso baseado apenas em uma senha, mas usuários podem ser induzidos a aprovar pedidos ou entregar fatores e sessões podem ser roubadas. A organização deve investigar e revogar credenciais/sessões suspeitas, além de manter autorização por recurso. Roteamento e criptografia do túnel não impedem engenharia social.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um notebook corporativo remoto não atende ao nível de correção exigido, mas o usuário precisa consultar uma aplicação pública de suporte. Qual resposta de política pode reduzir o risco sem liberar a rede inteira?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Conceder privilégios administrativos completos para que o usuário atualize o notebook conectado.", "correct": false },
+        { "key": "B", "text": "Liberar todas as sub-redes por prazo indeterminado enquanto a equipe aguarda a atualização.", "correct": false },
+        { "key": "C", "text": "Ignorar a condição do dispositivo se o usuário tiver sido autenticado por MFA.", "correct": false },
+        { "key": "D", "text": "Desligar os registros da conexão para que a falha de postura não seja registrada.", "correct": false },
+        { "key": "E", "text": "Negar ou limitar a sessão a um recurso isolado até que o requisito do endpoint seja cumprido.", "correct": true }
+      ],
+      "explanation": "A postura pode condicionar o acesso. A organização pode negar a conexão corporativa ou permitir somente uma aplicação isolada, como portal de correção, em vez de liberar a rede interna. MFA não compensa um endpoint vulnerável, e privilégios amplos ou supressão de logs aumentariam o risco sem resolver a condição.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra de firewall permite que qualquer usuário VPN acesse todas as sub-redes internas. A equipe deseja reduzir movimento lateral após comprometimento de uma conta. Qual alteração é mais adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Aumentar a largura de banda do gateway para que a sessão suspeita termine mais rapidamente.", "correct": false },
+        { "key": "B", "text": "Segmentar a rede e permitir somente destinos e serviços necessários à identidade ou função.", "correct": true },
+        { "key": "C", "text": "Atribuir o mesmo endereço IP a todos os usuários para facilitar a regra de firewall.", "correct": false },
+        { "key": "D", "text": "Ativar túnel completo, que por si só impede o usuário de chegar a outros segmentos internos.", "correct": false },
+        { "key": "E", "text": "Substituir a autorização por uma segunda senha compartilhada entre os empregados.", "correct": false }
+      ],
+      "explanation": "Segmentação e regras de acesso por destino/serviço limitam o alcance de uma sessão mesmo depois que a autenticação é válida. Túnel completo afeta o caminho do tráfego, não define automaticamente o que cada usuário alcança. Endereço compartilhado e senha coletiva prejudicam atribuição e não substituem autorização granular.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço remoto de administração foi publicado diretamente na internet para facilitar o suporte, sem autenticação multifator. Qual mudança reduz a exposição sem confundir VPN com permissão ilimitada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Manter a porta pública e ocultar seu número em um documento interno de configuração.", "correct": false },
+        { "key": "B", "text": "Permitir a conexão pública, mas trocar o nome DNS do servidor para um valor não divulgado.", "correct": false },
+        { "key": "C", "text": "Exigir caminho de acesso controlado, MFA e autorização restrita ao serviço administrativo necessário.", "correct": true },
+        { "key": "D", "text": "Colocar o servidor na rede de visitantes para que o firewall da organização não o alcance.", "correct": false },
+        { "key": "E", "text": "Desativar o registro de sessões, pois a VPN criptografa a atividade dos administradores.", "correct": false }
+      ],
+      "explanation": "Um serviço administrativo diretamente exposto amplia a superfície de ataque. Um caminho controlado de acesso remoto, com MFA, identidade individual, autorização restrita e monitoramento, reduz essa exposição. Ocultar porta ou nome não substitui controles e a VPN não justifica liberar todos os serviços nem desligar auditoria.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma configuração de VPN apresenta desconexões e pacotes grandes falham após a inclusão de cabeçalhos de encapsulamento. Qual explicação técnica é plausível?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O encapsulamento aumenta o pacote e pode exceder a MTU, exigindo ajuste de tamanho ou tratamento de fragmentação.", "correct": true },
+        { "key": "B", "text": "A MFA altera o tamanho máximo dos quadros Ethernet sempre que valida a identidade do usuário.", "correct": false },
+        { "key": "C", "text": "A segmentação de rede cifra novamente os pacotes e remove todos os cabeçalhos IP originais.", "correct": false },
+        { "key": "D", "text": "A autorização de aplicação reduz o TTL e, por definição, impede o uso do IKE.", "correct": false },
+        { "key": "E", "text": "O split tunneling comprime todos os pacotes corporativos antes que cheguem ao gateway VPN.", "correct": false }
+      ],
+      "explanation": "O túnel adiciona cabeçalhos ao pacote original e reduz o espaço disponível dentro da MTU do caminho. Isso pode causar fragmentação inadequada ou falhas com pacotes grandes. O diagnóstico deve examinar MTU, fragmentação e transporte, em vez de alterar MFA, autorização ou segmentação, que têm funções diferentes.",
+      "section": "2. Protocolos, túneis e roteamento do tráfego", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma VPN remota usa túnel dividido e a organização precisa acessar serviços internos por nome DNS. Alguns nomes não resolvem fora do escritório. Qual componente da política deve ser verificado primeiro?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O nome de usuário da MFA, que determina os registros DNS privados enviados ao endpoint.", "correct": false },
+        { "key": "B", "text": "A regra ESP, que converte automaticamente nomes DNS em endereços privados internos.", "correct": false },
+        { "key": "C", "text": "A VLAN do ponto de acesso doméstico, que deve ser renumerada para a faixa corporativa.", "correct": false },
+        { "key": "D", "text": "As rotas e a configuração de DNS distribuídas ao cliente para os destinos internos.", "correct": true },
+        { "key": "E", "text": "O registro de auditoria, que precisa armazenar senhas para responder consultas de nomes.", "correct": false }
+      ],
+      "explanation": "Em acesso remoto, rotas e configuração DNS do cliente precisam permitir resolver nomes e alcançar serviços internos. O túnel dividido pode exigir que consultas para domínios corporativos usem servidores DNS internos de modo controlado. MFA e ESP não resolvem nomes, e não se deve armazenar senhas em logs.",
+      "section": "2. Protocolos, túneis e roteamento do tráfego", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização analisa usar VPN de acesso remoto para todos os sistemas em nuvem, embora os empregados precisem somente de duas aplicações web. Qual alternativa pode reduzir a exposição da rede?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Aumentar a faixa de endereços do túnel para incluir os serviços públicos de toda a internet.", "correct": false },
+        { "key": "B", "text": "Conceder ao empregado a sub-rede inteira porque os serviços estão hospedados em nuvem.", "correct": false },
+        { "key": "C", "text": "Desativar autenticação no proxy para manter a criptografia do acesso remoto.", "correct": false },
+        { "key": "D", "text": "Conectar diretamente a estação de cada usuário aos servidores de nuvem por host-to-host.", "correct": false },
+        { "key": "E", "text": "Usar acesso por aplicação com identidade, contexto e política, mantendo controles de rede necessários.", "correct": true }
+      ],
+      "explanation": "Se o usuário precisa de aplicações específicas, proxy ou serviço de acesso por aplicação pode evitar conceder conectividade ampla a segmentos. A decisão continua baseada em identidade, contexto e autorização, e pode complementar uma VPN onde necessário. A localização em nuvem não justifica liberar sub-redes inteiras nem remover autenticação.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um desenho exige que a VPN permaneça funcional mesmo com a falha de um gateway, mas também busca limitar impacto de erro de configuração. Qual prática equilibra disponibilidade e segurança?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Duplicar o gateway com credenciais administrativas compartilhadas e sem sincronizar registros.", "correct": false },
+        { "key": "B", "text": "Planejar redundância testada, proteger a administração e monitorar os componentes alternativos.", "correct": true },
+        { "key": "C", "text": "Desativar validação de certificado para que o cliente aceite qualquer gateway disponível.", "correct": false },
+        { "key": "D", "text": "Manter todos os serviços de gestão abertos na internet nos dois equipamentos.", "correct": false },
+        { "key": "E", "text": "Criar um gateway reserva sem atualizações para reduzir alterações na infraestrutura.", "correct": false }
+      ],
+      "explanation": "Redundância aumenta disponibilidade, mas os gateways alternativos também precisam de configuração segura, correções, controle administrativo e monitoração. Compartilhar credenciais, aceitar qualquer certificado ou manter equipamento sem atualização cria caminhos de falha. O plano deve ser testado para confirmar failover sem ampliar permissões.",
+      "section": "4. Operação segura, monitoramento e resposta", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma auditoria verifica se a organização remove acessos quando a necessidade termina. Qual evidência operacional é mais apropriada para demonstrar esse ciclo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Uma captura de tela do cliente VPN mostrando que o túnel foi criptografado na instalação inicial.", "correct": false },
+        { "key": "B", "text": "Uma lista sem data de contas antigas, mantida em planilha sem responsável definido.", "correct": false },
+        { "key": "C", "text": "O número de túneis simultâneos sem informação sobre identidades ou permissões.", "correct": false },
+        { "key": "D", "text": "A política de firewall que permite todas as origens depois de uma autenticação bem-sucedida.", "correct": false },
+        { "key": "E", "text": "Registros de aprovação, revisão periódica, revogação e encerramento de sessões de usuários desligados.", "correct": true }
+      ],
+      "explanation": "O controle de ciclo de vida requer evidência de quem aprovou o acesso, quem revisou a lista, quando permissões foram revogadas e como sessões foram encerradas. Uma lista desatualizada ou métrica de túnel sem identidade não prova a remoção. A criptografia inicial não demonstra revisão nem encerramento posterior.",
+      "section": "4. Operação segura, monitoramento e resposta", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma configuração de acesso remoto aceita senhas longas, mas não utiliza MFA nem verifica dispositivo, enquanto permite alcançar sistemas administrativos. Qual recomendação trata melhor os riscos independentes?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Adicionar MFA, avaliar a postura do endpoint e restringir destinos e privilégios administrativos.", "correct": true },
+        { "key": "B", "text": "Aumentar ainda mais o tamanho da senha e manter todas as rotas internas liberadas.", "correct": false },
+        { "key": "C", "text": "Ativar split tunneling e considerar que a conexão local protege as aplicações administrativas.", "correct": false },
+        { "key": "D", "text": "Desligar logs para que as senhas não apareçam nos registros do gateway.", "correct": false },
+        { "key": "E", "text": "Substituir todas as regras de autorização por criptografia mais forte no mesmo túnel.", "correct": false }
+      ],
+      "explanation": "Senhas fortes ajudam, mas não substituem fatores adicionais, avaliação do dispositivo nem restrição de destino. MFA reduz risco de credencial isolada; postura identifica endpoints inadequados; autorização e segmentação limitam o alcance da sessão. Criptografia protege o canal, não define quais sistemas administrativos o usuário pode alcançar.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O cliente VPN conecta-se, mas o usuário não consegue acessar a aplicação interna; os logs mostram autenticação aceita e política de destino negada. Qual providência deve ser examinada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Desativar autenticação multifator, porque uma sessão autenticada não pode ser negada depois.", "correct": false },
+        { "key": "B", "text": "Trocar o modo de túnel completo por host-to-host sem verificar o destino solicitado.", "correct": false },
+        { "key": "C", "text": "Aumentar a criptografia de ESP, que converte automaticamente a negação em permissão.", "correct": false },
+        { "key": "D", "text": "Apagar o registro de negação e conceder ao usuário a rede interna inteira.", "correct": false },
+        { "key": "E", "text": "Revisar autorização, rota e regra para o recurso pretendido sem ampliar todo o acesso.", "correct": true }
+      ],
+      "explanation": "Autenticação aceita confirma a identidade conforme o mecanismo; a política ainda pode negar acesso ao destino. A investigação deve verificar autorização, rota e regra específica da aplicação. Conceder toda a rede, desativar MFA ou alterar a cifra não corrige uma permissão granular incorreta e aumenta o risco.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmativa descreve corretamente o protocolo Authentication Header (AH) no contexto de IPsec conforme a orientação do NIST consultada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "AH é o mecanismo atual de criptografia recomendada para todo túnel IPsec remoto.", "correct": false },
+        { "key": "B", "text": "AH negocia chaves de sessão, enquanto IKE transporta os pacotes cifrados da aplicação.", "correct": false },
+        { "key": "C", "text": "AH é um mecanismo histórico de autenticação e integridade, sem confidencialidade, não recomendado para novas implementações.", "correct": true },
+        { "key": "D", "text": "AH distribui fatores MFA e controla autorização de servidores por usuário da organização.", "correct": false },
+        { "key": "E", "text": "AH é outro nome para túnel dividido, usado para separar rotas corporativas e locais.", "correct": false }
+      ],
+      "explanation": "O AH oferece proteção de autenticação/integridade, mas não cifra o conteúdo, e o guia NIST SP 800-77 Rev. 1 não recomenda esse método antigo para novas implementações. O ESP é o protocolo que transporta o tráfego IPsec e pode fornecer confidencialidade; IKE negocia parâmetros e chaves. Split tunneling é uma política de roteamento.",
+      "section": "2. Protocolos, túneis e roteamento do tráfego", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização deseja que usuários remotos acessem somente aplicações autorizadas em ambientes locais e de nuvem. Qual princípio orienta melhor esse desenho?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Confiar em qualquer host com endereço atribuído pela VPN e segmentar somente os usuários externos.", "correct": false },
+        { "key": "B", "text": "Retirar controles de identidade dos ambientes de nuvem, pois a VPN já autentica o usuário.", "correct": false },
+        { "key": "C", "text": "Colocar todas as aplicações em uma VLAN e usar criptografia apenas no enlace de internet.", "correct": false },
+        { "key": "D", "text": "Permitir rede inteira após autenticação e usar registros somente para contabilizar banda.", "correct": false },
+        { "key": "E", "text": "Construir decisão por recurso com identidade, contexto, política e monitoramento contínuo.", "correct": true }
+      ],
+      "explanation": "A arquitetura zero trust protege recursos distribuídos e não confia implicitamente em usuários ou dispositivos com base na localização. A política deve considerar identidade, estado do ativo e contexto para cada acesso, com monitoramento e escopo limitado. Endereço VPN ou autenticação inicial não justificam liberar toda a rede nem retirar controles de aplicações em nuvem.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe considera túnel dividido seguro em qualquer circunstância porque o tráfego corporativo continua criptografado. Qual análise é mais equilibrada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A conclusão é correta, pois o tráfego local jamais consegue interagir com o endpoint VPN.", "correct": false },
+        { "key": "B", "text": "A conclusão é correta se a empresa usar senhas longas para todos os usuários remotos.", "correct": false },
+        { "key": "C", "text": "A conclusão é incorreta porque split tunneling desativa a criptografia também nas rotas corporativas.", "correct": false },
+        { "key": "D", "text": "A decisão depende do risco: rotas locais podem criar exposição simultânea e exigem controles compensatórios.", "correct": true },
+        { "key": "E", "text": "A decisão depende somente da versão de IP, sem relação com endpoint ou política de inspeção.", "correct": false }
+      ],
+      "explanation": "Split tunneling não remove necessariamente a proteção do tráfego que segue pelo túnel, mas mantém o endpoint ligado também a uma rede externa. Um endpoint comprometido pode expor a sessão corporativa; além disso, o tráfego local pode não passar pela inspeção central. A organização deve equilibrar capacidade, visibilidade e controles do dispositivo, sem afirmar que o modo é sempre seguro ou inseguro.",
+      "section": "2. Protocolos, túneis e roteamento do tráfego", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma auditoria identifica VPN com MFA, mas permissões são concedidas a grupos amplos e não há revisão de contas de terceiros. Qual diagnóstico separa corretamente os controles?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A autenticação pode ser forte, enquanto autorização e ciclo de vida de acesso seguem inadequados.", "correct": true },
+        { "key": "B", "text": "A MFA torna dispensável revisar grupos, pois comprova que todos os membros têm necessidade atual.", "correct": false },
+        { "key": "C", "text": "O problema é somente de criptografia, resolvido ao escolher outro protocolo de túnel.", "correct": false },
+        { "key": "D", "text": "As contas de terceiros não precisam ser revisadas quando a conexão usa endereço IP privado.", "correct": false },
+        { "key": "E", "text": "A organização deve substituir identidades individuais por uma credencial comum de grupo.", "correct": false }
+      ],
+      "explanation": "MFA é controle de autenticação, mas não assegura que grupos estejam bem dimensionados ou que terceiros ainda precisem de acesso. A organização precisa revisar autorização e ciclo de vida, atribuir permissões por necessidade e remover acessos expirados. Alterar o protocolo de túnel não corrige excesso de privilégios nem contas sem revisão.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer liberar VPN a partir de dispositivos pessoais não gerenciados para todos os sistemas internos. Qual risco de arquitetura deve ser considerado antes da aprovação?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A rede interna torna-se segura desde que o usuário aceite um aviso de uso antes de conectar.", "correct": false },
+        { "key": "B", "text": "Dispositivo pessoal garante isolamento porque não pertence ao domínio de diretório corporativo.", "correct": false },
+        { "key": "C", "text": "A VPN impede o usuário de manter conexão simultânea com redes domésticas ou públicas.", "correct": false },
+        { "key": "D", "text": "A ausência de gerenciamento torna impossível a autenticação multifator do empregado.", "correct": false },
+        { "key": "E", "text": "Um dispositivo sem controle de postura pode levar malware ou configurações inseguras para o caminho corporativo.", "correct": true }
+      ],
+      "explanation": "Um dispositivo pessoal sem gerenciamento pode estar desatualizado, infectado ou exposto a outras redes. Uma VPN pode transportar essa condição para dentro e, se houver acesso amplo, elevar o impacto. A política pode exigir postura, limitar aplicações, usar acesso remoto isolado ou negar a conexão; aceitar um aviso não substitui controle técnico.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um alerta informa que o gateway pode ter sido comprometido e que credenciais de administração talvez tenham sido capturadas. Qual plano de resposta é mais completo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Aplicar uma atualização, apagar logs antigos e manter as credenciais até a próxima revisão anual.", "correct": false },
+        { "key": "B", "text": "Confiar no estado do serviço após a reinicialização e dispensar revisão de sessões ativas.", "correct": false },
+        { "key": "C", "text": "Desativar MFA para que a equipe consiga identificar mais facilmente os acessos suspeitos.", "correct": false },
+        { "key": "D", "text": "Conceder acesso total a todos os analistas externos para acelerar a análise do equipamento.", "correct": false },
+        { "key": "E", "text": "Isolar ou substituir conforme avaliação, preservar evidências, investigar persistência e revogar segredos afetados.", "correct": true }
+      ],
+      "explanation": "Gateway potencialmente comprometido exige contenção e investigação, não apenas patch ou reinicialização. A equipe deve preservar evidências, verificar persistência e integridade, revisar sessões e credenciais possivelmente expostas e aplicar orientação do fabricante. O acesso de investigadores também deve ser individual e restrito; apagar registros prejudicaria a apuração.",
+      "section": "4. Operação segura, monitoramento e resposta", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe usa VPN gateway-to-gateway entre duas empresas parceiras. Que controle evita que a conectividade entre redes parceiras seja interpretada como confiança irrestrita?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Permitir qualquer fluxo entre as redes, pois o túnel autentica os gateways contratados.", "correct": false },
+        { "key": "B", "text": "Usar o mesmo espaço de endereçamento nas duas redes para que não haja tradução de rota.", "correct": false },
+        { "key": "C", "text": "Definir sub-redes e serviços permitidos, filtrar fluxos e monitorar a conexão entre organizações.", "correct": true },
+        { "key": "D", "text": "Desativar a autenticação dos gateways, uma vez que a criptografia identifica os parceiros.", "correct": false },
+        { "key": "E", "text": "Mover os servidores de ambas as empresas para uma única VLAN compartilhada.", "correct": false }
+      ],
+      "explanation": "O túnel protege a comunicação entre gateways, mas a organização deve limitar quais redes e serviços podem atravessá-lo. Filtragem, segmentação, monitoramento e regras contratuais preservam fronteiras entre parceiros. Autenticar o gateway não autoriza todo fluxo nem elimina a necessidade de políticas de firewall.",
+      "section": "1. O que uma VPN corporativa protege", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O cliente IPsec autentica o gateway, mas a aplicação exige proteção adicional contra alteração dos dados enquanto trafegam entre gateway e servidor. Qual propriedade da comunicação deve ser garantida nesse segmento?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Disponibilidade, por meio de uma faixa maior de endereços atribuídos aos clientes remotos.", "correct": false },
+        { "key": "B", "text": "Autorização, concedendo acesso administrativo a todos os nós intermediários da rede.", "correct": false },
+        { "key": "C", "text": "Confidencialidade do túnel remoto, que permanece ativa mesmo depois do gateway.", "correct": false },
+        { "key": "D", "text": "Integridade no segmento, obtida por controles criptográficos adequados na comunicação até o servidor.", "correct": true },
+        { "key": "E", "text": "Identificação do usuário, substituindo o protocolo da aplicação após a terminação VPN.", "correct": false }
+      ],
+      "explanation": "A proteção do túnel VPN pode terminar no gateway. Para proteger contra alteração no trecho posterior, a comunicação entre gateway e servidor deve oferecer integridade por mecanismo apropriado, por exemplo segurança de transporte da própria aplicação. A identidade do usuário ou o endereço atribuído não garantem essa propriedade nesse segmento.",
+      "section": "1. O que uma VPN corporativa protege", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma VPN usa IKE para negociar associações IPsec e um operador propõe armazenar a chave privada de todos os usuários em texto nos logs, para facilitar suporte. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A prática é adequada porque IKE depende de logs públicos para reconstruir a chave a cada sessão.", "correct": false },
+        { "key": "B", "text": "A prática amplia o risco; logs devem registrar eventos sem expor segredos de autenticação.", "correct": true },
+        { "key": "C", "text": "A prática é necessária em split tunneling, pois o tráfego público não pode ser auditado sem segredos.", "correct": false },
+        { "key": "D", "text": "A prática melhora autorização, já que qualquer analista pode então reutilizar a identidade do usuário.", "correct": false },
+        { "key": "E", "text": "A prática é inofensiva se o gateway também usar ESP para proteger seus pacotes em trânsito.", "correct": false }
+      ],
+      "explanation": "Chaves privadas e outros segredos de autenticação devem ser protegidos e não incluídos em logs. Registros úteis guardam identidade, resultado da autenticação, origem, horário, duração e decisões de acesso, sem criar cópias reutilizáveis das credenciais. A criptografia do tráfego não protege segredos armazenados em texto nos registros.",
+      "section": "4. Operação segura, monitoramento e resposta", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe compara VPN de acesso remoto com proxy de aplicação para um sistema web sensível. Qual distinção ajuda a escolher o controle adequado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A VPN pode oferecer conectividade de rede ao host; o proxy pode intermediar acesso a uma aplicação específica.", "correct": true },
+        { "key": "B", "text": "O proxy cria sempre uma rede de camada física, enquanto a VPN apenas registra a identidade.", "correct": false },
+        { "key": "C", "text": "A VPN é incapaz de limitar rotas e o proxy não pode aplicar autenticação contextual.", "correct": false },
+        { "key": "D", "text": "O proxy substitui todas as regras de autorização do sistema web ao encerrar o túnel IPsec.", "correct": false },
+        { "key": "E", "text": "Ambos concedem necessariamente acesso a todos os segmentos da rede corporativa.", "correct": false }
+      ],
+      "explanation": "Uma VPN tradicional frequentemente fornece conectividade de rede para destinos roteáveis definidos, enquanto um proxy de aplicação pode intermediar o acesso a uma aplicação específica e aplicar políticas no nível do recurso. As capacidades variam por arquitetura; VPN também pode ter regras granulares, e proxy não elimina controles próprios da aplicação.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao projetar a política de teletrabalho, a organização precisa escolher se verifica automaticamente vulnerabilidades e malware no host após a conexão. Onde esse requisito deve ser tratado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Na configuração de DNS público, que é responsável por executar varredura antimalware do endpoint.", "correct": false },
+        { "key": "B", "text": "No nome do perfil IPsec, que substitui a política de uso remoto e o procedimento de resposta.", "correct": false },
+        { "key": "C", "text": "Na política de acesso remoto, definindo requisitos e ações para verificar a condição do host.", "correct": true },
+        { "key": "D", "text": "No mecanismo de split tunneling, que verifica e corrige automaticamente todos os programas vulneráveis.", "correct": false },
+        { "key": "E", "text": "No endereço IP do gateway, sem descrever quem avalia o resultado da verificação.", "correct": false }
+      ],
+      "explanation": "A política de acesso remoto deve definir requisitos para os hosts, incluindo versões e correções mínimas, uso permitido e eventual verificação automatizada de vulnerabilidades, malware ou outros problemas. O mecanismo técnico executa a checagem conforme o desenho, mas DNS, perfil de túnel e endereço IP não substituem a regra de governança.",
+      "section": "4. Operação segura, monitoramento e resposta", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa define túnel completo para inspeção central, mas o gateway fica saturado quando muitos empregados trabalham remotamente. Qual resposta preserva a análise de segurança e trata a capacidade?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Desligar a inspeção e abrir todos os destinos diretamente, sem avaliar riscos de rota local.", "correct": false },
+        { "key": "B", "text": "Planejar capacidade e alternativas controladas, avaliando inspeção, risco de split tunneling e monitoramento.", "correct": true },
+        { "key": "C", "text": "Remover MFA para que sessões mais rápidas reduzam o tráfego criptografado no gateway.", "correct": false },
+        { "key": "D", "text": "Mover o gateway para a rede de visitantes, mantendo todas as rotas internas disponíveis.", "correct": false },
+        { "key": "E", "text": "Diminuir o tamanho dos registros de auditoria, o que remove a carga de encaminhamento dos pacotes.", "correct": false }
+      ],
+      "explanation": "Túnel completo aumenta o tráfego encaminhado e inspecionado centralmente; capacidade e redundância devem ser planejadas. Uma alternativa pode usar split tunneling para destinos selecionados, mas isso altera visibilidade e risco e exige controles compensatórios. Remover MFA ou registros não resolve a capacidade do plano de dados e enfraquece controles.",
+      "section": "2. Protocolos, túneis e roteamento do tráfego", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de controles responde melhor ao risco de um invasor usar uma conta VPN válida para se movimentar lateralmente após entrar na organização?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Aumentar a duração das sessões e confiar no endereço IP atribuído pelo concentrador.", "correct": false },
+        { "key": "B", "text": "Desligar firewalls entre segmentos para que o tráfego VPN tenha menos pontos de falha.", "correct": false },
+        { "key": "C", "text": "Registrar somente o uso de banda e presumir que o túnel cifra todos os acessos internos.", "correct": false },
+        { "key": "D", "text": "Aplicar MFA, menor privilégio, segmentação, postura do endpoint e monitoração correlacionada.", "correct": true },
+        { "key": "E", "text": "Substituir as contas individuais por uma conta administrativa compartilhada de contingência.", "correct": false }
+      ],
+      "explanation": "A sessão válida não elimina risco de conta roubada ou dispositivo comprometido. MFA reduz parte do risco de credenciais; menor privilégio e segmentação limitam destinos; postura avalia o endpoint; registros correlacionados ajudam a detectar atividade anômala. Endereço IP ou criptografia do túnel não impedem movimentação lateral por si sós.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma afirmação de prova diz: “como o usuário está conectado pela VPN, o tráfego que chega ao gateway deve ser considerado legítimo e não precisa de inspeção”. Qual avaliação é correta?",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A conexão VPN protege o canal e autentica conforme a configuração, mas pode transportar tráfego de endpoint comprometido ou de conta roubada. A organização continua precisando de autorização, segmentação, controles de endpoint, inspeção e monitoramento conforme o risco.",
+      "section": "1. O que uma VPN corporativa protege", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma VPN de acesso remoto, um host individual estabelece uma conexão protegida com o gateway de uma rede organizacional.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A arquitetura host-to-gateway é a forma clássica de acesso remoto: o dispositivo remoto estabelece uma conexão com o gateway e pode usar recursos organizacionais autorizados. O túnel protege o tráfego entre o host e esse gateway.",
+      "section": "1. O que uma VPN corporativa protege", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "IKE é o mecanismo de IPsec usado principalmente para negociar os parâmetros da conexão e estabelecer as chaves de sessão.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. IKE negocia parâmetros de segurança, autentica as pontas, estabelece chaves e administra associações IPsec. O ESP é o protocolo que transporta o tráfego IPsec protegido.",
+      "section": "2. Protocolos, túneis e roteamento do tráfego", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No split tunneling, todo o tráfego de internet do usuário necessariamente atravessa o gateway VPN corporativo antes de alcançar seu destino.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Split tunneling envia pela VPN apenas as rotas selecionadas, normalmente as corporativas; tráfego não corporativo pode sair diretamente pela conexão local. Encaminhar também o tráfego geral pelo gateway caracteriza o túnel completo.",
+      "section": "2. Protocolos, túneis e roteamento do tráfego", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma VPN gateway-to-gateway pode conectar a rede de uma filial à rede da sede por meio de dois gateways.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Gateway-to-gateway é uma arquitetura que protege a comunicação entre redes específicas por meio de seus gateways, como uma sede e uma filial. Ela costuma ser transparente para os usuários dessas redes.",
+      "section": "1. O que uma VPN corporativa protege", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A autenticação multifator decide automaticamente quais aplicações internas cada identidade está autorizada a acessar.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. MFA reforça a verificação da identidade com fatores distintos. A autorização é que define os recursos permitidos conforme função e política; uma identidade autenticada pode continuar sem permissão para determinada aplicação.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint comprometido pode usar uma sessão VPN legítima para enviar tráfego malicioso à organização.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A VPN protege a comunicação em trânsito conforme sua configuração, mas não limpa nem torna confiável o dispositivo remoto. Postura, proteção de endpoint, autorização e segmentação limitam esse risco.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Após o término do contrato de um prestador, a conta VPN pode permanecer ativa com acesso amplo se a senha for longa e tiver sido alterada recentemente.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A necessidade de acesso terminou, portanto a identidade, as permissões e sessões relacionadas devem ser removidas ou encerradas. Senha forte não justifica manter conta sem finalidade de negócio.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma VPN de acesso remoto protege necessariamente o tráfego desde o dispositivo externo até o servidor interno, mesmo quando o túnel termina no gateway corporativo.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O túnel remoto normalmente termina no gateway. A proteção do trecho entre gateway e servidor depende de mecanismos adicionais na rede interna ou na própria aplicação; o término do túnel não estende automaticamente a criptografia.",
+      "section": "1. O que uma VPN corporativa protege", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "ESP pode transportar tráfego IPsec com proteção de confidencialidade e integridade, conforme os serviços e parâmetros selecionados.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O ESP transporta os pacotes IPsec protegidos. Sua configuração pode combinar criptografia e integridade/autenticação; os serviços efetivos dependem dos parâmetros escolhidos e da implementação.",
+      "section": "2. Protocolos, túneis e roteamento do tráfego", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Túnel completo pode facilitar a inspeção central do tráfego geral de internet, mas tende a enviar mais tráfego pelo gateway corporativo.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. No túnel completo, o tráfego não corporativo também pode seguir pela empresa para inspeção no perímetro. Essa centralização aumenta o volume tratado pelo gateway e exige planejamento de capacidade e disponibilidade.",
+      "section": "2. Protocolos, túneis e roteamento do tráfego", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Conectar-se pela VPN torna confiável qualquer dispositivo remoto, pois a criptografia do túnel verifica a ausência de malware no host.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Criptografia protege dados em trânsito, não verifica a saúde do endpoint. A organização precisa avaliar postura e usar controles de endpoint, autorização e segmentação para reduzir a possibilidade de um dispositivo comprometido alcançar recursos.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura zero trust, o endereço interno atribuído ao usuário pela VPN é suficiente para presumir que todos os recursos da rede são confiáveis para ele.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Zero trust não concede confiança implícita por localização ou endereço de rede. O acesso deve ser avaliado por recurso, considerando identidade, contexto e política, e pode ser monitorado ao longo da interação.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Registros de conexão VPN com identidade, horário, origem e resultado de autenticação podem apoiar detecção e investigação de incidentes.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Esses dados ajudam a correlacionar sessões com diretório, endpoint, firewall e aplicação. Os registros devem ser protegidos contra alteração e não devem conter segredos reutilizáveis, como chaves privadas em texto.",
+      "section": "4. Operação segura, monitoramento e resposta", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Aplicar patch ao gateway potencialmente comprometido comprova, por si só, que não houve persistência ou roubo de credenciais antes da correção.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Patch corrige uma vulnerabilidade conhecida, mas não prova ausência de exploração anterior nem remove necessariamente persistência. A resposta deve avaliar integridade, sessões, credenciais e atividade registrada, com contenção e orientação do fornecedor.",
+      "section": "4. Operação segura, monitoramento e resposta", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Se o serviço de VPN autentica o gateway parceiro, todos os fluxos entre as duas organizações podem ser liberados sem regras adicionais de segmentação.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Autenticar as pontas estabelece confiança na conexão conforme os parâmetros, não autoriza qualquer tráfego entre redes. Devem ser definidos sub-redes, serviços e fluxos permitidos, com filtragem e monitoramento apropriados para a relação entre organizações.",
+      "section": "1. O que uma VPN corporativa protege", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A MTU pode afetar uma VPN porque o encapsulamento acrescenta cabeçalhos e reduz o espaço disponível para a carga útil do pacote original.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O pacote encapsulado cresce em relação ao pacote original. Se o caminho não suportar o tamanho resultante ou tratar fragmentação inadequadamente, podem ocorrer falhas de conexão ou problemas com pacotes grandes. Diagnóstico de MTU não deve ser confundido com autorização.",
+      "section": "2. Protocolos, túneis e roteamento do tráfego", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma conta compartilhada de administração permite identificar com precisão qual prestador realizou cada mudança, desde que a VPN registre o endereço IP da sessão.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O endereço IP pode identificar uma sessão ou origem de rede, mas uma conta compartilhada não atribui com segurança a ação a uma pessoa específica. Identidades individuais, privilégios restritos e registros correlacionados melhoram responsabilização e auditoria.",
+      "section": "3. Identidade, autorização e proteção do dispositivo remoto", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "NIST SP 800-77 Rev. 1 — Guide to IPsec VPNs",
+      "publisher": "National Institute of Standards and Technology (NIST)",
+      "reference": "Arquiteturas de VPN, IPsec, IKE, ESP, AH, acesso remoto, split tunneling e política para hosts remotos.",
+      "url": "https://csrc.nist.gov/pubs/sp/800/77/r1/final",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Modern Approaches to Secure Network Access Security",
+      "publisher": "CISA, FBI, GCSB, CERT-NZ e CCCS",
+      "reference": "Riscos de VPN de acesso remoto, dispositivos comprometidos, segmentação, menor privilégio e alternativas de acesso moderno.",
+      "url": "https://www.cisa.gov/sites/default/files/2024-06/joint-guide-modern-approaches-to-secure-network-access-security-508c.pdf",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NIST SP 1800-35 — Implementing a Zero Trust Architecture",
+      "publisher": "National Institute of Standards and Technology (NIST)",
+      "reference": "Acesso autorizado a recursos locais e em nuvem para equipes híbridas e parceiros; exemplos de implementação zero trust.",
+      "url": "https://csrc.nist.gov/pubs/sp/1800/35/final",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Zero Trust Architecture — NIST SP 800-207",
+      "publisher": "National Institute of Standards and Technology (NIST)",
+      "reference": "Princípios de zero trust, proteção centrada em recursos e ausência de confiança implícita baseada em localização.",
+      "url": "https://csrc.nist.gov/pubs/sp/800/207/final",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

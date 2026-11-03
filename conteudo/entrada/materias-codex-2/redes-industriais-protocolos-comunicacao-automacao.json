@@ -1,0 +1,1753 @@
+{
+  "id": "automacao.redes-industriais-protocolos-comunicacao-automacao",
+  "subject": "Automação",
+  "title": "Redes industriais e protocolos de comunicação",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Redes industriais e protocolos de comunicação",
+    "Protocolos de comunicação industrial",
+    "Comunicação em redes industriais",
+    "Redes de comunicação para automação",
+    "Protocolos de automação industrial",
+    "Modbus RTU e Modbus TCP",
+    "Modelo de dados Modbus industrial",
+    "PROFINET e redes industriais Ethernet",
+    "EtherNet/IP e Common Industrial Protocol",
+    "OPC UA para interoperabilidade industrial",
+    "Barramentos de campo e fieldbus industrial",
+    "Comunicação entre PLC e dispositivos industriais"
+  ],
+  "scope": {
+    "covers": "Fundamentos de comunicação industrial; topologias, meios físicos, camadas e determinismo; barramentos de campo e Ethernet industrial; Modbus serial e TCP, quatro tabelas de dados e funções; PROFINET RT/IRT e integração TCP/IP; EtherNet/IP, CIP, mensagens explícitas e implícitas; OPC UA, espaço de endereços, cliente-servidor e PubSub; gateways, interoperabilidade, diagnóstico, disponibilidade e segmentação de redes.",
+    "excludes": "Configuração detalhada de marcas e modelos de CLP, sintaxe de programação ladder, dimensionamento elétrico completo, especificações integrais de cada norma IEC/IEEE e configuração de segurança funcional certificada."
+  },
+  "theoryTitle": "Comunicação confiável entre sensores, controladores e sistemas",
+  "chapters": [
+    {
+      "title": "1. O que uma rede industrial precisa entregar",
+      "markdown": "### O problema que este assunto resolve\n\nUma linha automatizada reúne sensores, atuadores, inversores, controladores lógicos programáveis (CLPs), interfaces homem-máquina (IHMs) e sistemas supervisórios. Cada componente produz ou consome informação: estado de uma válvula, velocidade de um motor, temperatura, alarmes ou comandos. Uma rede industrial transporta essas informações com regras comuns para que equipamentos distintos cooperem.\n\nO desafio não é apenas transmitir muitos bits. Um comando de parada ou uma amostra de posição pode perder utilidade se chegar tarde. A rede deve considerar tempo de ciclo, variação do atraso, falhas de cabo, ruído eletromagnético, recuperação e segurança. A prioridade depende do processo: o tráfego de controle cíclico costuma exigir latência previsível; relatórios e configuração toleram mais atraso.\n\n> **Siglas e termos deste capítulo**\n> - **CLP/PLC**: controlador lógico programável que lê entradas, executa lógica e atualiza saídas.\n> - **IHM/HMI**: interface que permite ao operador visualizar e comandar o processo.\n> - **SCADA/ supervisório**: sistema de supervisão, aquisição de dados e alarmes.\n> - **Latência**: tempo entre envio e recebimento de uma informação.\n> - **Jitter**: variação da latência entre transmissões sucessivas.\n> - **Determinismo**: capacidade de entregar dados dentro de limites temporais previsíveis.\n> - **Fieldbus**: família de redes digitais para conectar instrumentos e controladores no chão de fábrica.\n\n### Hierarquia e tráfego\n\nUma arquitetura comum separa níveis funcionais, embora redes modernas possam integrar níveis: dispositivos de campo medem e atuam; controladores executam controle; supervisórios reúnem estados e alarmes; sistemas de operação e negócio planejam produção. A divisão não é uma regra física universal. O importante é não presumir que todo tráfego tem a mesma criticidade.\n\n| Tráfego | Exemplo | Necessidade típica |\n| --- | --- | --- |\n| Cíclico de controle | CLP atualiza entradas e saídas de um módulo remoto | Período previsível e atraso limitado |\n| Acíclico de serviço | Leitura de diagnóstico ou parametrização de inversor | Confiabilidade e resposta, sem ciclo rígido |\n| Supervisório | IHM consulta estado, tendências e alarmes | Dados organizados e atualização adequada ao operador |\n| Integração | Produção envia indicadores a sistemas corporativos | Interoperabilidade e controle de acesso |\n\n### Topologia e meio não são protocolo\n\nTopologia descreve como os nós estão conectados. Em estrela, os enlaces convergem a um switch; em linha, dispositivos podem ter portas de passagem; em anel, um mecanismo de redundância pode recuperar o tráfego após uma falha. Barramentos seriais podem compartilhar o meio e exigir regras de arbitragem. A topologia, sozinha, não garante redundância: é preciso que equipamentos e protocolo suportem recuperação.\n\nO meio físico pode ser par trançado, fibra óptica ou rádio. Par trançado é comum e econômico; fibra oferece imunidade a interferência eletromagnética e isolamento elétrico; rádio evita cabos, mas introduz interferência e variabilidade. Blindagem, aterramento, conectores, distância e terminação afetam o desempenho.\n\n### Camadas e interoperabilidade\n\nO modelo OSI ajuda a separar funções: camada física transporta sinais; enlace organiza quadros e acesso ao meio; rede encaminha pacotes; transporte oferece mecanismos como TCP ou UDP; camadas superiores definem serviços e significado dos dados. Ethernet é tecnologia de enlace/física; IP encaminha pacotes; TCP/UDP transportam; Modbus TCP, OPC UA e EtherNet/IP acrescentam convenções de aplicação. Compartilhar Ethernet não torna protocolos de aplicação automaticamente compatíveis.\n\nUm gateway pode traduzir mensagens entre redes, por exemplo Modbus serial e Modbus TCP, mas não garante que nomes, escalas, unidades ou semântica sejam equivalentes. O engenheiro precisa mapear endereço, tipo, ordem de bytes, unidade e comportamento de falha.\n\n### Como cai na prova\n\n- Latência baixa e jitter pequeno são relevantes para controle; largura de banda elevada, isoladamente, não garante determinismo.\n- Ethernet, TCP/IP e protocolo de aplicação são conceitos de camadas distintas.\n- Uma rede em anel só oferece recuperação se houver mecanismo e configuração de redundância.\n- Gateway encaminha ou converte comunicação; não elimina diferenças de modelo de dados por mágica."
+    },
+    {
+      "title": "2. Modbus: modelo simples, mapeamento explícito",
+      "markdown": "### O problema que este assunto resolve\n\nModbus é um protocolo de aplicação usado para que um cliente solicite operações a servidores, como ler entradas ou escrever valores em registradores. A especificação oficial descreve códigos de função e o formato das transações. O mesmo modelo pode ser transportado por linha serial ou por TCP/IP; mudar o transporte não apaga a semântica Modbus.\n\n> **Siglas e termos deste capítulo**\n> - **PDU**: unidade de dados do protocolo, com código de função e dados.\n> - **ADU**: unidade de dados da aplicação, que inclui elementos adicionais do transporte.\n> - **Coil**: ponto de dados de um bit normalmente legível e gravável.\n> - **Discrete input**: ponto de bit somente de leitura no modelo padrão.\n> - **Input register**: registrador de 16 bits somente de leitura no modelo padrão.\n> - **Holding register**: registrador de 16 bits que pode ser lido e escrito conforme o dispositivo.\n> - **Gateway**: equipamento que encaminha ou adapta comunicação entre redes.\n\n### Quatro tabelas que não devem ser confundidas\n\n| Tabela lógica | Unidade | Acesso padrão | Uso típico\n| --- | --- | --- | --- |\n| Discrete inputs | Bit | Leitura | Estado de entrada digital |\n| Coils | Bit | Leitura e escrita | Saída ou comando binário |\n| Input registers | 16 bits | Leitura | Medição analógica |\n| Holding registers | 16 bits | Leitura e escrita | Parâmetros, comandos ou valores |\n\nA associação entre essas tabelas e a memória interna do equipamento é específica do fabricante. Um fabricante pode expor um mesmo dado por mais de uma tabela; outro pode não fazer esse mapeamento. Portanto, a documentação do dispositivo é necessária. O endereço da PDU começa em zero; tabelas e manuais que numeram elementos a partir de um podem gerar a diferença de uma unidade.\n\n### Funções e respostas\n\nO código de função diz o que o cliente solicita. Entre as funções públicas usuais estão leitura de coils, leitura de discrete inputs, leitura de holding registers, leitura de input registers, escrita de coil único e escrita de registrador único. Em operações de leitura múltipla, o cliente informa endereço inicial e quantidade contígua. O servidor verifica se a função, endereço e quantidade são válidos.\n\nUma resposta normal repete o código de função solicitado e retorna dados ou confirmação. Se há erro, uma resposta de exceção informa o problema: o código de função da resposta é o solicitado com o bit de exceção indicado, e há um código explicativo. Isso não é a mesma coisa que timeout: no timeout, o cliente não recebeu resposta dentro do limite configurado.\n\n### Serial e TCP\n\nEm linha serial, Modbus RTU é frequentemente usado sobre RS-485 em topologia de barramento. RS-485 define características elétricas, não os registradores nem as funções Modbus. O enquadramento RTU inclui endereço do servidor, PDU e verificação de erro CRC. A comunicação serial costuma seguir requisição e resposta; o cliente endereça um servidor, e o endereço de broadcast pode ser usado para comandos sem resposta, conforme suporte e regras do sistema.\n\nNo Modbus TCP, a PDU é transportada em TCP e a ADU inclui cabeçalho MBAP, que identifica a transação e auxilia no enquadramento. Não se usa o CRC RTU no cabeçalho TCP. O identificador de unidade permite endereçar um equipamento atrás de gateway. A porta TCP padrão registrada é 502, mas a existência de uma porta não protege por si só contra acesso indevido. A organização Modbus também publica um protocolo de segurança que encapsula Modbus com TLS e certificados; não se deve presumir que uma instalação legada o utilize.\n\n### Como cai na prova\n\n- Coils e discrete inputs são bits; input e holding registers são registradores de 16 bits no modelo.\n- “Somente leitura” descreve a tabela padrão, mas o mapeamento concreto depende do equipamento.\n- RS-485 é camada física; RTU é enquadramento serial; Modbus define funções e dados.\n- Modbus TCP mantém códigos de função, usa cabeçalho MBAP e não adiciona CRC RTU.\n- A documentação pode numerar registradores a partir de um, enquanto o endereço da PDU inicia em zero."
+    },
+    {
+      "title": "3. Ethernet industrial: PROFINET e EtherNet/IP",
+      "markdown": "### O problema que este assunto resolve\n\nEthernet industrial aproveita tecnologias Ethernet para conectar controladores, dispositivos de campo e sistemas de supervisão, acrescentando mecanismos próprios de automação. Não há um único protocolo chamado simplesmente “Ethernet industrial”: PROFINET e EtherNet/IP, por exemplo, têm modelos e organizações diferentes, ainda que possam usar infraestrutura Ethernet.\n\n> **Siglas e termos deste capítulo**\n> - **RT**: comunicação PROFINET em tempo real, com tratamento prioritário para dados cíclicos.\n> - **IRT**: comunicação isócrona em tempo real, com sincronização temporal para aplicações exigentes.\n> - **CIP**: Common Industrial Protocol, modelo de objetos e serviços usado por tecnologias da ODVA.\n> - **I/O implícito**: troca de dados de controle em conexão estabelecida, com formato e ciclo conhecidos.\n> - **Mensagem explícita**: transação identificada, típica de configuração, leitura e diagnóstico.\n> - **DCP**: protocolo de descoberta e configuração de dispositivos PROFINET.\n\n### PROFINET\n\nPROFINET é uma tecnologia de comunicação industrial baseada em Ethernet promovida pela associação PROFIBUS & PROFINET International (PI). Controladores e dispositivos trocam dados de processo; a configuração descreve dispositivos, módulos e parâmetros. O nome de dispositivo PROFINET é parte importante da identificação e atribuição de parâmetros de rede em instalações comuns.\n\nO tráfego TCP/IP pode coexistir com dados de automação. PROFINET RT prioriza o tráfego de tempo real em relação ao tráfego não crítico. IRT acrescenta sincronização e escalonamento de ciclos para requisitos temporais mais rigorosos, como controle de movimento. IRT não significa que toda mensagem se torna “mais rápida” em qualquer cenário; a configuração, hardware e limites de aplicação importam. Diagnósticos de dispositivo e alarmes podem indicar falhas de módulo ou canal.\n\n### EtherNet/IP e CIP\n\nEtherNet/IP é uma implementação de CIP sobre Ethernet padrão e a pilha TCP/IP; sua tecnologia é gerida pela ODVA. O CIP é orientado a objetos: objetos expõem atributos, serviços e comportamentos. Entre os domínios da família CIP estão controle, segurança, sincronização, movimento e energia.\n\nA documentação da ODVA diferencia mensagens explícitas e I/O implícito. Mensagens explícitas usam transações cliente-servidor e são comuns em configuração e coleta de dados. Dados cíclicos de I/O podem usar conexões com transporte UDP para reduzir sobrecarga e distribuir dados no modelo produtor-consumidor. O produtor envia uma publicação identificada pela conexão; consumidores interessados recebem os mesmos dados, evitando uma cópia independente para cada destino em certos cenários. O uso de UDP não elimina supervisão de conexão, temporizadores ou diagnóstico.\n\n### Comparação sem confundir nomes\n\n| Tecnologia | Organização/ecossistema | Modelo ou característica cobrada |\n| --- | --- | --- |\n| PROFINET | PI | RT e IRT para comunicação de automação em Ethernet |\n| EtherNet/IP | ODVA | CIP, mensagens explícitas e I/O implícito, produtor-consumidor |\n| Modbus TCP | Modbus Organization | Funções Modbus transportadas por TCP/IP |\n| OPC UA | OPC Foundation | Modelo de informação e serviços de interoperabilidade |\n\nEtherNet/IP não é “IP industrial” genérico, nem é o mesmo que PROFINET. O sufixo IP vem de Industrial Protocol. A convergência de redes exige projeto: separar tráfego, controlar multicast, configurar switches e monitorar carga.\n\n### Como cai na prova\n\n- RT e IRT são associados ao PROFINET; IRT atende sincronização temporal mais rigorosa.\n- CIP, ODVA, mensagens explícitas e I/O implícito apontam para EtherNet/IP.\n- Em EtherNet/IP, tráfego explícito de serviço é frequentemente associado a TCP; I/O implícito cíclico pode usar UDP.\n- Ethernet comum é a infraestrutura; protocolos industriais definem serviços, dados e comportamento de automação."
+    },
+    {
+      "title": "4. OPC UA, integração e operação confiável",
+      "markdown": "### O problema que este assunto resolve\n\nUm supervisório precisa entender mais que um valor numérico: precisa saber que ele representa, por exemplo, a temperatura de um tanque, em que unidade é medida, qual sua qualidade e quando foi atualizado. OPC UA (Open Platform Communications Unified Architecture) oferece um modelo de informação e serviços independentes de plataforma para comunicação segura e interoperável entre aplicações industriais.\n\n> **Siglas e termos deste capítulo**\n> - **OPC UA**: arquitetura OPC unificada, com serviços, modelos de informação e mecanismos de segurança.\n> - **AddressSpace**: conjunto organizado de nós que o servidor expõe.\n> - **Node**: elemento como objeto, variável, tipo, método ou relação no modelo OPC UA.\n> - **Client/Server**: modelo em que o cliente solicita serviços ao servidor.\n> - **PubSub**: modelo em que publicadores enviam mensagens e assinantes recebem os dados de interesse.\n> - **TLS**: protocolo de segurança de transporte que protege comunicações quando corretamente configurado.\n\n### Cliente-servidor e espaço de endereços\n\nNo modelo cliente-servidor, o servidor expõe informações em seu AddressSpace; o cliente descobre nós e chama serviços para ler, escrever, navegar ou receber notificações. Nós podem descrever variáveis, objetos e relações, com tipos e metadados. O cliente pode encontrar valor, tipo de dado, qualidade e carimbo de tempo, conforme os recursos implementados.\n\nO servidor pode disponibilizar dados atuais e históricos, alarmes e eventos. Uma assinatura agrupa itens monitorados, e notificações informam mudanças ou eventos. Sessões mantêm contexto lógico, como identidade e assinaturas. Perfil e recursos efetivamente implementados variam entre produtos; suporte a OPC UA não significa implementação de todas as partes do padrão.\n\n### PubSub e segurança\n\nOPC UA também possui PubSub. Publicadores enviam mensagens sem precisar conhecer individualmente os assinantes. A distribuição pode usar infraestrutura de mensagens com broker ou transporte de datagramas, conforme o mapeamento empregado. PubSub não é simplesmente outro nome para uma assinatura cliente-servidor: o padrão diferencia os modelos e a relação entre participantes.\n\nOPC UA define mecanismos de autenticação, criptografia e verificação de integridade. Eles precisam ser habilitados e configurados: certificados devem ser confiáveis, políticas de segurança escolhidas, usuários autorizados e endpoints protegidos. “Usa OPC UA” não prova, isoladamente, que a instalação está segura. A segmentação de redes, inventário de ativos, controle de acesso e monitoramento continuam necessários.\n\n### Diagnóstico e projeto\n\nAo investigar uma falha, siga o caminho em camadas: alimentação e cabo; enlace e estado da porta; endereço e rota IP; transporte e porta; sessão e segurança; serviço e código de aplicação; por fim, mapeamento e significado do dado. Verifique qualidade, unidade, escala, ordem de bytes, atualização e estado seguro definido pelo processo. Uma conexão ativa pode transportar um valor incorreto se o mapeamento estiver errado.\n\nRedundância deve ser planejada para evitar pontos únicos de falha e laços de camada 2; sincronização de tempo deve atender requisitos da aplicação; multicast precisa de configuração adequada. Uma rede de controle deve ser segmentada e ter fluxos autorizados, especialmente em conexões com redes corporativas. Mudanças em produção devem ser testadas, documentadas e monitoradas.\n\n### Como cai na prova\n\n- OPC UA organiza informação em nós no AddressSpace e oferece serviços cliente-servidor; também define PubSub.\n- A assinatura cliente-servidor é criada no relacionamento com o servidor; PubSub distribui mensagens de publicadores a assinantes.\n- Segurança depende de certificados, políticas, autenticação e configuração, não apenas do rótulo do protocolo.\n- Diagnosticar comunicação exige separar conectividade, transporte, protocolo de aplicação e semântica do dado."
+    }
+  ],
+  "summary": "Redes industriais conectam sensores, atuadores, CLPs, IHMs e sistemas de supervisão com requisitos de tempo, disponibilidade e interoperabilidade. A prova costuma distinguir topologia e meio físico das camadas e protocolos: Ethernet transporta quadros, IP encaminha pacotes, TCP/UDP transportam dados e protocolos de aplicação definem funções. Modbus organiza dados em coils, discrete inputs, input registers e holding registers; pode operar em serial ou TCP, com diferenças de enquadramento. PROFINET usa RT/IRT para automação em Ethernet. EtherNet/IP implementa CIP, combinando mensagens explícitas e I/O implícito. OPC UA fornece modelos de informação, serviços cliente-servidor e PubSub. O projeto também precisa de mapeamento correto, diagnóstico em camadas, redundância, segmentação e segurança configurada.",
+  "flashcards": [
+    {
+      "front": "O que mede latência?",
+      "back": "O tempo que uma informação leva do envio ao recebimento."
+    },
+    {
+      "front": "O que é jitter?",
+      "back": "A variação do atraso entre transmissões sucessivas."
+    },
+    {
+      "front": "Qual diferença entre topologia e protocolo?",
+      "back": "Topologia é a forma de conexão dos nós; protocolo define formatos, regras e serviços de comunicação."
+    },
+    {
+      "front": "Quais são as quatro tabelas lógicas Modbus?",
+      "back": "Discrete inputs, coils, input registers e holding registers."
+    },
+    {
+      "front": "Coil Modbus representa que tipo de dado?",
+      "back": "Um ponto de um bit, normalmente legível e gravável."
+    },
+    {
+      "front": "Discrete input é normalmente legível ou gravável?",
+      "back": "Somente legível no modelo padrão."
+    },
+    {
+      "front": "Qual o tamanho lógico de um registrador Modbus?",
+      "back": "16 bits."
+    },
+    {
+      "front": "O endereço da PDU Modbus começa em que valor?",
+      "back": "Zero; manuais podem exibir números de referência iniciando em um."
+    },
+    {
+      "front": "O que define RS-485?",
+      "back": "Características elétricas de comunicação serial, não as funções de aplicação Modbus."
+    },
+    {
+      "front": "O que acompanha uma PDU no Modbus TCP?",
+      "back": "Cabeçalho MBAP, que inclui identificador de transação e informações de enquadramento."
+    },
+    {
+      "front": "Modbus TCP usa CRC RTU no cabeçalho?",
+      "back": "Não; TCP usa cabeçalho MBAP, sem CRC RTU."
+    },
+    {
+      "front": "Qual protocolo de segurança Modbus é publicado pela organização?",
+      "back": "Modbus Security, que combina TLS e certificados X.509."
+    },
+    {
+      "front": "O que significam RT e IRT em PROFINET?",
+      "back": "Real Time e Isochronous Real Time, respectivamente."
+    },
+    { "front": "Qual associação administra EtherNet/IP?", "back": "ODVA." },
+    {
+      "front": "O que é CIP?",
+      "back": "Common Industrial Protocol, protocolo de objetos e serviços usado por EtherNet/IP e outras redes CIP."
+    },
+    {
+      "front": "Para que servem mensagens explícitas EtherNet/IP?",
+      "back": "Transações identificadas, comuns em configuração, leitura e diagnóstico."
+    },
+    {
+      "front": "O que caracteriza I/O implícito EtherNet/IP?",
+      "back": "Troca cíclica de dados de controle em conexão estabelecida, com formato conhecido."
+    },
+    {
+      "front": "Qual modelo de comunicação permite produtor enviar dados a vários consumidores?",
+      "back": "Produtor-consumidor, usado por CIP para distribuição eficiente de dados."
+    },
+    {
+      "front": "O que é o AddressSpace OPC UA?",
+      "back": "Conjunto organizado de nós e relações que o servidor expõe aos clientes."
+    },
+    {
+      "front": "Quais modelos de comunicação OPC UA são cobrados?",
+      "back": "Cliente-servidor e PubSub."
+    },
+    {
+      "front": "Uma conexão OPC UA garante automaticamente segurança?",
+      "back": "Não. Certificados, políticas, autenticação e autorização precisam ser configurados."
+    },
+    {
+      "front": "O que faz um gateway industrial?",
+      "back": "Encaminha ou traduz comunicação entre redes, exigindo mapeamento coerente de dados."
+    },
+    {
+      "front": "Fibra óptica ajuda em que ambiente?",
+      "back": "Em ambientes com interferência eletromagnética ou necessidade de isolamento elétrico."
+    },
+    {
+      "front": "O que é determinismo em rede?",
+      "back": "Entrega de dados dentro de limites temporais previsíveis."
+    }
+  ],
+  "tips": [
+    "Separe sempre meio físico, enlace, rede, transporte e aplicação antes de comparar protocolos.",
+    "Para questões de Modbus, classifique primeiro o dado como bit ou registrador de 16 bits e depois verifique acesso e função.",
+    "Leia com atenção se o endereçamento do enunciado começa em zero ou usa referência humana iniciada em um.",
+    "Associe PROFINET a RT/IRT e EtherNet/IP a CIP, mensagens explícitas e I/O implícito.",
+    "Em OPC UA, diferencie assinatura cliente-servidor de PubSub e observe quais mecanismos de segurança foram configurados.",
+    "Ao diagnosticar, avance por camadas e valide não só conectividade, mas unidade, escala, qualidade e atualização do dado."
+  ],
+  "traps": [
+    "Confundir Ethernet com protocolo de aplicação industrial.",
+    "Tratar RS-485 como se definisse funções, endereços e registradores Modbus.",
+    "Supor que input register e holding register têm o mesmo acesso no modelo padrão.",
+    "Aplicar CRC de RTU ao cabeçalho do Modbus TCP.",
+    "Afirmar que PROFINET e EtherNet/IP são nomes diferentes para o mesmo protocolo.",
+    "Considerar que o uso de OPC UA torna qualquer instalação automaticamente segura."
+  ],
+  "activeRecall": [
+    "Explique por que uma rede de controle pode exigir jitter menor mesmo sem grande volume de dados.",
+    "Compare estrela, linha e anel e diga por que a topologia não garante sozinha redundância.",
+    "Nomeie as quatro tabelas Modbus e indique tipo de dado e acesso padrão de cada uma.",
+    "Descreva como uma solicitação Modbus passa do cliente para o servidor e como uma exceção é indicada.",
+    "Compare o enquadramento do Modbus RTU e do Modbus TCP.",
+    "Diferencie PROFINET RT e IRT sem afirmar que IRT acelera toda mensagem.",
+    "Compare mensagens explícitas e I/O implícito no EtherNet/IP.",
+    "Explique o modelo produtor-consumidor e o papel do CIP.",
+    "Descreva o AddressSpace OPC UA e as funções de cliente e servidor.",
+    "Compare cliente-servidor OPC UA e PubSub."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Camadas e nomes de tecnologia",
+      "summary": "Confundir Ethernet, IP, TCP/UDP e protocolo de aplicação leva a atribuir funções à camada errada."
+    },
+    {
+      "key": "e2",
+      "title": "Tabelas e endereços Modbus",
+      "summary": "Misturar tabelas lógicas ou ignorar a diferença entre endereço PDU iniciado em zero e referência documental pode acessar outro dado."
+    },
+    {
+      "key": "e3",
+      "title": "Modbus serial e TCP",
+      "summary": "Tratar RTU e TCP como quadros idênticos ignora CRC, MBAP e características do transporte."
+    },
+    {
+      "key": "e4",
+      "title": "Protocolos Ethernet industriais",
+      "summary": "PROFINET e EtherNet/IP usam Ethernet, mas pertencem a ecossistemas e modelos distintos; RT/IRT e CIP não são intercambiáveis."
+    },
+    {
+      "key": "e5",
+      "title": "OPC UA e segurança operacional",
+      "summary": "OPC UA oferece modelos e mecanismos de segurança, mas interoperabilidade e proteção dependem dos recursos e da configuração real."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma aplicação de controle envia poucos bytes por ciclo, mas precisa que os dados cheguem com intervalo previsível. Qual característica de rede merece atenção especial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Determinismo e variação limitada do atraso entre ciclos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apenas a quantidade total de endereços IP disponíveis, mesmo que o jitter aumente e os dados cheguem depois do prazo do ciclo de controle.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A compressão máxima dos arquivos de configuração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O tamanho do histórico salvo na estação supervisória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A quantidade de páginas da documentação do fabricante.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma malha cíclica depende de entrega previsível: determinismo e jitter limitado importam. Grande capacidade de endereçamento, compressão de arquivos, armazenamento de histórico e tamanho de manual não garantem prazo de entrega do ciclo.",
+      "section": "1. O que uma rede industrial precisa entregar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rede Ethernet, dois produtos usam switches e endereços IP, mas um não interpreta as mensagens de aplicação do outro. Isso é possível porque",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todo endereço IP contém os registradores de cada dispositivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ethernet e IP não definem, por si sós, o significado das mensagens de automação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Switches convertem automaticamente qualquer protocolo industrial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "TCP e UDP obrigam todos os equipamentos a usar o mesmo modelo de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A camada física define nomes de alarmes e unidades de engenharia, além dos serviços de aplicação que todos os equipamentos precisam implementar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ethernet, IP e TCP/UDP fornecem funções de camadas inferiores. A semântica de uma mensagem de automação depende do protocolo de aplicação e do modelo de dados, que podem divergir entre produtos.",
+      "section": "1. O que uma rede industrial precisa entregar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ligação em anel contém um mecanismo que bloqueia caminhos redundantes e reabre um caminho após falha. Qual benefício esse mecanismo busca?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Eliminar a necessidade de endereçar os dispositivos da rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Transformar todos os dados analógicos em entradas digitais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Recuperar a comunicação por caminho alternativo após uma falha prevista no projeto.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Garantir que cada mensagem seja criptografada pelo cabo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter automaticamente Modbus em OPC UA sem mapeamento, incluindo escalas, nomes de variáveis e unidades de engenharia específicas do fabricante.",
+          "correct": false
+        }
+      ],
+      "explanation": "O mecanismo de redundância gerencia caminhos alternativos para recuperar o tráfego após falha. Ele não altera o tipo de dado, endereçamento, criptografia nem traduz modelos de aplicação.",
+      "section": "1. O que uma rede industrial precisa entregar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A fibra óptica é escolhida em um trecho sujeito a forte interferência eletromagnética. Qual propriedade justifica a escolha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A fibra elimina a necessidade de switches e transceptores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A fibra define diretamente as funções de leitura de registradores Modbus.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A fibra assegura que qualquer aplicação tenha latência zero.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O transporte óptico não conduz interferência elétrica pelo próprio meio de transmissão.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A fibra fornece autenticação de usuário sem configuração adicional e decide quais operações cada cliente pode executar no servidor industrial.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fibra é imune à interferência eletromagnética conduzida no meio e oferece isolamento elétrico entre extremidades. Ela não define funções de aplicação nem garante latência zero, elimina equipamentos de rede ou configura autenticação.",
+      "section": "1. O que uma rede industrial precisa entregar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gateway liga uma rede Modbus serial a um segmento Modbus TCP. Para que o dado de temperatura continue interpretável, é necessário",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar a resposta do servidor para permitir leitura dos valores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Supor que o gateway converte toda semântica sem configuração, inclusive unidade, escala e ordem de bytes próprias do dispositivo de origem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir todos os registradores por endereços MAC.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover os códigos de função para evitar incompatibilidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mapear endereços, tipo, escala, ordem dos bytes e unidade conforme os dispositivos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um gateway pode transportar ou converter mensagens, mas o mapeamento de aplicação precisa preservar endereço, representação e significado. A conversão de transporte não resolve automaticamente diferenças de escala, byte order ou unidade.",
+      "section": "1. O que uma rede industrial precisa entregar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na arquitetura OSI, qual afirmação separa corretamente Ethernet e IP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ethernet é um protocolo de aplicação e IP define o meio de cobre, os nomes de alarmes e as unidades de engenharia de cada variável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ethernet define funções de enlace; IP trata do endereçamento e encaminhamento de pacotes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "IP descreve os nomes de objetos OPC UA e Ethernet os serviços de leitura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ethernet e IP são sinônimos e sempre ocupam a mesma camada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "IP escolhe a escala de engenharia e Ethernet define limites de alarme.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ethernet opera nas camadas física e de enlace, enquanto IP endereça e encaminha pacotes na camada de rede. Serviços de aplicação, objetos e unidades são definidos em níveis superiores.",
+      "section": "1. O que uma rede industrial precisa entregar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Modbus, uma entrada digital somente consultada pelo cliente deve ser representada, no modelo padrão, como",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Input register, um ponto binário que aceita escrita.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Holding register, um registrador de 16 bits sempre somente de leitura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Discrete input, um ponto de bit somente de leitura.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Coil, um registrador analógico de 16 bits, com a mesma função de leitura e o mesmo formato de dados de uma entrada discreta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MBAP, uma tabela de entradas digitais de aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Discrete input é uma das tabelas Modbus de bits e seu acesso padrão é de leitura. Coils também são bits, mas normalmente são legíveis e graváveis; registradores têm 16 bits e MBAP é cabeçalho do Modbus TCP.",
+      "section": "2. Modbus: modelo simples, mapeamento explícito",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual par de características corresponde aos holding registers no modelo de dados Modbus?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Campos de cabeçalho TCP que identificam uma transação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Elementos de um bit, sempre exclusivos para leitura e identificados pelo mesmo espaço lógico usado para discrete inputs.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quadros seriais com endereço e CRC, sem dados de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Elementos de 16 bits, com leitura e escrita previstas no modelo padrão.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Nós de objetos cuja única função é transmitir alarmes OPC UA.",
+          "correct": false
+        }
+      ],
+      "explanation": "Holding registers são registradores lógicos de 16 bits e admitem leitura e escrita pelas funções correspondentes, conforme implementação do equipamento. Endereço/CRC é enquadramento serial e MBAP pertence ao Modbus TCP.",
+      "section": "2. Modbus: modelo simples, mapeamento explícito",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma prova informa que o primeiro registrador aparece como referência 40001 no manual, mas pergunta pelo endereço PDU correspondente ao primeiro elemento. Qual cuidado é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tratar 40001 como identificador da transação TCP em todos os equipamentos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar sempre 40001 como campo de endereço de 16 bits da PDU, sem consultar se o manual usa referência iniciada em um ou prefixo de tabela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Subtrair o código de função do endereço de referência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter o valor em endereço MAC antes de transmiti-lo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Confirmar a convenção documental, pois o endereço PDU começa em zero e pode diferir da referência em um.",
+          "correct": true
+        }
+      ],
+      "explanation": "A especificação define endereçamento PDU iniciando em zero, enquanto referências tradicionais de manuais podem numerar elementos a partir de um e acrescentar prefixos de tabela. Deve-se confirmar a convenção do dispositivo para evitar erro de uma posição.",
+      "section": "2. Modbus: modelo simples, mapeamento explícito",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual tecnologia estabelece características elétricas para comunicação serial diferencial e pode ser usada como meio de transporte para Modbus RTU?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "MBAP, que define o cabeçalho serial diferencial.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RS-485, que não define por si só as funções de aplicação Modbus.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "CIP, que determina os registradores RTU e define a impedância, a terminação e os níveis elétricos do cabo serial diferencial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "AddressSpace, que estabelece a impedância do cabo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "IRT, que define o CRC do barramento serial.",
+          "correct": false
+        }
+      ],
+      "explanation": "RS-485 define características elétricas do meio serial. Modbus RTU define enquadramento e Modbus de aplicação define operações; RS-485 não especifica funções, tabelas ou semântica dos dados.",
+      "section": "2. Modbus: modelo simples, mapeamento explícito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analisador de tráfego mostra uma PDU Modbus embutida em um ADU TCP com cabeçalho MBAP. Qual interpretação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É PROFINET IRT; MBAP define sincronização de ciclos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É Modbus RTU; MBAP substitui o CRC serial em um quadro RS-485 e carrega o valor calculado para detectar erros físicos no barramento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É Modbus TCP; o cabeçalho auxilia no enquadramento e identificação de transação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "É OPC UA PubSub; a PDU contém necessariamente um certificado X.509.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É EtherNet/IP; MBAP é a classe de objeto CIP de entrada e saída.",
+          "correct": false
+        }
+      ],
+      "explanation": "O cabeçalho MBAP identifica o enquadramento do Modbus TCP e inclui informação de transação. Modbus RTU usa enquadramento serial e verificação CRC; PROFINET, OPC UA e CIP têm estruturas próprias.",
+      "section": "2. Modbus: modelo simples, mapeamento explícito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O servidor Modbus recebe uma função reconhecida, mas o endereço inicial pedido não existe no equipamento. Que resposta é apropriada segundo o mecanismo de exceção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma resposta normal com todos os registradores preenchidos com zero.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma resposta de exceção com código que indique endereço de dados inválido.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Nenhuma resposta, pois todo endereço incorreto é obrigatoriamente broadcast.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um pacote MBAP que muda o endereço solicitado para o mais próximo, ajustando a função e registrando no servidor o valor que o cliente pretendia ler.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma resposta OPC UA com o nó equivalente selecionado automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O servidor valida função, endereço e valores. Para endereço de dados inválido, pode retornar resposta de exceção com código correspondente; resposta normal com dados inventados ou correção automática não é o comportamento especificado.",
+      "section": "2. Modbus: modelo simples, mapeamento explícito",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um instalador procura proteção contra interceptação e adulteração em uma implantação Modbus que suporte o protocolo de segurança publicado pela organização. Qual mecanismo é associado a essa solução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CRC RTU, que criptografa o conteúdo e identifica usuários remotos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "TLS com certificados digitais X.509 para proteger a comunicação e autenticar participantes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "MBAP, que cifra todos os campos por padrão em qualquer rede TCP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RS-485, que autentica o servidor pela tensão diferencial do cabo e cifra cada solicitação sem certificados ou negociação de segurança.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um coil reservado, que negocia chaves sem suporte de aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Modbus Security combina TLS com Modbus e usa certificados X.509 para autenticação de cliente e servidor, além de proteger integridade. CRC detecta erros acidentais em RTU, e MBAP não é criptografia.",
+      "section": "2. Modbus: modelo simples, mapeamento explícito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "PROFINET RT prioriza a entrega de dados cíclicos de automação. O que acrescenta principalmente o modo IRT?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A fibra define diretamente as funções de leitura de registradores Modbus.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conversão universal de qualquer programa ladder para código de supervisório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sincronização temporal e escalonamento para comunicação isócrona mais rigorosa.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Substituição de todos os endereços IP por registradores Modbus.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eliminação de qualquer necessidade de hardware compatível com o recurso, pois o escalonamento temporal ocorre apenas no software do supervisor.",
+          "correct": false
+        }
+      ],
+      "explanation": "IRT agrega sincronização e escalonamento temporal para ciclos isócronos exigentes. Não transforma linguagens, não significa criptografia universal, não substitui endereçamento e depende de dispositivos e configuração compatíveis.",
+      "section": "3. Ethernet industrial: PROFINET e EtherNet/IP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao identificar o ecossistema de uma rede que usa CIP sobre Ethernet e TCP/IP, qual nome corresponde à tecnologia descrita?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "PROFINET IRT, tecnologia gerida pela Modbus Organization.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "EtherNet/IP, tecnologia industrial gerida pela ODVA.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Modbus RTU, protocolo de objetos da OPC Foundation.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "OPC UA, nome da camada física definida pela ODVA, que também especifica os serviços de objetos CIP usados nos equipamentos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RS-485, protocolo de aplicação produtor-consumidor da PI.",
+          "correct": false
+        }
+      ],
+      "explanation": "EtherNet/IP adapta o CIP à tecnologia Ethernet e à pilha TCP/IP, e a ODVA administra essa tecnologia. PROFINET pertence ao ecossistema PI; Modbus e OPC UA possuem modelos próprios.",
+      "section": "3. Ethernet industrial: PROFINET e EtherNet/IP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um técnico usa uma mensagem identificada para ler parâmetros e informações de diagnóstico de um adaptador EtherNet/IP. Esse tráfego é melhor caracterizado como",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mensagem explícita, típica de transações de configuração e coleta de dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "I/O implícito, necessariamente sem conexão estabelecida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quadro RTU, que contém CRC e endereço serial de servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PubSub OPC UA, que não usa serviços nem modelos de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ciclo PROFINET IRT, que só transporta parâmetros sob demanda.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mensagens explícitas são transações identificadas, frequentemente usadas para configuração, leitura de atributos e diagnóstico. I/O implícito serve a dados cíclicos; RTU e os modelos PROFINET e OPC UA são distintos.",
+      "section": "3. Ethernet industrial: PROFINET e EtherNet/IP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rede EtherNet/IP, um produtor publica o mesmo conjunto de dados de controle para vários consumidores interessados. Qual vantagem do modelo produtor-consumidor é relevante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pode distribuir uma publicação comum sem exigir uma transmissão independente do produtor para cada consumidor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remove a necessidade de identificar conexões ou monitorar temporizadores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converte os valores em nós OPC UA com unidade validada automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Garante entrega em toda rede pública sem depender da infraestrutura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substitui o protocolo CIP por códigos de função Modbus.",
+          "correct": false
+        }
+      ],
+      "explanation": "O modelo produtor-consumidor permite que vários consumidores recebam dados publicados, aproveitando a distribuição de rede e evitando cópias ponto a ponto em certas arquiteturas. Ainda há identificadores, timeout e diagnóstico; não há conversão semântica automática nem garantia independente da infraestrutura.",
+      "section": "3. Ethernet industrial: PROFINET e EtherNet/IP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comparação entre PROFINET e EtherNet/IP está tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambos podem usar Ethernet, mas PROFINET tem RT/IRT e EtherNet/IP implementa CIP.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "São nomes comerciais idênticos para o mesmo modelo de dados e de configuração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PROFINET usa exclusivamente Modbus RTU, enquanto EtherNet/IP usa RS-485.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "EtherNet/IP não usa IP; seu nome designa somente um cabo proprietário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PROFINET e CIP são serviços definidos pela OPC Foundation.",
+          "correct": false
+        }
+      ],
+      "explanation": "PROFINET e EtherNet/IP são tecnologias distintas que aproveitam Ethernet. PROFINET oferece mecanismos RT/IRT; EtherNet/IP usa CIP sob sua arquitetura. Compartilhar base Ethernet não os torna o mesmo protocolo.",
+      "section": "3. Ethernet industrial: PROFINET e EtherNet/IP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um dispositivo PROFINET não é reconhecido após troca física do equipamento. Em uma instalação que usa nome de dispositivo para identificação, qual verificação é pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar a atribuição do nome e os parâmetros de rede esperados para o dispositivo substituto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Editar o endereço PDU de uma tabela holding register.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Instalar um certificado Modbus Security na porta serial do dispositivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar o AddressSpace do servidor OPC UA sem verificar a rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar todos os diagnósticos para que o controlador aceite qualquer nó.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em PROFINET, nome e parâmetros atribuídos ao dispositivo são relevantes à identificação e configuração em instalações usuais. Verificar essa atribuição é pertinente após substituição; registradores Modbus e certificados de outros serviços não corrigem o reconhecimento PROFINET.",
+      "section": "3. Ethernet industrial: PROFINET e EtherNet/IP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo cliente-servidor OPC UA, onde um cliente encontra variáveis, objetos e relações expostos pelo servidor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "No AddressSpace, organizado como nós e referências do servidor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "No campo CRC de um quadro serial RS-485.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "No cabeçalho MBAP, que contém todos os nomes de objeto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Na tabela de endereços MAC do switch, que define unidades de engenharia.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "No código de função de escrita de coil, que substitui os serviços OPC UA.",
+          "correct": false
+        }
+      ],
+      "explanation": "O AddressSpace organiza nós, tipos e relações que o servidor torna acessíveis por serviços OPC UA. CRC, MBAP, tabela MAC e códigos Modbus não constituem o modelo de informação OPC UA.",
+      "section": "4. OPC UA, integração e operação confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente OPC UA precisa ler uma variável e receber notificações quando ela mudar. Qual mecanismo se ajusta a essa interação cliente-servidor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Serviços de leitura e uma assinatura com item monitorado no servidor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um quadro Modbus RTU que cria automaticamente uma sessão OPC UA.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma conexão I/O implícita EtherNet/IP que acessa qualquer AddressSpace.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma entrada discreta que transmite notificações sem servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um switch Ethernet que converte alterações em alarmes sem aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "OPC UA cliente-servidor oferece serviços de leitura e assinaturas para monitorar nós e entregar notificações. Protocolos e equipamentos de outras camadas não criam automaticamente essa interação sem suporte OPC UA.",
+      "section": "4. OPC UA, integração e operação confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PubSub OPC UA, qual descrição da relação entre os participantes está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publicadores enviam mensagens e assinantes recebem dados de interesse sem troca direta de requisição e resposta entre cada par.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todo assinante precisa abrir uma sessão individual e consultar cada variável por leitura síncrona.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O publicador só pode enviar valores depois de receber uma função Modbus do assinante.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PubSub é o nome de uma topologia física que exige cabo em anel.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O broker sempre executa o controle do processo e substitui os CLPs.",
+          "correct": false
+        }
+      ],
+      "explanation": "No PubSub, publicadores emitem mensagens e assinantes manifestam interesse nos dados, com distribuição mediada pela infraestrutura escolhida. O modelo não exige solicitação ponto a ponto para cada publicação nem define uma topologia física específica.",
+      "section": "4. OPC UA, integração e operação confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor OPC UA oferece autenticação, criptografia e verificações de integridade, mas foi implantado com política permissiva e certificados não confiáveis. Qual conclusão é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A instalação não se torna segura apenas por implementar OPC UA; políticas, certificados e autorização precisam ser configurados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O nome OPC UA garante que toda conexão esteja criptografada sem depender de configuração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Certificados são usados somente para converter unidades e escalas de sensores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A política permissiva assegura autenticação forte para qualquer usuário anônimo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A integridade é garantida pela topologia em estrela, dispensando serviços de segurança.",
+          "correct": false
+        }
+      ],
+      "explanation": "OPC UA define mecanismos de segurança, mas a proteção efetiva depende de políticas e configuração, incluindo confiança em certificados e controle de usuários. Uma política permissiva ou certificados não validados podem enfraquecer a implantação.",
+      "section": "4. OPC UA, integração e operação confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um valor OPC UA chega com conexão ativa, mas tem escala dez vezes maior que a esperada no supervisório. Qual hipótese deve ser investigada primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mapeamento, unidade e escala do dado entre o dispositivo e a aplicação consumidora.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente a integridade física do cabo, pois conexão ativa prova semântica correta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A topologia em anel, que determina o multiplicador de temperatura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O código CRC, que define a unidade de engenharia transmitida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O nome de dispositivo PROFINET, que ajusta toda escala automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Conectividade não valida significado, unidade ou escala. O mapeamento de dados e os metadados da variável devem ser comparados entre a origem e o consumidor; o cabo e a topologia não definem o fator de conversão.",
+      "section": "4. OPC UA, integração e operação confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma falha de comunicação precisa ser localizada em uma instalação com sensor, switch, roteador e supervisório. Qual sequência de diagnóstico é mais organizada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar alimentação e meio físico, enlace, endereçamento e rota, transporte, sessão e por fim serviço e mapeamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Alterar primeiro a unidade de engenharia e depois substituir todos os switches.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar alarmes, ignorar o enlace e presumir falha do protocolo de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o protocolo de aplicação antes de confirmar se há alimentação no sensor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reiniciar o supervisório repetidamente sem observar estados ou registros de diagnóstico.",
+          "correct": false
+        }
+      ],
+      "explanation": "A investigação em camadas começa por alimentação e meio físico, segue por enlace, endereçamento, transporte e sessão, e termina nos serviços e dados. Essa ordem evita alterar a aplicação quando a causa está em uma camada inferior.",
+      "section": "4. OPC UA, integração e operação confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma área de controle foi conectada diretamente à rede corporativa sem regras de fluxo ou monitoramento. Que medida de arquitetura reduz exposição e facilita governança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Segmentar as redes e permitir somente fluxos necessários, com monitoramento e controle de acesso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar o mesmo usuário administrativo em todos os dispositivos para simplificar a operação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover endereços IP e desabilitar inventário para ocultar os ativos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar a taxa de transmissão sem modificar as regras de comunicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ativar multicast em todas as portas para impedir conexões de origem externa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Segmentação, fluxos autorizados, controle de acesso e monitoramento limitam caminhos desnecessários entre redes e melhoram a detecção. Usuários compartilhados, ausência de inventário ou aumento de velocidade não são controles de segurança.",
+      "section": "4. OPC UA, integração e operação confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede Modbus serial pode usar RS-485 como meio físico, mas a camada elétrica, sozinha, não determina funções nem tabelas de dados.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RS-485 define a camada elétrica; Modbus define as operações de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RTU é um enquadramento serial usado com Modbus sobre esse meio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O fabricante mapeia os dados lógicos para a memória interna do dispositivo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A terminação adequada depende da topologia e do projeto do barramento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A documentação do equipamento ajuda a interpretar endereços e escalas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O mapeamento entre tabelas e a aplicação do dispositivo é específico do fabricante, por isso a documentação do equipamento é necessária. RS-485 define propriedades elétricas; RTU define enquadramento; terminação depende do projeto do barramento.",
+      "section": "2. Modbus: modelo simples, mapeamento explícito",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instalação precisa distinguir diagnóstico de dispositivo do ciclo cíclico de dados de processo. Qual afirmativa descreve uma prática correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todo diagnóstico precisa substituir a atualização das entradas de controle.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tráfego de diagnóstico pode ser acíclico e não ter o mesmo prazo do I/O cíclico.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O diagnóstico sempre usa um cabo físico independente do barramento de campo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A rede pode descartar alarmes sem considerar as necessidades operacionais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dados de serviço não podem coexistir com dados de processo em Ethernet.",
+          "correct": false
+        }
+      ],
+      "explanation": "A parametrização e o diagnóstico são frequentemente acíclicos e podem tolerar atrasos diferentes dos dados cíclicos de controle. A separação lógica de tráfego e a prioridade devem ser planejadas sem presumir que os serviços precisem de uma rede física exclusiva.",
+      "section": "1. O que uma rede industrial precisa entregar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um supervisor precisa receber dados identificados e descritos com tipos e relações, não apenas uma sequência de palavras sem contexto. Qual recurso OPC UA contribui para isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O campo CRC serial, que armazena a hierarquia de objetos do processo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O cabeçalho MBAP, que contém os tipos de nós do servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O AddressSpace, com nós, tipos e relações consultáveis pelo cliente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O identificador de transação TCP, que define a unidade física do valor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A topologia estrela, que substitui metadados e serviços de aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "O AddressSpace organiza informação em nós e relações, com definições de tipo e metadados que permitem ao cliente descobrir como interpretar os dados. CRC, MBAP, identificador TCP e topologia não cumprem essa função.",
+      "section": "4. OPC UA, integração e operação confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma falha física em um enlace redundante não deve deixar a rede sem comunicação se a solução foi projetada para tolerar essa falha. Que condição é necessária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter um único caminho e aumentar o tamanho dos quadros transmitidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar o monitoramento de enlaces para evitar alarmes de falha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar o mesmo endereço IP em todos os nós para selecionar uma rota.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Dispor de caminho alternativo e mecanismo de redundância configurado nos equipamentos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Validar que enlaces, switches e protocolo suportem detecção e recuperação da falha.",
+          "correct": true
+        }
+      ],
+      "explanation": "A redundância requer caminhos alternativos, detecção de falha e suporte de recuperação nos equipamentos e protocolo. Uma forma física em anel, sem mecanismo de redundância, não garante recuperação automática.",
+      "section": "1. O que uma rede industrial precisa entregar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo Modbus padrão, coils representam pontos de um bit normalmente legíveis e graváveis, enquanto discrete inputs são pontos de bit somente de leitura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. As duas tabelas representam bits, mas diferem no acesso padrão: coils admitem leitura e escrita; discrete inputs são de leitura. O mapeamento interno continua dependente do dispositivo.",
+      "section": "2. Modbus: modelo simples, mapeamento explícito",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Input registers e holding registers são ambos tabelas de bits de um único ponto, e por isso podem ser acessados pelas mesmas funções de leitura de coils.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Input registers e holding registers são tabelas de registradores de 16 bits. Coils pertencem a uma tabela de bits e usam funções diferentes; tipo de dado e tabela definem a operação aplicável.",
+      "section": "2. Modbus: modelo simples, mapeamento explícito",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Modbus, o código de função descreve somente as características elétricas do cabo e não indica a operação solicitada ao servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O código de função identifica a operação de aplicação, como leitura de uma tabela ou escrita de um valor; características elétricas do cabo pertencem à camada física. O servidor valida a função e os demais campos antes de responder.",
+      "section": "2. Modbus: modelo simples, mapeamento explícito",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O endereço de dado no PDU Modbus começa em um e sempre coincide com a referência numérica apresentada nos manuais dos dispositivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A especificação usa endereçamento PDU iniciado em zero, e as referências visíveis em alguns manuais podem numerar os elementos desde um. A representação não coincide necessariamente; conferir a convenção evita erro de deslocamento.",
+      "section": "2. Modbus: modelo simples, mapeamento explícito",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Modbus TCP transporta a aplicação Modbus por TCP/IP e inclui no cabeçalho MBAP o mesmo CRC de enquadramento usado pelo Modbus RTU serial.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O MBAP faz parte do ADU TCP e auxilia no enquadramento e identificação da transação. O CRC citado é característico do enquadramento RTU serial, não do cabeçalho Modbus TCP.",
+      "section": "2. Modbus: modelo simples, mapeamento explícito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "RS-485 define a lista de funções Modbus, o modelo de quatro tabelas e o significado dos registradores do fabricante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. RS-485 descreve características elétricas do meio serial. Funções e tabelas são parte do protocolo de aplicação Modbus; o mapeamento do dado para a aplicação do equipamento é específico do fabricante.",
+      "section": "2. Modbus: modelo simples, mapeamento explícito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta Modbus de exceção pode informar erro de processamento, como função não suportada ou endereço inválido, em vez de retornar dados normais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O servidor pode responder com uma exceção que preserva a referência à função e fornece código indicando a causa. Isso diferencia uma resposta negativa explícita de um timeout sem resposta.",
+      "section": "2. Modbus: modelo simples, mapeamento explícito",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "PROFINET RT e IRT são mecanismos de comunicação associados ao PROFINET; IRT usa sincronização temporal mais rigorosa para necessidades isócronas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. RT trata dados de automação em tempo real; IRT agrega sincronização e escalonamento para ciclos isócronos mais exigentes. A operação depende de dispositivos e configuração compatíveis.",
+      "section": "3. Ethernet industrial: PROFINET e EtherNet/IP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "EtherNet/IP é uma implementação de CIP sobre Ethernet e TCP/IP, e a ODVA administra essa tecnologia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação ODVA descreve EtherNet/IP como tecnologia que adapta CIP ao padrão Ethernet e à pilha TCP/IP; a ODVA publica e mantém a tecnologia e promove testes de conformidade.",
+      "section": "3. Ethernet industrial: PROFINET e EtherNet/IP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "EtherNet/IP usa mensagens explícitas para configuração e transações de serviço, enquanto I/O implícito pode transportar dados cíclicos de controle.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A distinção funcional da ODVA associa mensagens explícitas a operações identificadas de serviço e I/O implícito a dados de controle com formato e ciclo conhecidos. A escolha não dispensa diagnóstico e temporizadores.",
+      "section": "3. Ethernet industrial: PROFINET e EtherNet/IP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "EtherNet/IP e PROFINET são o mesmo protocolo de aplicação, pois ambos podem usar cabos Ethernet e switches comerciais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Compartilhar Ethernet não unifica os serviços e modelos de aplicação. PROFINET tem mecanismos RT/IRT; EtherNet/IP implementa CIP e pertence ao ecossistema ODVA.",
+      "section": "3. Ethernet industrial: PROFINET e EtherNet/IP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O CIP é orientado a objetos e define objetos com atributos, serviços e comportamentos para funções de automação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Os objetos CIP modelam dados e operações: atributos representam informação, serviços representam comandos e comportamentos descrevem reações. Esse modelo é usado nas camadas superiores de EtherNet/IP e outras redes CIP.",
+      "section": "3. Ethernet industrial: PROFINET e EtherNet/IP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "OPC UA define apenas cliente-servidor e não possui um modelo de publicação e assinatura independente de requisições diretas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. OPC UA define tanto o modelo cliente-servidor quanto PubSub. No segundo, publicadores enviam mensagens a uma infraestrutura de distribuição e assinantes recebem os dados que lhes interessam.",
+      "section": "4. OPC UA, integração e operação confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No cliente-servidor OPC UA, servidores podem expor dados atuais e históricos, alarmes e eventos por meio de serviços organizados sobre um AddressSpace.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O padrão integra dados, histórico, alarmes e eventos no modelo de informação e oferece serviços para acesso. Os recursos efetivamente disponíveis dependem do perfil e da implementação do servidor.",
+      "section": "4. OPC UA, integração e operação confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A adoção de OPC UA, sem validação de certificados ou definição de controle de acesso, garante por si só que conexões e usuários estejam protegidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O padrão fornece mecanismos de segurança, mas a proteção efetiva exige configurar políticas, validar certificados, autenticar participantes e autorizar operações. Uma implantação permissiva pode deixar riscos mesmo usando OPC UA.",
+      "section": "4. OPC UA, integração e operação confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma leitura bem-sucedida prova que o valor recebido tem unidade, escala e significado corretos para o sistema consumidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A leitura comprova que alguma comunicação ocorreu, mas não valida o mapeamento semântico. Unidade, escala, ordem de bytes, qualidade e atualização devem ser conferidas em relação à documentação e ao modelo de dados.",
+      "section": "4. OPC UA, integração e operação confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Segmentação, autorização de fluxos e monitoramento ajudam a reduzir a exposição entre redes de controle e redes corporativas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Separar zonas e permitir apenas comunicações necessárias limita caminhos de acesso e facilita observação de tráfego. A segmentação deve acompanhar controle de acesso, inventário e monitoramento.",
+      "section": "4. OPC UA, integração e operação confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Modbus Security publicado pela organização combina TLS ao protocolo tradicional e usa certificados X.509 para autenticação dos participantes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A especificação oficial descreve TLS e certificados digitais X.509 para autenticação de cliente e servidor, além de proteção de integridade. Isso não significa que todo equipamento Modbus implemente ou habilite esse recurso.",
+      "section": "2. Modbus: modelo simples, mapeamento explícito",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Modbus Application Protocol Specification V1.1b3",
+      "publisher": "Modbus Organization",
+      "reference": "Modelo de dados, endereçamento, códigos de função, requisições, respostas e exceções.",
+      "url": "https://www.modbus.org/docs/Modbus_Application_Protocol_V1_1b3.pdf",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Modbus Specifications and Implementation Guides",
+      "publisher": "Modbus Organization",
+      "reference": "Especificações de Modbus TCP, linha serial e Modbus Security com TLS e certificados X.509.",
+      "url": "https://www.modbus.org/modbus-specifications",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PROFINET Technology",
+      "publisher": "PROFIBUS & PROFINET International",
+      "reference": "Tecnologia Ethernet industrial e comunicação em tempo real PROFINET.",
+      "url": "https://www.profibus.com/profinet-technology",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "EtherNet/IP Technology Overview",
+      "publisher": "ODVA",
+      "reference": "CIP sobre Ethernet, mensagens explícitas e implícitas, modelo produtor-consumidor e camadas de rede.",
+      "url": "https://www.odva.org/publication_download/ethernet-ip-technology-overview/",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OPC UA Part 1: Overview and Concepts",
+      "publisher": "OPC Foundation",
+      "reference": "Interoperabilidade, serviços cliente-servidor, AddressSpace, segurança e PubSub.",
+      "url": "https://reference.opcfoundation.org/specs/OPC-10000-1/4",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OPC UA Part 14: PubSub, Annex C",
+      "publisher": "OPC Foundation",
+      "reference": "Comparação entre assinaturas cliente-servidor e modelo PubSub.",
+      "url": "https://reference.opcfoundation.org/specs/OPC-10000-14/annex-c",
+      "accessedAt": "2026-11-01"
+    }
+  ]
+}

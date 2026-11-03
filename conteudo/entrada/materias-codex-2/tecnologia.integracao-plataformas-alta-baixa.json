@@ -1,0 +1,1824 @@
+{
+  "id": "tecnologia.integracao-plataformas-alta-baixa",
+  "subject": "Informática",
+  "title": "Integração de plataforma alta com plataforma baixa",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Integração de plataforma alta e baixa",
+    "Integração entre mainframe e sistemas distribuídos",
+    "Conexão de aplicações distribuídas ao mainframe",
+    "Comunicação entre z/OS e plataformas abertas",
+    "Integração de mainframe com aplicações web",
+    "Interoperabilidade entre plataformas de TI",
+    "Integração de sistemas legados e modernos",
+    "Integração de plataforma alta com plataforma baixa",
+    "Acesso distribuído a aplicações z/OS",
+    "Integração por APIs e mensageria"
+  ],
+  "scope": {
+    "covers": "Conceitos e padrões de integração entre plataforma alta (mainframe, como z/OS) e plataforma baixa (servidores distribuídos, Linux, Windows e aplicações web): APIs REST com IBM z/OS Connect, mensageria e filas IBM MQ, acesso distribuído a Db2 por DRDA/Db2 Connect, processamento transacional distribuído CICS, formatos e transformação de dados, segurança, acoplamento, disponibilidade, idempotência, monitoramento e tratamento de falhas.",
+    "excludes": "Configuração detalhada de produtos e versões, comandos operacionais específicos, programação COBOL/Java, administração aprofundada de z/OS, topologias proprietárias não documentadas e dimensionamento de hardware."
+  },
+  "theoryTitle": "Padrões de integração entre mainframe e plataformas distribuídas",
+  "chapters": [
+    {
+      "title": "1. O que se integra e como escolher o padrão",
+      "markdown": "### O problema que este assunto resolve\n\nOrganizações podem manter dados e transações centrais em um mainframe e, ao mesmo tempo, oferecer canais web, móveis e serviços em servidores distribuídos. A integração permite que esses sistemas troquem solicitações e resultados sem duplicar toda a lógica de negócio nem copiar continuamente as bases. ‘Plataforma alta’ costuma designar o ambiente de grande porte, como IBM z/OS; ‘plataforma baixa’ designa ambientes distribuídos, como Linux, Windows e servidores de aplicação. São expressões de contexto, não uma classificação universal de desempenho ou qualidade.\n\nA escolha depende do que o consumidor precisa: uma resposta imediata, uma tarefa que pode ser processada depois, ou consulta direta a dados relacionais. A interface deve explicitar formato, autenticação, limites de tempo e comportamento em falha.\n\n> **Siglas e termos deste capítulo**\n> - **z/OS**: sistema operacional IBM usado em mainframes.\n> - **API**: contrato pelo qual um programa solicita uma operação a outro.\n> - **REST**: estilo de API frequentemente exposto por HTTP e representações como JSON.\n> - **Middleware**: componente intermediário que encaminha, transforma ou coordena comunicação.\n> - **Acoplamento**: dependência temporal e técnica entre os participantes.\n\n### Três necessidades, três caminhos\n\n| Necessidade | Caminho comum | Característica |\n| --- | --- | --- |\n| Obter resposta para uma requisição web | API REST por z/OS Connect | Chamada síncrona: o consumidor aguarda resposta ou timeout |\n| Desacoplar o envio do processamento | IBM MQ | Mensagem fica em fila até ser consumida; produtor e consumidor não precisam estar ativos ao mesmo tempo |\n| Consultar ou atualizar dados relacionais | Acesso distribuído por DRDA, frequentemente com Db2 Connect | Cliente distribuído conversa com o servidor Db2 por protocolo de banco |\n\nNenhum mecanismo é automaticamente o melhor. Uma API é conveniente para uma consulta que precisa responder à tela; uma fila serve para pedidos que podem aguardar e precisam sobreviver a indisponibilidades; acesso relacional serve quando o caso exige SQL remoto e governança permite esse acoplamento. Uma integração pode combinar os três, mantendo uma única fonte autorizada para cada dado.\n\n### Caminho de uma requisição síncrona\n\nUm aplicativo web envia HTTP com JSON para a camada de API. O z/OS Connect pode expor aplicações e dados de subsistemas z/OS, incluindo CICS, IMS, IBM MQ e Db2, como APIs REST; também pode permitir que aplicações z/OS chamem endpoints REST. A configuração associa o serviço a um provedor e define como a requisição e a resposta são transformadas. A aplicação central executa a operação e devolve o resultado pelo mesmo caminho.\n\nEssa conveniência não remove diferenças entre modelos de dados. Um campo JSON pode precisar ser mapeado para a estrutura de bytes esperada pelo programa; formatos, codificação, campos obrigatórios e erros precisam estar acordados. A API deve evitar expor estruturas internas como contrato público sem necessidade.\n\n### Como cai na prova\n\n- Resposta imediata e contrato HTTP/JSON sugerem API REST, podendo z/OS Connect expor ativos z/OS.\n- Processamento que pode esperar e precisa de desacoplamento sugere mensageria.\n- Consultar Db2 remoto por interface relacional envolve conectividade de banco, não transforma o banco em API REST.\n- O middleware intermedeia e traduz, mas não substitui autorização, validação ou desenho do contrato."
+    },
+    {
+      "title": "2. APIs REST e z/OS Connect",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação distribuída costuma falar HTTP e JSON; um programa central pode usar interfaces de subsistemas, estruturas e transações próprias. IBM z/OS Connect oferece uma estrutura centralizada para expor ativos e aplicações z/OS por APIs REST e também para aplicações z/OS consumirem endpoints REST. A documentação da IBM descreve acesso a aplicações e dados hospedados em CICS, IMS, IBM MQ e Db2.\n\n> **Siglas e termos deste capítulo**\n> - **HTTP**: protocolo de requisição e resposta usado na web.\n> - **JSON**: formato textual de objetos e valores, comum em APIs.\n> - **CICS**: monitor de processamento de transações usado em z/OS.\n> - **IMS**: ambiente de gerenciamento de transações e dados IBM.\n> - **Provedor de serviço**: componente que conecta o serviço da API ao ativo de destino.\n\n### Do endpoint ao programa\n\nO fluxo típico é: consumidor chama a URL HTTP; a camada de API autentica e aplica políticas configuradas; o serviço valida e transforma a entrada; o provedor encaminha a operação ao subsistema ou programa; a saída é transformada para o formato publicado e devolvida ao cliente. A definição da API e do serviço descreve o contrato e o mapeamento. A interface comum permite acesso concorrente a diferentes subsistemas, mas a semântica concreta depende do provedor e do ativo.\n\nEm z/OS Connect, clientes REST podem descobrir serviços, consultar status e invocar operações conforme as APIs administrativas ou de serviço configuradas. A documentação apresenta chamadas HTTP com parâmetros de ação e exemplos de payload JSON. Operações de administração, como iniciar ou parar serviço, exigem controles e grupos autorizados quando o interceptador de autorização está habilitado. A existência de uma URL não significa que qualquer usuário possa executá-la.\n\n### Contrato, transformação e falhas\n\nO contrato deve declarar campos, tipos, limites e erros. Transformações JSON para bytes ou estruturas de programa precisam tratar codificação, sinal, comprimento, valores ausentes e compatibilidade. Um timeout não prova que a operação falhou: o servidor pode ter concluído e a resposta se perdido. Se o cliente repetir uma operação de débito sem proteção, pode ocorrer duplicidade. Para operações mutáveis, use identificador de requisição, deduplicação ou consulta de estado, conforme o desenho.\n\n| Aspecto | Cuidado de projeto |\n| --- | --- |\n| Tempo limite | Definir prazo coerente e distinguir timeout de rejeição funcional |\n| Repetição | Limitar tentativas e evitar duplicar efeitos de negócio |\n| Versão | Evoluir contrato sem quebrar consumidores existentes |\n| Segurança | Autenticar, autorizar por operação e proteger dados em trânsito |\n| Observabilidade | Correlacionar identificador da chamada, serviço e transação |\n\n### Como cai na prova\n\n- z/OS Connect fornece uma camada REST para ativos z/OS; não é um banco nem substitui o programa de negócio.\n- JSON é representação da interface; a aplicação de destino pode receber estrutura diferente após transformação.\n- A integração síncrona depende de disponibilidade, latência e timeout do caminho inteiro.\n- Proteger só a rede não basta: autenticação e autorização precisam ser configuradas para a operação."
+    },
+    {
+      "title": "3. Mensageria IBM MQ e processamento assíncrono",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação distribuída pode precisar enviar um evento ou pedido ao mainframe sem manter uma conexão ativa até o fim do processamento. IBM MQ permite colocar mensagens em filas e encaminhá-las entre aplicações e gerenciadores de filas. O produtor registra a mensagem; o consumidor a recebe depois. A fila amortece diferenças de ritmo e pode manter mensagens enquanto um consumidor está temporariamente indisponível, conforme a configuração de persistência e recuperação.\n\n> **Siglas e termos deste capítulo**\n> - **IBM MQ**: middleware de mensagens com filas e gerenciadores de filas.\n> - **Gerenciador de filas**: componente que administra filas, mensagens e comunicação MQ.\n> - **Fila**: destino de mensagens aguardando consumo.\n> - **Mensagem persistente**: mensagem configurada para sobreviver a reinicialização conforme os recursos de recuperação do produto.\n> - **Fila de mensagens não entregues (dead-letter)**: destino para mensagens que não puderam ser entregues ao destino previsto.\n\n### Produtor, fila e consumidor\n\nNo padrão básico, o produtor envia para uma fila local. O gerenciador de filas pode encaminhar mensagens para outra fila por canais de comunicação entre gerenciadores. O consumidor recebe a mensagem e confirma o processamento; se falhar antes da confirmação, a mensagem pode ser entregue novamente. Por isso, consumidores devem tolerar reentrega: uma operação idempotente produz o mesmo estado se processada mais de uma vez, ou usa uma chave de negócio para detectar duplicatas.\n\nA comunicação assíncrona reduz dependência temporal, mas não elimina falhas. A fila pode crescer sem limite operacional se a produção superar o consumo, e mensagens não processáveis podem bloquear tentativas repetidas. É preciso monitorar profundidade da fila, idade das mensagens, taxa de consumo e dead-letter queue, além de definir retenção e procedimento de reprocessamento.\n\nA confirmação de envio à fila significa que o middleware aceitou a mensagem segundo as garantias configuradas; não significa necessariamente que a regra de negócio foi executada. O sistema que recebe deve registrar o resultado e, se necessário, emitir uma resposta ou evento de conclusão.\n\n### Transação e consistência\n\nUma transação que envolve MQ e outro recurso, como banco de dados, requer coordenação para evitar confirmar apenas metade dos efeitos. Em z/OS, o adaptador RRS permite que aplicações IBM MQ participem de protocolo de confirmação em duas fases com outros produtos habilitados para RRS, coordenado pelo Resource Recovery Services. A documentação distingue isso do adaptador Batch/TSO, que oferece protocolo de confirmação de fase única para recursos MQ e não suporta confirmação multifásica. Não se deve presumir atomicidade entre fila e banco apenas porque ambos aparecem no mesmo programa.\n\n### Como cai na prova\n\n- Fila desacopla produtor e consumidor no tempo; não garante por si só que a lógica final foi concluída.\n- Reentrega é possível; consumidor idempotente evita duplicar efeito.\n- A fila de mensagens não entregues ajuda a isolar mensagens que não puderam ser roteadas ou processadas.\n- RRS e adaptadores compatíveis participam de coordenação transacional; o adaptador Batch/TSO não é equivalente a suporte de duas fases."
+    },
+    {
+      "title": "4. Acesso a dados, transações e operação segura",
+      "markdown": "### O problema que este assunto resolve\n\nÀs vezes, uma aplicação distribuída precisa consultar dados em Db2 executado em z/OS. DRDA (Distributed Relational Database Architecture) define uma arquitetura/protocolo para comunicação relacional distribuída. Db2 Connect permite que clientes em Linux, UNIX e Windows acessem bancos Db2 de mainframe e midrange; a documentação IBM descreve aplicações operando sobre dados remotos por uma arquitetura padrão, com o servidor e o solicitante tratando comunicação e localização.\n\n> **Siglas e termos deste capítulo**\n> - **DRDA**: arquitetura de comunicação de banco relacional distribuído.\n> - **Db2 Connect**: conectividade IBM entre aplicações clientes e bancos Db2 de mainframe ou midrange.\n> - **CICS DTP**: processamento de transações distribuído entre programas CICS em sistemas intercomunicantes.\n> - **Commit**: confirmação de uma unidade de trabalho.\n> - **Rollback**: desfazer uma unidade de trabalho ainda reversível.\n\n### Conexão de banco não é integração de serviço\n\nCom conectividade DRDA, o cliente usa operações relacionais contra o servidor de banco. Isso pode ser adequado para cargas que exigem SQL remoto, mas aumenta dependência de esquema, credenciais, rede, concorrência e disponibilidade do banco. Uma API de negócio pode encapsular regras e limitar operações; acesso SQL direto pode expor dados e acoplar o consumidor ao modelo relacional. A arquitetura deve conceder apenas o acesso necessário e manter regras de negócio no sistema responsável.\n\n### Transações distribuídas e limites\n\nCICS Distributed Transaction Processing (DTP) permite que programas de aplicação em sistemas diferentes se comuniquem e troquem dados durante um processo distribuído. Ao coordenar recursos, a aplicação precisa considerar confirmação, falha de rede e incerteza sobre o resultado: se a comunicação cai durante o commit, um participante pode não saber imediatamente se a operação foi confirmada. Transação distribuída não é sinônimo de chamada remota simples e depende de participantes e protocolos compatíveis.\n\nEm integrações entre vários serviços, muitas arquiteturas preferem operações locais e mensagens/eventos, com compensação quando uma etapa posterior falha. Esse desenho não oferece atomicidade instantânea global; exige estados explícitos, correlação e tratamento de repetição. O padrão escolhido deve corresponder à necessidade de consistência e ao custo operacional.\n\n### Segurança e operação\n\nA integração atravessa limites de confiança. Autentique sistemas e usuários, autorize por serviço e operação, proteja credenciais, use criptografia de transporte quando aplicável e registre auditoria sem vazar segredos. Separe contas técnicas, limite privilégios e monitore falhas de autenticação. Para disponibilidade, acompanhe latência e erros da API, conexões e filas; estabeleça limites de requisição, timeout, retentativa com intervalo e circuit breaker no cliente quando fizer sentido.\n\n### Como cai na prova\n\n- DRDA/Db2 Connect diz respeito à conectividade de banco; z/OS Connect expõe ou consome APIs REST.\n- CICS DTP permite interação entre transações em sistemas diferentes, mas não remove a necessidade de coordenar falhas e confirmação.\n- Resposta de timeout pode deixar resultado incerto; consultar estado ou usar idempotência evita repetir cegamente uma operação.\n- Segurança inclui autenticação, autorização, proteção de dados e auditoria; a conectividade técnica não concede autorização de negócio."
+    }
+  ],
+  "summary": "Integração de plataforma alta e baixa conecta ambientes como z/OS a servidores distribuídos e aplicações web. Para resposta imediata, z/OS Connect pode expor ativos de CICS, IMS, IBM MQ e Db2 como APIs REST, com HTTP/JSON e transformação de dados. Para processamento desacoplado, IBM MQ troca mensagens por filas; o consumidor deve tolerar reentrega, e confirmação de envio não equivale à conclusão do negócio. Para acesso relacional, Db2 Connect permite a clientes distribuídos acessar bancos de mainframe usando DRDA. CICS DTP permite comunicação entre programas transacionais em sistemas diferentes, mas exige coordenação de confirmação e tratamento de falhas. API, mensageria e acesso a banco atendem necessidades diferentes. Contratos, autenticação, autorização, idempotência, timeout, monitoramento e tratamento de mensagens não entregues completam o desenho seguro.",
+  "flashcards": [
+    {
+      "front": "O que significa plataforma alta nesse contexto?",
+      "back": "Ambiente de grande porte, como IBM z/OS em mainframe; a expressão depende do contexto."
+    },
+    {
+      "front": "O que costuma ser plataforma baixa?",
+      "back": "Servidores distribuídos, por exemplo Linux, Windows e aplicações web."
+    },
+    {
+      "front": "Qual produto IBM expõe ativos z/OS como APIs REST?",
+      "back": "IBM z/OS Connect."
+    },
+    {
+      "front": "Quais subsistemas podem hospedar ativos acessados por z/OS Connect?",
+      "back": "CICS, IMS, IBM MQ e Db2, entre outros conforme os provedores configurados."
+    },
+    {
+      "front": "Que formato é comum no payload de uma API REST?",
+      "back": "JSON, embora o serviço possa transformar esse conteúdo para outro formato interno."
+    },
+    {
+      "front": "Qual é o papel de um provedor de serviço?",
+      "back": "Ligar o serviço/API ao ativo ou subsistema que executa a operação."
+    },
+    {
+      "front": "Para que serve IBM MQ?",
+      "back": "Trocar e encaminhar mensagens entre aplicações por filas e gerenciadores de filas."
+    },
+    {
+      "front": "O que a fila oferece ao produtor e consumidor?",
+      "back": "Desacoplamento temporal: podem operar em momentos diferentes."
+    },
+    {
+      "front": "Uma confirmação de envio MQ prova que a regra de negócio terminou?",
+      "back": "Não; confirma a aceitação segundo a configuração, não o processamento final."
+    },
+    {
+      "front": "Por que consumidor MQ precisa tolerar reentrega?",
+      "back": "Uma falha antes da confirmação pode fazer a mensagem ser entregue novamente."
+    },
+    {
+      "front": "O que caracteriza uma operação idempotente?",
+      "back": "Repeti-la não cria um efeito adicional além do resultado pretendido."
+    },
+    {
+      "front": "Para que serve uma dead-letter queue?",
+      "back": "Isolar mensagens que não puderam ser entregues ou tratadas no destino normal."
+    },
+    {
+      "front": "O que é DRDA?",
+      "back": "Arquitetura/protocolo de comunicação relacional distribuída."
+    },
+    {
+      "front": "Qual é a função de Db2 Connect?",
+      "back": "Dar conectividade de clientes distribuídos a bancos Db2 de mainframe e midrange."
+    },
+    {
+      "front": "API REST e SQL remoto são equivalentes?",
+      "back": "Não; API oferece contrato de serviço, enquanto DRDA conecta aplicações ao banco relacional."
+    },
+    {
+      "front": "O que permite CICS DTP?",
+      "back": "Interação e troca de dados entre programas de aplicação em sistemas CICS diferentes."
+    },
+    {
+      "front": "O que coordena confirmação de duas fases para aplicações MQ em z/OS?",
+      "back": "O adaptador RRS permite participação com outros produtos habilitados, sob coordenação do z/OS RRS."
+    },
+    {
+      "front": "Batch/TSO adapter MQ suporta confirmação multifásica?",
+      "back": "Não; a documentação indica suporte de fase única para recursos MQ."
+    },
+    {
+      "front": "O que pode significar timeout numa chamada mutável?",
+      "back": "O resultado pode ser incerto: a operação talvez tenha sido concluída sem a resposta chegar."
+    },
+    {
+      "front": "Como reduzir efeitos duplicados após repetição?",
+      "back": "Usar idempotência, chave de requisição e/ou deduplicação de acordo com o caso."
+    },
+    {
+      "front": "Quais controles protegem APIs integradas?",
+      "back": "Autenticação, autorização por operação, proteção de credenciais e transporte seguro."
+    },
+    {
+      "front": "O que monitorar em integração por fila?",
+      "back": "Profundidade e idade da fila, taxa de consumo e mensagens em dead-letter."
+    },
+    {
+      "front": "Por que transformar JSON para estrutura interna requer cuidado?",
+      "back": "Campos, comprimentos, tipos, codificação e valores ausentes podem ter semânticas diferentes."
+    },
+    {
+      "front": "O que é acoplamento temporal?",
+      "back": "Dependência de os dois participantes estarem ativos e respondendo ao mesmo tempo."
+    },
+    {
+      "front": "A fila garante que o consumidor aplicou a regra de negócio?",
+      "back": "Não; ela oferece transporte/armazenamento conforme configuração, e o consumidor registra o processamento."
+    }
+  ],
+  "tips": [
+    "Associe HTTP/JSON síncrono a APIs e mensageria a processamento desacoplado.",
+    "Lembre que z/OS Connect pode expor CICS, IMS, MQ e Db2 como serviços REST.",
+    "DRDA e Db2 Connect são termos de conectividade de banco relacional.",
+    "Separe confirmação do envio de uma mensagem da conclusão do processamento.",
+    "Em timeout de operação mutável, considere resultado incerto antes de repetir.",
+    "Para filas, monitore acumulação, reentrega e mensagens não entregues."
+  ],
+  "traps": [
+    "Tratar plataforma alta e baixa como medida absoluta de qualidade ou velocidade.",
+    "Afirmar que z/OS Connect executa a regra de negócio em vez de intermediar o acesso ao ativo.",
+    "Supor que mensagem aceita pelo MQ já foi processada pelo sistema destinatário.",
+    "Confundir dead-letter queue com fila normal de processamento concluído.",
+    "Confundir DRDA para acesso relacional com API REST de negócio.",
+    "Afirmar que toda transação distribuída fica atomicamente confirmada mesmo após falha de comunicação."
+  ],
+  "activeRecall": [
+    {
+      "question": "Qual mecanismo escolher para uma tela que precisa da resposta da operação imediatamente?",
+      "answer": "Uma API síncrona, como serviço REST exposto pelo z/OS Connect, respeitando latência e timeout."
+    },
+    {
+      "question": "Como o z/OS Connect ajuda uma aplicação web a acessar lógica em z/OS?",
+      "answer": "Oferece uma interface REST e integra serviço, transformação e provedor para subsistemas como CICS ou IMS."
+    },
+    {
+      "question": "Como separar consumidor de produtor quando o processamento pode esperar?",
+      "answer": "Enviar mensagem a uma fila IBM MQ para consumo posterior."
+    },
+    {
+      "question": "Por que uma aplicação consumidora não deve assumir entrega única?",
+      "answer": "Falhas antes da confirmação podem ocasionar reentrega; o processamento deve ser idempotente ou deduplicado."
+    },
+    {
+      "question": "Qual opção atende SQL distribuído a Db2 de mainframe?",
+      "answer": "Conectividade DRDA, com cliente ou servidor Db2 Connect conforme a arquitetura."
+    },
+    {
+      "question": "O que é responsabilidade de uma dead-letter queue?",
+      "answer": "Reter mensagens que não chegaram ao destino ou não puderam ser tratadas normalmente para investigação e reprocessamento controlado."
+    },
+    {
+      "question": "O que um timeout informa sobre uma operação?",
+      "answer": "Que a resposta não chegou dentro do prazo; não determina sozinho se o efeito foi aplicado."
+    },
+    {
+      "question": "Que monitoramento é útil em mensageria?",
+      "answer": "Profundidade/idade das filas, taxa de consumo, falhas e volume de mensagens não entregues."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "API e middleware",
+      "summary": "A camada REST apresenta um contrato e encaminha a operação ao ativo; ela não substitui automaticamente as regras de negócio do sistema central."
+    },
+    {
+      "key": "e2",
+      "title": "Mensagens e conclusão",
+      "summary": "Aceitação da mensagem na fila não equivale à conclusão da operação pelo consumidor; acompanhe estado e confirmação do processamento."
+    },
+    {
+      "key": "e3",
+      "title": "Reentrega e duplicidade",
+      "summary": "Mensagens podem ser entregues novamente após falhas. Operações idempotentes e deduplicação evitam efeitos repetidos."
+    },
+    {
+      "key": "e4",
+      "title": "Conectividade relacional",
+      "summary": "DRDA/Db2 Connect oferecem acesso distribuído a banco; não são sinônimos de APIs REST ou de integração de serviço."
+    },
+    {
+      "key": "e5",
+      "title": "Coordenação distribuída",
+      "summary": "Chamadas remotas e transações entre participantes não eliminam incerteza após falha. Protocolo, suporte dos recursos e recuperação definem as garantias."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma aplicação web precisa solicitar uma operação em CICS e receber uma resposta HTTP/JSON. Qual solução se ajusta diretamente ao cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar Db2 Connect para traduzir chamadas HTTP em comandos de terminal CICS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar DRDA para converter automaticamente qualquer transação CICS em uma consulta SQL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar uma dead-letter queue como endpoint HTTP que responde ao navegador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar RRS para publicar diretamente a página web sem um serviço de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar z/OS Connect para expor a operação como serviço REST configurado.",
+          "correct": true
+        }
+      ],
+      "explanation": "z/OS Connect fornece acesso REST a ativos z/OS, incluindo CICS, quando o serviço e o provedor estão configurados. DRDA e Db2 Connect atendem conectividade relacional; dead-letter é uma fila para mensagens problemáticas, e RRS coordena recuperação transacional.",
+      "section": "2. APIs REST e z/OS Connect",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O consumidor de um pedido pode ficar indisponível durante alguns minutos, mas o sistema distribuído deve registrar a solicitação para processá-la depois. Qual padrão é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter uma chamada HTTP aberta até o consumidor voltar ao ar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Enviar a solicitação por IBM MQ para uma fila consumida posteriormente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar uma consulta DRDA que mantenha o pedido na tabela temporária do cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar apenas uma API síncrona e eliminar a possibilidade de timeout.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenar o pedido somente no log HTTP do navegador do usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fila desacopla produtor e consumidor no tempo, permitindo que o pedido aguarde conforme a configuração do MQ. Uma chamada síncrona continua dependente da disponibilidade do destino; consulta de banco ou log do navegador não oferece a semântica de fila do middleware.",
+      "section": "3. Mensageria IBM MQ e processamento assíncrono",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Linux precisa consultar dados de um banco Db2 em z/OS por conectividade relacional distribuída. Qual tecnologia está associada a esse acesso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CICS DTP, que é o protocolo de comunicação SQL entre clientes e bancos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma dead-letter queue, que transforma linhas Db2 em respostas HTTP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Db2 Connect e a arquitetura DRDA para conectividade de banco.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "z/OS Connect exclusivamente como servidor de filas de impressão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RRS como substituto de driver e protocolo para qualquer consulta remota.",
+          "correct": false
+        }
+      ],
+      "explanation": "Db2 Connect permite conectividade de clientes distribuídos a bancos Db2 de mainframe e midrange, usando a arquitetura DRDA. CICS DTP trata comunicação transacional CICS; RRS coordena recuperação; dead-letter e z/OS Connect têm funções distintas.",
+      "section": "4. Acesso a dados, transações e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma requisição HTTP a um serviço z/OS Connect retorna JSON. Isso significa que o programa central necessariamente recebe internamente o mesmo JSON, sem transformação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O serviço pode transformar a representação JSON para bytes ou para a estrutura esperada pelo provedor e pelo ativo de destino. O formato externo do contrato não determina o formato interno do programa.",
+      "section": "2. APIs REST e z/OS Connect",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila IBM MQ pode desacoplar produtor e consumidor, permitindo que processem a solicitação em momentos diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O produtor coloca a mensagem na fila e o consumidor pode recebê-la posteriormente, reduzindo a dependência de ambos estarem ativos ao mesmo tempo. A retenção depende da configuração e das garantias do produto.",
+      "section": "3. Mensageria IBM MQ e processamento assíncrono",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "DRDA é uma arquitetura para comunicação relacional distribuída, enquanto z/OS Connect oferece uma estrutura para APIs REST de ativos z/OS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. DRDA relaciona-se à comunicação entre solicitante e servidor de banco relacional. z/OS Connect fornece uma camada de serviços REST e pode integrar subsistemas como CICS, IMS, IBM MQ e Db2.",
+      "section": "4. Acesso a dados, transações e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O adaptador Batch/TSO do IBM MQ em z/OS oferece suporte de duas fases para coordenar recursos MQ e outros produtos, tal como o adaptador RRS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A documentação IBM distingue os adaptadores: Batch/TSO oferece protocolo de fase única para mudanças em recursos MQ; o adaptador RRS permite participação em confirmação de duas fases com outros produtos habilitados, coordenada pelo RRS.",
+      "section": "3. Mensageria IBM MQ e processamento assíncrono",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada mutável excedeu o timeout do cliente. Qual interpretação e ação são mais prudentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter a chamada em DRDA, pois esse protocolo garante resposta HTTP imediata.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Concluir que o servidor não recebeu nenhum byte e reenviar indefinidamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar a transação do mainframe porque o timeout do cliente reverte o servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificar o estado ou repetir com proteção contra duplicidade.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desativar autenticação para que a resposta chegue antes do prazo configurado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Timeout indica que o cliente não recebeu resposta a tempo, não que a operação deixou de ser executada. Consultar o estado ou repetir com chave idempotente/deduplicação reduz o risco de efeito duplicado. Mudar protocolo ou remover autenticação não resolve a incerteza.",
+      "section": "2. APIs REST e z/OS Connect",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A confirmação de que o IBM MQ aceitou uma mensagem significa necessariamente que a aplicação de destino já executou e confirmou a regra de negócio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Aceitação pelo middleware e conclusão do processamento são etapas diferentes. O consumidor pode ainda não ter recebido a mensagem; o desenho pode precisar de confirmação de negócio, registro de estado ou resposta posterior.",
+      "section": "3. Mensageria IBM MQ e processamento assíncrono",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual arquitetura atende melhor a um processamento que pode aguardar e precisa continuar desacoplado durante indisponibilidade temporária do consumidor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma consulta SQL síncrona que mantenha a tela do produtor bloqueada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma chamada REST que exija consumidor disponível em todo instante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma fila IBM MQ com política de persistência e recuperação adequada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma conexão direta ao terminal, sem fila nem confirmação de envio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma dead-letter queue usada como destino normal para todos os pedidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "MQ permite que a mensagem aguarde em fila e seja consumida depois, com comportamento de persistência conforme a configuração. Uma chamada síncrona mantém dependência temporal; dead-letter é tratamento excepcional, não destino normal de trabalho.",
+      "section": "3. Mensageria IBM MQ e processamento assíncrono",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em caso de falha antes da confirmação de consumo, uma mensagem pode ser entregue novamente; por isso, o consumidor deve avaliar idempotência ou deduplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Reentrega é um cenário que precisa ser considerado em mensageria. Operações idempotentes ou uma chave de negócio persistida permitem evitar que a repetição cause cobranças, cadastros ou efeitos duplicados.",
+      "section": "3. Mensageria IBM MQ e processamento assíncrono",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso é apropriado para isolar mensagens que não puderam ser encaminhadas ou tratadas no fluxo normal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A tabela relacional de auditoria, que substitui a fila e corrige a mensagem automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A dead-letter queue, com procedimento de análise e reprocessamento controlado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O endpoint REST administrativo, que converte falhas em commits confirmados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O protocolo DRDA, que retém qualquer mensagem recusada pelo consumidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A fila normal de saída, sem identificação de origem ou causa da falha.",
+          "correct": false
+        }
+      ],
+      "explanation": "A dead-letter queue é destinada a mensagens que não puderam ser entregues ao destino esperado. Sua análise deve preservar contexto e permitir decisão controlada; ela não corrige automaticamente a mensagem nem confirma a transação de negócio.",
+      "section": "3. Mensageria IBM MQ e processamento assíncrono",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "CICS DTP permite que programas em sistemas CICS distintos interajam durante um processo distribuído.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O processamento distribuído de transações CICS permite a programas parceiros em sistemas diferentes comunicar-se e trocar dados. A coordenação também precisa lidar com falhas e incerteza de confirmação.",
+      "section": "4. Acesso a dados, transações e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer permitir consulta relacional a Db2 em z/OS a partir de clientes distribuídos. Qual descrição está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "z/OS Connect é a arquitetura de conexão SQL chamada DRDA.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "CICS DTP converte o banco em uma API JSON sem configuração de serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "IBM MQ transforma consultas SQL em mensagens que nunca exigem consumidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RRS funciona como driver relacional entre qualquer servidor e o Db2.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Db2 Connect pode fornecer conectividade e DRDA descreve a arquitetura distribuída.",
+          "correct": true
+        }
+      ],
+      "explanation": "A documentação IBM descreve Db2 Connect como conectividade entre clientes distribuídos e bancos Db2 de mainframe/midrange; DRDA é a arquitetura para comunicação relacional distribuída. Os demais componentes têm finalidades diferentes.",
+      "section": "4. Acesso a dados, transações e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A fila crescente sem acompanhamento pode indicar que a produção de mensagens está superando a capacidade de consumo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A profundidade e a idade das mensagens ajudam a detectar acúmulo. É necessário investigar taxa de produção, capacidade do consumidor, falhas repetidas e mensagens não entregues.",
+      "section": "3. Mensageria IBM MQ e processamento assíncrono",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A chamada HTTP de uma API em z/OS Connect depende apenas do servidor z/OS; latência e disponibilidade de rede e sistemas intermediários não influenciam a resposta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O resultado depende do caminho completo: consumidor, rede, camada REST, provedor, subsistema e resposta. Timeout e indisponibilidade podem ocorrer em qualquer trecho e devem ser tratados no contrato e na operação.",
+      "section": "2. APIs REST e z/OS Connect",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O time precisa expor dados e operações de CICS, IMS, MQ e Db2 por uma interface REST comum. Que componente se encaixa nessa função?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um adaptador Batch/TSO que ofereça somente confirmação de fase única.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um canal MQ usado como protocolo de banco para consultas SQL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um cliente DRDA que converta todos os subsistemas em tabelas relacionais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "IBM z/OS Connect, com serviços e provedores adequados aos ativos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma dead-letter queue configurada como catálogo universal de APIs.",
+          "correct": false
+        }
+      ],
+      "explanation": "z/OS Connect fornece uma estrutura comum para acesso REST a ativos z/OS, incluindo subsistemas como CICS, IMS, MQ e Db2, desde que os serviços e provedores necessários estejam configurados.",
+      "section": "2. APIs REST e z/OS Connect",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de DRDA elimina o acoplamento entre a aplicação cliente e o esquema relacional consultado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. DRDA facilita a comunicação relacional distribuída, mas o cliente continua dependente de acesso, objetos, permissões e semântica do banco. Uma API de negócio pode encapsular parte desse modelo, embora também exija contrato e governança.",
+      "section": "4. Acesso a dados, transações e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer que aplicações z/OS também invoquem endpoints REST externos. O z/OS Connect pode atuar como API requester nesse sentido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação IBM descreve z/OS Connect tanto como provedor de APIs para ativos z/OS quanto como recurso para aplicações z/OS acessarem endpoints REST, com mensagens JSON conforme a configuração.",
+      "section": "2. APIs REST e z/OS Connect",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação diferencia melhor uma chamada REST síncrona de uma mensagem assíncrona em fila?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "REST é exclusivo de mainframe, enquanto MQ só existe em plataforma baixa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A chamada REST dispensa rede, enquanto a fila depende sempre de navegador aberto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A fila confirma a regra de negócio antes de aceitar qualquer mensagem enviada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "REST aguarda resposta; a fila permite consumo posterior.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Os dois padrões têm idêntica dependência temporal e o mesmo modelo de falha.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na interação REST síncrona, o cliente aguarda uma resposta ou timeout. Com fila, o produtor pode concluir o envio e o consumidor processar em outro momento. Ambos dependem de desenho e operação confiáveis, mas têm acoplamento temporal diferente.",
+      "section": "1. O que se integra e como escolher o padrão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma chamada API, autenticar o consumidor garante automaticamente que ele está autorizado a executar toda operação disponível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Autenticação estabelece identidade; autorização decide quais serviços e operações essa identidade pode usar. Os controles precisam ser aplicados por recurso e privilégio apropriado.",
+      "section": "4. Acesso a dados, transações e operação segura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática ajuda a preservar compatibilidade quando uma API REST é consumida por diversos sistemas distribuídos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alterar nomes e tipos de campos sem aviso sempre que o programa central mudar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Publicar contrato, controlar evolução e evitar mudanças incompatíveis sem transição.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Remover validação de campos para permitir que qualquer consumidor envie qualquer conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Expor diretamente o layout interno do programa como contrato permanente obrigatório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar autenticação para que os clientes não precisem rever configurações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um contrato publicado e evoluído com compatibilidade planejada reduz quebras entre produtores e consumidores. Exposição direta de layouts internos cria acoplamento, e retirar validação ou autenticação enfraquece a interface.",
+      "section": "2. APIs REST e z/OS Connect",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma unidade de trabalho distribuída pode ficar em estado incerto para um participante se a comunicação falhar durante a confirmação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A perda de comunicação durante o commit pode impedir que um participante saiba imediatamente o resultado decidido pelos demais. Protocolos de coordenação e procedimentos de recuperação são necessários; chamada remota simples não resolve a incerteza.",
+      "section": "4. Acesso a dados, transações e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem é repetida após falha de confirmação, mas a operação de negócio tem chave única que impede lançar o mesmo pedido duas vezes. Que propriedade de desenho está sendo usada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Baseline, que reinicia o esquema após cada tentativa repetida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DRDA, que bloqueia automaticamente qualquer mensagem duplicada em toda fila.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Idempotência ou deduplicação para neutralizar reentregas da mensagem.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "DTP, que transforma toda operação em consulta sem efeitos laterais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Timeout, que garante ao servidor que o pedido anterior foi cancelado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A chave permite reconhecer que o pedido já produziu efeito e evitar duplicidade. Essa proteção é implementada na lógica de negócio ou no registro de idempotência; MQ não elimina automaticamente reentregas e timeout não cancela o processamento.",
+      "section": "3. Mensageria IBM MQ e processamento assíncrono",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API REST que acessa programa central não precisa definir tratamento de erro, pois qualquer falha será resolvida pelo protocolo HTTP sem regra adicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O contrato deve mapear erros técnicos e funcionais, definir respostas e orientar o cliente sobre tentativas. HTTP transporta a resposta, mas não define sozinho a semântica de negócio nem o estado de uma operação central.",
+      "section": "2. APIs REST e z/OS Connect",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao escolher uma interface para expor regra de negócio central, qual argumento favorece uma API de serviço em lugar de conceder SQL amplo ao consumidor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma fila transforma qualquer consulta em transação síncrona sem consumidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SQL remoto sempre aplica automaticamente todas as regras do canal web.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A API elimina qualquer necessidade de autenticação ou auditoria no sistema central.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DRDA impede que o esquema do banco evolua depois da primeira conexão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A API pode encapsular operações e limitar o contrato às capacidades autorizadas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma API de negócio pode expor operações controladas sem entregar acesso indiscriminado às tabelas, embora ainda exija segurança e governança. A conexão SQL pode aumentar acoplamento a esquema e permissões; não aplica automaticamente regras de outro canal.",
+      "section": "4. Acesso a dados, transações e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A autorização configurada para uma API administrativa pode limitar quem consulta ou altera o estado de serviços z/OS Connect.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação do z/OS Connect descreve verificações de autorização para ações administrativas, como iniciar ou parar serviços, quando o interceptador está habilitado. Identidade e grupo autorizado influenciam o acesso.",
+      "section": "2. APIs REST e z/OS Connect",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual dado é particularmente útil para detectar um consumidor MQ que está ficando para trás?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas o número de APIs cadastradas no catálogo, sem métricas das filas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A versão do layout JSON usada na última chamada HTTP administrativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Profundidade e idade das mensagens, comparadas à taxa de consumo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O número de usuários que possuem acesso ao cliente Db2 Connect.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O total histórico de transações CICS desde a instalação do sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "Crescimento da profundidade e da idade, junto com taxa de consumo, mostra atraso e desequilíbrio entre produção e processamento. Métricas sem relação com as filas não identificam diretamente esse gargalo.",
+      "section": "3. Mensageria IBM MQ e processamento assíncrono",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A confirmação de duas fases é necessária em todos os acessos distribuídos, inclusive em qualquer API REST de leitura sem efeitos de escrita.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A coordenação multifásica é pertinente quando uma unidade de trabalho precisa confirmar recursos participantes compatíveis. Não é requisito universal de toda chamada REST, especialmente uma leitura simples; o modelo depende dos recursos e garantias necessários.",
+      "section": "4. Acesso a dados, transações e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação envia JSON com campo numérico longo, mas o programa de destino espera texto de comprimento fixo. Qual risco de integração deve ser tratado explicitamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "IBM MQ remove caracteres e zeros até o conteúdo caber no destinatário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O protocolo HTTP converte qualquer campo ao layout exato sem configuração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DRDA corrige automaticamente estruturas de programas que não acessam banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A transformação pode exigir regras de tipo, comprimento, preenchimento e validação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma dead-letter queue garante que a conversão seja repetida com sucesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Representações externas e layouts internos podem diferir em tipo, comprimento, codificação e regra de validação. A transformação deve mapear essas diferenças e rejeitar dados incompatíveis de modo previsível; HTTP, MQ e dead-letter não fazem esse mapeamento por si sós.",
+      "section": "2. APIs REST e z/OS Connect",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O z/OS Connect pode fornecer acesso REST a aplicações e dados z/OS por meio de serviços e provedores configurados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O produto fornece uma estrutura centralizada de APIs REST para ativos z/OS e usa provedores para conectar serviços aos subsistemas ou recursos de destino.",
+      "section": "2. APIs REST e z/OS Connect",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação reduz risco ao integrar mensagens com uma base de dados na mesma unidade de negócio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Presumir atomicidade automática e remover logs de confirmação para simplificar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Verificar suporte dos recursos à coordenação e definir recuperação para falhas parciais.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desativar confirmação no MQ e no banco, mantendo somente o timeout do cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Guardar a senha do banco no payload da mensagem para o consumidor resolver a falha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar dead-letter queue como substituta de protocolo de commit e auditoria.",
+          "correct": false
+        }
+      ],
+      "explanation": "A atomicidade entre recursos depende de suporte e configuração de coordenação transacional. Deve haver recuperação para falhas e incerteza. Dead-letter é tratamento de mensagem, não protocolo de commit, e credenciais não devem ser expostas no payload.",
+      "section": "4. Acesso a dados, transações e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada REST síncrona normalmente mantém o cliente aguardando uma resposta ou até ocorrer timeout.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Na interação síncrona, o consumidor aguarda resultado no fluxo da requisição. Isso cria dependência de latência e disponibilidade dos participantes até a resposta ou o limite de tempo.",
+      "section": "1. O que se integra e como escolher o padrão",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como escolher entre exposição REST e conexão direta ao Db2 quando a necessidade é executar uma operação de negócio controlada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Preferir REST sempre, pois APIs não exigem autenticação nem tratamento de erro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Avaliar uma API de serviço que encapsule a operação e limite o contrato publicado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Preferir SQL amplo, pois DRDA aplica as regras de todos os canais automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar uma fila dead-letter como mecanismo padrão para executar a operação síncrona.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir o programa central por um cliente que atualize tabelas sem governança.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma API pode publicar a capacidade de negócio sem expor diretamente todo o esquema, mas precisa de controles e contrato. O acesso SQL distribui responsabilidades e pode aumentar acoplamento; DRDA não implementa regras de negócio do canal.",
+      "section": "1. O que se integra e como escolher o padrão",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila desacopla temporalmente produtor e consumidor, mas não elimina a necessidade de observar acúmulo, falhas e reentregas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O desacoplamento reduz a dependência de disponibilidade simultânea, mas operação saudável ainda requer monitoramento da profundidade e idade das mensagens, falhas de consumo e reentrega.",
+      "section": "3. Mensageria IBM MQ e processamento assíncrono",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual escolha corresponde ao caso em que uma aplicação distribuída precisa de acesso relacional a Db2 de mainframe?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acessar o catálogo REST administrativo do z/OS Connect como se fosse uma tabela SQL.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar DRDA com conectividade Db2 Connect apropriada ao cliente distribuído.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar CICS DTP como driver ODBC genérico para qualquer banco relacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Publicar cada linha do Db2 em dead-letter queue para leitura direta pelo navegador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar RRS como serviço REST de consulta sem subsistema de banco.",
+          "correct": false
+        }
+      ],
+      "explanation": "DRDA define arquitetura de comunicação relacional distribuída, e Db2 Connect fornece conectividade de clientes a bancos Db2 em z/OS e outros ambientes IBM. Os outros componentes não são drivers relacionais genéricos.",
+      "section": "4. Acesso a dados, transações e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A operação em duas fases de recursos MQ em z/OS é coordenada pelo RRS quando a aplicação usa o adaptador RRS e os demais participantes são compatíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação IBM informa que o adaptador RRS permite que aplicações MQ participem de confirmação em duas fases com outros produtos habilitados para RRS, sob coordenação do serviço de recuperação do z/OS.",
+      "section": "3. Mensageria IBM MQ e processamento assíncrono",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma aplicação não deve presumir que toda mensagem será consumida imediatamente após ser colocada na fila?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque a confirmação do produtor equivale sempre a uma rejeição do consumidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque MQ só permite mensagens depois que o navegador fecha a sessão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque toda mensagem é enviada primeiro a um banco relacional DRDA.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque o z/OS Connect bloqueia o consumidor até a próxima reinicialização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque a fila existe para armazenar o payload até o consumidor processá-lo.",
+          "correct": true
+        }
+      ],
+      "explanation": "A fila é um ponto de espera e desacoplamento. A mensagem pode aguardar enquanto o consumidor está ocupado ou indisponível, e seu processamento deve ser confirmado segundo o desenho da aplicação.",
+      "section": "3. Mensageria IBM MQ e processamento assíncrono",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A nomenclatura plataforma alta/plataforma baixa informa, por si só, que uma das plataformas é sempre mais segura ou mais rápida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Os termos são usados de modo contextual para distinguir ambientes como mainframe e sistemas distribuídos; não constituem uma medida universal de segurança, desempenho ou qualidade.",
+      "section": "1. O que se integra e como escolher o padrão",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A camada REST pode apresentar contratos HTTP/JSON a clientes distribuídos, enquanto um provedor encaminha a operação ao recurso z/OS apropriado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A arquitetura de serviço separa a interface consumida pelo cliente da integração específica com o ativo, inclusive com transformação entre representações quando necessário.",
+      "section": "2. APIs REST e z/OS Connect",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência descreve melhor o fluxo de uma requisição REST até um programa central?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cliente escreve direto na memória do mainframe; o servidor web converte a alteração em fila.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cliente abre DRDA; a fila dead-letter autentica; RRS gera JSON e encerra a API.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "HTTP/JSON chega ao serviço, que valida e mapeia; o provedor aciona o ativo e devolve a resposta.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Cliente chama CICS DTP; o protocolo elimina a necessidade de endpoint e provedor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cliente envia credenciais no corpo; a transformação decide automaticamente quais regras executar.",
+          "correct": false
+        }
+      ],
+      "explanation": "O serviço REST valida e mapeia a requisição, o provedor integra com o subsistema e a resposta é transformada conforme o contrato. Protocolos de banco, filas e coordenação transacional têm funções diferentes e não substituem esse fluxo.",
+      "section": "2. APIs REST e z/OS Connect",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma dead-letter queue é o local recomendado para colocar desde o início todas as mensagens válidas, evitando configurar filas normais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A dead-letter queue trata mensagens que não puderam seguir o fluxo esperado. Mensagens válidas devem ir aos destinos de processamento normal definidos para a aplicação.",
+      "section": "3. Mensageria IBM MQ e processamento assíncrono",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma conexão remota de banco, qual risco operacional deve ser incluído no desenho mesmo quando DRDA e Db2 Connect estão configurados corretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Garantia de que o esquema nunca será alterado após conectar o primeiro cliente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conversão obrigatória de qualquer tabela em fila de mensagens não entregues.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Impossibilidade de aplicar autenticação por usuário ou conta de serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Dependência de rede, permissões, concorrência e disponibilidade do banco remoto.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Execução automática das regras de negócio web pelo protocolo relacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conexão relacional continua dependendo da rede, do servidor, de permissões e de condições de concorrência. A arquitetura de conectividade não congela o esquema nem substitui autorização ou regras de aplicação.",
+      "section": "4. Acesso a dados, transações e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Autenticação, autorização por operação e auditoria são controles complementares em uma integração entre sistemas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Identificar o consumidor, limitar as operações autorizadas e registrar eventos relevantes cumprem funções diferentes. Também se deve proteger credenciais e dados em trânsito.",
+      "section": "4. Acesso a dados, transações e operação segura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação web precisa apenas de uma consulta imediata a uma função central e quer publicar um contrato estável aos consumidores. Qual decisão é coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar confirmação em duas fases como substituto de endpoint e contrato.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Enviar consulta a dead-letter queue e aguardar que o navegador leia o banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar apenas o adaptador Batch/TSO para converter toda consulta em HTML.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Dar acesso irrestrito ao esquema Db2 e deixar cada cliente reconstruir a regra.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Publicar serviço REST, por exemplo via z/OS Connect, e definir contrato e controle de acesso.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma API REST atende interação síncrona com contrato publicado e pode ser exposta por z/OS Connect. A segurança e as políticas precisam ser configuradas; fila e coordenação transacional não substituem uma interface de consulta imediata.",
+      "section": "1. O que se integra e como escolher o padrão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O protocolo DRDA tem como finalidade principal expor transações CICS como endpoints REST com autenticação HTTP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. DRDA se relaciona à comunicação de banco relacional distribuído. A exposição de serviços REST para ativos z/OS é função de uma camada como z/OS Connect, com configuração apropriada.",
+      "section": "4. Acesso a dados, transações e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual medida é mais adequada para limitar o impacto de uma falha de rede em chamada síncrona?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir timeout, retentativas limitadas e proteção contra repetição de efeitos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Reenviar sem limite e sem identificador até receber qualquer resposta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover validação e autorização para reduzir o tempo de processamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter a conexão em consulta SQL sem verificar estado da operação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registrar senha no log de correlação para suporte investigar mais rápido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Timeout e retentativas controladas limitam espera e carga, enquanto idempotência evita duplicar efeitos quando o resultado anterior é incerto. Credenciais não devem ser registradas e remover controles não resolve falha de rede.",
+      "section": "4. Acesso a dados, transações e operação segura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "CICS DTP e IBM MQ são nomes diferentes para o mesmo serviço de filas e possuem, portanto, as mesmas interfaces e garantias.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. CICS DTP descreve processamento distribuído entre programas/transações CICS; IBM MQ é middleware de mensageria com filas. Podem coexistir na arquitetura, mas não são o mesmo produto ou modelo de interação.",
+      "section": "1. O que se integra e como escolher o padrão",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao permitir que uma aplicação distribuída acesse Db2 diretamente, que preocupação deve entrar na avaliação de segurança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conceder apenas privilégios necessários e proteger credenciais e dados de conexão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar a conta administrativa em todos os clientes para evitar falhas de permissão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar logs de acesso para que as consultas não deixem rastros operacionais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenar senhas no SQL enviado para que DRDA reconheça a identidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir leitura e escrita em todo esquema, pois a rede já autentica o servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Acesso distribuído deve usar privilégios mínimos, credenciais protegidas e auditoria apropriada. Conectividade autenticada não substitui autorização por objeto nem justifica conta administrativa compartilhada.",
+      "section": "4. Acesso a dados, transações e operação segura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se a chamada REST informa timeout, o cliente pode assumir com certeza que o servidor não executou a operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O servidor pode ter concluído e a resposta ter se perdido ou atrasado. O cliente deve verificar o estado ou repetir com mecanismo que previna duplicidade, em vez de presumir cancelamento automático.",
+      "section": "2. APIs REST e z/OS Connect",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo precisa executar duas transações em sistemas CICS intercomunicantes e trocar dados entre os programas parceiros. Qual conceito se relaciona diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CICS DTP, que permite processamento distribuído de transações entre sistemas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "DRDA, que coordena programas CICS sem relação com acesso relacional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dead-letter queue, que executa os dois programas de modo transacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Db2 Connect, que é o monitor de transações CICS para qualquer aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "JSON, que por si só coordena commit distribuído entre participantes.",
+          "correct": false
+        }
+      ],
+      "explanation": "CICS DTP permite a programas parceiros em sistemas diferentes interagir e trocar dados como parte de um processo distribuído. DRDA é conectividade relacional; JSON é formato; fila e Db2 Connect têm papéis distintos.",
+      "section": "4. Acesso a dados, transações e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Mensagens em fila podem ser observadas por métricas de profundidade, idade e taxa de consumo para detectar atraso operacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Essas métricas mostram volume acumulado e quanto tempo as mensagens aguardam. Com erros e dead-letter, ajudam a identificar consumidor parado, capacidade insuficiente ou falhas de processamento.",
+      "section": "3. Mensageria IBM MQ e processamento assíncrono",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a principal distinção entre uma API de negócio e o acesso SQL remoto ao banco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A API pode publicar uma operação de negócio; SQL remoto oferece interação relacional com o banco.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A API sempre consulta tabelas sem autenticação; SQL remoto sempre oculta todos os dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SQL remoto é assíncrono por definição, enquanto qualquer API bloqueia o mainframe.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A API substitui totalmente a rede; SQL remoto é o único que atravessa plataformas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ambos são protocolos equivalentes e diferem apenas no nome do produto IBM usado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A API publica contrato e capacidades de serviço; SQL/DRDA acessa estruturas relacionais. Cada padrão possui acoplamentos, controles e semânticas próprios, e a escolha depende da necessidade de negócio e governança.",
+      "section": "1. O que se integra e como escolher o padrão",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao tornar uma fila persistente, a organização não precisa mais planejar capacidade, monitorar falhas ou definir recuperação e retenção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Persistência pode contribuir para sobrevivência a reinicializações conforme configuração, mas não elimina capacidade, monitoramento, política de retenção nem tratamento de falhas e mensagens não processáveis.",
+      "section": "3. Mensageria IBM MQ e processamento assíncrono",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um consumidor da API não deve receber detalhes técnicos sensíveis, como credenciais e segredos, em respostas ou logs de correlação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Logs e erros precisam apoiar diagnóstico sem expor segredos ou dados indevidos. Correlação deve usar identificadores seguros e políticas de mascaramento e acesso.",
+      "section": "4. Acesso a dados, transações e operação segura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe publica um endpoint JSON para que sistemas móveis consultem serviços de subsistemas z/OS. Que descrição da arquitetura é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "z/OS Connect pode fornecer a interface REST e integrar o serviço ao subsistema configurado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "DRDA publica automaticamente endpoints HTTP para qualquer programa de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O gerenciador de filas substitui o contrato JSON e responde consultas móveis em SQL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RRS gera APIs móveis e converte todo programa CICS para código Java.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Db2 Connect é o catálogo REST genérico de serviços de todos os subsistemas z/OS.",
+          "correct": false
+        }
+      ],
+      "explanation": "z/OS Connect fornece framework REST para ativos z/OS, com serviços e provedores apropriados. DRDA e Db2 Connect são relacionados ao acesso relacional; MQ e RRS não substituem o contrato HTTP/JSON.",
+      "section": "2. APIs REST e z/OS Connect",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "What is IBM z/OS Connect?",
+      "publisher": "IBM Documentation",
+      "reference": "Estrutura centralizada para APIs REST, ativos z/OS e subsistemas CICS, IMS, IBM MQ e Db2; API provider e requester.",
+      "url": "https://www.ibm.com/docs/en/zos-connect/3.0.0?topic=overview-what-is-zos-connect",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Using z/OS Connect REST APIs",
+      "publisher": "IBM Documentation",
+      "reference": "Chamadas REST para descoberta, status, estatísticas e invocação de serviços; exemplos HTTP e JSON.",
+      "url": "https://www.ibm.com/docs/en/was-liberty/nd?topic=assets-using-zos-connect-rest-apis",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Accessing IBM mainframe Db2 data using Db2 Connect",
+      "publisher": "IBM Documentation",
+      "reference": "Conectividade de clientes LAN a dados Db2 de mainframe e papel da arquitetura DRDA.",
+      "url": "https://www.ibm.com/docs/en/db2/12.1.x?topic=overview-accessing-mainframe-db2-data-using-db2-connect-ee",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "IBM MQ and the z/OS Batch, TSO, and RRS adapters",
+      "publisher": "IBM Documentation",
+      "reference": "Função dos adaptadores Batch/TSO e RRS e diferença entre confirmação de fase única e duas fases.",
+      "url": "https://www.ibm.com/docs/en/ibm-mq/9.4.x?topic=products-mq-zos-batch-tso-rrs-adapters",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "What is distributed transaction processing (DTP)",
+      "publisher": "IBM Documentation",
+      "reference": "Processamento distribuído de transações CICS e comunicação entre programas em sistemas diferentes.",
+      "url": "https://www.ibm.com/docs/en/cics-ts/6.x?topic=processing-what-is-dtp",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Setting up IBM MQ for z/OS",
+      "publisher": "IBM Documentation",
+      "reference": "Configuração de gerenciador de filas, channel initiator e comunicação entre gerenciadores e aplicações remotas.",
+      "url": "https://www.ibm.com/docs/en/ibm-mq/10.0.x?topic=zos-setting-up-mq",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

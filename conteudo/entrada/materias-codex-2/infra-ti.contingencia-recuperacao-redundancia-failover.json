@@ -1,0 +1,709 @@
+{
+  "id": "infra-ti.contingencia-recuperacao-redundancia-failover",
+  "subject": "Infraestrutura de TI",
+  "title": "Testes de contingência, recuperação, redundância geográfica e failover",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Testes periódicos de contingência e recuperação",
+    "Contingência e recuperação de infraestrutura de TI",
+    "Redundância geográfica de sistemas e dados",
+    "Procedimentos de failover e failback em TI",
+    "Recuperação de serviços de tecnologia da informação",
+    "Teste de plano de continuidade de TI",
+    "Failover para site alternativo de processamento",
+    "Retorno failback ao ambiente primário de TI",
+    "Exercícios de recuperação de desastres de TI",
+    "Replicação entre regiões e continuidade de serviços"
+  ],
+  "scope": {
+    "covers": "Planejamento e execução de testes periódicos de contingência e recuperação de sistemas de TI; tipos de exercício; evidências, avaliação e correção de achados; redundância geográfica de processamento, armazenamento e telecomunicações; objetivos de recuperação; critérios, sequência e salvaguardas de failover e failback; recuperação, reconciliação de dados e retorno ao site primário.",
+    "excludes": "Backup e restauração em profundidade, resposta geral a incidentes cibernéticos, continuidade de processos de negócio não tecnológicos, configuração específica de fabricante ou provedor e requisitos legais setoriais não indicados no item do edital."
+  },
+  "theoryTitle": "Testar, transferir e restaurar serviços de TI",
+  "chapters": [
+    {
+      "title": "1. O que um teste de contingência precisa demonstrar",
+      "markdown": "### O problema que este assunto resolve\n\nUm plano de contingência pode parecer completo no papel e ainda falhar quando o ambiente primário fica indisponível. Contatos podem estar desatualizados, credenciais podem não funcionar no local alternativo, uma dependência pode continuar apontando para o site antigo ou a equipe pode desconhecer a ordem segura de retomada. Testar periodicamente verifica tanto a eficácia do plano quanto a prontidão real para executá-lo.\n\n> **Siglas e termos deste capítulo**\n> - **Plano de contingência**: procedimentos e recursos para manter ou restaurar operações após uma interrupção.\n> - **BIA**: análise de impacto no negócio; identifica funções prioritárias e consequências da interrupção.\n> - **RTO**: objetivo de tempo de recuperação, isto é, quanto tempo de interrupção é tolerável para o serviço.\n> - **RPO**: objetivo de ponto de recuperação, isto é, quanta perda de dados, medida no tempo, é tolerável.\n> - **Reconstituição**: retorno do sistema a um estado conhecido, íntegro e operacional após a recuperação.\n\nA NIST SP 800-53, controle CP-4, descreve um ciclo concreto: testar o plano na frequência e com os métodos definidos pela organização; revisar os resultados; e iniciar ações corretivas quando necessário. A norma não fixa uma frequência única para todas as organizações. A periodicidade deve refletir o plano, a criticidade, mudanças relevantes e os riscos; uma alteração de arquitetura, de fornecedor, de dados ou de equipe pode justificar novo exercício antes do ciclo ordinário.\n\n### Modalidades de teste\n\n| Modalidade | O que ocorre | O que consegue revelar |\n| --- | --- | --- |\n| Checklist ou revisão documental | Confere contatos, inventário, instruções e pré-requisitos | Omissões e informação desatualizada, sem provar execução técnica |\n| Walk-through ou exercício de mesa | Participantes percorrem um cenário e decidem o que fariam | Ambiguidades de papéis, decisões, escalonamento e comunicação |\n| Simulação paralela | Ativa recursos alternativos sem interromper o serviço primário | Dependências e capacidade do ambiente alternativo, com menor risco operacional |\n| Interrupção completa | Desvia ou interrompe produção e passa a operação ao modo de contingência | Capacidade de executar a transferência real, com maior impacto e necessidade de autorização |\n| Exercício abrangente | Combina equipes, tecnologia, comunicações e procedimentos | Coordenação ponta a ponta e lacunas entre planos relacionados |\n\nO teste deve ter objetivo, cenário, participantes, limites de segurança, critérios de êxito e método de registro. Quando o exercício toca produção, defina autorização, janela, comunicação, critérios de abortar e caminho de retorno antes de começar. O relatório registra o que foi tentado, tempos observados, dados recuperados, falhas, decisões e responsáveis por correção. Repetir o exercício após corrigir os problemas confirma se a ação resolveu a causa.\n\n### Como cai na prova\n\n- CP-4 exige testar, revisar resultados e iniciar correções se necessário; só arquivar o plano não demonstra prontidão.\n- O tipo de exercício deve combinar com o risco: uma conversa de mesa não comprova que a replicação ou o roteamento funcionam.\n- Frequência, cenários e critérios são definidos pela organização conforme seus requisitos; não há intervalo universal imposto pelo CP-4.\n- Testar no site alternativo também familiariza a equipe com instalações e recursos reais."
+    },
+    {
+      "title": "2. Redundância geográfica e objetivos de recuperação",
+      "markdown": "### O problema que este assunto resolve\n\nUm segundo servidor no mesmo prédio protege contra a falha de um equipamento, mas não contra incêndio, inundação, falta de energia ou interrupção de telecomunicações que atinja o prédio inteiro. Redundância geográfica distribui capacidade e, conforme o desenho, cópias de dados entre locais suficientemente separados para reduzir a exposição a uma causa comum. Distância por si só não basta: os locais podem compartilhar a mesma rede elétrica, operadora, região de risco, plano de controle ou credenciais administrativas.\n\n> **Siglas e termos deste capítulo**\n> - **Site primário**: local ou região que normalmente processa a produção.\n> - **Site alternativo**: local ou região preparado para armazenar dados ou executar processamento quando o primário falha.\n> - **Replicação síncrona**: confirma a gravação nos destinos definidos antes de confirmar a operação; tende a reduzir perda de dados, com custo de latência e dependência da conectividade.\n> - **Replicação assíncrona**: envia alterações depois da confirmação primária; pode tolerar maior distância, mas deixa uma janela de dados ainda não replicados.\n> - **RTO e RPO**: metas de tempo para retomar o serviço e de perda de dados aceitável.\n\nO NIST SP 800-53 diferencia local alternativo de armazenamento e de processamento. O site de armazenamento precisa permitir guardar e recuperar informações de backup; o site de processamento precisa possibilitar transferência e retomada das operações essenciais dentro do período definido pela organização. A separação geográfica deve reduzir a suscetibilidade às mesmas ameaças. O arranjo também depende de contratos, telecomunicações, capacidade, acesso às cópias, segurança equivalente e disponibilidade dos profissionais.\n\nRTO e RPO são metas diferentes. Se um serviço tem RTO de poucas horas e RPO de minutos, é preciso tanto disponibilizar processamento rapidamente quanto manter dados replicados com defasagem compatível. RTO não mede perda de dados; RPO não mede tempo até o serviço voltar. Metas precisam ser validadas por medições de teste, não presumidas a partir de uma configuração de produto.\n\nA replicação não substitui cópia de segurança independente. Um erro lógico, exclusão maliciosa ou corrupção pode ser replicado para o destino. A arquitetura deve considerar cópias protegidas e recuperáveis, consistência transacional e procedimento para escolher uma cópia íntegra. Também se devem mapear dependências: identidade, DNS, certificados, chaves, filas, integrações, licenças e conectividade podem impedir o uso do ambiente alternativo mesmo quando os servidores estão disponíveis.\n\n### Como cai na prova\n\n- A separação geográfica reduz falhas de causa comum; dois equipamentos na mesma zona física não equivalem a redundância contra desastre local.\n- RTO trata do tempo de retomada; RPO trata do ponto dos dados ao qual se consegue retornar.\n- Site de armazenamento e site de processamento atendem necessidades diferentes, embora possam coexistir.\n- Replicação contínua pode reproduzir corrupção; cópia independente e teste de recuperação continuam necessários."
+    },
+    {
+      "title": "3. Failover: transferência controlada para o alternativo",
+      "markdown": "### O problema que este assunto resolve\n\nFailover é a transferência de serviço do ambiente primário indisponível ou inadequado para um ambiente alternativo. Pode ser automático, semiautomático ou manual, mas o mecanismo técnico não substitui critérios de decisão, autoridade operacional, comunicação e controle de integridade. Um failover mal coordenado pode deixar dois ambientes aceitando gravações concorrentes, dividir o tráfego ou promover uma réplica atrasada como se estivesse atualizada.\n\n> **Siglas e termos deste capítulo**\n> - **Failover**: mudança do serviço para o ambiente ou componente alternativo.\n> - **Failback**: retorno planejado do serviço ao ambiente primário recuperado, ou a outro destino designado.\n> - **Split-brain**: situação em que dois nós ou locais acreditam simultaneamente ser o escritor ativo.\n> - **Quorum/fencing**: mecanismos para decidir quem pode permanecer ativo e impedir que o antigo primário continue escrevendo.\n> - **Runbook**: roteiro operacional com passos, responsáveis, validações e decisões.\n\nUm procedimento sólido começa por detectar e confirmar a condição, avaliar escopo e impacto, declarar a contingência e designar quem autoriza a mudança. Em seguida, isola-se ou cerca-se o primário quando necessário; verifica-se qual réplica é elegível e qual é sua defasagem; promove-se o destino conforme o runbook; atualizam-se rotas, nomes, balanceadores e integrações; e valida-se o serviço com verificações técnicas e funcionais. A equipe comunica estado, limitações e responsável pela próxima decisão.\n\nO teste deve confirmar os detalhes que costumam passar despercebidos: registros DNS em cache, regras de firewall, certificados, permissões, segredos, capacidade sob carga, monitoramento, alertas e acesso de operadores. Para bases de dados, verifique consistência e posição recuperada antes de permitir gravações. Se a réplica assíncrona estiver atrasada, a decisão sobre aceitar a perda residual precisa seguir a tolerância aprovada e ser explicitamente registrada.\n\nAutomação pode reduzir tempo e erro humano, mas deve ter sinais confiáveis, limiares conhecidos, proteção contra flapping e mecanismo de impedir dupla primazia. Um health check que testa apenas se uma porta responde não comprova que transações e dependências funcionam. O plano precisa dizer quem pode interromper uma automação e como estabilizar o sistema depois da transferência.\n\n### Como cai na prova\n\n- Failover inclui mais que ligar um servidor: envolve dados, roteamento, dependências e validação funcional.\n- O risco de split-brain exige impedir escrita simultânea ou resolver autoridade antes de liberar tráfego.\n- Automação não elimina autorização, comunicação e critérios de segurança.\n- Uma réplica acessível pode estar atrasada ou corrompida; confirmar o ponto de recuperação faz parte da promoção."
+    },
+    {
+      "title": "4. Failback, reconstituição e melhoria após o exercício",
+      "markdown": "### O problema que este assunto resolve\n\nRestaurar o site primário não significa que seja seguro enviar o tráfego de volta imediatamente. Durante a operação no alternativo, novos dados foram gravados, configurações podem ter mudado e a causa original talvez continue presente. Failback é uma mudança planejada de volta; a reconstituição confirma que o sistema regressou a um estado conhecido e que controles, dados e serviços estão operacionais.\n\n> **Siglas e termos deste capítulo**\n> - **Reconciliação**: identificar e resolver diferenças entre dados do primário e do alternativo.\n> - **Read-only**: modo em que o destino recebe consultas, mas não grava alterações.\n> - **Cutover**: momento controlado em que o tráfego ou a autoridade de escrita muda de um ambiente para outro.\n> - **Pós-teste**: revisão das evidências, desvios, efeitos e ações corretivas de um exercício.\n\nAntes de voltar, a equipe diagnostica e remove a causa da falha, confirma a segurança e a capacidade do primário, preserva os dados gerados no alternativo e planeja a sincronização. O procedimento pode exigir congelar gravações por uma janela curta, sincronizar a origem autorizada, validar consistência e manter um ponto de retorno. Em seguida, faz-se o cutover com monitoração, testes funcionais e observação de erros e latência. Se os critérios de abortar forem atingidos, o runbook deve permitir estabilizar ou retornar ao estado anterior sem criar dois escritores.\n\nO sentido da replicação pode inverter durante a contingência. Antes de reverter, identifique claramente qual ambiente contém a cópia autoritativa mais recente; simplesmente religar a replicação na direção antiga pode sobrescrever dados válidos. Preserve registros, logs e snapshots relevantes para diagnóstico e auditoria. Após a mudança, confira backups, alertas, tarefas agendadas, integrações, permissões e monitoração nos dois locais.\n\nTestes periódicos devem exercitar também recuperação completa e reconstituição para estado conhecido, quando aplicável, e não apenas o acionamento do alternativo. Registre tempos observados em comparação com RTO e RPO, indisponibilidades, perda ou divergência de dados, dependências não previstas, desempenho, decisões e falhas de comunicação. Cada achado precisa de prioridade, responsável, prazo definido pela organização e evidência de fechamento. Atualize plano, contatos, diagramas e treinamento; um teste sem revisão e sem correção deixa o risco conhecido intacto.\n\n### Como cai na prova\n\n- Failback precisa preservar e reconciliar as gravações feitas durante a contingência antes de transferir a autoridade.\n- A causa da falha deve estar resolvida e o primário validado antes do retorno.\n- Medir RTO/RPO observados revela se a estratégia realmente atende às metas definidas.\n- O ciclo de teste só se completa com revisão dos resultados e ações corretivas verificáveis."
+    }
+  ],
+  "summary": "Testes de contingência demonstram eficácia do plano e prontidão operacional. O NIST SP 800-53 CP-4 prevê testar na frequência e com os métodos definidos pela organização, revisar resultados e iniciar correções quando necessário; exercícios podem ir de checklist e mesa a simulação paralela, interrupção completa e recuperação/reconstituição integral. Redundância geográfica separa processamento ou armazenamento para reduzir riscos de causa comum, com capacidade, telecomunicações, segurança e acesso disponíveis. RTO é a meta de tempo de retomada; RPO é a tolerância de perda de dados expressa como ponto no tempo. Replicação não substitui cópia independente, pois pode propagar corrupção. Failover transfere serviço após confirmar o incidente, autoridade, réplica, defasagem, isolamento do primário, rotas e dependências; split-brain deve ser prevenido. Failback exige resolver a causa, sincronizar e reconciliar dados, validar o primário, planejar cutover, monitorar e preservar rollback. Exercícios geram evidências, achados com responsáveis e mudanças no plano, seguidos de novo teste.",
+  "flashcards": [
+    { "front": "O que o teste periódico de contingência busca provar?", "back": "A eficácia dos procedimentos e a prontidão de pessoas, tecnologia e recursos para executar a contingência." },
+    { "front": "Qual ciclo básico o controle CP-4 estabelece?", "back": "Testar o plano na frequência e pelos métodos definidos, revisar os resultados e iniciar ações corretivas se necessário." },
+    { "front": "O NIST CP-4 fixa uma frequência única para todos os sistemas?", "back": "Não. A frequência é definida pela organização conforme seus requisitos e o plano." },
+    { "front": "O que é um exercício de mesa?", "back": "Discussão guiada de um cenário para percorrer decisões, papéis e comunicações sem transferir a produção." },
+    { "front": "O que uma simulação paralela procura testar?", "back": "A capacidade de recursos alternativos enquanto a produção principal permanece em funcionamento." },
+    { "front": "O que diferencia interrupção completa de exercício de mesa?", "back": "A interrupção completa testa uma transferência operacional real, com risco e impacto que exigem controles e autorização." },
+    { "front": "O que deve acontecer com os resultados do exercício?", "back": "Ser registrados, revisados e convertidos em ações corretivas com responsáveis e verificação de fechamento." },
+    { "front": "Para que serve um site alternativo de armazenamento?", "back": "Guardar informações de backup e permitir recuperá-las quando o armazenamento primário não estiver disponível." },
+    { "front": "Para que serve um site alternativo de processamento?", "back": "Transferir e retomar funções essenciais quando a capacidade primária não estiver disponível." },
+    { "front": "Por que separar geograficamente os sites?", "back": "Para reduzir a chance de a mesma ameaça física ou regional atingir simultaneamente o primário e o alternativo." },
+    { "front": "O que é RTO?", "back": "A meta de tempo para recuperar ou retomar um serviço após uma interrupção." },
+    { "front": "O que é RPO?", "back": "O ponto de recuperação aceitável, expresso como tolerância à perda de dados medida no tempo." },
+    { "front": "Replicação substitui backup independente?", "back": "Não. Exclusões ou corrupção podem ser replicadas; cópias independentes e testadas continuam necessárias." },
+    { "front": "Qual risco é chamado split-brain?", "back": "Dois locais ou nós operarem como escritores primários simultaneamente, gerando dados divergentes." },
+    { "front": "O que é failover?", "back": "Transferência do serviço do primário para um componente ou ambiente alternativo." },
+    { "front": "O que é failback?", "back": "Retorno controlado do serviço ao ambiente primário recuperado ou a outro destino definido." },
+    { "front": "O que verificar numa réplica antes de promovê-la?", "back": "Elegibilidade, integridade, consistência e defasagem em relação ao primário." },
+    { "front": "Por que isolar ou cercar o primário durante failover?", "back": "Para impedir que ele continue aceitando gravações e provoque dois escritores ativos." },
+    { "front": "Por que um teste de porta aberta não prova a recuperação do serviço?", "back": "Ele não verifica transações reais, dependências, permissões, integridade de dados ou comportamento funcional." },
+    { "front": "Qual dado comparar com RTO e RPO após exercício?", "back": "Os tempos observados de retomada e o ponto efetivo dos dados recuperados." },
+    { "front": "O que deve anteceder o failback?", "back": "Resolver a causa da falha, validar o primário, reconciliar dados e preparar um cutover seguro." },
+    { "front": "O que é reconciliação de dados?", "back": "Identificar e resolver diferenças entre as cópias do ambiente primário e do alternativo." },
+    { "front": "Por que definir uma origem autoritativa antes de inverter replicação?", "back": "Para evitar que dados mais novos sejam sobrescritos por uma cópia antiga." },
+    { "front": "Cite dependências que podem impedir o uso do site alternativo.", "back": "DNS, identidade, certificados, chaves, firewall, telecomunicações, filas e integrações são exemplos." },
+    { "front": "O que significa reconstituir o sistema?", "back": "Restaurá-lo a um estado conhecido e operacional, com dados e controles validados." }
+  ],
+  "tips": [
+    "Associe RTO a tempo para voltar e RPO ao ponto dos dados que se aceita recuperar.",
+    "Para um teste, separe objetivo, cenário, autorização, critérios de sucesso e critérios de abortar.",
+    "Depois do exercício, cobre evidências, revisão, responsáveis pelas correções e confirmação de fechamento.",
+    "Não confunda alta disponibilidade local com separação geográfica contra uma ameaça comum.",
+    "Antes de promover uma réplica, confirme sua integridade e sua defasagem; servidor ligado não significa dados atuais.",
+    "No failback, descubra qual ambiente é autoritativo e sincronize antes de inverter o fluxo de replicação."
+  ],
+  "traps": [
+    "Afirmar que o CP-4 manda testar mensalmente para qualquer sistema. O controle deixa a frequência para definição organizacional.",
+    "Tratar uma conversa de mesa como prova de que a transferência técnica funcionou. O exercício de mesa percorre decisões, não executa o corte.",
+    "Supor que dois sites em cidades diferentes nunca compartilham uma falha. Dependências de rede, energia, provedor ou região também importam.",
+    "Confundir RTO com a quantidade tolerável de dados perdidos. RTO é tempo; RPO é ponto de recuperação.",
+    "Presumir que replicação protege contra qualquer corrupção. O dado corrompido pode ser replicado ao destino.",
+    "Reativar o primário e inverter replicação sem reconciliar gravações do alternativo. Isso pode sobrescrever dados válidos."
+  ],
+  "activeRecall": [
+    { "question": "Descreva o ciclo mínimo de teste, avaliação e correção do plano.", "answer": "Definir frequência, métodos e cenário; executar e registrar evidências; revisar o resultado; abrir ações corretivas quando necessário; e verificar se a correção funcionou." },
+    { "question": "Compare checklist, mesa, simulação paralela e interrupção completa.", "answer": "Checklist confere conteúdo; mesa percorre decisões; simulação paralela exercita recursos alternativos sem interromper produção; interrupção completa testa transferência real e exige controle de impacto." },
+    { "question": "Diferencie RTO e RPO com um exemplo conceitual.", "answer": "RTO é quanto tempo se aceita ficar sem o serviço; RPO é até que ponto no tempo os dados precisam ser recuperados, delimitando perda tolerável." },
+    { "question": "Por que redundância geográfica exige análise além da distância física?", "answer": "Sites distantes podem compartilhar riscos de rede, energia, região, fornecedor, credenciais ou plano de controle; dependências comuns podem derrubar ambos." },
+    { "question": "Quais decisões e validações compõem um failover seguro?", "answer": "Confirmar impacto, declarar contingência, autorizar, isolar primário se preciso, conferir réplica e defasagem, promover, atualizar tráfego e dependências, testar função e comunicar estado." },
+    { "question": "Como evitar split-brain na transferência?", "answer": "Definir autoridade de escrita, cercar ou desligar o primário quando aplicável e usar mecanismos de quorum ou fencing antes de permitir que o alternativo grave." },
+    { "question": "Explique uma sequência segura de failback.", "answer": "Resolver a causa, validar capacidade e segurança do primário, identificar a cópia autoritativa, sincronizar e reconciliar dados, planejar cutover, verificar funções e monitorar; manter critérios de abortar e retorno." },
+    { "question": "Quais evidências transformam o teste em melhoria contínua?", "answer": "Tempos medidos, ponto dos dados recuperados, erros, dependências, decisões, comunicações, achados priorizados, responsáveis, correções e novo teste de confirmação." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Teste confundido com leitura do plano", "summary": "Revisão documental e exercício de mesa ajudam a encontrar lacunas, mas não provam transferência técnica. A modalidade deve testar o objetivo definido." },
+    { "key": "e2", "title": "RTO e RPO invertidos", "summary": "RTO mede a meta de tempo de recuperação; RPO define o ponto dos dados recuperáveis e a perda temporal tolerada." },
+    { "key": "e3", "title": "Redundância geográfica incompleta", "summary": "Sites separados ainda podem compartilhar energia, conectividade, região de risco, fornecedor ou controle; avaliar dependências e capacidade." },
+    { "key": "e4", "title": "Failover promove réplica sem validar", "summary": "Antes de promover, confirmar integridade, defasagem, autoridade de escrita, dependências e rotas para evitar perda ou split-brain." },
+    { "key": "e5", "title": "Failback sobrescreve dados recentes", "summary": "A operação no alternativo pode gerar dados novos; reconciliar e sincronizar a origem autoritativa antes de retornar e inverter replicação." }
+  ],
+  "questions": [
+    {
+      "statement": "De acordo com a lógica do controle CP-4 da NIST SP 800-53, qual sequência descreve corretamente o tratamento de testes de contingência?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Registrar a data do exercício e considerar o plano eficaz sem analisar o resultado.", "correct": false },
+        { "key": "B", "text": "Testar somente após desastre real e dispensar revisão caso o serviço retorne.", "correct": false },
+        { "key": "C", "text": "Executar o plano uma vez, arquivar o roteiro e manter a mesma configuração indefinidamente.", "correct": false },
+        { "key": "D", "text": "Escolher uma frequência universal, sem considerar requisitos ou mudanças do ambiente.", "correct": false },
+        { "key": "E", "text": "Testar conforme a frequência definida, revisar resultados e corrigir achados.", "correct": true }
+      ],
+      "explanation": "O CP-4 associa o teste à revisão de seus resultados e a ações corretivas quando necessárias. Um registro de execução sem análise não demonstra eficácia nem resolve falhas descobertas.",
+      "section": "1. O que um teste de contingência precisa demonstrar", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer verificar se seus operadores conhecem as decisões, os contatos e a ordem de escalonamento, sem alterar serviços de produção. Qual teste atende melhor a esse objetivo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Interromper todos os serviços e observar se os usuários abrem chamados.", "correct": false },
+        { "key": "B", "text": "Promover a réplica de produção e manter o primário desligado durante o turno.", "correct": false },
+        { "key": "C", "text": "Conduzir exercício de mesa guiado por cenário.", "correct": true },
+        { "key": "D", "text": "Apagar cópias antigas para conferir se o ambiente as recria automaticamente.", "correct": false },
+        { "key": "E", "text": "Alterar o roteamento público sem avisar as equipes responsáveis pelo sistema.", "correct": false }
+      ],
+      "explanation": "O exercício de mesa permite percorrer papéis, decisões e comunicação sem efetuar corte técnico. Ele não comprova a operação da réplica, mas corresponde ao objetivo declarado de avaliar a prontidão da equipe.",
+      "section": "1. O que um teste de contingência precisa demonstrar", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual informação deve fazer parte de um plano de teste com interrupção completa da produção?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Apenas o nome do servidor alternativo, pois a equipe decide os demais passos durante a queda.", "correct": false },
+        { "key": "B", "text": "Definir autorização, critérios de parada, comunicação e retorno.", "correct": true },
+        { "key": "C", "text": "Uma meta de RPO, que por si só define os responsáveis e os passos de roteamento.", "correct": false },
+        { "key": "D", "text": "A garantia de que nenhum usuário perceberá a interrupção, independentemente do cenário.", "correct": false },
+        { "key": "E", "text": "A senha pessoal do operador em texto aberto para agilizar a mudança emergencial.", "correct": false }
+      ],
+      "explanation": "Um corte real pode afetar usuários e dados, por isso deve ter autorização, limites, critérios de parada, comunicação e estratégia de retorno definidos previamente. Uma meta isolada não substitui o runbook.",
+      "section": "1. O que um teste de contingência precisa demonstrar", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O controle CP-4 determina que toda organização teste cada sistema exatamente uma vez por mês, sem possibilidade de ajuste local.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O controle indica uma frequência definida pela organização; não impõe um intervalo mensal universal. A frequência deve ser estabelecida conforme os requisitos aplicáveis ao sistema e ao plano.",
+      "section": "1. O que um teste de contingência precisa demonstrar", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma checklist pode localizar contatos desatualizados, mas não prova, por si só, que o site alternativo processa transações corretamente.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A checklist confere informações e pré-requisitos documentais. A capacidade técnica exige exercício compatível, como simulação no alternativo e validação de funções e dados.",
+      "section": "1. O que um teste de contingência precisa demonstrar", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Após exercício paralelo, o serviço principal permaneceu disponível, mas a autenticação falhou no alternativo. Qual ação é mais adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Encerrar o teste como aprovado, pois a autenticação não integra a recuperação de serviço.", "correct": false },
+        { "key": "B", "text": "Desativar os controles de acesso no alternativo para atender imediatamente ao RTO.", "correct": false },
+        { "key": "C", "text": "Registrar e corrigir a falha, depois repetir a validação.", "correct": true },
+        { "key": "D", "text": "Remover a autenticação do ambiente primário para que os dois sites fiquem equivalentes.", "correct": false },
+        { "key": "E", "text": "Aumentar o RPO para compensar a ausência de credenciais no site de contingência.", "correct": false }
+      ],
+      "explanation": "Identidade e credenciais são dependências operacionais. O achado deve virar ação corretiva e ser retestado sem eliminar controles de segurança nem redefinir metas sem análise.",
+      "section": "1. O que um teste de contingência precisa demonstrar", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um exercício de mesa pode ser útil mesmo quando a organização também precisa testar tecnicamente o failover.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Exercícios diferentes revelam classes diferentes de lacuna: a mesa examina decisões e coordenação, enquanto o teste técnico verifica transferência, capacidade, dados e dependências.",
+      "section": "1. O que um teste de contingência precisa demonstrar", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário justifica antecipar um exercício de recuperação, ainda que a data periódica prevista não tenha chegado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A troca de turno de uma equipe sem modificar contatos ou responsabilidades.", "correct": false },
+        { "key": "B", "text": "A repetição do mesmo exercício sem mudanças e sem achados registrados.", "correct": false },
+        { "key": "C", "text": "A atualização do nome do documento sem qualquer alteração de procedimento.", "correct": false },
+        { "key": "D", "text": "A decisão de dispensar testes enquanto todos os indicadores diários estão verdes.", "correct": false },
+        { "key": "E", "text": "A troca relevante do provedor ou da arquitetura que altere dependências do plano.", "correct": true }
+      ],
+      "explanation": "Mudança relevante de arquitetura ou fornecedor pode invalidar pressupostos e procedimentos do teste anterior. A organização deve revisar o plano e exercitar a nova configuração conforme o risco.",
+      "section": "1. O que um teste de contingência precisa demonstrar", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao testar o local alternativo presencialmente, uma finalidade concreta é familiarizar a equipe com instalações e recursos que ela usaria na contingência.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O CP-4(2) prevê teste no site alternativo para familiarizar o pessoal com a instalação e avaliar se os recursos disponíveis sustentam as operações de contingência.",
+      "section": "1. O que um teste de contingência precisa demonstrar", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A equipe concluiu uma transferência simulada em tempo adequado, mas não registrou os dados efetivamente recuperados. Qual conclusão é mais precisa?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O RPO está comprovado porque o serviço voltou antes do limite de RTO.", "correct": false },
+        { "key": "B", "text": "A interface respondeu, mas o ponto dos dados não foi medido.", "correct": true },
+        { "key": "C", "text": "O RPO pode ser dispensado se a cópia alternativa responder a consultas simples.", "correct": false },
+        { "key": "D", "text": "A ausência de registro indica que nenhuma perda de dados aconteceu durante o exercício.", "correct": false },
+        { "key": "E", "text": "O RTO deve ser redefinido para igualar o último horário de replicação conhecido.", "correct": false }
+      ],
+      "explanation": "Tempo de retomada mede RTO, não o ponto dos dados. Sem registrar a última alteração disponível ou outra evidência de consistência, não se pode concluir se o RPO foi atendido.",
+      "section": "1. O que um teste de contingência precisa demonstrar", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um teste de contingência termina quando os participantes concluem o roteiro, mesmo que nenhum resultado seja revisado e as falhas descobertas não tenham responsáveis.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A revisão dos resultados e a abertura de ações corretivas quando necessárias são parte do ciclo de controle. Sem elas, problemas conhecidos permanecem sem tratamento.",
+      "section": "1. O que um teste de contingência precisa demonstrar", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma simulação paralela pode testar a capacidade do ambiente alternativo sem necessariamente interromper o processamento primário.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A modalidade exercita recursos alternativos em paralelo e reduz o impacto sobre a produção, embora não substitua todo teste de interrupção quando este for necessário.",
+      "section": "1. O que um teste de contingência precisa demonstrar", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual desenho de teste oferece a evidência mais direta de que a equipe consegue efetuar a transferência real para o alternativo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Uma revisão da lista de telefones com confirmação por correio eletrônico.", "correct": false },
+        { "key": "B", "text": "Uma reunião de mesa em que o operador descreve os comandos que usaria.", "correct": false },
+        { "key": "C", "text": "Uma comparação documental dos diagramas de rede dos dois ambientes.", "correct": false },
+        { "key": "D", "text": "Um exercício controlado de failover com autorização, validações e observação do serviço.", "correct": true },
+        { "key": "E", "text": "Uma consulta ao painel que mostra os servidores alternativos ligados e sem alertas.", "correct": false }
+      ],
+      "explanation": "A transferência controlada permite observar as etapas reais, as dependências e a resposta funcional do serviço. Documentos, conversas e painéis ajudam, mas não demonstram sozinhos a execução ponta a ponta.",
+      "section": "1. O que um teste de contingência precisa demonstrar", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Dois equipamentos redundantes no mesmo edifício protegem necessariamente contra uma inundação que atinja todo o local.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Redundância de equipamento no mesmo local não elimina uma ameaça de causa comum que afete o edifício. A separação geográfica busca reduzir essa exposição compartilhada.",
+      "section": "2. Redundância geográfica e objetivos de recuperação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço precisa retomar em poucas horas e aceita recuperar dados até um ponto recente, com pequena perda temporal. Quais objetivos expressam essas duas necessidades?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "RTO para o tempo de retomada e RPO para o ponto dos dados recuperados.", "correct": true },
+        { "key": "B", "text": "RPO para o tempo de retomada e RTO para a quantidade de dados perdidos.", "correct": false },
+        { "key": "C", "text": "RTO para a distância dos sites e RPO para a largura de banda de rede.", "correct": false },
+        { "key": "D", "text": "RPO para a disponibilidade do processador e RTO para a retenção do backup.", "correct": false },
+        { "key": "E", "text": "RTO para o número de réplicas e RPO para a duração do exercício de mesa.", "correct": false }
+      ],
+      "explanation": "RTO é a meta de tempo até recuperar o serviço. RPO descreve o ponto temporal dos dados que se aceita recuperar e, portanto, a tolerância à perda de alterações recentes.",
+      "section": "2. Redundância geográfica e objetivos de recuperação", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A separação geográfica de sites alternativos procura reduzir a possibilidade de que a mesma ameaça afete os locais primário e alternativo.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O controle de sites alternativos enfatiza separação suficiente para reduzir suscetibilidade às mesmas ameaças; distância é analisada junto às dependências compartilhadas.",
+      "section": "2. Redundância geográfica e objetivos de recuperação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação diferencia adequadamente um site alternativo de armazenamento de um site de processamento?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Armazenamento guarda e permite recuperar cópias; processamento oferece capacidade para retomar operações.", "correct": true },
+        { "key": "B", "text": "Armazenamento executa usuários e aplicações; processamento serve apenas para guardar mídia offline.", "correct": false },
+        { "key": "C", "text": "Ambos são necessariamente o mesmo local e não podem ter funções ou contratos distintos.", "correct": false },
+        { "key": "D", "text": "Processamento substitui todas as cópias de segurança quando tem servidores suficientes.", "correct": false },
+        { "key": "E", "text": "Armazenamento é usado somente depois do failback e não participa da recuperação.", "correct": false }
+      ],
+      "explanation": "O site de armazenamento viabiliza guardar e recuperar informação de backup. O de processamento oferece recursos para transferir e retomar funções essenciais; uma arquitetura pode planejar as duas capacidades.",
+      "section": "2. Redundância geográfica e objetivos de recuperação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma replicação síncrona tende a reduzir a janela de alterações ainda não copiadas, mas pode aumentar latência e dependência da conectividade.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Na modalidade síncrona, a confirmação da gravação depende dos destinos previstos pelo desenho. Isso pode reduzir defasagem, ao custo de latência e sensibilidade à comunicação entre locais.",
+      "section": "2. Redundância geográfica e objetivos de recuperação", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual risco permanece mesmo quando um sistema replica continuamente seus dados para outra região?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A replicação impede que operadores autorizados façam alterações válidas no primário.", "correct": false },
+        { "key": "B", "text": "O destino geográfico passa a funcionar sem telecomunicações ou controles de acesso.", "correct": false },
+        { "key": "C", "text": "Uma exclusão ou corrupção lógica pode ser propagada também para a cópia replicada.", "correct": true },
+        { "key": "D", "text": "Os dados replicados deixam de poder ser restaurados por qualquer procedimento.", "correct": false },
+        { "key": "E", "text": "A replicação garante por si só que o ponto dos dados atende ao RPO aprovado.", "correct": false }
+      ],
+      "explanation": "A replicação pode copiar alterações destrutivas ou corrupção, dependendo do sistema. Cópias independentes, proteção contra alteração e testes de recuperação complementam a redundância.",
+      "section": "2. Redundância geográfica e objetivos de recuperação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Para atender ao RTO, basta contratar armazenamento alternativo; a capacidade de processamento e os caminhos de comunicação podem ser definidos somente após o incidente.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Retomada no prazo depende de capacidade de processamento, telecomunicações, acesso, recursos e procedimentos. Armazenamento alternativo sozinho não executa as operações do serviço.",
+      "section": "2. Redundância geográfica e objetivos de recuperação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização separou os sites por centenas de quilômetros, mas ambos dependem do mesmo provedor de conectividade. O que deve ser avaliado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Somente a quilometragem, porque a separação geográfica elimina dependências lógicas comuns.", "correct": false },
+        { "key": "B", "text": "Se o RPO pode substituir a necessidade de testar a conexão alternativa.", "correct": false },
+        { "key": "C", "text": "A possibilidade de apagar o site alternativo e depender da replicação local.", "correct": false },
+        { "key": "D", "text": "Se a equipe pode reduzir a segurança de rede durante a contingência.", "correct": false },
+        { "key": "E", "text": "Se a dependência compartilhada pode tornar os dois locais indisponíveis no mesmo evento.", "correct": true }
+      ],
+      "explanation": "Uma operadora compartilhada é uma dependência potencial de causa comum. A distância física reduz alguns riscos, mas a organização deve mapear telecomunicações e demais dependências entre regiões.",
+      "section": "2. Redundância geográfica e objetivos de recuperação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A replicação assíncrona confirma a gravação somente depois que todos os sites distantes receberam a alteração, eliminando qualquer defasagem.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Na replicação assíncrona, o primário pode confirmar antes de o destino receber a alteração. Isso permite defasagem e possível perda de atualizações recentes se houver falha.",
+      "section": "2. Redundância geográfica e objetivos de recuperação", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um exercício mostra retomada dentro do RTO, porém o último dado íntegro disponível é mais antigo que o RPO acordado. Como interpretar?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A estratégia atende às duas metas porque o serviço ficou disponível no prazo previsto.", "correct": false },
+        { "key": "B", "text": "A equipe deve registrar o RTO como falha e desconsiderar a diferença dos dados.", "correct": false },
+        { "key": "C", "text": "O RPO deixa de valer sempre que a equipe conclui uma restauração do serviço.", "correct": false },
+        { "key": "D", "text": "RTO atendido, mas o RPO não.", "correct": true },
+        { "key": "E", "text": "O incidente prova que a replicação síncrona foi usada corretamente em todos os destinos.", "correct": false }
+      ],
+      "explanation": "As metas avaliam aspectos distintos. Retomar no tempo atende ao RTO; recuperar dados mais antigos que o limite aceito sugere não atendimento ao RPO e requer análise da estratégia.",
+      "section": "2. Redundância geográfica e objetivos de recuperação", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um contrato de site alternativo e uma localização distante bastam para provar que o ambiente será utilizável; acesso, capacidade e telecomunicações podem ser presumidos.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Contrato e separação não provam que o serviço pode ser retomado. A organização deve validar recursos, permissões, capacidade, conectividade e procedimentos por testes compatíveis.",
+      "section": "2. Redundância geográfica e objetivos de recuperação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Antes de failover para uma réplica assíncrona, a equipe identifica atraso de replicação. Qual decisão precisa ser tratada explicitamente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Se a perda residual de alterações cabe na tolerância aprovada e quem autoriza a promoção.", "correct": true },
+        { "key": "B", "text": "Se é possível renomear o RPO como RTO para permitir a alteração da meta.", "correct": false },
+        { "key": "C", "text": "Se a equipe pode descartar os registros de atraso e assumir replicação completa.", "correct": false },
+        { "key": "D", "text": "Se o primário deve continuar aceitando gravações enquanto o alternativo é promovido.", "correct": false },
+        { "key": "E", "text": "Se o failback pode ocorrer antes de identificar qual site contém os dados mais recentes.", "correct": false }
+      ],
+      "explanation": "A defasagem representa risco de perda de dados. A decisão deve comparar o estado observado com a tolerância aprovada e seguir a autoridade de contingência; promover sem essa avaliação oculta o impacto.",
+      "section": "3. Failover: transferência controlada para o alternativo", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Failover é a transferência do serviço para um ambiente ou componente alternativo após a indisponibilidade ou inadequação do primário.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O termo descreve a mudança de processamento ou serviço para a capacidade alternativa. O procedimento também precisa tratar dados, autoridade, dependências e validação.",
+      "section": "3. Failover: transferência controlada para o alternativo", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência representa uma transferência operacional controlada para o site alternativo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Publicar a mudança de DNS, promover qualquer réplica e conferir os dados no dia seguinte.", "correct": false },
+        { "key": "B", "text": "Promover o alternativo após uma falha pontual no teste de porta.", "correct": false },
+        { "key": "C", "text": "Manter os dois sites gravando e comparar as cópias depois da estabilização do serviço.", "correct": false },
+        { "key": "D", "text": "Desativar monitoramento, encerrar alertas e permitir que usuários escolham o ambiente.", "correct": false },
+        { "key": "E", "text": "Confirmar o incidente, autorizar e validar o alternativo.", "correct": true }
+      ],
+      "explanation": "Uma transferência segura confirma o incidente e a autoridade, verifica a elegibilidade do destino, promove-o conforme o runbook, atualiza o tráfego e testa o serviço com monitoramento.",
+      "section": "3. Failover: transferência controlada para o alternativo", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Dois sites aceitam gravações simultaneamente sem coordenação e cada um considera ser primário. Essa condição caracteriza risco de split-brain.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Com dois escritores ativos podem surgir estados divergentes. O plano deve definir autoridade e impedir ou controlar a escrita concorrente, por exemplo com fencing ou mecanismo equivalente.",
+      "section": "3. Failover: transferência controlada para o alternativo", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um monitor simples falha uma vez e aciona failover automático, embora o primário continue aceitando transações. O que reduz o risco de oscilação e dupla primazia?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Desabilitar todos os health checks e deixar o tráfego fixo no local primário.", "correct": false },
+        { "key": "B", "text": "Aumentar o RPO até que a automação possa promover os dois sites ao mesmo tempo.", "correct": false },
+        { "key": "C", "text": "Usar apenas a quantidade de usuários conectados como prova da saúde do banco.", "correct": false },
+        { "key": "D", "text": "Definir sinais confiáveis, limiares e proteção contra flapping, além de fencing do primário.", "correct": true },
+        { "key": "E", "text": "Liberar escrita nos dois locais e corrigir a divergência com a próxima cópia de segurança.", "correct": false }
+      ],
+      "explanation": "Sinais robustos e limiares evitam decisões com base em falha transitória; fencing impede que o primário permaneça gravando após a promoção. Monitoramento precisa avaliar dependências relevantes, não apenas conexões superficiais.",
+      "section": "3. Failover: transferência controlada para o alternativo", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma réplica responde a consultas, mas o último registro replicado é antigo. Essa resposta comprova que ela pode ser promovida sem avaliação adicional.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A disponibilidade para consulta não comprova atualidade nem integridade. É preciso conhecer defasagem, consistência e impacto sobre o RPO antes de autorizar a promoção.",
+      "section": "3. Failover: transferência controlada para o alternativo", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Depois de promover o site alternativo, os usuários recebem erro de autenticação, embora a aplicação esteja ativa. Qual verificação é mais pertinente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Apenas a latência do processador, pois autenticação fica fora das dependências de recuperação.", "correct": false },
+        { "key": "B", "text": "Validar identidade, certificados, permissões e segredos.", "correct": true },
+        { "key": "C", "text": "Somente a distância geográfica entre os sites e a quantidade de cópias disponíveis.", "correct": false },
+        { "key": "D", "text": "A frequência do próximo teste, já que o serviço alternativo está processando requisições.", "correct": false },
+        { "key": "E", "text": "O horário do último backup, que por si só determina o funcionamento do login.", "correct": false }
+      ],
+      "explanation": "Identidade, certificados, segredos e permissões são dependências do serviço. Validar somente se a aplicação está ligada pode deixar a função indisponível para usuários.",
+      "section": "3. Failover: transferência controlada para o alternativo", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um failover automatizado elimina a necessidade de definir quem autoriza a contingência, como usuários serão informados e quando a operação deve ser abortada.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Automação executa etapas técnicas, mas o plano ainda define autoridade, comunicação, limites, observabilidade e critérios para interromper ou estabilizar a mudança.",
+      "section": "3. Failover: transferência controlada para o alternativo", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema depende de DNS, filas e integrações com terceiros. Por que incluir essas dependências no ensaio de failover?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Porque serviços dependentes podem continuar apontando ao primário e impedir o fluxo funcional no alternativo.", "correct": true },
+        { "key": "B", "text": "Porque toda fila deve ser apagada antes de mudar o tráfego, mesmo quando contém transações válidas.", "correct": false },
+        { "key": "C", "text": "Porque DNS e integrações substituem a necessidade de verificar consistência dos dados.", "correct": false },
+        { "key": "D", "text": "Porque dependências de terceiros não podem ser incluídas em contratos ou procedimentos de contingência.", "correct": false },
+        { "key": "E", "text": "Porque failover só muda nomes de rede e não pode afetar autenticação ou processamento.", "correct": false }
+      ],
+      "explanation": "A aplicação pode estar ativa e ainda falhar funcionalmente se DNS, filas ou integrações não seguirem a transferência. O runbook deve mapear os elos necessários à operação ponta a ponta.",
+      "section": "3. Failover: transferência controlada para o alternativo", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Após o failover, o ambiente que passa a aceitar gravações deve ser identificado claramente para evitar que o primário antigo continue escrevendo em paralelo.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A autoridade de escrita deve ser inequívoca. Isolar o antigo primário ou aplicar fencing ajuda a impedir divergência enquanto o alternativo atende à produção.",
+      "section": "3. Failover: transferência controlada para o alternativo", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na recuperação, a equipe observa que a interface carrega no site alternativo. Qual teste adicional oferece evidência funcional melhor?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Confirmar apenas que a mesma página carrega em outro navegador da equipe técnica.", "correct": false },
+        { "key": "B", "text": "Declarar sucesso quando a interface responde, mesmo com erros de dados conhecidos.", "correct": false },
+        { "key": "C", "text": "Desligar a monitoração por algumas horas para deixar o ambiente estabilizar.", "correct": false },
+        { "key": "D", "text": "Alterar o DNS novamente sem observar onde as gravações estão sendo feitas.", "correct": false },
+        { "key": "E", "text": "Executar teste funcional, validar funções e checar logs.", "correct": true }
+      ],
+      "explanation": "Transações controladas e validação de dependências comprovam melhor o comportamento funcional. Logs e monitoramento ajudam a perceber erros que a simples carga da interface não mostra.",
+      "section": "3. Failover: transferência controlada para o alternativo", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Failback consiste em retornar o serviço ao ambiente primário assim que esse local volta a responder ping, sem verificar dados ou causa da falha.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O retorno requer tratar a causa, validar o primário, preservar e sincronizar as alterações produzidas no alternativo e planejar uma mudança controlada.",
+      "section": "4. Failback, reconstituição e melhoria após o exercício", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Durante a contingência, foram gravados dados no site alternativo. Qual deve ser um passo anterior ao retorno da autoridade de escrita ao primário?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Apagar os dados novos do alternativo e confiar que o primário os recriará após o corte.", "correct": false },
+        { "key": "B", "text": "Identificar a origem autoritativa, sincronizar e reconciliar as alterações antes do cutover.", "correct": true },
+        { "key": "C", "text": "Reativar a replicação na direção antiga sem comparar as versões dos dados.", "correct": false },
+        { "key": "D", "text": "Liberar gravação nos dois ambientes até que a sincronização termine por conta própria.", "correct": false },
+        { "key": "E", "text": "Alterar o RTO para compensar diferenças que não foram analisadas entre os locais.", "correct": false }
+      ],
+      "explanation": "Dados gerados durante a contingência podem ser os mais recentes. A equipe precisa definir a cópia autoritativa, sincronizar e resolver divergências antes de devolver a escrita ao primário.",
+      "section": "4. Failback, reconstituição e melhoria após o exercício", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A restauração do site primário elimina a necessidade de verificar a causa original da interrupção antes do failback.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Se a causa permanecer, a transferência de volta pode reproduzir a interrupção. A equipe precisa diagnosticar e tratar o problema e validar a capacidade do primário.",
+      "section": "4. Failback, reconstituição e melhoria após o exercício", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência é mais segura para planejar o retorno do processamento ao site primário?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Reativar o site, inverter replicação, apontar usuários e só então analisar a causa da falha.", "correct": false },
+        { "key": "B", "text": "Parar monitoramento, habilitar dois escritores e comparar relatórios no próximo ciclo de backup.", "correct": false },
+        { "key": "C", "text": "Resolver a causa, validar primário, reconciliar dados, executar cutover e monitorar o resultado.", "correct": true },
+        { "key": "D", "text": "Transferir usuários primeiro e decidir depois se o alternativo continha gravações mais recentes.", "correct": false },
+        { "key": "E", "text": "Usar o horário de retorno elétrico como prova de que aplicações e dados estão íntegros.", "correct": false }
+      ],
+      "explanation": "A sequência protege os dados e evita repetir a interrupção: elimina a causa, verifica prontidão, reconcilia a cópia autoritativa, transfere de forma planejada e observa o serviço após o corte.",
+      "section": "4. Failback, reconstituição e melhoria após o exercício", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O failback pode ser tratado como outro cutover, com critérios de sucesso, monitoração e condição de abortar definidos antes da mudança.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O retorno muda tráfego e autoridade operacional e pode falhar. Planejar critérios, monitoramento e retorno permite estabilizar a operação se o primário não se comportar como esperado.",
+      "section": "4. Failback, reconstituição e melhoria após o exercício", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao reativar a replicação após failback, qual erro deve ser prevenido?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Sincronizar a cópia autoritativa para o destino correto e registrar a posição dos dados.", "correct": false },
+        { "key": "B", "text": "Sobrescrever dados válidos com uma cópia mais antiga ao manter a direção de replicação inadequada.", "correct": true },
+        { "key": "C", "text": "Manter monitoração durante a sincronização para perceber falhas e atrasos.", "correct": false },
+        { "key": "D", "text": "Validar transações e consistência após o corte de tráfego para o primário.", "correct": false },
+        { "key": "E", "text": "Preservar logs e evidências para analisar a causa e comprovar o resultado.", "correct": false }
+      ],
+      "explanation": "Se a replicação voltar na direção antiga sem identificar a fonte mais recente, uma cópia atrasada pode sobrescrever atualizações feitas durante a contingência. Direção e autoridade precisam ser confirmadas.",
+      "section": "4. Failback, reconstituição e melhoria após o exercício", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Depois do retorno ao primário, é suficiente confirmar que a aplicação está ligada; alertas, tarefas agendadas e integrações podem ficar para uma revisão anual.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A validação pós-corte deve abranger funções, dados, alertas, tarefas, permissões, integrações e monitoração para confirmar que o serviço voltou de forma completa e estável.",
+      "section": "4. Failback, reconstituição e melhoria após o exercício", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A equipe concluiu teste de recuperação e precisa comparar o desempenho real com os objetivos. Que conjunto de medições é mais útil?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Tempo até a retomada, ponto dos dados disponíveis e falhas observadas nas funções críticas.", "correct": true },
+        { "key": "B", "text": "Número de participantes, tamanho da sala e quantidade de páginas do plano utilizado.", "correct": false },
+        { "key": "C", "text": "Distância do alternativo, custo anual do contrato e marca dos equipamentos instalados.", "correct": false },
+        { "key": "D", "text": "Quantidade de alertas suprimidos e número de mudanças de DNS solicitadas.", "correct": false },
+        { "key": "E", "text": "Tempo de reunião posterior, sem registrar quando o serviço voltou ou quais dados faltavam.", "correct": false }
+      ],
+      "explanation": "Tempo de retomada e ponto dos dados permitem comparar resultados a RTO e RPO. Falhas funcionais e dependências mostram se o serviço essencial realmente foi recuperado.",
+      "section": "4. Failback, reconstituição e melhoria após o exercício", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um plano que funcionava antes de uma mudança de arquitetura pode precisar de revisão e novo teste porque pressupostos de rede, capacidade e dependências podem ter mudado.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O plano deve refletir a configuração atual. Mudanças relevantes podem invalidar procedimentos e resultados anteriores, portanto a organização avalia a necessidade de revisão e teste adicional.",
+      "section": "4. Failback, reconstituição e melhoria após o exercício", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o papel de registrar um responsável e evidência de fechamento para cada achado do exercício?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Substituir o próximo teste, pois uma ação atribuída prova que o defeito foi removido.", "correct": false },
+        { "key": "B", "text": "Transferir toda a responsabilidade do plano para o fornecedor do site alternativo.", "correct": false },
+        { "key": "C", "text": "Permitir acompanhar a correção e confirmar que a lacuna identificada foi efetivamente tratada.", "correct": true },
+        { "key": "D", "text": "Retirar a necessidade de atualizar contatos e instruções depois da mudança.", "correct": false },
+        { "key": "E", "text": "Demonstrar que o objetivo de recuperação foi cumprido sem medir os tempos reais.", "correct": false }
+      ],
+      "explanation": "Atribuição e evidência tornam a ação acompanhável e verificável. A correção ainda precisa ser validada, muitas vezes por repetição do passo ou do exercício relevante.",
+      "section": "4. Failback, reconstituição e melhoria após o exercício", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe que planeja failback deve considerar a possibilidade de não conseguir retornar ao local primário e manter uma alternativa de continuidade.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A NIST SP 800-53 inclui planejamento para circunstâncias que impeçam o retorno ao site primário. O plano não deve presumir que o local original estará sempre recuperável.",
+      "section": "4. Failback, reconstituição e melhoria após o exercício", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um ensaio completo, a equipe recuperou o sistema, mas não testou sua reconstituição a um estado conhecido. Qual lacuna permanece?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Não há lacuna se o servidor iniciou, pois reconstituição é somente documentação de inventário.", "correct": false },
+        { "key": "B", "text": "Ainda falta evidência de que o sistema e os dados podem retornar a uma condição conhecida e validada.", "correct": true },
+        { "key": "C", "text": "Apenas o RTO pode ser medido, porque estado dos dados é independente da recuperação.", "correct": false },
+        { "key": "D", "text": "O teste deve ser repetido apagando os registros operacionais que poderiam mostrar divergências.", "correct": false },
+        { "key": "E", "text": "A equipe precisa mover de volta ao primário antes de observar o ambiente alternativo.", "correct": false }
+      ],
+      "explanation": "Recuperação completa inclui validar estado e dados, não apenas inicializar componentes. O CP-4(4) trata da inclusão de recuperação e reconstituição integral a um estado conhecido nos testes aplicáveis.",
+      "section": "4. Failback, reconstituição e melhoria após o exercício", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Se o serviço passou a funcionar no alternativo, a organização não precisa registrar limitações ou dados que possam ter sido perdidos, desde que o RTO tenha sido cumprido.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A equipe deve registrar tempos, ponto dos dados, limitações e decisões. Cumprir RTO não demonstra que o RPO foi atendido nem que não houve impacto residual.",
+      "section": "4. Failback, reconstituição e melhoria após o exercício", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço de terceiros participa do processamento no local alternativo. Qual preparação reduz o risco de ele bloquear a recuperação?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Pressupor que o fornecedor seguirá automaticamente o mesmo failover do ambiente interno.", "correct": false },
+        { "key": "B", "text": "Remover a dependência do inventário porque ela está fora do controle direto da equipe.", "correct": false },
+        { "key": "C", "text": "Aguardar o failover terminar antes de falar com o fornecedor.", "correct": false },
+        { "key": "D", "text": "Acordar contato, capacidade e acionamento com o fornecedor.", "correct": true },
+        { "key": "E", "text": "Usar um teste de mesa como substituto permanente para verificar conectividade real.", "correct": false }
+      ],
+      "explanation": "Serviços externos são dependências de recuperação. Contatos, capacidade, responsabilidades e condições de acionamento precisam estar definidos e, quando possível, exercitados no plano.",
+      "section": "2. Redundância geográfica e objetivos de recuperação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual ação ajuda a verificar se o ambiente alternativo consegue suportar o processamento previsto, além de simplesmente existir no inventário?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Confirmar que o contrato de hospedagem está arquivado no repositório institucional.", "correct": false },
+        { "key": "B", "text": "Comparar o número de salas técnicas disponíveis nos dois locais.", "correct": false },
+        { "key": "C", "text": "Manter o ambiente alternativo desligado e assumir capacidade igual à do primário.", "correct": false },
+        { "key": "D", "text": "Exercitar o site e medir funções e capacidade.", "correct": true },
+        { "key": "E", "text": "Usar a última fatura do provedor como prova de prontidão operacional.", "correct": false }
+      ],
+      "explanation": "Exercitar o site alternativo familiariza a equipe com os recursos reais e permite avaliar se a capacidade disponível sustenta as operações de contingência previstas.",
+      "section": "1. O que um teste de contingência precisa demonstrar", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No procedimento de failover, por que a equipe deve comunicar o estado operacional e o responsável pela próxima decisão?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Para dispensar validações técnicas quando usuários já souberem que houve mudança.", "correct": false },
+        { "key": "B", "text": "Para transferir a responsabilidade técnica ao primeiro usuário que responder.", "correct": false },
+        { "key": "C", "text": "Para confirmar que a réplica está íntegra sem consultar métricas ou registros.", "correct": false },
+        { "key": "D", "text": "Para autorizar que cada área escolha qual ambiente aceitará gravações.", "correct": false },
+        { "key": "E", "text": "Informar o estado do serviço, as equipes responsáveis e as ações dependentes.", "correct": true }
+      ],
+      "explanation": "Comunicação clara coordena equipes, dependências e usuários durante uma mudança de operação. Ela informa o estado, mas não substitui autorização nem validação técnica.",
+      "section": "3. Failover: transferência controlada para o alternativo", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "SP 800-53 Rev. 5, Security and Privacy Controls for Information Systems and Organizations",
+      "publisher": "NIST Computer Security Resource Center",
+      "reference": "Família CP: CP-2 e CP-4 (teste, revisão de resultados, correções, exercício no site alternativo e recuperação/reconstituição); CP-6 e CP-7 (sites alternativos de armazenamento e processamento).",
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NIST SP 800-53 Revision 5.1 OSCAL PDF",
+      "publisher": "NIST",
+      "reference": "Texto dos controles CP-2, CP-4, CP-6, CP-7 e CP-10, incluindo testes, separação de sites e reconstituição a estado conhecido.",
+      "url": "https://csrc.nist.gov/CSRC/media/Projects/risk-management/800-53%20Downloads/800-53r5/SP_800-53_v5_1-derived-OSCAL.pdf",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SP 800-34 Rev. 1, Contingency Planning Guide for Federal Information Systems",
+      "publisher": "NIST Computer Security Resource Center",
+      "reference": "Guia de planejamento de contingência, requisitos e prioridades de recuperação de sistemas e relações com planos de continuidade e recuperação de desastre.",
+      "url": "https://csrc.nist.gov/pubs/sp/800/34/r1/upd1/final",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "CSRC Topics: Contingency Planning",
+      "publisher": "NIST Computer Security Resource Center",
+      "reference": "Estratégias de recuperação com equipamento alternativo, meios manuais e local alternativo.",
+      "url": "https://csrc.nist.gov/topics/security-and-privacy/security-programs-and-operations/contingency-planning",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

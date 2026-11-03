@@ -1,0 +1,899 @@
+{
+  "id": "informatica.componentizacao-software",
+  "subject": "Informática",
+  "title": "Técnicas de componentização de software",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Técnicas de componentização de software",
+    "Componentização de software",
+    "Desenvolvimento baseado em componentes",
+    "Engenharia de software baseada em componentes",
+    "Arquitetura baseada em componentes",
+    "Projeto de sistemas com componentes",
+    "Interfaces e contratos de componentes",
+    "Composição e integração de componentes",
+    "Reutilização de componentes de software",
+    "Componentes substituíveis de software"
+  ],
+  "scope": {
+    "covers": "Técnicas de componentização: decomposição por responsabilidades, coesão e acoplamento; encapsulamento e ocultação de implementação; interfaces oferecidas e requeridas, contratos e dependências; composição, conectores e mecanismos de integração; reutilização e substituição; componentes em módulos, bibliotecas e serviços; padrões Adapter, Facade, Strategy e Observer aplicados à integração; versionamento, compatibilidade, testes e riscos de granularidade e dependências.",
+    "excludes": "Especificação completa de plataformas particulares como CORBA CCM, EJB ou OSGi; modelagem UML em profundidade; implantação e operação de microsserviços; detalhes internos de linguagens ou frameworks específicos."
+  },
+  "theoryTitle": "Como decompor, conectar e substituir componentes",
+  "chapters": [
+    {
+      "title": "1. De funções isoladas a componentes com fronteiras claras",
+      "markdown": "### O problema que este assunto resolve\n\nQuando todas as regras, consultas, telas e integrações ficam misturadas, uma mudança local pode quebrar partes distantes do sistema. A componentização divide o sistema em unidades com responsabilidades identificáveis, fronteiras explícitas e formas conhecidas de interação. A equipe consegue compreender, testar e evoluir cada parte com menos dependência dos detalhes internos das demais.\n\n> **Siglas e termos deste capítulo**\n> - **Componente**: unidade de software com responsabilidade funcional e pontos de interação identificáveis; pode ser composta com outras unidades para formar um sistema.\n> - **Coesão**: grau em que os elementos de uma unidade colaboram para cumprir uma responsabilidade relacionada.\n> - **Acoplamento**: grau de dependência entre unidades.\n> - **Encapsulamento**: proteção dos detalhes internos, expondo apenas o necessário para interagir.\n> - **Granularidade**: tamanho e amplitude da responsabilidade atribuída a uma unidade.\n\n### Como escolher as fronteiras\n\nUma decomposição útil começa por capacidades e regras que fazem sentido juntas. Em uma loja virtual, por exemplo, catálogo de produtos, cálculo de frete e emissão de cobrança podem ter responsabilidades distintas. O componente de cobrança recebe uma solicitação bem definida e retorna um resultado; o componente de frete pode calcular preço e prazo sem conhecer a tela que apresentou o pedido.\n\nA fronteira deve manter **alta coesão**: dados e operações que mudam pelas mesmas razões ficam juntos. Deve também reduzir **acoplamento**: outros componentes não devem depender de tabelas internas, variáveis globais ou classes concretas que poderiam mudar sem alterar o serviço público.\n\n| Escolha | Efeito provável | Exemplo\n| --- | --- | --- |\n| Agrupar por responsabilidade | Coesão maior e mudanças localizadas | Cálculo de tarifa em um componente de frete |\n| Dividir cada operação em uma unidade minúscula | Mais conexões e coordenação do que benefício | Um componente só para multiplicar dois valores |\n| Concentrar regras sem relação | Mudanças distintas disputam a mesma fronteira | Cobrança, catálogo e autenticação num único componente |\n\n### Decomposição funcional e por domínio\n\nNa decomposição funcional, unidades correspondem a atividades como validar entrada, calcular tributo ou gerar relatório. Na decomposição por domínio, os limites acompanham conceitos e regras do negócio, como pedido, estoque e pagamento. As abordagens podem se combinar: o importante é que cada fronteira preserve responsabilidade compreensível e permita explicitar as interações.\n\nA **ocultação de informação** complementa a decomposição. O componente de estoque pode guardar sua estrutura de armazenamento e expor operações como reservar, confirmar e liberar unidades. Um consumidor não precisa conhecer a tabela, o algoritmo de bloqueio ou a tecnologia usada para persistir. Se o armazenamento mudar, a interface pública pode continuar igual.\n\n### Granularidade: nem monólito, nem fragmentação automática\n\nUm componente muito grande tende a reunir motivos de mudança diferentes e dificulta reutilização. Um componente minúsculo pode exigir muitas chamadas, contratos e coordenação, sem isolar uma responsabilidade real. Escolha o tamanho pelo limite funcional, pela necessidade de evolução independente e pelo custo de integração. Componentização não significa obrigatoriamente distribuir cada unidade em um processo ou servidor.\n\n### Como cai na prova\n\n- Uma unidade com responsabilidade focada, interface clara e detalhes escondidos exemplifica boa componentização.\n- Separar partes relacionadas sem definir como interagem apenas desloca a complexidade para as conexões.\n- Alta coesão e baixo acoplamento são objetivos de projeto, não garantias automáticas de qualquer divisão em módulos.\n- Componente não é sinônimo de microsserviço: pode ser uma biblioteca ou módulo dentro de um único executável."
+    },
+    {
+      "title": "2. Interfaces, contratos e dependências explícitas",
+      "markdown": "### O problema que este assunto resolve\n\nComponentes independentes precisam combinar sobre o que oferecem, o que esperam de outros e o que significam suas operações. Uma interface explícita permite integrar implementações diferentes sem expor o código interno. Um contrato torna previsíveis os resultados e as condições de uso.\n\n> **Siglas e termos deste capítulo**\n> - **Interface oferecida (provided)**: conjunto de operações ou serviços que o componente disponibiliza a consumidores.\n> - **Interface requerida (required)**: serviço externo de que o componente precisa para cumprir sua responsabilidade.\n> - **Contrato**: compromisso observável que especifica condições, resultados e restrições de uma interação.\n> - **Pré-condição**: condição que deve valer antes da operação.\n> - **Pós-condição**: resultado ou condição que a operação garante quando termina com sucesso.\n> - **Invariante**: propriedade que deve continuar verdadeira nos estados válidos do componente.\n\n### Oferecer e requerer\n\nConsidere um componente de pedidos que oferece `criarPedido` e requer serviços de estoque e cobrança. Sua interface oferecida é o ponto de entrada para quem cria pedidos; suas interfaces requeridas explicitam dependências externas. Uma conexão associa a interface requerida de um componente a uma interface oferecida compatível por outro. Isso permite inspecionar a arquitetura e localizar dependências antes da execução.\n\nO modelo CORBA Component Model da OMG dá nomes concretos a pontos de interação: **facets** são interfaces distintas oferecidas pelo componente; **receptacles** representam pontos nomeados nos quais ele usa uma referência externa. O mesmo modelo também define fontes de eventos, que os emitem, e receptores de eventos, que os recebem. Esses termos pertencem a esse modelo específico; a distinção geral entre oferecer e requerer aparece em diversas arquiteturas componentizadas.\n\n| Ponto de interação | Papel | Exemplo\n| --- | --- | --- |\n| Interface oferecida | Atender solicitações externas | Serviço `consultarSaldo` de uma conta |\n| Interface requerida | Usar um serviço externo | Componente de pedido que chama estoque |\n| Fonte de evento | Publicar uma ocorrência | Pedido que emite `PedidoConfirmado` |\n| Receptor de evento | Processar ocorrência recebida | Componente de notificações que escuta confirmação |\n\n### Contratos que podem ser verificados\n\nUma operação `reservar(item, quantidade)` pode exigir quantidade positiva e item existente; pode garantir reserva ou retornar indisponibilidade sem alterar o saldo reservado. Uma invariante pode exigir que o estoque disponível nunca fique negativo. Pré-condições, pós-condições e invariantes descrevem aspectos funcionais do contrato. Também são relevantes protocolos e formatos de dados, erros previstos, segurança e limites de desempenho.\n\nUma assinatura de método sozinha não especifica tudo isso. O contrato precisa esclarecer semântica: duas implementações podem expor `calcularFrete` com os mesmos parâmetros e ainda divergir se uma retorna valor em centavos e outra em reais. Nome, tipos, unidades, erros e efeitos observáveis fazem parte da compatibilidade.\n\n### Inversão de dependência e injeção\n\nSe o componente de pedido instancia diretamente uma classe concreta de um fornecedor de pagamento, teste e substituição ficam presos àquela implementação. Com **inversão de dependência**, a regra de pedido depende de uma abstração estável; adaptadores concretos implementam essa abstração. **Injeção de dependência** é uma técnica para fornecer a implementação necessária por construtor, configuração ou mecanismo equivalente, em vez de criá-la escondida dentro do consumidor.\n\nA inversão define para onde apontam as dependências do código; a injeção é uma forma de conectá-las. Injetar um objeto não torna automaticamente o projeto modular: a interface precisa expressar um contrato útil e as dependências devem permanecer compreensíveis.\n\n### Como cai na prova\n\n- Interface oferecida responde “o que este componente disponibiliza”; requerida responde “de que serviço ele precisa”.\n- Facet e receptacle são termos do CCM da OMG para interação oferecida e requerida, respectivamente.\n- Uma interface compatível exige semântica e formato coerentes, não apenas nomes de operações iguais.\n- Dependência de abstrações e injeção facilitam substituição e teste, mas não dispensam contratos claros."
+    },
+    {
+      "title": "3. Técnicas de composição, adaptação e comunicação",
+      "markdown": "### O problema que este assunto resolve\n\nUnidades bem separadas ainda precisam colaborar. A composição define como elas são conectadas para realizar uma função maior. Escolher chamadas diretas, eventos, fachadas ou adaptadores muda o acoplamento, o fluxo de controle e a forma de tratar falhas.\n\n> **Siglas e termos deste capítulo**\n> - **Composição**: combinação de componentes conectados para formar uma aplicação ou subsistema.\n> - **Conector**: mecanismo ou regra que permite a interação entre componentes, como chamada, canal de eventos ou protocolo.\n> - **Adapter (adaptador)**: converte uma interface ou formato em outro esperado pelo consumidor.\n> - **Facade (fachada)**: oferece uma entrada simplificada para um conjunto de componentes ou subsistemas.\n> - **Strategy (estratégia)**: encapsula uma política intercambiável atrás de uma interface comum.\n> - **Observer (observador)**: comunica mudanças por meio de publicação e inscrição em eventos.\n\n### Chamada direta e conectores\n\nUma chamada síncrona é fácil de acompanhar: o componente A chama uma operação de B e aguarda o resultado. Ela é adequada quando A precisa do resultado imediatamente, mas cria dependência de disponibilidade, latência e contrato de B. Uma chamada remota pode falhar por timeout mesmo que o consumidor não saiba se o provedor concluiu a operação; idempotência e tratamento de repetição precisam ser planejados quando aplicáveis.\n\nConectores podem mediar interações. Um canal de mensagens desacopla temporalmente produtor e consumidor, mas exige definir formato, entrega, ordenação, duplicidade e comportamento quando o consumidor está indisponível. A escolha do conector faz parte da arquitetura e não elimina as responsabilidades de compatibilidade e tratamento de falha.\n\n### Adaptar sem contaminar o consumidor\n\nSuponha que o sistema espere `Pagamento.aprovar(valorEmCentavos)`, enquanto uma biblioteca externa oferece `charge(amountDecimal, currency)`. Um **Adapter** implementa a interface esperada pelo sistema e converte chamada, unidades e resposta para o formato do fornecedor. Assim, a regra de negócio continua usando seu contrato e a dependência específica fica na borda. O adaptador não deve esconder diferenças semânticas importantes, como autorização versus captura definitiva.\n\nUma **Facade** oferece operações de nível mais alto sobre vários componentes. Por exemplo, `finalizarCompra` pode coordenar pedido, estoque e pagamento atrás de uma entrada única para a camada de interface. A fachada simplifica o uso, mas não deve virar um novo componente que concentra todas as regras e conhece indiscriminadamente cada detalhe interno.\n\n### Variações de comportamento\n\nCom **Strategy**, o consumidor chama uma abstração e a implementação escolhida fornece uma política: cálculo de frete expresso ou econômico, por exemplo. A escolha pode vir de configuração ou contexto de execução. O consumidor não precisa conter uma cadeia de condicionais amarrada a classes específicas. A substituição só é segura se todas as estratégias cumprirem o mesmo contrato esperado.\n\nCom **Observer** ou publicação/assinatura, produtores emitem eventos e interessados inscritos reagem. Pedido confirmado pode gerar notificações e atualizar uma projeção. O produtor não precisa conhecer cada consumidor, mas a comunicação passa a ser menos direta: é necessário tratar ordem, repetição, falhas e evolução do esquema do evento.\n\n### Como cai na prova\n\n- Adapter converte interfaces incompatíveis; Facade simplifica o acesso a um subsistema; Strategy permite trocar uma política; Observer propaga eventos a interessados.\n- Uma interface comum facilita substituição, desde que as implementações respeitem a semântica do contrato.\n- Eventos reduzem conhecimento direto entre produtor e consumidor, mas acrescentam questões de entrega e consistência.\n- A composição precisa explicitar quem inicia a interação, o que é transmitido e o que ocorre em caso de erro."
+    },
+    {
+      "title": "4. Reutilização, compatibilidade, teste e evolução",
+      "markdown": "### O problema que este assunto resolve\n\nA promessa de reutilizar componentes depende de mais do que copiar um arquivo. Consumidores precisam localizá-los, compreender requisitos, combinar versões e verificar que a composição funciona. Uma alteração de interface pode quebrar muitos clientes; testes e regras de compatibilidade reduzem esse risco.\n\n> **Siglas e termos deste capítulo**\n> - **Compatibilidade**: capacidade de uma nova versão continuar atendendo os consumidores segundo o contrato anterior.\n> - **Teste de componente**: verificação do comportamento de uma unidade isolada, com dependências controladas.\n> - **Teste de integração**: verificação de interações reais entre componentes conectados.\n> - **Stub**: substituto simplificado que fornece respostas controladas a chamadas.\n> - **Mock**: substituto configurado para observar ou verificar interações esperadas.\n> - **Versionamento semântico**: convenção de versão que comunica mudanças incompatíveis, aditivas e correções, conforme as regras adotadas pelo projeto.\n\n### Catálogo, embalagem e contexto\n\nUm componente reutilizável precisa informar sua interface, versão, dependências, plataforma, configuração, licença quando pertinente e comportamento relevante. Um pacote instalável pode conter binários, descritores, recursos e metadados. Um artefato sem contrato ou documentação pode ser tecnicamente copiável, mas difícil de integrar com segurança.\n\nReutilização também depende do contexto: componente que assume banco, sistema operacional, protocolo ou credencial específica não é universal. Dependências explícitas e configuração externa deixam mais claro o que precisa existir para a unidade funcionar. A distribuição independente é uma possibilidade em alguns modelos, não um requisito para todo módulo chamado de componente em qualquer contexto.\n\n### Evoluir interfaces sem quebrar clientes\n\nAdicionar uma operação opcional pode ser compatível para consumidores existentes, se o modelo de interface permitir. Remover ou renomear operação, mudar unidade de medida, alterar formato de retorno ou tornar obrigatório um parâmetro tende a quebrar clientes. Para mudanças incompatíveis, mantenha uma versão antiga durante uma transição, publique contrato novo e migre consumidores de forma planejada. Testes de contrato verificam expectativas entre provedor e consumidor; testes de integração confirmam a composição concreta.\n\n### Estratégia de testes\n\nTeste de unidade ou componente exercita regras isoladamente, usando stubs ou mocks para controlar respostas e falhas das dependências. Isso ajuda a testar casos como timeout do serviço de pagamento sem acessar o fornecedor real. Em seguida, testes de integração verificam se adaptador, serialização, configuração e protocolo realmente combinam. Nenhum nível substitui totalmente o outro: um mock pode continuar verde enquanto o endpoint real mudou seu formato.\n\nTambém convém testar propriedades relevantes do contrato: valores inválidos são rejeitados, erros previstos são comunicados, invariantes se mantêm e substitutos respeitam os mesmos resultados observáveis. Em sistemas com eventos, verifique duplicatas, reordenação e reprocessamento conforme as garantias adotadas.\n\n### Como cai na prova\n\n- Reutilização exige interface, dependências e contexto de execução compreensíveis.\n- Remover operação ou mudar sua semântica pode quebrar consumidores, mesmo que o componente continue compilando.\n- Teste isolado verifica a unidade; teste de integração verifica conexões concretas.\n- Mock não prova que um provedor externo real ainda respeita o contrato.\n- Distribuir componente em rede é decisão arquitetural; componentização não obriga microsserviços."
+    }
+  ],
+  "summary": "Componentização de software decompõe um sistema em unidades com responsabilidades coesas, detalhes encapsulados e pontos de interação explícitos. Fronteiras bem escolhidas mantêm alta coesão e reduzem acoplamento, sem fragmentar o sistema em unidades arbitrariamente pequenas. Interfaces oferecidas descrevem serviços disponíveis; interfaces requeridas registram dependências. Contratos podem definir pré-condições, pós-condições, invariantes, formatos, erros e semântica. A composição conecta interfaces por chamadas, eventos ou outros conectores. Adapter traduz interfaces incompatíveis, Facade simplifica o acesso a subsistemas, Strategy encapsula políticas intercambiáveis e Observer distribui eventos. Inversão de dependência orienta regras para abstrações; injeção fornece implementações concretas. Reutilização requer versões, dependências e contexto documentados. Testes de componente isolam regras; testes de integração verificam conexões e contratos reais. Componentização pode ocorrer dentro de um processo e não significa, por si só, microsserviços.",
+  "flashcards": [
+    { "front": "O que caracteriza um componente de software?", "back": "Uma unidade com responsabilidade identificável, implementação encapsulada e pontos de interação definidos, que pode ser composta com outras unidades." },
+    { "front": "O que significa alta coesão?", "back": "Que os elementos de uma unidade colaboram para uma responsabilidade relacionada e mudam por razões próximas." },
+    { "front": "O que significa baixo acoplamento?", "back": "Que componentes dependem pouco dos detalhes internos uns dos outros e interagem por contratos estáveis." },
+    { "front": "O que é encapsulamento na componentização?", "back": "Ocultar estrutura e decisões internas, expondo somente os serviços necessários para interação." },
+    { "front": "Qual a diferença entre interface oferecida e requerida?", "back": "A oferecida descreve o que o componente disponibiliza; a requerida descreve serviços externos de que ele depende." },
+    { "front": "O que é um contrato de componente?", "back": "Especificação do comportamento observável, das condições de uso, dos resultados e das restrições da interação." },
+    { "front": "O que uma pré-condição descreve?", "back": "Uma condição que deve valer antes da operação ser chamada para que o uso seja válido." },
+    { "front": "O que é uma invariante?", "back": "Uma propriedade que deve permanecer verdadeira nos estados válidos do componente." },
+    { "front": "No CCM, o que é uma facet?", "back": "Uma interface nomeada oferecida pelo componente para interação com clientes." },
+    { "front": "No CCM, o que é um receptacle?", "back": "Um ponto nomeado que representa a capacidade do componente de usar uma referência fornecida externamente." },
+    { "front": "Para que serve o Adapter?", "back": "Para converter a interface, o formato ou a representação de um serviço para o que o consumidor espera." },
+    { "front": "Para que serve a Facade?", "back": "Para oferecer uma entrada mais simples que coordena o acesso a um conjunto de componentes ou subsistema." },
+    { "front": "Para que serve Strategy?", "back": "Para encapsular uma política intercambiável atrás de uma abstração comum." },
+    { "front": "Como funciona Observer?", "back": "Um produtor publica mudanças ou eventos e consumidores inscritos reagem sem precisar ser chamados nominalmente pelo produtor." },
+    { "front": "O que é inversão de dependência?", "back": "Fazer regras de alto nível dependerem de abstrações estáveis, não de detalhes concretos de infraestrutura." },
+    { "front": "O que é injeção de dependência?", "back": "Fornecer ao consumidor a implementação requerida externamente, por construtor, configuração ou mecanismo equivalente." },
+    { "front": "Componentização exige distribuição em processos separados?", "back": "Não. Componentes podem ser módulos ou bibliotecas dentro de um único executável." },
+    { "front": "O que verifica um teste de componente?", "back": "O comportamento da unidade isolada, normalmente com dependências controladas ou substituídas." },
+    { "front": "O que verifica um teste de integração?", "back": "Se componentes conectados interagem corretamente por protocolos, formatos e configurações concretos." },
+    { "front": "Por que uma mudança semântica pode quebrar compatibilidade?", "back": "Porque consumidores podem depender do significado, unidade, formato e efeitos da operação, não apenas de sua assinatura." }
+  ],
+  "tips": [
+    "Para escolher fronteiras, pergunte que responsabilidade muda e quais regras precisam permanecer juntas.",
+    "Desenhe as dependências como interfaces requeridas conectadas a interfaces oferecidas.",
+    "Registre unidade de medida, erros e efeitos no contrato; nomes de métodos não bastam.",
+    "Use Adapter para converter interfaces, Facade para simplificar acesso, Strategy para alternar política e Observer para eventos.",
+    "Teste regras com dependências controladas e depois confira a integração com os componentes concretos.",
+    "Não deduza microsserviços apenas da palavra componente: examine processo, implantação e comunicação."
+  ],
+  "traps": [
+    "Dividir o sistema em mais arquivos não garante coesão nem baixo acoplamento.",
+    "Uma interface com os mesmos nomes de método pode continuar incompatível se mudar unidades ou significados.",
+    "Adapter e Facade não são equivalentes: um traduz interface; a outra simplifica um conjunto de interações.",
+    "Injeção de dependência fornece implementações, mas não corrige contratos mal definidos por si só.",
+    "Eventos reduzem a dependência direta entre produtor e consumidor, mas não eliminam falhas de entrega e duplicidade.",
+    "Mocks ajudam no isolamento, mas não confirmam que a integração real continua funcionando."
+  ],
+  "activeRecall": [
+    { "question": "Como distinguir uma fronteira de componente útil de uma divisão arbitrária?", "answer": "A fronteira reúne comportamento coeso, protege detalhes que podem mudar e oferece interações claras; a divisão arbitrária acrescenta coordenação sem isolar responsabilidade relevante." },
+    { "question": "Explique interface oferecida e interface requerida usando um componente de pedidos.", "answer": "Pedidos pode oferecer criar e consultar pedidos e requerer serviços de estoque e pagamento para cumprir essas operações." },
+    { "question": "Dê um exemplo de contrato com pré-condição e pós-condição.", "answer": "Reservar item exige quantidade positiva; se concluir com sucesso, a quantidade fica reservada e o saldo disponível não se torna negativo." },
+    { "question": "Que problema resolve o Adapter numa integração com fornecedor externo?", "answer": "Converte a interface, unidade, formato ou resultado do fornecedor para o contrato que o sistema consumidor espera." },
+    { "question": "Compare Adapter e Facade.", "answer": "Adapter compatibiliza interfaces diferentes; Facade apresenta uma entrada simplificada para um subsistema com várias partes." },
+    { "question": "Que cuidados surgem ao substituir chamada síncrona por eventos?", "answer": "É preciso definir formato, entrega, ordenação, duplicidade, falhas, reprocessamento e evolução dos eventos." },
+    { "question": "Qual a diferença entre inversão e injeção de dependência?", "answer": "Inversão é a direção de dependência para abstrações; injeção é uma técnica para fornecer a implementação concreta ao consumidor." },
+    { "question": "Por que teste unitário com mock não substitui teste de integração?", "answer": "O mock pode reproduzir o contrato esperado mesmo que o provedor real tenha alterado protocolo, serialização ou configuração." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Fronteiras e granularidade inadequadas", "summary": "Coesão reúne regras relacionadas; acoplamento expressa dependências entre unidades. Componente grande demais concentra motivos de mudança, e componente minúsculo demais aumenta coordenação sem benefício." },
+    { "key": "e2", "title": "Interfaces e contratos incompletos", "summary": "Interfaces oferecidas expõem serviços; interfaces requeridas registram dependências. Compatibilidade inclui semântica, formatos, unidades, erros e efeitos, além de nomes e tipos." },
+    { "key": "e3", "title": "Padrões de integração confundidos", "summary": "Adapter traduz interface; Facade simplifica subsistema; Strategy troca política; Observer propaga eventos. Cada técnica tem efeitos distintos sobre dependências e fluxo." },
+    { "key": "e4", "title": "Dependências concretas e substituição frágil", "summary": "Regras amarradas a fornecedores concretos dificultam teste e troca. Abstrações estáveis, dependências explícitas e injeção favorecem substituição, condicionada ao contrato." },
+    { "key": "e5", "title": "Componentização confundida com distribuição", "summary": "Um componente pode ser biblioteca ou módulo no mesmo processo. Comunicação remota e microsserviços são decisões adicionais com latência, disponibilidade e falhas distribuídas." }
+  ],
+  "questions": [
+    {
+      "statement": "Componentizar significa necessariamente executar cada unidade em um processo ou servidor independente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Componentes podem ser módulos ou bibliotecas dentro de um único executável. Separar processos é uma escolha de implantação e comunicação, como ocorre em certas arquiteturas distribuídas, mas não é condição para definir fronteiras componentizadas.",
+      "section": "1. De funções isoladas a componentes com fronteiras claras",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Agrupar operações relacionadas que atendem a uma responsabilidade tende a aumentar a coesão de um componente.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Coesão descreve o quanto os elementos de uma unidade colaboram para um propósito relacionado. Agrupar regras que mudam pelas mesmas razões torna a responsabilidade mais compreensível; misturar funções sem relação produz o efeito oposto.",
+      "section": "1. De funções isoladas a componentes com fronteiras claras", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A interface oferecida por um componente descreve um serviço que ele disponibiliza para outros elementos do sistema.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A interface oferecida é o ponto pelo qual clientes usam operações ou serviços do componente. A interface requerida tem o papel complementar: declara serviços externos dos quais ele precisa.",
+      "section": "2. Interfaces, contratos e dependências explícitas", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No CORBA Component Model, receptacle designa uma interface que o componente oferece para chamadas de clientes.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. No CCM, facet é a interface oferecida para interação com clientes. Receptacle é um ponto de conexão que representa a capacidade do componente de usar uma referência fornecida externamente.",
+      "section": "2. Interfaces, contratos e dependências explícitas", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um contrato pode especificar condições anteriores à chamada, resultados esperados e propriedades que devem permanecer verdadeiras.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Pré-condições descrevem o que precisa valer antes da operação, pós-condições descrevem garantias após sucesso e invariantes expressam propriedades preservadas nos estados válidos. Contratos também podem registrar formatos, erros e efeitos observáveis.",
+      "section": "2. Interfaces, contratos e dependências explícitas", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Se dois componentes usam os mesmos nomes e tipos de parâmetros em uma operação, suas implementações são necessariamente substituíveis, ainda que interpretem valores de modo diferente.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Compatibilidade depende do significado do contrato. Uma operação que espera centavos não é equivalente a outra que interpreta o mesmo número como reais; unidades, resultados, erros e efeitos precisam corresponder ao que os consumidores esperam.",
+      "section": "2. Interfaces, contratos e dependências explícitas", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um Adapter pode encapsular a conversão entre a interface de um fornecedor externo e a interface esperada pela aplicação.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O adaptador implementa ou apresenta o contrato esperado pelo consumidor e traduz chamadas, dados ou resultados para o fornecedor. Assim, a regra de negócio não precisa conhecer diretamente a interface incompatível.",
+      "section": "3. Técnicas de composição, adaptação e comunicação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma Facade é usada principalmente para traduzir nomes de métodos e unidades entre duas interfaces incompatíveis.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Traduzir uma interface incompatível é a finalidade típica do Adapter. Facade apresenta uma entrada simplificada para um conjunto de operações ou componentes que formam um subsistema.",
+      "section": "3. Técnicas de composição, adaptação e comunicação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O padrão Strategy permite trocar políticas de comportamento por meio de uma abstração que o consumidor utiliza.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Estratégias diferentes implementam um contrato comum, como cálculo econômico ou expresso de frete. O consumidor seleciona ou recebe a política sem ficar amarrado à lógica concreta de cada variante.",
+      "section": "3. Técnicas de composição, adaptação e comunicação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O uso de eventos por Observer elimina a necessidade de definir formato, ordenação e tratamento de falhas entre componentes.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Eventos podem reduzir conhecimento direto entre produtor e consumidores, mas exigem contratos sobre formato e comportamento de entrega. Ordenação, duplicidade, consumidores indisponíveis e reprocessamento continuam sendo decisões da arquitetura.",
+      "section": "3. Técnicas de composição, adaptação e comunicação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um componente que recebe uma implementação pelo construtor tem automaticamente baixo acoplamento e um contrato correto.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Injeção torna a dependência fornecida externamente, mas o consumidor ainda pode depender de classe concreta instável ou de contrato mal definido. O ganho depende de abstrações úteis e interações coerentes.",
+      "section": "2. Interfaces, contratos e dependências explícitas", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Testes de componente isolado e testes de integração verificam aspectos diferentes e podem ser usados em conjunto.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O teste isolado controla dependências e examina a unidade; o teste de integração exercita conexões e componentes concretos. Um mock pode esconder incompatibilidade real, por isso os níveis se complementam.",
+      "section": "4. Reutilização, compatibilidade, teste e evolução", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Remover uma operação pública pode quebrar consumidores mesmo quando a implementação interna do componente continua compilando.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Consumidores dependem da interface pública e do contrato, não apenas da compilação do provedor. Alterações incompatíveis exigem estratégia de versão e migração dos clientes.",
+      "section": "4. Reutilização, compatibilidade, teste e evolução", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Dependências explícitas e contexto documentado facilitam avaliar se um componente pode ser reutilizado em outro projeto.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A equipe pode comparar requisitos de plataforma, serviços, configuração e versões com o contexto de destino. Um pacote sem essas informações pode ser copiável, mas sua integração tende a depender de tentativa e erro.",
+      "section": "4. Reutilização, compatibilidade, teste e evolução", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Substituir uma dependência concreta por uma abstração e fornecer a implementação externa pode facilitar testes e substituições.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A regra passa a depender de um contrato estável e pode receber implementações diferentes, inclusive uma controlada em teste. A substituição ainda exige que cada implementação preserve a semântica definida pelo contrato.",
+      "section": "2. Interfaces, contratos e dependências explícitas", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Para uma loja com catálogo, estoque e cobrança, qual decisão melhor delimita componentes coesos?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Agrupar catálogo, estoque e cobrança numa unidade que muda por razões distintas.", "correct": false },
+        { "key": "B", "text": "Separar responsabilidades e definir operações claras para suas interações.", "correct": true },
+        { "key": "C", "text": "Criar uma unidade minúscula para cada cálculo, mesmo sem fronteira útil.", "correct": false },
+        { "key": "D", "text": "Permitir que cada tela consulte tabelas internas dos outros componentes.", "correct": false },
+        { "key": "E", "text": "Duplicar regras de estoque em cada consumidor que exibe produtos.", "correct": false }
+      ],
+      "explanation": "Separar responsabilidades com interfaces claras permite que catálogo, estoque e cobrança evoluam segundo suas próprias regras. Concentrá-los junta motivos de mudança diversos; fragmentar cada cálculo ou expor tabelas internas aumenta coordenação e dependências; duplicar regra produz divergência.",
+      "section": "1. De funções isoladas a componentes com fronteiras claras", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma mudança no formato interno de persistência do estoque não deve exigir alterações nos consumidores se o contrato público permanecer estável. Qual princípio sustenta essa expectativa?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Acoplamento direto de todos os consumidores às tabelas internas.", "correct": false },
+        { "key": "B", "text": "Distribuição de cada componente em uma máquina própria.", "correct": false },
+        { "key": "C", "text": "Encapsulamento dos detalhes atrás de uma interface definida.", "correct": true },
+        { "key": "D", "text": "Duplicação do armazenamento dentro de cada consumidor.", "correct": false },
+        { "key": "E", "text": "Remoção de operações públicas sem migração dos clientes.", "correct": false }
+      ],
+      "explanation": "Encapsular o armazenamento e expor somente operações contratuais permite trocar a implementação sem revelar sua estrutura. Acesso direto a tabelas cria acoplamento; distribuição e duplicação não resolvem a fronteira; remover operações quebra consumidores.",
+      "section": "1. De funções isoladas a componentes com fronteiras claras", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O time criou um componente para cada instrução simples e agora precisa coordenar dezenas de chamadas para concluir uma tarefa. Qual diagnóstico é mais adequado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A granularidade pode estar fina demais para responsabilidades reais.", "correct": true },
+        { "key": "B", "text": "A coesão aumenta sempre que o número de unidades cresce.", "correct": false },
+        { "key": "C", "text": "A solução exige distribuir cada instrução em um servidor remoto.", "correct": false },
+        { "key": "D", "text": "A integração deve acessar diretamente os estados privados das unidades.", "correct": false },
+        { "key": "E", "text": "O contrato deixa de ser necessário quando a unidade é pequena.", "correct": false }
+      ],
+      "explanation": "Uma unidade minúscula sem responsabilidade funcional própria acrescenta conexões e coordenação. A granularidade deve acompanhar limites compreensíveis; quantidade maior de componentes não aumenta coesão automaticamente nem justifica expor estado privado ou distribuir cada operação.",
+      "section": "1. De funções isoladas a componentes com fronteiras claras", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No sistema de pedidos, estoque precisa usar uma consulta fornecida pelo catálogo. Como essa dependência deve aparecer na arquitetura?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Como interface oferecida pelo estoque para o catálogo consumir.", "correct": false },
+        { "key": "B", "text": "Como interface requerida pelo estoque e oferecida pelo catálogo.", "correct": true },
+        { "key": "C", "text": "Como atributo privado do catálogo sem conexão entre as unidades.", "correct": false },
+        { "key": "D", "text": "Como evento emitido pelo estoque sem consumidor declarado.", "correct": false },
+        { "key": "E", "text": "Como uma cópia da consulta compilada dentro de cada módulo.", "correct": false }
+      ],
+      "explanation": "Estoque requer a consulta para cumprir sua função, enquanto catálogo oferece esse serviço. Representar ambos os lados deixa a dependência visível e permite verificar se o conector liga contratos compatíveis.",
+      "section": "2. Interfaces, contratos e dependências explícitas", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um componente expõe uma operação para reservar produto. Qual especificação torna seu contrato funcionalmente mais preciso?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Informar apenas o nome da operação e deixar o resultado implícito.", "correct": false },
+        { "key": "B", "text": "Descrever somente a classe concreta que guarda os dados.", "correct": false },
+        { "key": "C", "text": "Registrar condições de entrada, resultado e invariantes relevantes.", "correct": true },
+        { "key": "D", "text": "Proibir que clientes conheçam qualquer erro possível da operação.", "correct": false },
+        { "key": "E", "text": "Permitir que cada cliente interprete a reserva livremente.", "correct": false }
+      ],
+      "explanation": "O contrato deve esclarecer precondições como quantidade positiva, resultados possíveis e garantias, por exemplo não deixar o saldo disponível negativo. Apenas o nome ou detalhe interno de armazenamento não determina comportamento previsível para consumidores.",
+      "section": "2. Interfaces, contratos e dependências explícitas", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação espera valores de pagamento em centavos, mas uma biblioteca externa recebe unidades monetárias decimais. Qual técnica isola essa diferença?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Strategy que escolhe a política de cálculo de frete.", "correct": false },
+        { "key": "B", "text": "Facade que substitui todos os contratos por globais.", "correct": false },
+        { "key": "C", "text": "Observer que publica a diferença para cada consumidor.", "correct": false },
+        { "key": "D", "text": "Adapter que converte representação e interface na borda.", "correct": true },
+        { "key": "E", "text": "Stub que grava permanentemente a resposta do fornecedor.", "correct": false }
+      ],
+      "explanation": "Adapter implementa a interface esperada e converte os centavos para a representação externa, além de traduzir o resultado. Strategy seleciona política, Facade simplifica um subsistema, Observer comunica eventos e stub é substituto de teste.",
+      "section": "3. Técnicas de composição, adaptação e comunicação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A tela de checkout precisa coordenar pedido, reserva de estoque e cobrança por uma operação de alto nível. Qual padrão pode oferecer essa entrada simplificada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Facade que reúne acesso simplificado ao fluxo do subsistema.", "correct": true },
+        { "key": "B", "text": "Adapter que converte exclusivamente tipos de moeda.", "correct": false },
+        { "key": "C", "text": "Observer que substitui os contratos de todos os componentes.", "correct": false },
+        { "key": "D", "text": "Strategy que armazena as tabelas privadas do checkout.", "correct": false },
+        { "key": "E", "text": "Mock que realiza as operações definitivas em produção.", "correct": false }
+      ],
+      "explanation": "Facade pode apresentar uma operação de nível mais alto e coordenar acesso ao subsistema. Isso não deve transformá-la num depósito de todas as regras; Adapter traduz interfaces, Strategy alterna políticas e mock pertence sobretudo a testes.",
+      "section": "3. Técnicas de composição, adaptação e comunicação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O sistema precisa oferecer cálculo de frete econômico e expresso sem codificar as duas fórmulas dentro do consumidor. Qual técnica se ajusta melhor?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Facade com uma tabela privada para cada consumidor.", "correct": false },
+        { "key": "B", "text": "Strategy com implementações que respeitam uma interface comum.", "correct": true },
+        { "key": "C", "text": "Adapter que converte todos os eventos em chamadas remotas.", "correct": false },
+        { "key": "D", "text": "Observer que seleciona classes concretas por nome de arquivo.", "correct": false },
+        { "key": "E", "text": "Stub que armazena as regras de produção em memória.", "correct": false }
+      ],
+      "explanation": "Strategy encapsula cada política de frete e permite selecionar uma implementação pela mesma abstração. O consumidor usa um contrato estável em vez de incorporar condicionais específicas para cada algoritmo.",
+      "section": "3. Técnicas de composição, adaptação e comunicação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao confirmar um pedido, vários interessados precisam reagir sem que o produtor invoque diretamente cada classe consumidora. Qual mecanismo representa melhor essa necessidade?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Acesso de todos os interessados ao estado privado do pedido.", "correct": false },
+        { "key": "B", "text": "Uma chamada síncrona obrigatória para cada consumidor concreto.", "correct": false },
+        { "key": "C", "text": "Publicação de evento consumido por interessados inscritos.", "correct": true },
+        { "key": "D", "text": "Uma cópia independente do pedido em cada módulo cliente.", "correct": false },
+        { "key": "E", "text": "Renomeação das operações sem alterar o fluxo de chamadas.", "correct": false }
+      ],
+      "explanation": "Publicação e inscrição permitem ao produtor emitir PedidoConfirmado sem conhecer cada consumidor concreto. Os contratos de evento e as garantias de entrega continuam necessários, mas as dependências diretas ficam menores.",
+      "section": "3. Técnicas de composição, adaptação e comunicação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada remota de cobrança termina por timeout e o consumidor não sabe se houve captura. Qual preocupação deve ser tratada no contrato e no fluxo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Repetir sempre a solicitação sem identificar operações anteriores.", "correct": false },
+        { "key": "B", "text": "Ignorar o resultado ambíguo porque componentes ocultam falhas.", "correct": false },
+        { "key": "C", "text": "Permitir que a tela altere diretamente o banco do fornecedor.", "correct": false },
+        { "key": "D", "text": "Definir repetição segura e consulta do estado da operação.", "correct": true },
+        { "key": "E", "text": "Converter automaticamente a captura em um evento sem contrato.", "correct": false }
+      ],
+      "explanation": "Timeout não prova que o provedor deixou de executar a operação. Um identificador idempotente e um mecanismo de consulta ou reconciliação ajudam a evitar cobrança duplicada e esclarecer o resultado. Ocultar falhas ou repetir sem controle é inseguro.",
+      "section": "3. Técnicas de composição, adaptação e comunicação", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um time quer substituir o serviço de pagamento durante testes sem alterar a regra de pedido. Qual projeto facilita essa troca?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Pedido instancia internamente a biblioteca concreta do fornecedor.", "correct": false },
+        { "key": "B", "text": "Pedido usa uma abstração e recebe uma implementação compatível.", "correct": true },
+        { "key": "C", "text": "Pedido consulta diretamente as tabelas do fornecedor externo.", "correct": false },
+        { "key": "D", "text": "Pedido replica toda a lógica de cobrança em sua interface.", "correct": false },
+        { "key": "E", "text": "Pedido elimina o contrato e descobre métodos durante cada chamada.", "correct": false }
+      ],
+      "explanation": "A abstração funciona como contrato para a regra de pedido; uma implementação de produção ou uma alternativa controlada em teste pode ser fornecida externamente. O consumidor não instancia nem depende diretamente da biblioteca concreta.",
+      "section": "2. Interfaces, contratos e dependências explícitas", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um mock de pagamento devolve sucesso, mas a API real mudou o nome do campo de retorno. Qual teste tem maior chance de revelar essa quebra de integração?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Teste unitário que usa o mesmo mock antigo em memória.", "correct": false },
+        { "key": "B", "text": "Revisão de nomes de classes sem executar qualquer chamada.", "correct": false },
+        { "key": "C", "text": "Teste de integração com adaptador e formato reais controlados.", "correct": true },
+        { "key": "D", "text": "Teste de tela que não envia solicitação ao pagamento.", "correct": false },
+        { "key": "E", "text": "Compilação de módulo sem validar serialização ou protocolo.", "correct": false }
+      ],
+      "explanation": "Teste de integração que exercita adaptador, serialização e contrato do provedor pode detectar mudança de campo que um mock desatualizado não reproduz. Testes unitários continuam úteis, mas só verificam o comportamento isolado configurado.",
+      "section": "4. Reutilização, compatibilidade, teste e evolução", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma nova versão remove uma operação pública usada por consumidores existentes. Qual abordagem reduz o risco de interrupção?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Publicar mudança incompatível sem avisar, pois o provedor compila.", "correct": false },
+        { "key": "B", "text": "Manter compatibilidade transitória e planejar migração dos clientes.", "correct": true },
+        { "key": "C", "text": "Alterar silenciosamente o significado de uma operação remanescente.", "correct": false },
+        { "key": "D", "text": "Apagar contratos e confiar que os clientes descobrirão a mudança.", "correct": false },
+        { "key": "E", "text": "Duplicar a operação antiga em cada cliente sem validar resultados.", "correct": false }
+      ],
+      "explanation": "Remover uma operação é incompatível para clientes que a utilizam. Manter uma versão durante transição, publicar o contrato novo e migrar consumidores com testes reduz quebras; compilação isolada do provedor não garante compatibilidade.",
+      "section": "4. Reutilização, compatibilidade, teste e evolução", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um pacote reutilizável declara interface, versão, requisitos de plataforma e serviços externos necessários. Qual benefício prático esses metadados oferecem?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Eliminam a necessidade de testar qualquer composição futura.", "correct": false },
+        { "key": "B", "text": "Garantem que o pacote funcione em todo sistema operacional.", "correct": false },
+        { "key": "C", "text": "Permitem avaliar compatibilidade e preparar a integração.", "correct": true },
+        { "key": "D", "text": "Fazem o componente alterar sozinho a arquitetura consumidora.", "correct": false },
+        { "key": "E", "text": "Substituem contratos por acesso direto às implementações.", "correct": false }
+      ],
+      "explanation": "Metadados tornam visíveis requisitos e limites para comparar com o ambiente consumidor antes de integrar. Eles ajudam a planejar a composição, mas não provam compatibilidade universal nem substituem testes.",
+      "section": "4. Reutilização, compatibilidade, teste e evolução", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A equipe aumentou o número de módulos, mas todos importam classes internas uns dos outros e compartilham estado global. O que melhor explica a fragilidade observada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O sistema tem pouca coesão porque módulos não usam arquivos separados.", "correct": false },
+        { "key": "B", "text": "A quantidade de módulos já garante baixa dependência entre eles.", "correct": false },
+        { "key": "C", "text": "O acoplamento segue alto apesar da separação nominal em módulos.", "correct": true },
+        { "key": "D", "text": "A integração precisa expor ainda mais detalhes compartilhados.", "correct": false },
+        { "key": "E", "text": "A solução depende de distribuir imediatamente todos os módulos.", "correct": false }
+      ],
+      "explanation": "Separar arquivos ou módulos não reduz acoplamento se todos dependem de detalhes internos e estado global. Fronteiras precisam de contratos estáveis e dependências controladas; distribuição em rede não corrige essas decisões de projeto.",
+      "section": "1. De funções isoladas a componentes com fronteiras claras", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um provedor altera uma operação para receber quilogramas em vez de gramas, sem mudar seu nome nem o tipo numérico. Como avaliar a compatibilidade?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Compatível, pois assinatura e nome continuam textualmente iguais.", "correct": false },
+        { "key": "B", "text": "Compatível, se toda alteração interna ficar encapsulada.", "correct": false },
+        { "key": "C", "text": "Incompatível se consumidores esperam a unidade antiga do contrato.", "correct": true },
+        { "key": "D", "text": "Compatível somente se o provedor for executado remotamente.", "correct": false },
+        { "key": "E", "text": "Incompatível apenas quando o nome da operação também muda.", "correct": false }
+      ],
+      "explanation": "A unidade faz parte da semântica do contrato. Consumidores que enviam gramas podem produzir resultados errados mesmo que nome e tipo permaneçam iguais; documentar e versionar a mudança é necessário.",
+      "section": "2. Interfaces, contratos e dependências explícitas", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma interface requerida pelo componente de notificações é conectada a uma interface oferecida que não implementa o formato esperado. Qual é o problema arquitetural mais direto?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A conexão liga pontos com contratos incompatíveis.", "correct": true },
+        { "key": "B", "text": "A conexão cria coesão automaticamente entre quaisquer regras.", "correct": false },
+        { "key": "C", "text": "A conexão transforma a interface requerida em estado privado.", "correct": false },
+        { "key": "D", "text": "A conexão prova que os eventos sempre serão entregues.", "correct": false },
+        { "key": "E", "text": "A conexão elimina a necessidade de validar integração.", "correct": false }
+      ],
+      "explanation": "Uma composição válida precisa conectar interfaces semanticamente compatíveis, inclusive em formato e comportamento. O simples ato de ligar componentes não garante coesão, entrega confiável nem elimina testes de integração.",
+      "section": "2. Interfaces, contratos e dependências explícitas", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um consumidor precisa invocar cinco componentes internos numa ordem específica para executar uma função comum. Qual técnica pode oferecer uma operação de nível mais alto?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Observer para exigir que o cliente conheça todas as classes concretas.", "correct": false },
+        { "key": "B", "text": "Facade para coordenar o acesso e reduzir detalhes do consumidor.", "correct": true },
+        { "key": "C", "text": "Adapter para tornar públicos os estados privados do subsistema.", "correct": false },
+        { "key": "D", "text": "Strategy para armazenar a sequência como variável global compartilhada.", "correct": false },
+        { "key": "E", "text": "Stub para executar operações reais fora dos testes.", "correct": false }
+      ],
+      "explanation": "Facade pode centralizar uma operação de nível mais alto para ocultar a sequência de acesso ao subsistema. Ela deve manter responsabilidade coesa e contratos claros, sem expor estados privados ou virar depósito indiscriminado de regras.",
+      "section": "3. Técnicas de composição, adaptação e comunicação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A aplicação usa um evento `PedidoConfirmado` para alimentar notificações. Qual escolha torna a evolução desse conector mais segura?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Alterar campos sem aviso porque o produtor não conhece consumidores.", "correct": false },
+        { "key": "B", "text": "Documentar o esquema e planejar compatibilidade dos consumidores.", "correct": true },
+        { "key": "C", "text": "Permitir que cada consumidor interprete tipos por tentativa.", "correct": false },
+        { "key": "D", "text": "Remover identificadores e permitir duplicatas sem reconciliação.", "correct": false },
+        { "key": "E", "text": "Substituir o canal por tabelas privadas compartilhadas.", "correct": false }
+      ],
+      "explanation": "O evento é um contrato entre produtor e consumidores, mesmo quando a relação é indireta. Esquema documentado e evolução compatível ajudam a manter consumidores funcionando; desacoplamento direto não dispensa versão, identificadores ou estratégia de duplicidade.",
+      "section": "3. Técnicas de composição, adaptação e comunicação", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A equipe quer testar a regra de pedido quando o serviço de pagamento falha, sem acessar o fornecedor externo. Como deve estruturar esse teste?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Usar uma dependência controlada que simule a falha prevista.", "correct": true },
+        { "key": "B", "text": "Desabilitar o contrato e aceitar qualquer resultado recebido.", "correct": false },
+        { "key": "C", "text": "Executar o teste apenas na tela sem invocar a regra.", "correct": false },
+        { "key": "D", "text": "Alterar tabelas do fornecedor para provocar falha real.", "correct": false },
+        { "key": "E", "text": "Remover o tratamento de erro para facilitar a execução.", "correct": false }
+      ],
+      "explanation": "Uma implementação substituta controlada permite exercitar a regra de pedido com falhas previsíveis e sem depender da rede ou de cobranças reais. O contrato continua valendo e a integração concreta precisa de verificação própria.",
+      "section": "4. Reutilização, compatibilidade, teste e evolução", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Durante uma revisão, percebe-se que o componente de catálogo conhece credenciais e tabelas privadas do componente de cobrança. Qual ação melhora a fronteira?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Documentar a dependência e manter o acesso direto às tabelas.", "correct": false },
+        { "key": "B", "text": "Duplicar as tabelas de cobrança dentro do catálogo.", "correct": false },
+        { "key": "C", "text": "Fazer catálogo depender de operações públicas estáveis de cobrança.", "correct": true },
+        { "key": "D", "text": "Executar cobrança dentro de cada operação de catálogo.", "correct": false },
+        { "key": "E", "text": "Separar os componentes em processos sem mudar os contratos.", "correct": false }
+      ],
+      "explanation": "Consumir operações públicas reduz dependência de estrutura, credenciais e implementação alheias. Documentar ou distribuir o acesso direto não corrige a fronteira, e duplicar estado cria divergência.",
+      "section": "1. De funções isoladas a componentes com fronteiras claras", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao escolher entre chamada síncrona e fila de eventos, qual critério ajuda a tomar uma decisão arquitetural coerente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Escolher sempre eventos porque eliminam todas as falhas de rede.", "correct": false },
+        { "key": "B", "text": "Escolher sempre chamadas porque dispensam contrato de dados.", "correct": false },
+        { "key": "C", "text": "Avaliar necessidade de resposta imediata e garantias de entrega.", "correct": true },
+        { "key": "D", "text": "Escolher pelo número de arquivos de código envolvidos.", "correct": false },
+        { "key": "E", "text": "Escolher o conector que torne dependências invisíveis aos testes.", "correct": false }
+      ],
+      "explanation": "Chamada síncrona fornece retorno imediato, com dependência de disponibilidade e latência do provedor; eventos podem desacoplar o tempo, mas exigem garantias de entrega e tratamento de duplicidade. A escolha depende do comportamento requerido.",
+      "section": "3. Técnicas de composição, adaptação e comunicação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma implementação alternativa respeita a mesma interface, mas retorna sucesso antes de concluir a gravação, contrariando o contrato. Ela é substituta adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Sim, pois a assinatura pública é suficiente para substituição.", "correct": false },
+        { "key": "B", "text": "Sim, desde que a classe alternativa tenha outro nome.", "correct": false },
+        { "key": "C", "text": "Não, pois seu comportamento viola garantia do contrato.", "correct": true },
+        { "key": "D", "text": "Não, pois componentes nunca podem ter mais de uma implementação.", "correct": false },
+        { "key": "E", "text": "Sim, caso o consumidor não execute testes de integração.", "correct": false }
+      ],
+      "explanation": "Substituição exige que a implementação cumpra as garantias observáveis, não apenas que compile contra a mesma assinatura. Se o contrato promete gravação concluída ao retornar sucesso, responder antes disso muda a semântica esperada.",
+      "section": "2. Interfaces, contratos e dependências explícitas", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O componente de estoque possui duas interfaces oferecidas, uma para consultar disponibilidade e outra para reservar unidades. Qual interpretação é correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "São pontos públicos distintos para serviços diferentes do componente.", "correct": true },
+        { "key": "B", "text": "A segunda interface deve ser requerida por todo consumidor.", "correct": false },
+        { "key": "C", "text": "Duas interfaces obrigam o componente a usar eventos remotos.", "correct": false },
+        { "key": "D", "text": "Uma interface pública torna toda implementação interna visível.", "correct": false },
+        { "key": "E", "text": "A divisão prova que cada operação deve rodar em processo próprio.", "correct": false }
+      ],
+      "explanation": "Um componente pode oferecer pontos de interação distintos para responsabilidades ou consumidores diferentes. Isso não expõe automaticamente sua implementação nem define processo ou protocolo; essas são decisões separadas.",
+      "section": "2. Interfaces, contratos e dependências explícitas", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação antiga será substituída por outra com novo formato. Qual informação é mais útil para preservar a composição durante a transição?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Somente a data de compilação do componente provedor.", "correct": false },
+        { "key": "B", "text": "Versões e contratos suportados pelos consumidores e provedor.", "correct": true },
+        { "key": "C", "text": "O nome da pasta em que está o código interno.", "correct": false },
+        { "key": "D", "text": "A lista de telas que não chamam essa operação.", "correct": false },
+        { "key": "E", "text": "O número de classes que foram renomeadas na implementação.", "correct": false }
+      ],
+      "explanation": "Conhecer versões e contratos suportados permite identificar consumidores ainda dependentes da interface antiga e planejar a migração. Detalhes sem relação com o protocolo público não demonstram compatibilidade.",
+      "section": "4. Reutilização, compatibilidade, teste e evolução", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um desenvolvedor argumenta que o teste unitário já valida o formato real da mensagem enviado ao serviço externo porque usa um mock com os mesmos campos. Qual resposta é tecnicamente mais precisa?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Correto, pois qualquer mock confirma o protocolo externo atual.", "correct": false },
+        { "key": "B", "text": "Correto, desde que o teste rode sem conexão de rede.", "correct": false },
+        { "key": "C", "text": "Incorreto; o mock verifica o caso isolado, não o endpoint real.", "correct": true },
+        { "key": "D", "text": "Incorreto; mocks não podem controlar respostas em teste.", "correct": false },
+        { "key": "E", "text": "Correto, se o mock estiver armazenado no mesmo pacote.", "correct": false }
+      ],
+      "explanation": "O mock reproduz o comportamento que o teste configurou, mas pode estar desatualizado em relação ao serviço externo. Um teste de integração ou de contrato com o provedor ajuda a validar serialização e protocolo concretos.",
+      "section": "4. Reutilização, compatibilidade, teste e evolução", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe pretende transformar todos os componentes internos em serviços de rede apenas para obter baixo acoplamento. Qual avaliação é melhor?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A decisão é necessária porque módulos locais não possuem contratos.", "correct": false },
+        { "key": "B", "text": "A decisão é adequada, pois chamadas remotas eliminam latência.", "correct": false },
+        { "key": "C", "text": "A decisão exige ponderar custo distribuído e benefícios reais.", "correct": true },
+        { "key": "D", "text": "A decisão evita tratar disponibilidade e falhas de comunicação.", "correct": false },
+        { "key": "E", "text": "A decisão garante compatibilidade mesmo sem versionar interfaces.", "correct": false }
+      ],
+      "explanation": "Contratos e fronteiras podem existir em componentes locais. Distribuir unidades acrescenta latência, falhas parciais, disponibilidade e operação de rede; deve haver benefício de implantação ou escala que justifique esse custo.",
+      "section": "1. De funções isoladas a componentes com fronteiras claras", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O time precisa substituir um algoritmo de tributação sem modificar a regra de emissão de nota. Qual elemento deve permanecer estável para permitir a troca?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O contrato de cálculo usado pela regra consumidora.", "correct": true },
+        { "key": "B", "text": "O nome da classe concreta do primeiro algoritmo.", "correct": false },
+        { "key": "C", "text": "O caminho físico dos arquivos internos do algoritmo.", "correct": false },
+        { "key": "D", "text": "A variável global compartilhada pelas telas de nota.", "correct": false },
+        { "key": "E", "text": "A tabela privada de armazenamento de cada estratégia.", "correct": false }
+      ],
+      "explanation": "Uma abstração com contrato estável permite que estratégias diferentes implementem o cálculo sem alterar a regra consumidora. Nomes de classe, caminhos e armazenamento internos são detalhes que criariam acoplamento se fossem exigidos pelo cliente.",
+      "section": "3. Técnicas de composição, adaptação e comunicação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma função de negócio simples foi colocada num componente separado, mas esse componente não possui interface própria nem muda ou é reutilizado independentemente. Qual decisão merece revisão?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A separação pode acrescentar fronteira sem responsabilidade útil.", "correct": true },
+        { "key": "B", "text": "A separação é obrigatória porque cada função deve ser componente.", "correct": false },
+        { "key": "C", "text": "A separação aumenta coesão sempre que cria outro diretório.", "correct": false },
+        { "key": "D", "text": "A separação deve exigir implantação remota independente.", "correct": false },
+        { "key": "E", "text": "A separação dispensa especificação de comportamento esperado.", "correct": false }
+      ],
+      "explanation": "Uma fronteira tem custo de entendimento e coordenação. Se não isola motivo de mudança, não oferece contrato significativo e não permite evolução ou reutilização independente, a divisão pode ser apenas fragmentação sem benefício.",
+      "section": "1. De funções isoladas a componentes com fronteiras claras", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação `reservar` informa que quantidade zero é válida, mas a implementação recusa esse valor. Qual aspecto está inconsistente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O contrato e o comportamento observável do componente.", "correct": true },
+        { "key": "B", "text": "A quantidade de módulos no executável consumidor.", "correct": false },
+        { "key": "C", "text": "O mecanismo de distribuição usado para o pacote.", "correct": false },
+        { "key": "D", "text": "A escolha entre Facade e Observer na interface visual.", "correct": false },
+        { "key": "E", "text": "A versão do sistema operacional do fornecedor externo.", "correct": false }
+      ],
+      "explanation": "A interface promete aceitar quantidade zero, mas a implementação rejeita a entrada, violando a pré-condição publicada ou o resultado prometido. Consumidores não conseguem prever corretamente o uso sem contrato e implementação alinhados.",
+      "section": "2. Interfaces, contratos e dependências explícitas", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço de análise recebe cópias de eventos e pode reprocessá-los depois de uma interrupção. Qual requisito merece constar no desenho do componente consumidor?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Que todo evento seja processado uma única vez por garantia implícita.", "correct": false },
+        { "key": "B", "text": "Que a mesma mensagem repetida não gere efeito indevido.", "correct": true },
+        { "key": "C", "text": "Que o produtor leia diretamente a memória do consumidor.", "correct": false },
+        { "key": "D", "text": "Que o esquema do evento possa mudar sem coordenação.", "correct": false },
+        { "key": "E", "text": "Que a interrupção não seja registrada nem monitorada.", "correct": false }
+      ],
+      "explanation": "Sistemas de eventos podem entregar mensagens repetidas durante reprocessamento. O consumidor deve considerar idempotência ou deduplicação para que a repetição não produza efeitos duplicados; a garantia não deve ser presumida sem contrato do canal.",
+      "section": "3. Técnicas de composição, adaptação e comunicação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A equipe quer validar o componente de cálculo sem depender de banco, rede ou fornecedor. Qual estratégia de teste é mais apropriada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Exercitar a unidade isolada com dependências controladas.", "correct": true },
+        { "key": "B", "text": "Executar somente testes de implantação em produção.", "correct": false },
+        { "key": "C", "text": "Conectar o cálculo diretamente às tabelas dos fornecedores.", "correct": false },
+        { "key": "D", "text": "Remover as entradas inválidas para não observar falhas.", "correct": false },
+        { "key": "E", "text": "Substituir as verificações por documentação de interface.", "correct": false }
+      ],
+      "explanation": "Teste isolado usa dependências substitutas para controlar respostas e exercitar regras de cálculo sem banco ou rede. Isso complementa, mas não substitui, testes de integração das conexões reais.",
+      "section": "4. Reutilização, compatibilidade, teste e evolução", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Para avaliar se uma implementação pode substituir outra, qual evidência é mais relevante além da assinatura da interface?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Que respeita resultados, erros e efeitos definidos pelo contrato.", "correct": true },
+        { "key": "B", "text": "Que usa o mesmo nome interno de variável do provedor anterior.", "correct": false },
+        { "key": "C", "text": "Que foi escrita na mesma linguagem de programação.", "correct": false },
+        { "key": "D", "text": "Que guarda seus dados no mesmo formato privado.", "correct": false },
+        { "key": "E", "text": "Que é executada no mesmo processo que a tela.", "correct": false }
+      ],
+      "explanation": "Substituição depende do comportamento observável que clientes usam: resultados, erros, invariantes e efeitos. Linguagem, nomes privados, formato de armazenamento ou processo podem variar desde que o contrato e os requisitos operacionais sejam atendidos.",
+      "section": "4. Reutilização, compatibilidade, teste e evolução", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A operação de pagamento é chamada diretamente em seis telas, que conhecem o formato específico do fornecedor. Qual mudança reduz a dependência espalhada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Criar contrato próprio e concentrar tradução num adaptador.", "correct": true },
+        { "key": "B", "text": "Duplicar a tradução do fornecedor em cada tela.", "correct": false },
+        { "key": "C", "text": "Publicar as credenciais para todos os consumidores usarem.", "correct": false },
+        { "key": "D", "text": "Expor as tabelas do provedor como interface da tela.", "correct": false },
+        { "key": "E", "text": "Remover verificações de formato e aceitar qualquer resposta.", "correct": false }
+      ],
+      "explanation": "Um contrato interno e um Adapter isolam o formato específico na borda. A regra de pagamento deixa de se espalhar por seis telas, simplificando troca do fornecedor e testes; duplicação ou exposição de credenciais aumenta acoplamento.",
+      "section": "3. Técnicas de composição, adaptação e comunicação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um componente depende de um serviço externo, mas essa dependência só aparece numa variável global definida em tempo de execução. Qual melhoria aumenta a previsibilidade?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Declarar a dependência e fornecê-la por uma fronteira conhecida.", "correct": true },
+        { "key": "B", "text": "Ocultar a variável global em outro módulo sem documentá-la.", "correct": false },
+        { "key": "C", "text": "Permitir que qualquer componente altere seu valor em execução.", "correct": false },
+        { "key": "D", "text": "Copiar o serviço externo para cada chamada de método.", "correct": false },
+        { "key": "E", "text": "Remover o contrato para que a configuração seja automática.", "correct": false }
+      ],
+      "explanation": "Dependências explícitas por interface ou configuração conhecida podem ser inspecionadas, validadas e substituídas em testes. Apenas esconder a variável global mantém a dependência implícita e dificulta reproduzir o comportamento.",
+      "section": "2. Interfaces, contratos e dependências explícitas", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer reutilizar um módulo que depende de credenciais, formato de arquivo e serviço de plataforma não declarados. Qual conclusão é mais prudente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A reutilização é segura porque o módulo já compila no projeto atual.", "correct": false },
+        { "key": "B", "text": "As dependências e o contexto precisam ser identificados primeiro.", "correct": true },
+        { "key": "C", "text": "O módulo deve receber permissões globais em todos os projetos.", "correct": false },
+        { "key": "D", "text": "Os consumidores devem copiar os detalhes internos do módulo.", "correct": false },
+        { "key": "E", "text": "A equipe pode presumir que qualquer plataforma oferece o serviço.", "correct": false }
+      ],
+      "explanation": "Compilação no contexto original não revela automaticamente compatibilidade em outro ambiente. Identificar requisitos, configuração e serviços externos é necessário para avaliar uso seguro e preparar uma integração explícita.",
+      "section": "4. Reutilização, compatibilidade, teste e evolução", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um conjunto de componentes pode ser montado conectando interfaces compatíveis sem que cada consumidor precise conhecer a implementação interna dos provedores.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A composição depende dos pontos de interação e dos contratos, enquanto a implementação permanece encapsulada. Isso permite conectar unidades distintas sem exigir que consumidores dependam de detalhes internos.",
+      "section": "3. Técnicas de composição, adaptação e comunicação", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O componente de pedidos que requer serviços de estoque e cobrança deve declarar essas necessidades para que a composição possa conectá-las e verificá-las.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Dependências requeridas explicitamente mostram que serviços precisam estar disponíveis. A composição pode ligar cada necessidade à interface oferecida correspondente e detectar incompatibilidade antes do uso.",
+      "section": "2. Interfaces, contratos e dependências explícitas", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um componente com muitas operações públicas é necessariamente mais reutilizável porque oferece mais possibilidades aos consumidores.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Uma interface ampla pode expor responsabilidades demais e aumentar o acoplamento dos clientes a detalhes que não precisam. Reutilização depende de responsabilidades coesas, contrato adequado e contexto, não da contagem de operações.",
+      "section": "1. De funções isoladas a componentes com fronteiras claras", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao publicar um evento, o componente produtor pode evitar referências diretas aos consumidores, mas ainda precisa definir o conteúdo e o significado da mensagem.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Publicação desacopla o produtor de classes consumidoras específicas, mas os interessados ainda dependem do esquema e da semântica do evento. Contrato e estratégia de evolução seguem necessários.",
+      "section": "3. Técnicas de composição, adaptação e comunicação", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Se uma alteração interna não muda interfaces nem comportamento observável, consumidores bem encapsulados não deveriam precisar conhecer os detalhes dessa mudança.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O encapsulamento separa implementação interna do contrato. Mudanças internas compatíveis podem ser feitas sem exigir alterações nos clientes, desde que nenhuma garantia observável seja modificada.",
+      "section": "1. De funções isoladas a componentes com fronteiras claras", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Inversão de dependência descreve uma técnica de criação de objetos e significa exatamente o mesmo que injeção de dependência.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Inversão de dependência trata da direção arquitetural em que regras dependem de abstrações estáveis. Injeção de dependência é uma forma de fornecer implementações externas ao consumidor; é possível aplicar uma sem confundir os conceitos.",
+      "section": "2. Interfaces, contratos e dependências explícitas", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração incompatível de interface pode exigir uma versão nova do contrato e um período de migração dos consumidores.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Consumidores diferentes podem migrar em momentos distintos. Manter temporariamente contrato antigo e novo, documentar a mudança e testar os clientes reduz interrupções até a versão anterior poder ser retirada.",
+      "section": "4. Reutilização, compatibilidade, teste e evolução", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um componente pode ser testado isoladamente com substitutos de dependência e ainda precisar de testes de integração para validar protocolos reais.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Substitutos controlados tornam os testes isolados rápidos e determinísticos. Integração verifica se componentes reais concordam em protocolo, configuração e formato, aspectos que o substituto pode não reproduzir.",
+      "section": "4. Reutilização, compatibilidade, teste e evolução", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A distribuição independente de componentes exige que toda arquitetura componentizada use comunicação por rede.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Alguns modelos permitem implantação independente, mas componentes também podem ser empacotados e executados no mesmo processo. A comunicação por rede é uma decisão adicional, não consequência obrigatória da componentização.",
+      "section": "4. Reutilização, compatibilidade, teste e evolução", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O consumidor de um serviço não precisa conhecer a estrutura de dados privada do provedor quando interage por operações contratuais bem definidas.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A interface descreve o que pode ser solicitado e o contrato especifica o comportamento esperado. O provedor pode alterar seu armazenamento interno sem expor detalhes aos clientes, desde que preserve as garantias públicas.",
+      "section": "1. De funções isoladas a componentes com fronteiras claras", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Trocar uma chamada síncrona por publicação de evento mantém automaticamente as mesmas garantias de resposta imediata e resultado confirmado.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Um evento normalmente não retorna ao produtor a confirmação imediata de todo processamento posterior. A troca altera o fluxo e as garantias observáveis; é necessário definir confirmação, entrega e tratamento de falhas conforme o requisito.",
+      "section": "3. Técnicas de composição, adaptação e comunicação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um componente bem reutilizável deve ocultar não apenas sua implementação, mas também todas as dependências e condições de execução.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Ocultar detalhes internos é desejável, mas requisitos de plataforma, serviços requeridos, configuração e versões precisam estar explícitos para que consumidores avaliem e preparem uma composição válida.",
+      "section": "4. Reutilização, compatibilidade, teste e evolução", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No padrão Observer, os consumidores interessados registram interesse e reagem às notificações emitidas pelo produtor segundo o contrato estabelecido.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Observer organiza a comunicação entre um sujeito que publica mudanças e observadores inscritos. O produtor evita conhecer cada reação concreta, embora os participantes continuem compartilhando o contrato da notificação.",
+      "section": "3. Técnicas de composição, adaptação e comunicação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma Facade pode simplificar as chamadas de um subsistema sem obrigar seus componentes internos a expor tabelas e estados privados.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A fachada pode coordenar operações públicas de nível mais alto e esconder a sequência necessária ao consumidor. Encapsulamento dos detalhes internos continua preservado.",
+      "section": "3. Técnicas de composição, adaptação e comunicação", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Mais componentes sempre reduzem acoplamento porque cada unidade possui menos linhas de código.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O acoplamento depende das dependências entre unidades, não apenas do tamanho ou da quantidade delas. Fragmentação pode aumentar conexões e coordenação, sobretudo quando componentes compartilham estado ou conhecem detalhes internos.",
+      "section": "1. De funções isoladas a componentes com fronteiras claras", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um contrato pode incluir limites de desempenho e requisitos de segurança além das entradas e saídas funcionais.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Contratos de interação podem abordar propriedades não funcionais relevantes, como tempo de resposta, autorização, confidencialidade ou limites de uso, além das operações e resultados funcionais.",
+      "section": "2. Interfaces, contratos e dependências explícitas", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma implementação pode ser substituída com segurança apenas quando os consumidores não observam diferença que viole o contrato acordado.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A substituição depende da preservação do comportamento observável previsto no contrato. Detalhes internos podem mudar, mas diferenças em resultado, erro, unidade, estado ou efeito precisam ser avaliadas frente às garantias prometidas.",
+      "section": "4. Reutilização, compatibilidade, teste e evolução", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Volume II: Technical Concepts of Component-Based Software Engineering, 2nd Edition",
+      "publisher": "Software Engineering Institute, Carnegie Mellon University",
+      "reference": "Conceitos de componente, interface, contrato, modelo, composição e certificação; relatório CMU/SEI-2000-TR-008",
+      "url": "https://www.sei.cmu.edu/library/volume-ii-technical-concepts-of-component-based-software-engineering-2nd-edition/",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "CORBA Component Model, ISO/IEC 19500-3:2012",
+      "publisher": "Object Management Group / ISO/IEC",
+      "reference": "Modelo de componentes, encapsulamento, facets, receptacles, fontes e receptores de eventos",
+      "url": "https://www.omg.org/spec/CORBA/ISO/19500-3/PDF",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Replaceable Components and the Service Provider Interface",
+      "publisher": "Software Engineering Institute, Carnegie Mellon University",
+      "reference": "Motivações e requisitos de componentes substituíveis; relatório CMU/SEI-2002-TN-009",
+      "url": "https://www.sei.cmu.edu/library/replaceable-components-and-the-service-provider-interface/",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Unified Component Model for Distributed, Real-Time And Embedded Systems, version 1.1",
+      "publisher": "Object Management Group",
+      "reference": "Definição de tipos e implementações de componentes, portas, conectores e interações",
+      "url": "https://www.omg.org/spec/UCM/1.1/PDF/changebar",
+      "accessedAt": "2026-10-31"
+    }
+  ]
+}

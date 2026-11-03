@@ -1,0 +1,1427 @@
+{
+  "id": "informatica.arquitetura-sistemas-distribuidos-balanceamento-replicacao",
+  "subject": "Informática",
+  "title": "Arquitetura de sistemas distribuídos: balanceamento, failover e replicação",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Arquitetura de sistemas distribuídos",
+    "Sistemas distribuídos e tolerância a falhas",
+    "Balanceamento de carga em sistemas distribuídos",
+    "Failover e alta disponibilidade de serviços",
+    "Replicação de estado entre servidores",
+    "Replicação de dados em sistemas distribuídos",
+    "Balanceamento de carga e redundância",
+    "Fail-over, replicação e distribuição de tráfego",
+    "Arquitetura distribuída de aplicações web",
+    "Disponibilidade em sistemas distribuídos",
+    "Serviços, réplicas e balanceadores de carga",
+    "Tolerância a falhas em aplicações distribuídas"
+  ],
+  "scope": {
+    "covers": "Fundamentos de sistemas distribuídos; nós, serviços, comunicação, estado e falhas; disponibilidade e redundância; balanceamento de carga, algoritmos, verificações de saúde e drenagem; failover automático e manual, detecção, promoção e retorno; replicação síncrona e assíncrona, primário-réplica e multi primário, consistência, atraso, conflito e split-brain; particionamento, quorum, idempotência, recuperação e observabilidade; exemplos de Services e probes do Kubernetes e princípios oficiais de resiliência da AWS.",
+    "excludes": "Configuração detalhada de produtos comerciais, comandos específicos de provedores, protocolos internos de consenso, cálculo de capacidade para uma aplicação específica e garantias de disponibilidade contratual."
+  },
+  "theoryTitle": "Como distribuir carga, preservar estado e sobreviver a falhas",
+  "chapters": [
+    {
+      "title": "1. A arquitetura distribuída e seus modos de falha",
+      "markdown": "### O problema que este assunto resolve\n\nUm sistema distribuído executa partes de uma aplicação em processos ou máquinas diferentes, que se comunicam por uma rede. Um navegador pode chamar um serviço de entrada; esse serviço consulta outros serviços e um banco. A separação permite escalar partes de modo independente e distribuir recursos por máquinas ou regiões, mas introduz falhas que um programa dentro de uma única máquina não enfrenta: mensagens atrasam ou somem, uma conexão cai, um nó fica lento sem estar completamente desligado e duas partes podem discordar sobre quem está ativo.\n\n> **Siglas e termos deste capítulo**\n> - **Nó**: processo ou máquina que participa do sistema.\n> - **Serviço**: função acessível por uma interface de rede.\n> - **Estado**: dados que influenciam respostas futuras, como sessão, saldo ou configuração.\n> - **Falha parcial**: componente falha enquanto outros continuam operando.\n> - **SPOF**: ponto único de falha (*single point of failure*).\n> - **Alta disponibilidade**: desenho que reduz a chance ou a duração de indisponibilidade.\n\n### Replicar componentes não elimina falhas\n\nSe uma aplicação roda em uma única instância, a queda dessa instância derruba o serviço. Duas ou mais instâncias independentes permitem que as restantes atendam parte ou toda a demanda. A independência importa: duas réplicas no mesmo host, rack, zona de energia ou região podem cair juntas. O domínio de falha é o conjunto de recursos sujeitos a uma causa comum. Distribuir réplicas entre domínios diferentes reduz falhas correlacionadas, mas aumenta custo e complexidade de comunicação.\n\nA disponibilidade ponta a ponta depende de todos os elos necessários. Se o balanceador, o DNS, a rede ou o banco forem pontos únicos, duplicar apenas a aplicação não basta. Redundância de componentes independentes pode elevar disponibilidade: em um arranjo ativo-ativo, basta uma unidade responder; em ativo-passivo, a reserva precisa ser promovida quando a ativa falha. A redundância precisa ser acompanhada de monitoramento, capacidade suficiente e procedimento de recuperação testado.\n\n### Estado local e estado compartilhado\n\nUma instância sem estado local relevante (stateless) pode receber qualquer requisição compatível e ser substituída com facilidade. Se a sessão do usuário estiver somente na memória de uma instância, uma requisição posterior enviada a outra pode perder o contexto. Alternativas incluem guardar sessão em armazenamento compartilhado, incluir estado verificável em token, ou usar afinidade de sessão no balanceador. A afinidade mantém o cliente no mesmo destino quando possível; não replica a sessão nem protege contra a queda desse destino.\n\nDados de negócio duráveis exigem estratégia própria de persistência e replicação. Replicar servidores de aplicação não replica automaticamente o banco ou as sessões que eles mantêm. Separe disponibilidade do processo, disponibilidade do serviço e durabilidade dos dados: são propriedades relacionadas, mas diferentes.\n\n### Como cai na prova\n\n- Um sistema distribuído pode sofrer falha parcial e atraso de rede mesmo com alguns nós funcionando.\n- Mais réplicas ajudam apenas se não compartilharem o mesmo ponto de falha e se houver capacidade de encaminhar pedidos às sobreviventes.\n- Afinidade de sessão direciona requisições; não é cópia de estado nem substitui persistência.\n- Alta disponibilidade não significa ausência de falhas: busca-se detectar, conter e recuperar com impacto limitado."
+    },
+    {
+      "title": "2. Balanceamento de carga e saúde dos destinos",
+      "markdown": "### O problema que este assunto resolve\n\nUm balanceador recebe ou encaminha requisições para um conjunto de destinos (backends). Ele distribui tráfego para evitar que uma instância fique saturada enquanto outras permanecem ociosas, e pode deixar de enviar novas requisições a destinos considerados indisponíveis. Pode atuar em camada de transporte, encaminhando conexões por endereço e porta, ou em camada de aplicação, entendendo elementos como host, caminho HTTP ou cabeçalhos. DNS também pode distribuir respostas, mas cache e tempo de propagação tornam a retirada de um destino menos imediata do que em um proxy que controla cada nova conexão.\n\n> **Siglas e termos deste capítulo**\n> - **Backend/destino**: instância que recebe a requisição encaminhada.\n> - **Round-robin**: alternância sequencial entre destinos elegíveis.\n> - **Least connections**: preferência ao destino com menos conexões ativas.\n> - **Health check**: verificação periódica de condição de serviço.\n> - **Readiness**: capacidade de receber tráfego agora.\n> - **Liveness**: sinal de que o processo deve continuar em execução, ou ser reiniciado.\n\n### Algoritmos e critérios\n\n| Critério | Decisão típica | Limitação a considerar |\n| --- | --- | --- |\n| Round-robin | Alterna entre destinos saudáveis | Não considera diferenças de capacidade ou custo de cada pedido |\n| Round-robin ponderado | Dá mais pedidos a destinos com maior peso | Peso estático pode não refletir congestionamento momentâneo |\n| Menos conexões | Escolhe destino com menos conexões abertas | Conexões longas não equivalem necessariamente a maior trabalho |\n| Menor latência ou carga observada | Prefere destino com métrica melhor | Métricas atrasadas podem oscilar e produzir decisões ruins |\n| Hash de cliente/chave | Mantém uma chave associada a um destino | Perda do destino pode quebrar afinidade; distribuição pode ficar desigual |\n\nO algoritmo deve combinar com a carga: round-robin costuma ser simples para pedidos de duração semelhante; conexões persistentes ou tarefas de duração variável podem justificar outros sinais. O balanceador distribui pedidos, mas não cria capacidade. Sobrecarga geral requer limitar entrada, enfileirar com limites, rejeitar cedo ou reduzir trabalho opcional; continuar aceitando sem controle pode derrubar todos os destinos.\n\n### Verificações de saúde e drenagem\n\nUm health check pode verificar porta, processo ou uma rota de aplicação. Verificar apenas que a porta responde não prova que o destino consegue executar a operação de negócio: ele pode ter perdido acesso a uma dependência. A verificação deve ser útil sem provocar tempestade de chamadas nem remover todas as instâncias por um problema temporário.\n\nNo Kubernetes, um Service oferece endereço estável para um conjunto de Pods que pode mudar; o sistema atualiza EndpointSlices com os destinos atuais. Uma readiness probe indica se o contêiner pode receber tráfego: quando falha, o Pod deixa de ser considerado pronto nos endpoints correspondentes, embora continue rodando. Uma liveness probe indica quando reiniciar o contêiner. Confundir as duas pode causar reinícios desnecessários durante sobrecarga. O Kubernetes define APIs e pode integrar balanceamento externo; não fornece sozinho todo balanceador externo.\n\nAo retirar uma instância para manutenção, a drenagem para de enviar novas requisições e dá chance às conexões em andamento de terminar. Interrupção abrupta pode cortar operações válidas. Reintroduzir um destino também pode exigir aquecimento de cache e verificação de prontidão antes de receber a carga inteira.\n\n### Como cai na prova\n\n- Readiness controla entrada de tráfego; liveness pode provocar reinício.\n- Round-robin não mede automaticamente CPU, latência nem custo de cada requisição.\n- Um destino marcado saudável na camada TCP ainda pode falhar na aplicação.\n- Em Kubernetes, Services mantêm uma interface estável e os endpoints acompanham Pods prontos; balanceamento externo pode depender do provedor ou de componente próprio."
+    },
+    {
+      "title": "3. Failover: detecção, promoção e retorno",
+      "markdown": "### O problema que este assunto resolve\n\nFailover é a transferência de trabalho de um componente ativo que falhou ou foi isolado para uma alternativa. Pode ser automático, conduzido por controladores ou balanceadores, ou manual, com decisão humana. O objetivo é restaurar o serviço, mas detectar falha não é o mesmo que provar que o componente está morto: uma partição de rede pode tornar o primário inalcançável para uma região enquanto ele continua atendendo outra. Promover uma réplica sem impedir o antigo primário de escrever cria dois líderes.\n\n> **Siglas e termos deste capítulo**\n> - **Ativo-passivo**: um nó atende e outro fica pronto para assumir.\n> - **Ativo-ativo**: mais de um nó atende simultaneamente.\n> - **Heartbeat**: sinal periódico usado como indício de funcionamento.\n> - **Split-brain**: dois nós se comportam como autoridade ativa ao mesmo tempo.\n> - **Fencing**: mecanismo que impede o nó antigo de continuar alterando estado.\n> - **RTO/RPO**: objetivos de tempo de recuperação e de perda aceitável de dados.\n\n### Sequência operacional\n\nUm failover confiável combina: (1) observar falhas com timeouts e sinais de saúde; (2) decidir se a condição justifica mudança, considerando falha de processo, dependência ou conectividade; (3) impedir que o antigo ativo siga escrevendo quando necessário; (4) escolher e promover um substituto que tenha estado adequado; (5) atualizar roteamento ou descoberta; (6) confirmar que o serviço voltou; e (7) reconstruir redundância. Se a cópia está atrasada, a promoção pode perder gravações recentes. Se o destino não tem capacidade, a mudança apenas transfere a sobrecarga.\n\nEm banco primário-réplica, o failover pode incluir eleição ou promoção explícita. Um mecanismo de quorum ou coordenador ajuda a evitar duas decisões contraditórias, mas depende de regras de maioria, conectividade e identidade de época/termo. Fencing pode usar desligamento, revogação de credenciais de escrita ou mecanismo equivalente. Não basta apontar o balanceador ao novo primário se o antigo ainda aceita escrita.\n\n### Automático ou manual\n\nAutomação diminui tempo de detecção e reação, mas uma regra agressiva pode interpretar lentidão como falha, alternar repetidamente entre nós (flapping) ou promover a cópia errada. Limites de tempo, histerese, tentativas graduais e observabilidade ajudam. Uma reversão para o primário original (failback) deve ser planejada: primeiro sincronize e valide o estado, depois transfira papel e tráfego de modo controlado. Um failover deixa muitas vezes o serviço temporariamente sem outra reserva pronta.\n\nA orientação oficial de resiliência da AWS descreve duas opções durante falha: manter capacidade já provisionada para absorver toda a carga do subsistema perdido (estabilidade estática, maior custo), ou desviar parte da carga e rejeitar/shed o excesso enquanto se repõe capacidade (menor custo de reserva, recuperação mais dependente do plano de controle). A escolha envolve custo, tempo de recuperação e criticidade.\n\n### Como cai na prova\n\n- Failover inclui mais do que detectar: exige promover, rotear e verificar a alternativa.\n- Um falso positivo pode gerar split-brain; isolamento do nó antigo e controle de liderança são essenciais.\n- RTO trata do tempo de recuperação; RPO expressa a perda de dados tolerável.\n- Failback não é simplesmente ligar o antigo ativo: sincronize e faça a mudança sob controle."
+    },
+    {
+      "title": "4. Replicação de estado, consistência e recuperação",
+      "markdown": "### O problema que este assunto resolve\n\nReplicação mantém cópias de dados ou estado em mais de um nó. Ela pode aumentar disponibilidade de leitura e permitir recuperação após falha, mas traz custo de armazenamento, tráfego e coordenação. Uma réplica não é backup: exclusão lógica, corrupção ou erro humano podem ser propagados para as cópias. Backups preservam pontos de recuperação independentes; replicação mantém cópias operacionais, muitas vezes com atraso pequeno, mas não necessariamente zero.\n\n> **Siglas e termos deste capítulo**\n> - **Primário-réplica**: um nó recebe escritas e envia alterações às réplicas.\n> - **Multi primário**: mais de um nó pode aceitar escritas.\n> - **Síncrona**: confirmação aguarda a condição de replicação definida.\n> - **Assíncrona**: o primário confirma antes de todas as cópias receberem a alteração.\n> - **Consistência eventual**: réplicas podem divergir temporariamente e convergir se novas alterações cessarem.\n> - **Lag**: atraso entre a gravação original e sua aplicação na réplica.\n\n### Modalidade, leitura e perda de gravações\n\nNa replicação síncrona, a confirmação pode esperar uma ou mais réplicas, conforme a política. Isso reduz a janela de perda em algumas falhas, porém aumenta latência e pode tornar a escrita indisponível quando não se alcança a condição exigida. “Síncrona” não significa automaticamente que todas as cópias do mundo confirmaram: é necessário conhecer o conjunto de confirmação. Na replicação assíncrona, a confirmação é rápida, mas uma falha do primário antes da propagação pode perder gravações recentes no failover.\n\nLer de réplica pode distribuir consultas, mas pode retornar dado antigo. Uma escrita seguida de leitura imediata em outra réplica é o caso clássico de leitura obsoleta. Soluções incluem ler do primário, esperar até a réplica alcançar uma posição/versão da escrita, ou estabelecer garantias de sessão. A decisão depende da tolerância do negócio a dados atrasados.\n\n### Conflitos, partições e partição de dados\n\nNo modelo primário-réplica, um escritor principal simplifica a ordenação, mas exige promoção segura se falhar. Em multi primário, duas regiões podem aceitar alterações concorrentes ao mesmo registro; é preciso resolver conflitos por regra determinística, versão, operação comutativa ou intervenção de domínio. “Última gravação vence” é simples, porém pode descartar uma atualização válida quando relógios ou ordem não representam a intenção do usuário.\n\nParticionamento (sharding) divide conjuntos de registros entre grupos de nós; replicação cria cópias de cada grupo. São técnicas complementares: a primeira distribui volume e capacidade, a segunda duplica dados para resiliência ou leitura. Uma partição de rede impede comunicação entre grupos. O teorema CAP é um enquadramento para o comportamento durante essa partição: um sistema que precisa responder pode relaxar consistência entre réplicas; um sistema que preserva uma visão consistente pode rejeitar ou adiar certas operações. Não se deve inferir que fora de uma partição todo sistema escolhe apenas duas propriedades para sempre.\n\n### Recuperação segura\n\nOperações que podem ser repetidas após timeout devem ser idempotentes, ou levar uma chave de idempotência, para que uma repetição não duplique cobrança ou pedido. Registros de log, identificadores de versão e confirmação de gravação ajudam a reconstruir sequência. Monitore atraso de replicação, erros de promoção, capacidade livre e divergência. Teste restauração de backup e failover, incluindo retorno à redundância, pois uma réplica nunca substitui o ensaio de recuperação.\n\n### Como cai na prova\n\n- Replicação assíncrona permite atraso e possível perda das últimas escritas; síncrona pode aumentar latência e bloquear confirmações.\n- Réplica de leitura pode responder com estado obsoleto.\n- Multi primário requer estratégia explícita para conflitos; primário-réplica reduz conflitos de escrita, mas cria trabalho de promoção.\n- Sharding divide dados; replicação mantém cópias. Backup atende recuperação histórica e deve resistir à propagação de erros."
+    }
+  ],
+  "summary": "Sistemas distribuídos separam componentes por processos e rede, o que permite escalar e tolerar algumas falhas, mas introduz atrasos, falhas parciais e divergência. Balanceadores distribuem requisições entre destinos elegíveis; health checks e readiness retiram do tráfego instâncias temporariamente incapazes, enquanto liveness orienta reinício. Failover detecta uma falha, controla a liderança, promove uma alternativa, atualiza o roteamento e valida o serviço; sem fencing pode ocorrer split-brain. Replicação síncrona reduz certas perdas ao custo de latência e dependência de confirmação; assíncrona responde mais rápido e pode deixar atraso ou perder gravações recentes. Réplicas de leitura podem estar desatualizadas, e múltiplos escritores exigem resolução de conflitos. Sharding divide dados, replicação os copia, backup permite recuperar estados anteriores. Capacidade, independência de domínios de falha, idempotência, monitoramento e testes de recuperação completam o desenho.",
+  "flashcards": [
+    {
+      "front": "O que caracteriza um sistema distribuído?",
+      "back": "Componentes executam em processos ou máquinas distintos e trocam mensagens por uma rede; falhas e atrasos podem afetar só parte do sistema."
+    },
+    {
+      "front": "O que é uma falha parcial?",
+      "back": "Uma parte falha ou fica inacessível enquanto outras partes do sistema continuam operando."
+    },
+    {
+      "front": "O que significa SPOF?",
+      "back": "Ponto único de falha: componente cuja falha isolada interrompe o serviço por falta de alternativa."
+    },
+    {
+      "front": "Round-robin distribui carga como?",
+      "back": "Alterna sequencialmente entre destinos elegíveis, sem medir por si só a duração do pedido ou a carga real."
+    },
+    {
+      "front": "Qual o papel de um health check?",
+      "back": "Avaliar periodicamente se um destino deve continuar recebendo tráfego, segundo um critério de saúde configurado."
+    },
+    {
+      "front": "Readiness e liveness são equivalentes?",
+      "back": "Não. Readiness indica se pode receber tráfego; liveness serve para decidir se o contêiner deve ser reiniciado."
+    },
+    {
+      "front": "O que é drenagem de conexões?",
+      "back": "Parar de encaminhar novas requisições a um destino e permitir que operações em andamento terminem de forma controlada."
+    },
+    {
+      "front": "Defina failover.",
+      "back": "Transferência de trabalho de um componente ativo indisponível para uma alternativa, com promoção e ajuste de roteamento."
+    },
+    {
+      "front": "O que é split-brain?",
+      "back": "Condição em que mais de um nó acredita ser o líder autorizado a aceitar alterações, podendo produzir estado divergente."
+    },
+    {
+      "front": "Para que serve fencing?",
+      "back": "Impedir o antigo líder de continuar alterando dados após transferência de liderança."
+    },
+    {
+      "front": "O que expressa RTO?",
+      "back": "Objetivo de tempo de recuperação: quanto tempo se tolera até restabelecer o serviço após interrupção."
+    },
+    {
+      "front": "O que expressa RPO?",
+      "back": "Objetivo de ponto de recuperação: quanta perda temporal de dados se tolera após falha."
+    },
+    {
+      "front": "Como funciona replicação assíncrona?",
+      "back": "O nó de origem pode confirmar antes de todas as réplicas receberem a alteração; pode haver atraso e perda recente no failover."
+    },
+    {
+      "front": "Qual é o custo típico da replicação síncrona?",
+      "back": "A confirmação espera a condição de replicação configurada, reduzindo certas perdas mas aumentando latência e dependência das réplicas."
+    },
+    {
+      "front": "O que é lag de replicação?",
+      "back": "A diferença de tempo ou posição entre a alteração confirmada na origem e sua aplicação numa réplica."
+    },
+    {
+      "front": "O que é uma leitura obsoleta?",
+      "back": "Consulta que retorna um valor anterior porque a réplica de leitura ainda não aplicou a gravação mais recente."
+    },
+    {
+      "front": "O que é replicação multi primário?",
+      "back": "Modelo em que mais de um nó pode aceitar escrita; alterações concorrentes precisam de política de resolução de conflitos."
+    },
+    {
+      "front": "O que é sharding?",
+      "back": "Particionamento que distribui subconjuntos dos registros entre grupos de nós; não cria, por si só, cópias redundantes."
+    },
+    {
+      "front": "Replicação substitui backup?",
+      "back": "Não. Erros e exclusões podem ser propagados; backup preserva pontos de recuperação independentes para restauração histórica."
+    },
+    {
+      "front": "O que torna uma operação idempotente?",
+      "back": "Executá-la novamente produz o mesmo efeito final, evitando duplicidade quando há retry após timeout ou resposta perdida."
+    }
+  ],
+  "tips": [
+    "Identifique se o enunciado trata de distribuir requisições, duplicar dados ou dividir dados: balanceamento, replicação e sharding resolvem problemas diferentes.",
+    "Na leitura de cenário, pergunte onde o estado reside; instâncias de aplicação sem estado local são mais fáceis de substituir.",
+    "Associe readiness a tráfego e liveness a reinício; um serviço sobrecarregado pode não estar pronto sem que o processo precise reiniciar.",
+    "Ao avaliar failover, confira quem assume, como o antigo líder é impedido de escrever e qual atraso existe na cópia promovida.",
+    "Replicação assíncrona tende a reduzir espera de confirmação e ampliar a janela de perda; síncrona troca disponibilidade/latência por confirmação mais forte.",
+    "Considere falhas correlacionadas: réplicas na mesma máquina, zona ou dependência podem cair juntas apesar de haver várias instâncias."
+  ],
+  "traps": [
+    "Ter várias instâncias da aplicação não replica sessões que continuam guardadas somente na memória de cada instância.",
+    "Um health check de porta TCP não garante que a aplicação consegue completar uma operação de negócio.",
+    "Readiness não reinicia o contêiner; uma falha de liveness pode provocar reinício.",
+    "Failover automático sem controle de liderança pode deixar primário antigo e novo ativos ao mesmo tempo.",
+    "Replicação assíncrona não garante que toda gravação confirmada chegou à cópia que será promovida.",
+    "Réplicas operacionais não são cópias históricas isoladas: exclusão e corrupção podem se propagar."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o caminho de uma requisição balanceada.",
+      "answer": "Cliente alcança um endpoint estável; o balanceador seleciona um backend elegível conforme algoritmo e saúde, encaminha o pedido e pode retirar o destino se deixar de estar pronto."
+    },
+    {
+      "question": "Por que duas réplicas podem falhar juntas?",
+      "answer": "Podem compartilhar domínio de falha, como host, zona, região, rede, energia ou dependência comum. Separá-las reduz correlação, sem eliminar todo risco."
+    },
+    {
+      "question": "O que deve ser validado num failover de banco?",
+      "answer": "Detecção e decisão, prevenção de escrita pelo líder antigo, estado/atraso da cópia, promoção, atualização de clientes/roteamento, validação do serviço e reconstrução de redundância."
+    },
+    {
+      "question": "Compare replicação síncrona e assíncrona.",
+      "answer": "Na síncrona a confirmação aguarda uma condição de replicação, aumentando latência e proteção contra certas perdas; na assíncrona o primário pode confirmar antes, com menor espera e possível lag/perda recente."
+    },
+    {
+      "question": "Quando uma réplica pode retornar dado antigo?",
+      "answer": "Quando uma consulta de leitura chega antes de a réplica aplicar uma escrita recente; leituras subsequentes à escrita podem exigir primário, espera por posição ou garantia de sessão."
+    },
+    {
+      "question": "Como distinguir sharding de replicação?",
+      "answer": "Sharding reparte registros entre partições para distribuir volume; replicação copia o estado de uma partição para outros nós para disponibilidade, leitura ou recuperação."
+    },
+    {
+      "question": "Por que operações distribuídas devem considerar idempotência?",
+      "answer": "Um timeout não revela se a operação foi executada; a repetição pode duplicar efeito. Idempotência ou chave de deduplicação permite retry seguro."
+    },
+    {
+      "question": "O que o Kubernetes faz com um Pod não pronto atrás de Service?",
+      "answer": "A condição de readiness é refletida nos endpoints correspondentes e o Pod deixa de receber tráfego regular pelo Service, sem que isso por si só reinicie o contêiner."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confundir balanceamento com replicação",
+      "summary": "Balanceador encaminha requisições entre destinos; replicação mantém cópias de estado. A primeira não cria dados redundantes, e a segunda não escolhe necessariamente qual servidor recebe cada cliente."
+    },
+    {
+      "key": "e2",
+      "title": "Confundir readiness e liveness",
+      "summary": "Readiness governa aptidão para receber tráfego. Liveness pode acionar reinício. Usar reinício para tratar todo congestionamento pode agravar a carga das instâncias restantes."
+    },
+    {
+      "key": "e3",
+      "title": "Promover sem cercar o antigo líder",
+      "summary": "Uma interrupção de rede pode parecer falha total. Se a alternativa for promovida sem bloquear o antigo primário, ambos podem aceitar escrita e gerar split-brain."
+    },
+    {
+      "key": "e4",
+      "title": "Supor que réplica está sempre atualizada",
+      "summary": "Replicação pode ter atraso, sobretudo quando assíncrona. Leitura pode ser obsoleta e failover pode perder escritas ainda não aplicadas na cópia escolhida."
+    },
+    {
+      "key": "e5",
+      "title": "Tratar réplica como backup",
+      "summary": "A cópia replicada acompanha alterações e pode reproduzir corrupção ou exclusão. Backup independente com retenção e teste de restauração atende recuperação histórica."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um sistema distribuído, a falha de um processo pode ocorrer enquanto outros processos continuam prestando parte do serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A rede e os nós podem falhar de modo independente; essa falha parcial é uma das razões para monitorar componentes e projetar alternativas para dependências críticas.",
+      "section": "1. A arquitetura distribuída e seus modos de falha",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas instâncias em máquinas diferentes garantem independência total contra falhas correlacionadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Os hosts podem compartilhar zona, rede, energia ou serviço de armazenamento. A separação precisa considerar domínios e dependências comuns, não apenas nomes de máquina distintos.",
+      "section": "1. A arquitetura distribuída e seus modos de falha",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma sessão é mantida apenas na memória de uma instância, encaminhar a requisição seguinte a outra instância pode perder o contexto do usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A segunda instância não tem automaticamente a memória privada da primeira. Sessão compartilhada, token adequado ou afinidade podem resolver aspectos distintos desse problema.",
+      "section": "1. A arquitetura distribuída e seus modos de falha",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Afinidade de sessão equivale a replicar os dados de sessão para todos os servidores e preserva a sessão após a queda do destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Afinidade tenta manter o cliente no mesmo destino; não copia o estado. Se esse destino cair, a sessão local pode continuar indisponível ou perdida.",
+      "section": "1. A arquitetura distribuída e seus modos de falha",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A disponibilidade de uma aplicação pode continuar limitada por um banco ou balanceador que seja ponto único de falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Redundância apenas na camada de aplicação não remove dependências únicas do caminho necessário. A análise deve seguir a requisição por todos os componentes críticos.",
+      "section": "1. A arquitetura distribuída e seus modos de falha",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema com alta disponibilidade é aquele no qual nenhum componente jamais falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Alta disponibilidade trata de reduzir indisponibilidade e tempo de recuperação mediante detecção, redundância e resposta; não torna componentes infalíveis.",
+      "section": "1. A arquitetura distribuída e seus modos de falha",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Réplicas colocadas em domínios de falha diferentes podem reduzir a chance de uma causa comum derrubar todas ao mesmo tempo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Separar zonas, hosts ou regiões diminui algumas correlações de falha, embora dependências compartilhadas e eventos mais amplos ainda precisem ser considerados.",
+      "section": "1. A arquitetura distribuída e seus modos de falha",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação sem estado local relevante pode facilitar a substituição de instâncias, desde que o estado necessário esteja disponível por outro meio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Qualquer instância compatível pode atender a solicitação se sessão e dados necessários não dependerem da memória privada de uma instância anterior.",
+      "section": "1. A arquitetura distribuída e seus modos de falha",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual política descreve round-robin simples em um conjunto de destinos elegíveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolher sempre o destino com maior memória livre medida no instante.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Alternar os pedidos sequencialmente entre os destinos disponíveis.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Enviar todos os pedidos ao destino que respondeu primeiro no dia.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Selecionar o destino que contém a cópia mais recente do banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Distribuir pedidos conforme a duração futura de cada operação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Round-robin usa uma sequência de alternância. Não estima memória ou duração futura, nem determina qual réplica de banco possui os dados mais recentes.",
+      "section": "2. Balanceamento de carga e saúde dos destinos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma readiness probe de um Pod ligado a Service falha. Qual efeito corresponde ao comportamento documentado do Kubernetes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O Pod é imediatamente promovido a primário e recebe todas as gravações.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O nó inteiro é desligado, inclusive outros Pods sem relação com esse contêiner.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O contêiner sempre reinicia, embora uma readiness falha não acione esse efeito.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Service perde seu endereço estável enquanto a probe estiver reprovada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Pod sai dos endpoints prontos para tráfego regular encaminhado pelo Service.",
+          "correct": true
+        }
+      ],
+      "explanation": "A readiness indica capacidade atual de receber tráfego e sua falha retira o Pod dos endpoints correspondentes. Isso não equivale à liveness, que pode acionar reinício, nem remove o endereço estável do Service.",
+      "section": "2. Balanceamento de carga e saúde dos destinos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a finalidade principal de uma liveness probe corretamente configurada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolher a região que deve armazenar a próxima réplica do banco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Distribuir conexões abertas segundo o algoritmo least connections.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sinalizar condição que justifique reiniciar o contêiner afetado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Garantir que toda escrita foi confirmada em todas as regiões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter a sessão do usuário presa ao mesmo endereço de origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Liveness verifica se o contêiner está em condição de continuar; uma falha conforme a política pode levar o kubelet a reiniciá-lo. Não balanceia conexões nem sincroniza dados.",
+      "section": "2. Balanceamento de carga e saúde dos destinos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Round-robin necessariamente envia mais pedidos ao destino com menor carga instantânea.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O método alterna destinos elegíveis; escolher pela carga observada exige outra política e depende de métricas que podem estar atrasadas.",
+      "section": "2. Balanceamento de carga e saúde dos destinos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma verificação que confirma somente que a porta TCP está aberta pode deixar passar um destino incapaz de concluir uma operação de negócio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O processo pode aceitar conexão enquanto uma dependência ou lógica interna está falhando. A profundidade do check deve refletir o estado que realmente importa para receber tráfego.",
+      "section": "2. Balanceamento de carga e saúde dos destinos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante drenagem, o balanceador deixa de encaminhar novas requisições ao destino e permite que conexões em curso terminem quando possível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A drenagem viabiliza manutenção ou retirada progressiva, diminuindo cortes de operações já iniciadas. Ela não replica automaticamente o estado local do servidor.",
+      "section": "2. Balanceamento de carga e saúde dos destinos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Service do Kubernetes fornece uma interface de rede estável para um conjunto de Pods que pode mudar ao longo do tempo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O Service abstrai a mudança de Pods de backend e o Kubernetes acompanha endpoints. A forma de balanceamento externo pode exigir integração ou componente adicional.",
+      "section": "2. Balanceamento de carga e saúde dos destinos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para desligar uma instância que mantém conexões longas, qual ação reduz interrupções aos clientes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o peso dela para receber todas as conexões novas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apagar as verificações de saúde antes de encerrar o processo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar as réplicas de aplicação e manter apenas o banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Drenar novas solicitações e aguardar as conexões ativas concluírem.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Alterar o round-robin para distribuir cópias de sessão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A drenagem impede novas atribuições e preserva tempo para operações em curso terminarem. Alterar algoritmo não copia sessões e encerrar abruptamente pode cortar conexões válidas.",
+      "section": "2. Balanceamento de carga e saúde dos destinos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que algoritmo considera diretamente o número de conexões simultâneas de cada backend?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Round-robin alterna destinos sem consultar quantas conexões estão abertas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Hash de cliente associa uma chave sem medir conexões simultâneas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DNS round-robin publica destinos sem observar conexões ativas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Readiness avalia aptidão para tráfego, não sessões persistidas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Least connections tende a preferir quem mantém menos conexões abertas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Least connections usa a quantidade de conexões ativas como critério. Isso não mede necessariamente trabalho computacional, pois conexões podem ter duração e custo diferentes.",
+      "section": "2. Balanceamento de carga e saúde dos destinos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um balanceador cria capacidade de processamento ilimitada ao repartir cada requisição por mais servidores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O balanceador distribui demanda existente, mas cada backend tem limites e dependências também podem saturar. Controle de admissão e capacidade continuam necessários.",
+      "section": "2. Balanceamento de carga e saúde dos destinos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Readiness e liveness podem ser usadas simultaneamente porque respondem a perguntas operacionais distintas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Um contêiner pode permanecer vivo e precisar sair temporariamente do tráfego, ou estar travado e necessitar de reinício. Checks separados representam essas condições sem confundi-las.",
+      "section": "2. Balanceamento de carga e saúde dos destinos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao detectar que o primário de um banco ficou inalcançável, qual cuidado evita dois escritores simultâneos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar a frequência de round-robin entre todas as réplicas disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Promover uma réplica e cercar ou revogar escrita do antigo primário.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Manter os dois nós aceitando escrita até que o DNS se estabilize.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar uma probe de porta e presumir que a partição terminou.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ativar leitura de réplica em todos os clientes sem mudar liderança.",
+          "correct": false
+        }
+      ],
+      "explanation": "A partição pode esconder o primário sem pará-lo. O novo líder precisa ser eleito e o antigo impedido de escrever (fencing), para evitar split-brain e divergência de estado.",
+      "section": "3. Failover: detecção, promoção e retorno",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Failover é apenas a detecção de que um servidor parou de responder, sem alteração de papel ou roteamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A detecção é uma etapa. O processo pode requerer decisão, promoção do substituto, atualização de roteamento e confirmação de que o serviço recuperou sua função.",
+      "section": "3. Failover: detecção, promoção e retorno",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma partição de rede pode fazer o primário parecer indisponível para um controlador embora continue executando e aceitando gravações de alguns clientes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Falha de comunicação não prova que o processo foi desligado. A promoção sem mecanismo de liderança e fencing pode permitir que duas partes aceitem alterações concorrentes.",
+      "section": "3. Failover: detecção, promoção e retorno",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "RTO expressa uma meta de tempo para recuperar o serviço após uma interrupção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. RTO é o objetivo temporal de recuperação. Ele não especifica por si só a quantidade de dados que pode ser perdida, aspecto tratado pelo RPO.",
+      "section": "3. Failover: detecção, promoção e retorno",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "RPO descreve a quantidade de perda de dados aceitável, normalmente em termos do ponto temporal recuperável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. RPO expressa a janela de dados cuja perda é tolerada. A replicação e a frequência de cópias influenciam a capacidade de atingir esse objetivo.",
+      "section": "3. Failover: detecção, promoção e retorno",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O failback para o servidor original pode ser feito sem verificar sincronização porque ele já foi o primário antes da falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Enquanto esteve fora, o antigo servidor pode ter ficado desatualizado. Sincronização, validação e transferência controlada evitam regressão ou conflito de dados.",
+      "section": "3. Failover: detecção, promoção e retorno",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma réplica assíncrona atrasada é sempre segura para promover sem perda porque os pedidos já foram confirmados ao cliente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O cliente pode ter recebido confirmação do primário antes de a alteração chegar à réplica. Se a cópia atrasada for promovida, as últimas gravações podem não estar presentes.",
+      "section": "3. Failover: detecção, promoção e retorno",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na estratégia de capacidade estática descrita pela AWS, recursos já provisionados podem absorver a carga da parte perdida, com maior custo de reserva.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Capacidade previamente disponível reduz dependência de criar recursos durante a falha e pode diminuir recuperação, mas mantém recursos ociosos e eleva custo operacional.",
+      "section": "3. Failover: detecção, promoção e retorno",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo de failover robusto precisa confirmar que a alternativa está funcionando depois de atualizar o encaminhamento de tráfego.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A promoção técnica não prova que a aplicação foi recuperada. Verificações de resposta, erros, latência e dependências confirmam se o serviço voltou a atender.",
+      "section": "3. Failover: detecção, promoção e retorno",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após promover uma réplica de banco, qual sequência operacional é mais segura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Promover todas as réplicas e deixar cada cliente escolher um escritor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reapontar DNS sem sincronizar o antigo primário nem bloquear sua escrita.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desviar clientes, conferir respostas e reconstruir uma nova réplica reserva.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Apagar logs e reiniciar clientes sem acompanhar respostas do serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reverter imediatamente ao antigo primário antes de validar gravações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Depois de controlar a liderança e encaminhar o serviço, valide o funcionamento e reponha a redundância. Sem reserva, uma segunda falha pode interromper o sistema; retorno sem sincronização pode descartar dados.",
+      "section": "3. Failover: detecção, promoção e retorno",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual diferença descreve adequadamente replicação síncrona e assíncrona?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Síncrona copia arquivos; assíncrona distribui pedidos HTTP entre servidores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Síncrona elimina falhas; assíncrona perde necessariamente todas as gravações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Síncrona pode aguardar confirmação; assíncrona pode propagar após responder.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Síncrona implica duas regiões; assíncrona exige servidor único.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Síncrona dispensa rede; assíncrona exige clientes copiando os dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A distinção está no momento de confirmação em relação à propagação configurada. A modalidade síncrona pode elevar latência; a assíncrona pode deixar uma janela de atraso e perda em failover.",
+      "section": "4. Replicação de estado, consistência e recuperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A replicação síncrona torna toda escrita globalmente disponível sem latência adicional, independentemente da localização das cópias.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Esperar confirmações das cópias configuradas pode aumentar a latência, sobretudo entre regiões. A política também pode deixar de confirmar quando a condição exigida não está disponível.",
+      "section": "4. Replicação de estado, consistência e recuperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na replicação assíncrona, a origem pode confirmar uma gravação antes de ela ser aplicada em todas as réplicas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A propagação posterior reduz espera no caminho da escrita, mas cria lag e risco de a cópia promovida ainda não conter uma alteração recente.",
+      "section": "4. Replicação de estado, consistência e recuperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta enviada a uma réplica de leitura pode retornar valor anterior ao de uma escrita recém-confirmada no primário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Se a réplica ainda não aplicou a alteração, sua visão fica atrasada. O desenho precisa escolher entre leitura do primário, espera de sincronização ou aceitar consistência mais fraca.",
+      "section": "4. Replicação de estado, consistência e recuperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sharding divide registros entre partições; replicação mantém cópias de um conjunto de dados em nós distintos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Sharding distribui volume entre partições, enquanto replicação duplica estado. Um sistema pode aplicar ambas as técnicas à mesma arquitetura.",
+      "section": "4. Replicação de estado, consistência e recuperação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Replicação operacional substitui backup porque uma cópia sempre conserva os dados anteriores a uma exclusão acidental.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Alterações destrutivas podem ser propagadas às réplicas. Um backup com retenção e restauração testada fornece uma trilha de recuperação histórica independente.",
+      "section": "4. Replicação de estado, consistência e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema multi primário, duas escritas concorrentes no mesmo registro podem exigir uma regra de resolução de conflitos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Como mais de um nó aceita escrita, as alterações podem chegar em ordens distintas. Versões, operações comutativas ou regras de domínio precisam definir o resultado.",
+      "section": "4. Replicação de estado, consistência e recuperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O teorema CAP afirma que, em toda situação normal, qualquer sistema deve escolher permanentemente apenas duas entre consistência, disponibilidade e tolerância a partição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. CAP caracteriza escolhas sob uma partição de comunicação: diante dela, a arquitetura precisa priorizar respostas disponíveis ou uma visão consistente. Não é uma regra de escolha permanente fora dessa condição.",
+      "section": "4. Replicação de estado, consistência e recuperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação idempotente produz o mesmo efeito final quando é repetida, propriedade útil em retries após timeout.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Depois de um timeout, o cliente pode não saber se o servidor executou a operação. Idempotência ou uma chave de deduplicação impede que a repetição crie efeitos duplicados.",
+      "section": "4. Replicação de estado, consistência e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma réplica pode ser usada para leituras distribuídas, mas consultas nela podem observar atraso em relação ao nó de escrita.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A divisão de leituras pode ampliar capacidade, porém a aplicação precisa aceitar ou tratar a defasagem entre escrita e leitura para não expor estado inesperadamente antigo.",
+      "section": "4. Replicação de estado, consistência e recuperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário combina com leitura potencialmente obsoleta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cliente consulta o primário após o commit ser confirmado localmente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A consulta alcança a réplica antes de ela aplicar a gravação recente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O balanceador encerra uma conexão que terminou sua drenagem normal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um Pod sem readiness recebe requisições pelo endpoint pronto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sistema rejeita a gravação antes de iniciar a transação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma réplica atrasada ainda expõe seu estado anterior. Para exigir leitura após escrita, o sistema pode consultar o primário ou aguardar a réplica alcançar a posição da operação.",
+      "section": "4. Replicação de estado, consistência e recuperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação distingue corretamente uma réplica de leitura de uma cópia de backup?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A réplica fica sempre offline; o backup atende consultas da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A réplica corrige corrupção; o backup transmite os erros para outros nós.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A réplica divide tabelas; o backup escolhe o nó que recebe requisições.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A réplica dispensa retenção; o backup não pode ser restaurado após falhas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A réplica acompanha alterações; o backup preserva um ponto independente.",
+          "correct": true
+        }
+      ],
+      "explanation": "Réplicas mantêm cópias usadas no funcionamento contínuo e podem refletir erros da origem. Backups retidos e testados permitem recuperar estado anterior e não devem depender apenas da mesma cadeia de replicação.",
+      "section": "4. Replicação de estado, consistência e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual decisão é apropriada para duas atualizações concorrentes em uma arquitetura multi primário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Presumir chegada idêntica em regiões separadas por latências distintas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir regra explícita de versão, reconciliação ou conflito do domínio.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apagar a cópia mais lenta sem conferir o conteúdo das alterações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar round-robin de clientes para determinar qual escrita é correta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Considerar que a replicação elimina toda concorrência entre escritores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Escritores independentes podem aceitar mudanças simultâneas e propagá-las em ordens diferentes. A aplicação precisa estabelecer semântica de resolução que preserve as regras do negócio.",
+      "section": "4. Replicação de estado, consistência e recuperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma requisição de criação de pedido pode ser repetida após timeout sem duplicar o pedido se a aplicação usar uma chave de idempotência corretamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O servidor associa repetições à mesma operação identificada e retorna o resultado já registrado, em vez de criar uma segunda compra. A chave precisa ser persistida e validada adequadamente.",
+      "section": "4. Replicação de estado, consistência e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma aplicação retorna sucesso ao cliente antes de a réplica assíncrona receber a alteração, a promoção dessa réplica pode deixar a gravação ausente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O sucesso confirma o que a política do primário declarou, não necessariamente a aplicação em todas as cópias. O atraso deve entrar na decisão de RPO e promoção.",
+      "section": "4. Replicação de estado, consistência e recuperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço distribuído pode combinar particionamento de dados com réplicas para cada partição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Sharding distribui conjuntos distintos de registros, enquanto replicação mantém cópias de cada conjunto. A arquitetura combina escala horizontal e redundância, sujeitas a custos próprios.",
+      "section": "4. Replicação de estado, consistência e recuperação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O atraso de replicação não precisa ser monitorado quando há balanceador de carga, pois o balanceador verifica a atualidade de cada dado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Balanceadores observam elegibilidade de destinos segundo checks configurados; não conhecem automaticamente a posição ou atualidade de cada registro. Lag requer métrica e política de dados próprias.",
+      "section": "4. Replicação de estado, consistência e recuperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual mudança separa melhor um serviço stateless de outro que guarda sessão em memória local?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Abrir mais portas TCP sem mover o estado guardado em cada instância.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Fixar solicitações num host físico sem criar alternativa para sua sessão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar sessão compartilhada ou usar token verificável entre instâncias.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desativar verificações de saúde do balanceador em produção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar round-robin para copiar os dados de sessão em cada pedido.",
+          "correct": false
+        }
+      ],
+      "explanation": "O estado necessário passa a existir fora da memória exclusiva de uma instância, tornando outras réplicas aptas a continuar a sessão. Afinidade pode mascarar o problema, mas não copia estado nem protege da falha local.",
+      "section": "1. A arquitetura distribuída e seus modos de falha",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção descreve uma consequência típica de adotar replicação síncrona entre regiões distantes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A rede deixa de sofrer partições ou perda de conectividade entre regiões.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conflitos multi primário se resolvem sem regra de domínio ou coordenação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Toda requisição passa a ser distribuída em round-robin obrigatório.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Maior tempo de confirmação enquanto aguarda a condição configurada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Cópias operacionais viram backups imutáveis com histórico completo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A distância de rede e a espera por confirmação influenciam a latência. A política pode aumentar proteção contra perda, mas não impede partições nem resolve conflitos de escrita por si só.",
+      "section": "4. Replicação de estado, consistência e recuperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação que faz retry de pagamento precisa considerar que o primeiro pedido pode ter sido processado mesmo que a resposta tenha expirado.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Timeout prova que o servidor descartou a operação antes do commit.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O balanceador garante que somente uma tentativa alcança algum backend.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Basta replicar o balanceador sem registrar identidade para cada pedido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Replicação síncrona transforma automaticamente pagamentos em leituras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim; timeout não revela execução, e idempotência evita duplicar o pagamento.",
+          "correct": true
+        }
+      ],
+      "explanation": "O pedido pode ter sido confirmado no servidor e a resposta ter se perdido na rede. Uma chave idempotente ou mecanismo de deduplicação permite repetir com segurança sem cobrar duas vezes.",
+      "section": "4. Replicação de estado, consistência e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na arquitetura distribuída, qual componente encaminha requisições para destinos elegíveis sem copiar por si só o estado armazenado neles?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma réplica de banco que aplica alterações e mantém cópia operacional dos registros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um backup independente que preserva ponto de recuperação para restauração posterior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma partição de dados que divide registros entre grupos distintos de servidores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um balanceador que seleciona backends saudáveis e encaminha solicitações recebidas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um mecanismo de fencing que bloqueia escrita do antigo líder após promoção.",
+          "correct": false
+        }
+      ],
+      "explanation": "O balanceador decide para qual destino elegível encaminhar cada solicitação, conforme política configurada. Replicação, backup, particionamento e fencing tratam da cópia, recuperação, distribuição de dados e controle de liderança.",
+      "section": "2. Balanceamento de carga e saúde dos destinos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Services, Load Balancing, and Networking",
+      "publisher": "Kubernetes",
+      "reference": "Modelo de rede, Services, EndpointSlices, acesso externo e balanceamento",
+      "url": "https://kubernetes.io/docs/concepts/services-networking/",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Liveness, Readiness, and Startup Probes",
+      "publisher": "Kubernetes",
+      "reference": "Diferenças entre probes, efeitos de falha e aptidão de Pods para tráfego",
+      "url": "https://kubernetes.io/docs/concepts/workloads/pods/probes/",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Availability and Beyond: Understanding and Improving the Resilience of Distributed Systems on AWS",
+      "publisher": "Amazon Web Services",
+      "reference": "Redundância, estabilidade estática, recuperação, failover e replicação multi-região",
+      "url": "https://docs.aws.amazon.com/whitepapers/latest/availability-and-beyond-improving-resilience/",
+      "accessedAt": "2026-10-31"
+    }
+  ]
+}

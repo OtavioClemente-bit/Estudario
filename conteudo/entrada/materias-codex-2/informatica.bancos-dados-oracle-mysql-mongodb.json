@@ -1,0 +1,760 @@
+{
+  "id": "informatica.bancos-dados-oracle-mysql-mongodb",
+  "subject": "Informática",
+  "title": "Bancos de dados Oracle 19c, MySQL e MongoDB",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Oracle 19c, MySQL e MongoDB",
+    "Bancos Oracle MySQL e MongoDB",
+    "Banco de dados Oracle Database 19c",
+    "Administração básica do Oracle 19c",
+    "Conceitos do banco de dados MySQL",
+    "Banco de dados relacional MySQL",
+    "Mecanismo de armazenamento InnoDB MySQL",
+    "Banco de dados documental MongoDB",
+    "Conceitos fundamentais do MongoDB",
+    "Comparação entre SGBDs Oracle e MySQL",
+    "Comparação de bancos relacionais e documentos",
+    "Transações no Oracle MySQL e MongoDB"
+  ],
+  "scope": {
+    "covers": "Conceitos centrais de Oracle Database 19c, MySQL e MongoDB: arquitetura e organização dos dados, objetos, SQL e documentos, índices, transações e concorrência, integridade, replicação, alta disponibilidade e escalabilidade; diferenças entre bancos relacionais e orientado a documentos e situações de uso.",
+    "excludes": "Instalação passo a passo, comandos administrativos específicos de cada sistema operacional, sintaxe SQL completa, tuning avançado, licenciamento, serviços de nuvem e diferenças de versões posteriores ao Oracle 19c."
+  },
+  "theoryTitle": "Como os bancos Oracle, MySQL e MongoDB organizam e protegem dados",
+  "chapters": [
+    {
+      "title": "1. Oracle Database 19c: instância, banco e objetos",
+      "markdown": "### O problema que este assunto resolve\n\nUm SGBD precisa guardar dados de forma persistente e permitir que várias sessões os consultem e alterem sem perder consistência. No Oracle 19c, a distinção entre **banco de dados** e **instância** é fundamental: o banco é o conjunto de arquivos persistentes; a instância é a memória e os processos que permitem acessá-los.\n\n> **Siglas e termos deste capítulo**\n> - **SGBD**: sistema gerenciador de banco de dados.\n> - **Instância**: estruturas de memória compartilhada e processos de fundo em execução.\n> - **SGA**: área global do sistema, memória compartilhada da instância.\n> - **PGA**: memória privada associada a processos do servidor.\n> - **Tablespace**: unidade lógica de armazenamento composta por um ou mais datafiles.\n> - **Schema**: conjunto de objetos pertencentes a um usuário.\n\n### Banco, instância e armazenamento\n\nNo Oracle, arquivos de dados (*datafiles*) guardam segmentos de tabelas, índices e outros objetos; arquivos de controle registram informações necessárias para identificar e manter a estrutura física; e arquivos de redo registram alterações para recuperação. Tablespaces organizam logicamente os segmentos e são apoiadas por datafiles. Assim, uma tabela pertence a um schema e ocupa espaço em uma tablespace, mas não é sinônimo de arquivo físico.\n\nA instância inclui a SGA, com áreas como o *database buffer cache* (blocos lidos ou alterados) e o *shared pool* (SQL compartilhado e metadados), além de processos de fundo. O processo DBWn grava buffers alterados nos datafiles; LGWR grava o redo no online redo log; CKPT coordena checkpoints e atualiza cabeçalhos relacionados. Esses papéis não devem ser confundidos: o redo permite refazer alterações confirmadas após falha, enquanto os datafiles mantêm os blocos do banco.\n\n### SQL, esquema e transação\n\nTabelas relacionais organizam linhas e colunas. Chaves primárias identificam linhas; chaves estrangeiras expressam referências e podem impor integridade referencial. Índices mantêm estruturas auxiliares para localizar linhas com menos leitura, ao custo de espaço e trabalho adicional em inserções, atualizações e exclusões. Uma consulta pode usar índice, mas o otimizador escolhe o plano conforme estatísticas e custos estimados.\n\nUma transação agrupa instruções DML logicamente relacionadas. `COMMIT` torna permanentes as alterações; `ROLLBACK` desfaz as alterações ainda não confirmadas. `SAVEPOINT` marca um ponto ao qual se pode voltar parcialmente. No Oracle, instruções DDL como `CREATE` e `ALTER` provocam commits implícitos; por isso não se deve supor que um rollback desfaça uma alteração de estrutura.\n\n### Como cai na prova\n\n- Instância é memória e processos; banco é a coleção persistente de arquivos.\n- Tablespace é organização lógica; datafile é arquivo físico.\n- Redo apoia recuperação; undo apoia reversão e leituras consistentes.\n- DDL no Oracle tem efeito de commit implícito; não é equivalente a DML transacional comum."
+    },
+    {
+      "title": "2. MySQL e InnoDB: tabelas, transações e replicação",
+      "markdown": "### O problema que este assunto resolve\n\nMySQL é um SGBD relacional que separa o servidor de armazenamento dos mecanismos (*storage engines*) das tabelas. O mecanismo determina recursos concretos como transações, bloqueios e índices. Para aplicações que precisam de integridade transacional, o mecanismo mais relevante é o **InnoDB**.\n\n> **Siglas e termos deste capítulo**\n> - **InnoDB**: mecanismo de armazenamento transacional do MySQL.\n> - **ACID**: atomicidade, consistência, isolamento e durabilidade.\n> - **MVCC**: controle de concorrência por múltiplas versões.\n> - **Índice clustered**: estrutura que organiza os dados da tabela segundo a chave primária no InnoDB.\n> - **Binary log**: registro de eventos usado, entre outras finalidades, na replicação.\n\n### InnoDB e integridade relacional\n\nO InnoDB oferece transações com `COMMIT` e `ROLLBACK`, recuperação após falhas, bloqueio em nível de linha, MVCC e restrições de chave estrangeira. Cada tabela InnoDB possui um índice clustered: quando há chave primária, ela define essa organização; na ausência dela, o mecanismo escolhe uma chave única adequada ou cria uma chave interna. Índices secundários também armazenam a chave primária para localizar a linha. Por isso uma chave primária curta pode reduzir o tamanho dos índices secundários.\n\nChave estrangeira do InnoDB verifica referências entre tabelas relacionadas. Isso difere de simplesmente armazenar um identificador sem restrição. O otimizador pode usar índices para acelerar filtros, junções e ordenações; muitos índices, porém, consomem espaço e tornam escritas mais custosas. O índice deve corresponder ao padrão real de consultas.\n\n### Transações, mecanismos e replicação\n\nA garantia transacional depende do mecanismo da tabela. Uma operação em tabela não transacional não ganha rollback completo por estar escrita em uma sessão que também usa InnoDB. O modo `autocommit` confirma cada instrução individual por padrão; uma transação explícita permite agrupar operações relacionadas e confirmar ou reverter o conjunto.\n\nNa replicação tradicional, o servidor de origem registra eventos no binary log e as réplicas os aplicam. A replicação MySQL é assíncrona por padrão: a confirmação na origem não significa necessariamente que todas as réplicas já aplicaram o evento. Réplicas podem distribuir leituras e manter cópias, mas não são, por si só, backup suficiente nem eliminam a necessidade de estratégia de recuperação.\n\n### Como cai na prova\n\n- InnoDB combina transações, chaves estrangeiras, MVCC e bloqueio de linha.\n- Replicação distribui alterações da origem às réplicas; sua modalidade padrão é assíncrona.\n- A presença do MySQL não garante que toda tabela use mecanismo transacional.\n- Índice acelera certas leituras, mas aumenta espaço e custo de manutenção das escritas."
+    },
+    {
+      "title": "3. MongoDB: documentos, consultas e consistência",
+      "markdown": "### O problema que este assunto resolve\n\nQuando os registros têm estruturas hierárquicas ou variáveis, decompor tudo em muitas tabelas e recompor por junções pode ser inconveniente. MongoDB é um banco orientado a documentos: armazena documentos BSON em coleções e permite que os campos variem entre documentos, sem impor por padrão um esquema relacional fixo. Flexibilidade não significa ausência de validação possível nem ausência de estrutura.\n\n> **Siglas e termos deste capítulo**\n> - **BSON**: representação binária de documentos, com tipos adicionais aos do JSON textual.\n> - **Documento**: conjunto de campos e valores, podendo conter objetos e arrays embutidos.\n> - **Coleção**: agrupamento de documentos, análogo aproximado de uma tabela.\n> - **CRUD**: criar, consultar, atualizar e excluir dados.\n> - **Aggregation pipeline**: sequência de estágios para filtrar, agrupar e transformar documentos.\n\n### Modelagem e operações\n\nUm documento pode representar um agregado de dados que costuma ser lido junto, por exemplo um pedido com itens embutidos. A incorporação reduz consultas separadas, mas pode duplicar informação ou tornar atualizações compartilhadas mais difíceis. Referências entre documentos são úteis quando os dados têm vida própria, são compartilhados ou crescem de modo que a incorporação se torne inadequada. A modelagem deve partir dos padrões de acesso e dos limites de tamanho e atualização.\n\n`_id` identifica unicamente cada documento dentro da coleção e, quando não informado, o MongoDB normalmente gera um `ObjectId`. Índices apoiam consultas; um índice composto respeita a ordem de seus campos, portanto a escolha e a ordem devem corresponder às consultas. O índice padrão de `_id` não substitui índices para outros filtros. A aggregation pipeline transforma documentos por estágios como `$match`, `$group` e `$project`.\n\nMongoDB aceita transações ACID em operações que abrangem múltiplos documentos, inclusive em implantações distribuídas compatíveis. Ainda assim, modelar dados para operações atômicas em um único documento pode ser mais simples e eficiente. Não é correto concluir que banco documental não oferece transação ou que toda operação multi-documento é automaticamente uma única transação.\n\n### Como cai na prova\n\n- Documento é armazenado em coleção; pode conter subdocumentos e arrays.\n- Esquema flexível admite formas diferentes, mas aplicações podem validar dados.\n- Embutir reduz consultas relacionadas; referenciar evita duplicações e grandes documentos em certos cenários.\n- Índices e aggregation ajudam consultas; transação multi-documento existe, mas tem custo e deve atender a uma necessidade real."
+    },
+    {
+      "title": "4. Alta disponibilidade, escala e escolha do banco",
+      "markdown": "### O problema que este assunto resolve\n\nUm banco pode precisar tolerar falha de servidor ou suportar crescimento de volume e tráfego. **Replicação** mantém cópias em nós diferentes; **fragmentação horizontal** divide os dados entre nós; **escalabilidade vertical** aumenta recursos de uma máquina. São estratégias distintas e nenhuma dispensa projeto, monitoramento e recuperação.\n\n> **Siglas e termos deste capítulo**\n> - **Replica set**: grupo MongoDB que mantém cópias do mesmo conjunto de dados e elege um primário.\n> - **Shard**: partição de dados de um cluster fragmentado.\n> - **Shard key**: campo ou conjunto de campos que direciona a distribuição.\n> - **mongos**: roteador de consultas de um cluster fragmentado.\n> - **OLTP**: processamento transacional de operações correntes.\n\n### Replicação e sharding no MongoDB\n\nEm um replica set, um membro primário recebe escritas e membros secundários replicam seus dados. Se o primário falha, os membros elegíveis podem eleger outro. A replicação favorece disponibilidade e cópias redundantes, mas pode haver atraso entre confirmação e aplicação nos secundários conforme a configuração.\n\nSharding distribui documentos de uma coleção entre shards usando uma shard key. O `mongos` roteia requisições; servidores de configuração armazenam metadados do cluster; cada shard contém uma parcela dos dados e é implantado como replica set nas arquiteturas documentadas. Consulta que inclui shard key pode ser direcionada; sem chave adequada, o roteador pode consultar vários shards, aumentando o custo. Uma shard key ruim pode concentrar gravações ou produzir distribuição desequilibrada.\n\nOracle e MySQL são relacionais, organizam dados em tabelas e usam SQL; Oracle 19c oferece recursos de banco corporativo e a instância possui arquitetura própria de memória/processos. MySQL é usado em aplicações relacionais e o InnoDB fornece transações e integridade referencial. MongoDB trabalha com documentos BSON e esquema flexível. A escolha decorre dos requisitos de consistência, relacionamento, consultas, evolução do modelo, operação e escala; não há vencedor universal.\n\n### Como cai na prova\n\n- Replica set replica o mesmo conjunto; sharding reparte conjunto de dados.\n- Replicação melhora disponibilidade, mas não equivale a backup nem garante leitura sempre atual em secundário.\n- Shard key afeta distribuição e direcionamento das consultas.\n- SQL relacional e documento BSON são modelos diferentes; MongoDB também possui transações."
+    }
+  ],
+  "summary": "Oracle Database 19c separa banco persistente e instância de memória/processos; usa tablespaces/datafiles, redo e undo e transações com COMMIT/ROLLBACK, lembrando o commit implícito de DDL. MySQL é relacional e seu mecanismo InnoDB oferece ACID, MVCC, bloqueio de linha, chaves estrangeiras e índice clustered; replicação tradicional usa binary log e é assíncrona por padrão. MongoDB armazena documentos BSON em coleções flexíveis, com índices e aggregation pipeline, suporta transações multi-documento, replica conjuntos por replica sets e distribui dados por sharding com shard key e mongos. Replicação e fragmentação resolvem problemas distintos.",
+  "flashcards": [
+    { "front": "No Oracle, qual a diferença entre banco de dados e instância?", "back": "Banco é o conjunto de arquivos persistentes. Instância é a memória e os processos que acessam e gerenciam esse banco." },
+    { "front": "O que compõe a SGA em linhas gerais?", "back": "Memória compartilhada da instância, incluindo buffer cache e shared pool, entre outras áreas." },
+    { "front": "Qual a função do redo log do Oracle?", "back": "Registrar alterações para que possam ser refeitas na recuperação do banco." },
+    { "front": "Que diferença há entre tablespace e datafile?", "back": "Tablespace é organização lógica de armazenamento; datafile é arquivo físico que a suporta." },
+    { "front": "O que faz COMMIT no Oracle?", "back": "Torna permanentes as alterações da transação corrente." },
+    { "front": "O que faz ROLLBACK no Oracle?", "back": "Desfaz alterações ainda não confirmadas, integralmente ou até um savepoint." },
+    { "front": "Como o DDL Oracle afeta a transação?", "back": "DDL como CREATE e ALTER provoca commits implícitos; rollback não desfaz a mudança estrutural." },
+    { "front": "Qual mecanismo de armazenamento MySQL oferece transações e chaves estrangeiras?", "back": "InnoDB." },
+    { "front": "O que é MVCC no InnoDB?", "back": "Controle de concorrência que mantém múltiplas versões para leituras consistentes." },
+    { "front": "O que caracteriza o índice clustered do InnoDB?", "back": "A organização dos dados da tabela segue a chave primária, ou uma chave escolhida internamente quando necessário." },
+    { "front": "Que custo índices impõem às escritas MySQL?", "back": "Cada índice precisa de espaço e manutenção quando linhas são inseridas, alteradas ou excluídas." },
+    { "front": "Como a replicação MySQL tradicional propaga alterações?", "back": "A origem grava eventos no binary log e as réplicas os aplicam." },
+    { "front": "Qual é o modo padrão de replicação MySQL?", "back": "Assíncrono." },
+    { "front": "O que é BSON no MongoDB?", "back": "Formato binário de documentos com tipos de dados adicionais aos do JSON textual." },
+    { "front": "Como se relacionam documentos e coleções?", "back": "Documentos são registros armazenados e agrupados em coleções." },
+    { "front": "Quando subdocumentos embutidos podem ser úteis?", "back": "Quando os dados são lidos e atualizados juntos, reduzindo consultas separadas." },
+    { "front": "Quando referências podem ser preferíveis à incorporação?", "back": "Quando dados são compartilhados, crescem independentemente ou a incorporação duplicaria informação." },
+    { "front": "Para que serve aggregation pipeline?", "back": "Para filtrar, agrupar e transformar documentos por uma sequência de estágios." },
+    { "front": "O que replica set faz?", "back": "Mantém cópias do mesmo conjunto de dados e permite eleição de novo primário." },
+    { "front": "O que sharding faz no MongoDB?", "back": "Distribui dados de uma coleção por máquinas usando uma shard key." },
+    { "front": "Qual é o papel do mongos?", "back": "Roteia consultas e operações para os shards apropriados." },
+    { "front": "Replicação é o mesmo que backup?", "back": "Não. Réplicas mantêm cópias operacionais; backup é uma cópia recuperável em estratégia de restauração." }
+  ],
+  "tips": [
+    "Associe Oracle: instância = SGA/processos; banco = arquivos persistentes.",
+    "Diferencie redo, que apoia recuperação, de undo, que apoia reversão e consistência de leitura.",
+    "No MySQL, pergunte qual mecanismo atende a tabela antes de presumir suporte a transações.",
+    "Pense no InnoDB como transacional: ACID, MVCC, chaves estrangeiras e bloqueio de linha.",
+    "No MongoDB, use documento e coleção; não traduza automaticamente cada conceito como tabela e linha.",
+    "Separe disponibilidade por replica set de escala horizontal por sharding."
+  ],
+  "traps": [
+    "Confundir tablespace com datafile: a primeira é lógica; o segundo é arquivo físico.",
+    "Afirmar que rollback do Oracle desfaz qualquer CREATE ou ALTER: DDL provoca commit implícito.",
+    "Presumir que todas as tabelas MySQL têm transações: o suporte depende do mecanismo de armazenamento.",
+    "Dizer que índice só traz benefício: ele acelera consultas compatíveis e encarece armazenamento e escrita.",
+    "Tratar MongoDB como sem esquema ou sem transações: flexibilidade não elimina validação e há transações multi-documento.",
+    "Trocar replica set por sharding: um replica set mantém cópias; sharding reparte dados entre shards."
+  ],
+  "activeRecall": [
+    { "question": "Explique banco de dados versus instância no Oracle 19c.", "answer": "O banco corresponde aos arquivos persistentes; a instância corresponde à SGA e aos processos que os acessam e gerenciam." },
+    { "question": "Diferencie redo e undo.", "answer": "Redo permite refazer alterações registradas na recuperação; undo armazena informação para reverter mudanças e sustentar leituras consistentes." },
+    { "question": "Por que não se deve esperar que ROLLBACK desfaça CREATE TABLE no Oracle?", "answer": "DDL provoca commits implícitos antes e depois da execução; não se comporta como DML ainda não confirmado." },
+    { "question": "Quais características tornam InnoDB apropriado para tabelas transacionais?", "answer": "ACID, commit/rollback, recuperação, bloqueio de linha, MVCC e suporte a chaves estrangeiras." },
+    { "question": "Descreva a replicação MySQL com binary log.", "answer": "A origem registra eventos no log binário; réplicas recebem e aplicam esses eventos, normalmente de forma assíncrona." },
+    { "question": "Como escolher entre embutir e referenciar documentos MongoDB?", "answer": "Embutir dados lidos juntos; referenciar quando há compartilhamento, crescimento independente ou duplicação excessiva." },
+    { "question": "Que funções têm replica set, shard key e mongos?", "answer": "Replica set replica e elege primário; shard key distribui documentos; mongos encaminha operações pelo cluster fragmentado." },
+    { "question": "Compare o modelo de dados dos três produtos.", "answer": "Oracle 19c e MySQL organizam dados relacionais em tabelas; MongoDB organiza documentos BSON em coleções com estrutura flexível." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Arquitetura Oracle confundida", "summary": "Banco é armazenamento persistente; instância é memória e processos. Tablespace é lógica e datafile é físico; redo e undo têm funções distintas." },
+    { "key": "e2", "title": "Transação Oracle generalizada ao DDL", "summary": "COMMIT e ROLLBACK controlam alterações transacionais, mas DDL Oracle provoca commits implícitos." },
+    { "key": "e3", "title": "Mecanismo MySQL ignorado", "summary": "Recursos como transações e chaves estrangeiras dependem do engine; InnoDB oferece esses recursos, mas não se deve presumir o mesmo para qualquer mecanismo." },
+    { "key": "e4", "title": "Modelo documental simplificado demais", "summary": "MongoDB armazena BSON em coleções, permite estrutura flexível e ainda oferece índices, validação e transações multi-documento." },
+    { "key": "e5", "title": "Replicação e sharding trocados", "summary": "Replica set mantém cópias redundantes do conjunto; sharding reparte os dados usando shard key. Replicação não é backup." }
+  ],
+  "questions": [
+    {
+      "statement": "No Oracle Database 19c, qual descrição distingue corretamente uma instância do banco de dados?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A instância reúne memória e processos; o banco reúne arquivos persistentes.", "correct": true },
+        { "key": "B", "text": "A instância é o conjunto de tabelas; o banco é apenas o processo servidor.", "correct": false },
+        { "key": "C", "text": "A instância contém somente datafiles; o banco contém exclusivamente logs.", "correct": false },
+        { "key": "D", "text": "A instância é um schema de usuário; o banco é uma tablespace lógica.", "correct": false },
+        { "key": "E", "text": "A instância é a área de undo; o banco corresponde apenas à SGA.", "correct": false }
+      ],
+      "explanation": "No Oracle, a instância é formada por estruturas de memória, como a SGA, e processos de fundo. O banco de dados é composto pelos arquivos persistentes que armazenam dados e metadados. Schema e tablespace são conceitos lógicos, não sinônimos desses dois elementos.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual relação descreve corretamente a SGA e a PGA no Oracle Database 19c?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A SGA é privada de cada usuário; a PGA contém o buffer cache compartilhado.", "correct": false },
+        { "key": "B", "text": "A SGA é compartilhada pela instância; a PGA é privada de processos do servidor.", "correct": true },
+        { "key": "C", "text": "A SGA armazena somente arquivos de redo; a PGA organiza tablespaces.", "correct": false },
+        { "key": "D", "text": "A SGA corresponde aos datafiles; a PGA contém arquivos de controle.", "correct": false },
+        { "key": "E", "text": "A SGA pertence ao schema; a PGA é o processo que grava os datafiles.", "correct": false }
+      ],
+      "explanation": "A SGA contém áreas compartilhadas da instância, como buffer cache e shared pool. A PGA é memória privada associada a processos do servidor.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe analisa a organização física e lógica do armazenamento Oracle. Qual relação entre tablespace e datafile está correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Tablespace é arquivo físico; datafile é o agrupamento lógico de schemas.", "correct": false },
+        { "key": "B", "text": "Tablespace organiza logicamente segmentos; datafile é arquivo físico que a suporta.", "correct": true },
+        { "key": "C", "text": "Tablespace é um índice; datafile é a chave primária de uma tabela.", "correct": false },
+        { "key": "D", "text": "Tablespace é área privada de sessão; datafile é o log de auditoria.", "correct": false },
+        { "key": "E", "text": "Tablespace é cópia de segurança; datafile é o processo que grava redo.", "correct": false }
+      ],
+      "explanation": "Tablespace é uma unidade lógica de armazenamento na qual ficam segmentos; um ou mais datafiles fornecem o armazenamento físico correspondente. Schema, índice e processo de redo são outros conceitos.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual função é atribuída ao processo LGWR no Oracle?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Gravar blocos alterados do buffer cache diretamente nos datafiles.", "correct": false },
+        { "key": "B", "text": "Criar e remover schemas durante a abertura de cada sessão.", "correct": false },
+        { "key": "C", "text": "Gravar registros de redo nos online redo logs para recuperação.", "correct": true },
+        { "key": "D", "text": "Manter índices clustered e chaves estrangeiras no dicionário.", "correct": false },
+        { "key": "E", "text": "Reservar a PGA de todas as sessões no buffer cache compartilhado.", "correct": false }
+      ],
+      "explanation": "LGWR grava registros de redo nos online redo logs. DBWn é associado à gravação de blocos alterados nos datafiles; redo permite refazer alterações durante a recuperação.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação Oracle atualizou duas contas e ainda não foi confirmada. Qual ação torna permanentes ambas as alterações?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Executar SAVEPOINT, que confirma imediatamente todos os comandos anteriores.", "correct": false },
+        { "key": "B", "text": "Executar ROLLBACK, que confirma os débitos e créditos conjuntamente.", "correct": false },
+        { "key": "C", "text": "Executar COMMIT, que confirma as alterações ainda pendentes.", "correct": true },
+        { "key": "D", "text": "Executar CHECKPOINT, que substitui a confirmação da sessão.", "correct": false },
+        { "key": "E", "text": "Executar SELECT, que encerra a transação e grava as mudanças.", "correct": false }
+      ],
+      "explanation": "COMMIT torna permanentes as alterações da transação. SAVEPOINT apenas marca um ponto de retorno; ROLLBACK desfaz alterações não confirmadas. Uma consulta comum não substitui o commit.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma instrução DDL como CREATE TABLE no Oracle 19c pode provocar commit implícito, de modo que um ROLLBACK posterior não a desfaz como faria com DML pendente.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. DDL Oracle, como CREATE e ALTER, causa commit implícito antes e depois da execução. Não se deve tratar mudança de estrutura como alteração DML ainda não confirmada.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso relacional expressa a referência de uma linha de pedidos à linha correspondente de clientes e pode impor integridade referencial?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Uma chave estrangeira que referencia a chave da tabela de clientes.", "correct": true },
+        { "key": "B", "text": "Um redo log que vincula fisicamente os arquivos das duas tabelas.", "correct": false },
+        { "key": "C", "text": "Uma tablespace que garante a igualdade dos valores nas duas linhas.", "correct": false },
+        { "key": "D", "text": "Um savepoint que impede a exclusão do cliente referenciado.", "correct": false },
+        { "key": "E", "text": "Uma PGA que mantém os identificadores sincronizados entre sessões.", "correct": false }
+      ],
+      "explanation": "A chave estrangeira representa a relação entre registros e pode impedir referências inconsistentes. Tablespace e redo têm funções de armazenamento e recuperação, enquanto savepoint e PGA não definem integridade referencial.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um índice pode reduzir leituras para consultas que filtram por seus campos, mas sua manutenção também acrescenta custo a operações de escrita.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Índices ajudam a localizar linhas quando combinam com a consulta, mas ocupam armazenamento e precisam ser atualizados quando os dados mudam.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No Oracle, qual descrição separa corretamente redo e undo durante operação e recuperação?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Redo guarda índices; undo mantém as definições de tabelas e views.", "correct": false },
+        { "key": "B", "text": "Redo substitui os datafiles; undo armazena cópias completas de backup.", "correct": false },
+        { "key": "C", "text": "Redo desfaz toda transação; undo confirma mudanças após reinício.", "correct": false },
+        { "key": "D", "text": "Redo registra alterações para refazê-las; undo permite revertê-las e leituras consistentes.", "correct": true },
+        { "key": "E", "text": "Redo é memória privada; undo é o processo que grava arquivos de controle.", "correct": false }
+      ],
+      "explanation": "Redo registra mudanças para recovery; undo conserva informações necessárias para desfazer alterações e oferecer versões consistentes dos dados. Os termos não designam backups nem estruturas de definição de objetos.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No Oracle 19c, uma tabela criada por DDL pertence a um schema de usuário; isso não transforma o schema em arquivo físico de armazenamento.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Schema é o conjunto de objetos pertencentes a um usuário. O armazenamento efetivo usa segmentos e tablespaces apoiadas por datafiles; schema não é um arquivo físico.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação MySQL precisa confirmar uma transferência somente se débito e crédito forem bem-sucedidos. Qual abordagem oferece esse agrupamento transacional?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Usar duas tabelas quaisquer, pois todo engine MySQL reverte automaticamente operações.", "correct": false },
+        { "key": "B", "text": "Usar tabelas InnoDB na mesma transação e confirmar ou reverter o conjunto.", "correct": true },
+        { "key": "C", "text": "Gravar cada operação em uma réplica, que funciona como unidade de commit.", "correct": false },
+        { "key": "D", "text": "Criar índice em cada valor, que faz as duas atualizações atômicas.", "correct": false },
+        { "key": "E", "text": "Executar cada atualização em autocommit separado e desfazer ambas por padrão.", "correct": false }
+      ],
+      "explanation": "InnoDB oferece transações que agrupam operações com commit e rollback. Não se pode presumir que qualquer mecanismo MySQL seja transacional; autocommit individual também não cria atomicidade entre instruções separadas.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de recursos é característico do InnoDB no MySQL?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Somente tabelas sem transação, sem chave estrangeira e com bloqueio global.", "correct": false },
+        { "key": "B", "text": "Transações ACID, MVCC, bloqueio de linha e suporte a foreign keys.", "correct": true },
+        { "key": "C", "text": "Documentos BSON, shard key e roteamento por mongos em todas as tabelas.", "correct": false },
+        { "key": "D", "text": "Tablespaces Oracle, redo compartilhado e commits implícitos de DDL.", "correct": false },
+        { "key": "E", "text": "Replicação síncrona obrigatória e ausência de índices clustered.", "correct": false }
+      ],
+      "explanation": "InnoDB oferece transações ACID, MVCC, bloqueio em nível de linha e restrições de chave estrangeira. Documentos BSON e shard key pertencem ao vocabulário MongoDB; tablespace e redo são conceitos Oracle, e replicação síncrona obrigatória não caracteriza o InnoDB.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Como o InnoDB organiza os dados da tabela para localizar registros por sua chave primária?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Mantém a tabela somente em ordem de chegada e não cria estrutura indexada.", "correct": false },
+        { "key": "B", "text": "Usa o binary log como índice físico principal de todas as linhas.", "correct": false },
+        { "key": "C", "text": "Usa um índice clustered que organiza dados segundo a chave primária.", "correct": true },
+        { "key": "D", "text": "Armazena cada linha em uma réplica distinta escolhida pela consulta.", "correct": false },
+        { "key": "E", "text": "Converte a tabela relacional em documentos BSON durante cada busca.", "correct": false }
+      ],
+      "explanation": "O índice clustered do InnoDB organiza os dados da tabela em torno da chave primária, otimizando buscas por essa chave. O binary log registra eventos e réplicas são servidores separados, não componentes do índice.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No InnoDB, a leitura consistente por MVCC permite que sessões consultem versões apropriadas dos dados sem depender de bloqueio exclusivo para cada leitura comum.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. MVCC mantém versões que permitem leituras consistentes concorrentes. Isso não elimina todos os bloqueios: escritas e leituras de bloqueio ainda podem adquiri-los.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela possui muitos índices em campos raramente consultados. Qual consequência deve ser considerada ao revisar esse desenho?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Índices adicionais podem consumir espaço e aumentar o trabalho de escrita.", "correct": true },
+        { "key": "B", "text": "Índices adicionais removem a necessidade de validar chaves estrangeiras.", "correct": false },
+        { "key": "C", "text": "Índices adicionais convertem todas as atualizações em operações de leitura.", "correct": false },
+        { "key": "D", "text": "Índices adicionais garantem que qualquer consulta leia só uma página.", "correct": false },
+        { "key": "E", "text": "Índices adicionais fazem o servidor ignorar o engine configurado.", "correct": false }
+      ],
+      "explanation": "Cada índice ocupa armazenamento e precisa ser mantido quando os dados mudam. Convém criar índices conforme consultas importantes, em vez de indexar indiscriminadamente todos os campos.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma instalação MySQL, a existência de comandos COMMIT no código garante rollback para tabelas de qualquer mecanismo de armazenamento.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A garantia transacional depende do mecanismo usado pela tabela. InnoDB oferece commit e rollback; uma tabela não transacional não passa a oferecer reversão completa por causa do comando da sessão.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual fluxo descreve a replicação MySQL tradicional baseada em binary log?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A réplica escreve o log da origem, que depois envia as consultas aos clientes.", "correct": false },
+        { "key": "B", "text": "O InnoDB transforma cada índice em uma cópia completa da origem.", "correct": false },
+        { "key": "C", "text": "O cliente grava diretamente em todas as réplicas antes da origem.", "correct": false },
+        { "key": "D", "text": "A origem registra eventos no binary log e as réplicas os aplicam.", "correct": true },
+        { "key": "E", "text": "O servidor de configuração divide as tabelas em coleções BSON.", "correct": false }
+      ],
+      "explanation": "Na replicação tradicional, eventos são registrados no binary log do servidor de origem e transmitidos às réplicas para aplicação. A descrição não envolve índices como cópias nem coleções BSON.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Como a replicação MySQL é assíncrona por padrão, uma gravação confirmada na origem pode ainda não ter sido aplicada por uma réplica consultada logo em seguida.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. No modo assíncrono, a origem não aguarda necessariamente que as réplicas apliquem a transação antes de responder ao cliente. Pode haver atraso de replicação.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O modo autocommit do MySQL está ativo e a sessão atualiza duas tabelas InnoDB em comandos separados. Como obter atomicidade conjunta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Criar um índice composto, que reúne atualizações em uma única transação.", "correct": false },
+        { "key": "B", "text": "Executar as instruções dentro de uma transação explícita e confirmá-las juntas.", "correct": true },
+        { "key": "C", "text": "Ler ambas as tabelas por uma réplica e aguardar o binary log.", "correct": false },
+        { "key": "D", "text": "Substituir InnoDB por mecanismo não transacional em ambas as tabelas.", "correct": false },
+        { "key": "E", "text": "Executar um COMMIT separado após cada comando para agrupá-los.", "correct": false }
+      ],
+      "explanation": "Com autocommit, cada instrução pode ser confirmada individualmente. Uma transação explícita reúne as duas operações para que o conjunto seja confirmado ou revertido como unidade, desde que as tabelas usem mecanismo transacional como InnoDB.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "As restrições de chave estrangeira do InnoDB verificam referências entre tabelas relacionadas durante inserções, atualizações e exclusões pertinentes.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O InnoDB usa foreign keys para evitar inconsistências referenciais entre tabelas relacionadas, observadas as regras definidas para a restrição.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação diferencia corretamente replicação e backup em um ambiente MySQL?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Replicação substitui backup porque uma exclusão acidental nunca chega à réplica.", "correct": false },
+        { "key": "B", "text": "Backup mantém consultas atuais e replicação serve apenas para arquivamento offline.", "correct": false },
+        { "key": "C", "text": "Réplicas podem auxiliar leituras e redundância, mas não substituem plano de backup.", "correct": true },
+        { "key": "D", "text": "Backup e replicação são o mesmo processo com nomes diferentes no binary log.", "correct": false },
+        { "key": "E", "text": "Uma réplica armazena somente índices e não recebe alterações dos dados.", "correct": false }
+      ],
+      "explanation": "Replicação propaga mudanças e pode apoiar disponibilidade ou distribuição de leitura. Erros lógicos, como uma exclusão indevida, também podem ser propagados; backup recuperável continua sendo necessário.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No MySQL, o InnoDB usa bloqueio em nível de linha como granularidade característica, o que favorece concorrência entre operações sobre linhas distintas.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A documentação do InnoDB indica granularidade de bloqueio por linha. Isso pode permitir maior concorrência que bloquear uma tabela inteira, embora bloqueios e conflitos ainda ocorram conforme as operações e índices usados.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe recebe registros JSON com campos aninhados e quer armazenar formas diferentes na mesma coleção. Qual modelo corresponde ao MongoDB?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Documentos BSON agrupados em coleções, com estrutura flexível entre registros.", "correct": true },
+        { "key": "B", "text": "Arquivos redo organizados em tablespaces e consultas obrigatoriamente relacionais.", "correct": false },
+        { "key": "C", "text": "Linhas SQL sem campos aninhados e com esquema físico imutável.", "correct": false },
+        { "key": "D", "text": "Páginas de InnoDB distribuídas por todas as coleções de um replica set.", "correct": false },
+        { "key": "E", "text": "Índices relacionais que guardam os documentos sem qualquer agrupamento.", "correct": false }
+      ],
+      "explanation": "MongoDB armazena documentos BSON em coleções. Documentos podem conter objetos e arrays e ter campos diferentes. Isso é flexibilidade de esquema, não ausência de organização ou de recursos de validação.",
+      "section": "3. MongoDB: documentos, consultas e consistência", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma coleção MongoDB exige, por padrão, que todos os documentos tenham exatamente o mesmo conjunto de campos e tipos.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. MongoDB permite documentos com estruturas flexíveis dentro da mesma coleção. Aplicações ainda podem impor convenções ou regras de validação, mas não há por padrão a rigidez de um esquema relacional fixo.",
+      "section": "3. MongoDB: documentos, consultas e consistência", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual tipo de identificador é usado pelo campo _id padrão de um documento MongoDB quando a aplicação não fornece outro valor?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Um número de redo criado pelo servidor de configuração.", "correct": false },
+        { "key": "B", "text": "Uma chave estrangeira compartilhada por todos os documentos da coleção.", "correct": false },
+        { "key": "C", "text": "Um nome de tablespace calculado a partir do primeiro campo.", "correct": false },
+        { "key": "D", "text": "Um ObjectId gerado normalmente pelo driver ou servidor.", "correct": true },
+        { "key": "E", "text": "Uma posição de linha calculada pelo índice secundário composto.", "correct": false }
+      ],
+      "explanation": "O campo _id identifica unicamente cada documento dentro da coleção. Se não for informado, normalmente é gerado um ObjectId; a aplicação também pode fornecer outro valor único adequado.",
+      "section": "3. MongoDB: documentos, consultas e consistência", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em MongoDB, documentos podem incluir arrays e subdocumentos, e a estrutura flexível permite que registros da mesma coleção tenham campos diferentes.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O documento BSON pode conter valores complexos, incluindo arrays e documentos embutidos. Coleções não impõem necessariamente uma estrutura idêntica para todos os registros.",
+      "section": "3. MongoDB: documentos, consultas e consistência", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um pedido e seus itens são sempre consultados juntos, têm ciclo de vida comum e não são compartilhados. Que escolha de modelagem pode reduzir leituras separadas?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Guardar cada item em servidor de configuração sem identificador de pedido.", "correct": false },
+        { "key": "B", "text": "Embutir os itens como array ou subdocumentos no documento do pedido.", "correct": true },
+        { "key": "C", "text": "Duplicar cada pedido em uma coleção por item e remover a coleção original.", "correct": false },
+        { "key": "D", "text": "Mover os itens para índices secundários e consultar somente seus nomes.", "correct": false },
+        { "key": "E", "text": "Armazenar os itens no binary log e referenciar o número do evento.", "correct": false }
+      ],
+      "explanation": "Dados relacionados que são lidos juntos e têm ciclo de vida comum podem ser incorporados, reduzindo consultas separadas. Se o conjunto crescer demais, for compartilhado ou atualizado de modo independente, referências podem ser melhores.",
+      "section": "3. MongoDB: documentos, consultas e consistência", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aggregation pipeline MongoDB processa documentos por estágios, que podem filtrar, agrupar ou projetar campos.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A pipeline é uma sequência de estágios de transformação. Por exemplo, $match filtra, $group agrupa e $project seleciona ou remodela campos.",
+      "section": "3. MongoDB: documentos, consultas e consistência", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta filtra pedidos pelo campo status, mas a coleção só tem índice em _id. Qual afirmação sobre índices é correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O índice _id acelera obrigatoriamente consultas por qualquer campo do documento.", "correct": false },
+        { "key": "B", "text": "MongoDB transforma automaticamente todo filtro em chave estrangeira.", "correct": false },
+        { "key": "C", "text": "Uma réplica secundária cria o índice status ao receber a primeira consulta.", "correct": false },
+        { "key": "D", "text": "O campo status deve ser convertido para tabela relacional antes de indexar.", "correct": false },
+        { "key": "E", "text": "Um índice apropriado em status pode apoiar esse padrão de consulta.", "correct": true }
+      ],
+      "explanation": "O índice padrão de _id atende buscas por esse campo, mas não substitui índices de outros campos. Um índice adicional deve ser criado de acordo com consultas frequentes e seu custo de armazenamento e escrita avaliado.",
+      "section": "3. MongoDB: documentos, consultas e consistência", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "MongoDB suporta transações ACID que podem abranger múltiplos documentos; portanto, é incorreto afirmar que bancos documentais não oferecem transações.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. MongoDB oferece transações multi-documento, inclusive distribuídas em configurações compatíveis. Isso não significa que toda operação seja automaticamente agrupada em uma transação, nem que transações sejam sempre a modelagem mais eficiente.",
+      "section": "3. MongoDB: documentos, consultas e consistência", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema distribui cópias do mesmo conjunto de dados MongoDB entre membros que podem eleger novo nó primário. Qual recurso corresponde a esse cenário?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Um replica set que mantém cópias e coordena eleição de primário.", "correct": true },
+        { "key": "B", "text": "Uma shard key que substitui os membros secundários por índices.", "correct": false },
+        { "key": "C", "text": "Um mongos que armazena sozinho todos os documentos da aplicação.", "correct": false },
+        { "key": "D", "text": "Uma collection que replica arquivos Oracle entre tablespaces.", "correct": false },
+        { "key": "E", "text": "Um pipeline que transfere cada documento para um servidor de backup.", "correct": false }
+      ],
+      "explanation": "Replica sets mantêm cópias redundantes do mesmo conjunto de dados e elegem um novo primário quando necessário, favorecendo disponibilidade. Sharding distribui partes diferentes do conjunto.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um replica set, um secundário pode apresentar atraso em relação ao primário; a replicação, por si só, não garante leitura sempre atual em todos os nós.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Replicação pode ser assíncrona e os secundários podem estar temporariamente atrasados. A política de leitura e confirmação deve considerar os requisitos de consistência da aplicação.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual topologia descreve um cluster MongoDB fragmentado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Uma coleção única sem metadados, acessada diretamente por todos os clientes.", "correct": false },
+        { "key": "B", "text": "Um servidor primário que armazena toda a coleção e não usa roteamento.", "correct": false },
+        { "key": "C", "text": "Shards com partes dos dados, mongos para roteamento e servidores de configuração.", "correct": true },
+        { "key": "D", "text": "Membros Oracle que convertem automaticamente tabelas em índices BSON.", "correct": false },
+        { "key": "E", "text": "Réplicas MySQL que dividem cada linha por suas colunas relacionais.", "correct": false }
+      ],
+      "explanation": "Um cluster sharded tem shards com subconjuntos dos dados, mongos como roteadores e servidores de configuração que armazenam metadados. Na arquitetura documentada, os shards são implantados como replica sets.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No sharding MongoDB, a shard key influencia como os documentos são distribuídos e quais consultas podem ser direcionadas a um subconjunto de shards.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O valor da shard key determina a distribuição. Consultas com a chave ou prefixo de chave composta podem ser direcionadas; consultas sem ela podem exigir operação distribuída por vários shards.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação consulta frequentemente por shard key e por prefixo de uma shard key composta. Qual tende a ser a vantagem desse padrão?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A consulta pode ser direcionada ao shard ou conjunto menor de shards pertinente.", "correct": true },
+        { "key": "B", "text": "A consulta ignora o roteador e lê obrigatoriamente todos os backups offline.", "correct": false },
+        { "key": "C", "text": "A consulta remove automaticamente a necessidade de replica sets nos shards.", "correct": false },
+        { "key": "D", "text": "A consulta converte o cluster sharded em uma tabela SQL no primário.", "correct": false },
+        { "key": "E", "text": "A consulta replica cada documento para todos os shards antes de filtrar.", "correct": false }
+      ],
+      "explanation": "Consultas que incluem shard key ou o prefixo apropriado de uma chave composta podem ser roteadas a shards específicos, reduzindo o trabalho de scatter/gather. A escolha da chave, porém, deve evitar distribuição enviesada.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O sharding MongoDB aumenta capacidade distribuindo dados e carga; sua implantação acrescenta complexidade operacional e depende de uma shard key bem escolhida.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Sharding oferece escala horizontal, mas exige infraestrutura e manutenção adicionais. Uma shard key inadequada pode concentrar gravações ou gerar consultas distribuídas dispendiosas.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação financeira precisa de transações relacionais, chaves estrangeiras e tabelas SQL, e já usa MySQL. Qual mecanismo é a escolha diretamente alinhada a esses requisitos?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Uma collection MongoDB com replica set, sem regras referenciais.", "correct": false },
+        { "key": "B", "text": "Uma shard key composta que substitui transações relacionais.", "correct": false },
+        { "key": "C", "text": "Um binary log utilizado diretamente como mecanismo de tabela.", "correct": false },
+        { "key": "D", "text": "Tabelas InnoDB, com transações e suporte a foreign keys.", "correct": true },
+        { "key": "E", "text": "Uma tablespace Oracle criada dentro do schema MySQL.", "correct": false }
+      ],
+      "explanation": "InnoDB é o mecanismo MySQL que oferece transações e restrições de chave estrangeira. MongoDB também tem transações, mas não fornece o modelo relacional SQL e foreign keys do InnoDB.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "MongoDB armazena documentos em coleções e Oracle e MySQL organizam dados relacionais em tabelas; os modelos diferem, embora todos sejam SGBDs.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Oracle e MySQL são bancos relacionais com tabelas; MongoDB é orientado a documentos BSON em coleções. A comparação não implica que um modelo seja adequado a todo cenário.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta MongoDB não inclui a shard key em uma coleção fragmentada. Que comportamento pode ocorrer?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O servidor converte a coleção em InnoDB para procurar a chave primária.", "correct": false },
+        { "key": "B", "text": "O mongos pode consultar vários shards e reunir resultados.", "correct": true },
+        { "key": "C", "text": "O servidor de configuração executa sozinho a agregação completa.", "correct": false },
+        { "key": "D", "text": "A consulta altera automaticamente a shard key dos documentos encontrados.", "correct": false },
+        { "key": "E", "text": "A consulta é rejeitada porque toda operação exige _id e shard key.", "correct": false }
+      ],
+      "explanation": "Sem shard key ou prefixo útil, o mongos pode encaminhar a consulta a todos os shards, em padrão scatter/gather. Isso pode elevar o custo, embora a consulta não seja necessariamente inválida.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A replicação de um banco relacional mantém cópias dos dados em outros servidores, enquanto sharding distribui subconjuntos do conjunto de dados entre servidores.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Replicação e fragmentação horizontal têm objetivos diferentes: cópias redundantes favorecem disponibilidade e leituras; sharding divide o conjunto para escalar capacidade e carga.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao escolher entre Oracle 19c, MySQL e MongoDB, qual critério técnico é mais adequado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Selecionar sempre o produto com mais índices, sem examinar o acesso aos dados.", "correct": false },
+        { "key": "B", "text": "Preferir documentos em toda aplicação, pois tabelas impedem escalabilidade.", "correct": false },
+        { "key": "C", "text": "Escolher pelo requisito de dados, transações, consultas, operação e escala.", "correct": true },
+        { "key": "D", "text": "Usar Oracle somente para arquivos e MongoDB apenas para cópias de segurança.", "correct": false },
+        { "key": "E", "text": "Usar MySQL sempre que houver JSON, pois MongoDB não aceita documentos.", "correct": false }
+      ],
+      "explanation": "A escolha deve refletir o modelo dos dados, relações, consistência, consultas, requisitos operacionais e crescimento. Não existe um banco universalmente superior, e há sobreposição de capacidades entre produtos.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um replica set MongoDB e um cluster sharded são sinônimos, pois ambos particionam a mesma coleção por shard key.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Replica set mantém réplicas do mesmo conjunto e oferece eleição de primário. Sharding distribui partes dos dados entre shards. Um shard normalmente pode ser implantado como replica set, mas as funções não são sinônimas.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação grava em documento MongoDB, e precisa que a atualização de vários documentos seja confirmada ou revertida em conjunto. Qual recurso pode atender ao requisito?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Uma transação multi-documento, em implantação compatível com o recurso.", "correct": true },
+        { "key": "B", "text": "Um índice _id, que transforma documentos distintos em uma unidade atômica.", "correct": false },
+        { "key": "C", "text": "Um replica set, que confirma automaticamente todas as escritas juntas.", "correct": false },
+        { "key": "D", "text": "Uma pipeline de agregação, que reverte qualquer escrita depois de executada.", "correct": false },
+        { "key": "E", "text": "Uma shard key, que confirma as alterações sem sessão de transação.", "correct": false }
+      ],
+      "explanation": "MongoDB oferece transações ACID multi-documento nas implantações compatíveis, permitindo agrupar várias operações. Replica set e shard key não substituem os limites explícitos de uma transação.",
+      "section": "3. MongoDB: documentos, consultas e consistência", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma chave primária InnoDB longa pode aumentar o tamanho dos índices secundários, porque estes carregam o valor da chave primária para localizar a linha.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Os índices secundários do InnoDB incluem a chave primária como referência à linha. Chaves primárias desnecessariamente longas ampliam os índices e podem elevar custos de I/O e memória.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer distribuir leituras MySQL e manter uma cópia que possa ser pausada para tarefas operacionais. Qual uso de replicação é compatível com a documentação?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Executar todas as escritas diretamente em cada réplica, sem servidor de origem.", "correct": false },
+        { "key": "B", "text": "Usar réplicas para leituras e tarefas auxiliares, mantendo escritas na origem.", "correct": true },
+        { "key": "C", "text": "Converter os binary logs em tabelas de negócio antes das consultas.", "correct": false },
+        { "key": "D", "text": "Substituir o mecanismo de armazenamento por mongos em cada réplica.", "correct": false },
+        { "key": "E", "text": "Tratar qualquer réplica pausada como transação confirmada no servidor primário.", "correct": false }
+      ],
+      "explanation": "Um uso comum é manter as escritas na origem e distribuir leituras ou análises às réplicas. A replicação também pode ser pausada para certas tarefas, mas não equivale a uma transação nem a um backup completo.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "MongoDB usa a shard key para decidir a distribuição de documentos; quando uma consulta inclui a chave adequada, o mongos pode encaminhá-la aos shards relevantes.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A shard key define a distribuição e também pode viabilizar consultas direcionadas. Escolher uma chave com baixa distribuição de valores ou concentração de escrita pode criar gargalos.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe pretende adicionar réplicas MySQL para que cada alteração seja confirmada simultaneamente em todas elas na configuração padrão. Qual avaliação está correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A configuração padrão é assíncrona; confirmação não implica aplicação simultânea em todas.", "correct": true },
+        { "key": "B", "text": "A configuração padrão usa locks de tabela para sincronizar cada réplica.", "correct": false },
+        { "key": "C", "text": "A configuração padrão grava documentos BSON antes de confirmar tabelas.", "correct": false },
+        { "key": "D", "text": "A configuração padrão ignora o servidor de origem e faz commit em mongos.", "correct": false },
+        { "key": "E", "text": "A configuração padrão confirma apenas após a réplica mais distante responder.", "correct": false }
+      ],
+      "explanation": "MySQL replica de forma assíncrona por padrão. Existem modalidades adicionais, mas não se deve presumir que todas as réplicas aplicaram uma transação quando a origem respondeu sob a configuração padrão.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No MongoDB, um índice composto é sensível à ordem dos campos; o projeto deve considerar os filtros e ordenações usados nas consultas.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Índices compostos seguem a ordem declarada dos campos, e consultas tendem a se beneficiar quando seus padrões correspondem a essa estrutura. Um índice não serve automaticamente a toda combinação de filtros.",
+      "section": "3. MongoDB: documentos, consultas e consistência", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual pareamento entre produto e modelo de armazenamento está correto?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Oracle 19c: documentos BSON; MongoDB: tablespaces relacionais.", "correct": false },
+        { "key": "B", "text": "MySQL: somente arquivos de log; Oracle: coleções de documentos aninhados.", "correct": false },
+        { "key": "C", "text": "MongoDB: índices de tabelas SQL; MySQL: replica sets BSON.", "correct": false },
+        { "key": "D", "text": "Oracle e MySQL: tabelas relacionais; MongoDB: documentos em coleções.", "correct": true },
+        { "key": "E", "text": "Oracle: mecanismos InnoDB; MySQL: schema MongoDB; MongoDB: datafiles Oracle.", "correct": false }
+      ],
+      "explanation": "Oracle Database e MySQL são bancos relacionais que organizam dados em tabelas. MongoDB é orientado a documentos BSON agrupados em coleções.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração Oracle ainda não confirmada pode ser desfeita com ROLLBACK; uma alteração DDL já executada não deve ser presumida reversível por esse comando devido ao commit implícito.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. DML pendente pode ser revertida pela transação. DDL Oracle provoca commits implícitos, de modo que a mudança de estrutura não permanece como alteração pendente para rollback posterior.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma coleção MongoDB aceita validação configurada pelo administrador ou pela aplicação, apesar de documentos poderem ter campos diferentes.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Esquema flexível significa que a coleção não exige por padrão a mesma estrutura rígida em todos os documentos. Regras de validação podem impor condições sobre os documentos aceitos.",
+      "section": "3. MongoDB: documentos, consultas e consistência", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O buffer cache Oracle guarda blocos de dados lidos e alterados na memória da instância, enquanto o shared pool mantém, entre outros conteúdos, SQL compartilhado e metadados.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. São áreas importantes da SGA: o buffer cache mantém cópias de blocos de dados, e o shared pool armazena estruturas compartilhadas, incluindo SQL e informações de dicionário em cache.",
+      "section": "1. Oracle Database 19c: instância, banco e objetos", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário favorece referenciar documentos em vez de embutir toda a informação no MongoDB?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Os dados são compartilhados, crescem separadamente e mudam em ritmos distintos.", "correct": true },
+        { "key": "B", "text": "Os campos são sempre consultados juntos e têm o mesmo ciclo de vida.", "correct": false },
+        { "key": "C", "text": "O documento contém poucos dados que pertencem a uma operação atômica.", "correct": false },
+        { "key": "D", "text": "A consulta sempre retorna o registro pai e todos os filhos de uma vez.", "correct": false },
+        { "key": "E", "text": "A aplicação deseja evitar qualquer identificador entre registros distintos.", "correct": false }
+      ],
+      "explanation": "Referências são úteis quando entidades são compartilhadas ou têm crescimento, atualização e ciclo de vida independentes. Embutir costuma ser conveniente quando os dados são acessados em conjunto e formam um agregado natural.",
+      "section": "3. MongoDB: documentos, consultas e consistência", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em InnoDB, uma chave primária sem valor definido pode levar o mecanismo a escolher uma chave única adequada ou criar uma chave interna para a organização clustered.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O InnoDB organiza cada tabela por uma chave clustered. Se não há chave primária explícita, ele pode usar uma chave única adequada; se não houver, cria um identificador interno para esse fim.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um replica set MongoDB, todos os membros armazenam necessariamente parcelas distintas da coleção, sem manter cópias uns dos outros.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Replica set mantém réplicas do mesmo conjunto de dados. Partes distintas distribuídas entre servidores caracterizam sharding, embora cada shard possa ser implantado como replica set.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa quer dividir uma coleção MongoDB grande entre máquinas para ampliar capacidade de armazenamento e distribuir carga. Qual abordagem atende a esse objetivo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Aumentar apenas o buffer cache da instância Oracle que atende a coleção.", "correct": false },
+        { "key": "B", "text": "Adicionar índices secundários para repartir documentos entre tabelas.", "correct": false },
+        { "key": "C", "text": "Ativar sharding e escolher uma shard key adequada à distribuição e às consultas.", "correct": true },
+        { "key": "D", "text": "Usar autocommit para transferir cada documento a um novo servidor.", "correct": false },
+        { "key": "E", "text": "Substituir o mongos pelo arquivo de controle de cada shard.", "correct": false }
+      ],
+      "explanation": "Sharding é a estratégia de escala horizontal do MongoDB: distribui partes dos dados entre máquinas conforme shard key. Réplicas ajudam disponibilidade, mas não particionam por si só o conjunto.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta SQL sobre InnoDB pode se beneficiar de índice em colunas usadas em filtros ou junções, mas o otimizador decide se o plano indexado é vantajoso.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Índices são candidatos para otimizar buscas, mas sua existência não obriga o uso. O otimizador considera estatísticas, seletividade e custo estimado do plano.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual frase descreve corretamente o alcance do campo _id em uma coleção MongoDB?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Identifica unicamente um documento dentro da coleção e recebe índice padrão.", "correct": true },
+        { "key": "B", "text": "Identifica toda a coleção no cluster e substitui a shard key escolhida.", "correct": false },
+        { "key": "C", "text": "Identifica uma tablespace física compartilhada por bancos relacionais.", "correct": false },
+        { "key": "D", "text": "Identifica somente documentos escritos por uma transação multi-documento.", "correct": false },
+        { "key": "E", "text": "Identifica a versão do servidor de configuração em cada réplica.", "correct": false }
+      ],
+      "explanation": "_id é o identificador único do documento dentro da coleção e recebe índice padrão. Ele não é automaticamente sinônimo da shard key, embora possa ser escolhido como chave em certos desenhos.",
+      "section": "3. MongoDB: documentos, consultas e consistência", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O InnoDB registra transações confirmadas no binary log porque o próprio mecanismo de armazenamento implementa isoladamente toda a replicação MySQL.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A replicação é implementada no servidor MySQL, não exclusivamente pelo mecanismo InnoDB. O binary log registra alterações relevantes para que réplicas recebam eventos; o InnoDB fornece recursos transacionais da tabela.",
+      "section": "2. MySQL e InnoDB: tabelas, transações e replicação", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A disponibilidade obtida com réplica de banco elimina a necessidade de backup, pois qualquer erro lógico pode ser revertido automaticamente na cópia secundária.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Alterações lógicas incorretas podem ser replicadas às cópias. Réplica favorece disponibilidade e distribuição de carga; backups com retenção e procedimento de restauração atendem à recuperação de dados.",
+      "section": "4. Alta disponibilidade, escala e escolha do banco", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Oracle Database Database Concepts, 19c",
+      "publisher": "Oracle",
+      "reference": "Arquitetura, estruturas de armazenamento, processos, transações, redo e undo do Oracle Database 19c.",
+      "url": "https://docs.oracle.com/en/database/oracle/oracle-database/19/cncpt/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Oracle Database Concepts: Transactions",
+      "publisher": "Oracle",
+      "reference": "Unidade atômica de trabalho, commit, rollback, savepoint e controle transacional.",
+      "url": "https://docs.oracle.com/en/database/oracle/oracle-database/19/lnpcc/database-concepts.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MySQL 8.4 Reference Manual: Introduction to InnoDB",
+      "publisher": "Oracle MySQL",
+      "reference": "ACID, bloqueio de linha, MVCC, índices clustered, chaves estrangeiras e características do InnoDB.",
+      "url": "https://dev.mysql.com/doc/refman/8.4/en/innodb-introduction.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MySQL 8.4 Reference Manual: Replication",
+      "publisher": "Oracle MySQL",
+      "reference": "Origem e réplicas, binary log, replicação assíncrona e cenários de uso.",
+      "url": "https://dev.mysql.com/doc/refman/8.4/en/replication.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MongoDB Manual: What is MongoDB?",
+      "publisher": "MongoDB",
+      "reference": "Documentos BSON, coleções, modelo flexível, transações, replicação e sharding.",
+      "url": "https://www.mongodb.com/docs/manual/introduction/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MongoDB Manual: Sharding",
+      "publisher": "MongoDB",
+      "reference": "Componentes do cluster sharded, shard key, mongos, distribuição e roteamento de consultas.",
+      "url": "https://www.mongodb.com/docs/manual/sharding/",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

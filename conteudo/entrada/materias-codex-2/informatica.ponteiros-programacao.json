@@ -1,0 +1,666 @@
+{
+  "id": "informatica.ponteiros-programacao",
+  "subject": "Informática",
+  "title": "Ponteiros em programação C",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Ponteiros em programação",
+    "Ponteiros na linguagem C",
+    "Uso de ponteiros em C",
+    "Endereços e ponteiros em C",
+    "Aritmética de ponteiros em C",
+    "Ponteiros e vetores em C",
+    "Ponteiros para funções em C",
+    "Alocação dinâmica com ponteiros",
+    "Desreferenciação de ponteiros em C",
+    "Ponteiros nulos e inválidos em C",
+    "Ponteiros constantes em C",
+    "Passagem de endereço em funções C"
+  ],
+  "scope": {
+    "covers": "Fundamentos de ponteiros na linguagem C: declaração e tipos, operador de endereço e desreferenciação, inicialização e ponteiro nulo, passagem de endereço a funções, relação entre ponteiros e arrays, aritmética dentro de arrays, ponteiros para ponteiros e para funções, const aplicado a ponteiros e objetos apontados, duração de vida, memória dinâmica com malloc/calloc/realloc/free, erros comuns e práticas de segurança.",
+    "excludes": "Ponteiros inteligentes e referências de C++, ponteiros inseguros de C#, detalhes de arquitetura ou representação física de endereços, assembly, alocadores personalizados, estruturas de dados avançadas e APIs específicas de sistemas operacionais."
+  },
+  "theoryTitle": "Ponteiros: endereços, acesso indireto e tempo de vida",
+  "chapters": [
+    {
+      "title": "1. Endereço, tipo e desreferenciação",
+      "markdown": "### O problema que este assunto resolve\n\nUma variável guarda um valor em algum lugar da memória. Em C, um ponteiro permite guardar o endereço de um objeto para que outra parte do programa possa acessá-lo indiretamente. Isso permite compartilhar e alterar objetos por meio de funções, percorrer arrays e trabalhar com memória obtida durante a execução. O ponteiro não é o objeto: é uma variável cujo valor designa onde um objeto pode ser encontrado.\n\n> **Siglas e termos deste capítulo**\n> - **Endereço**: localização associada a um objeto durante sua duração de vida.\n> - **Ponteiro**: objeto que pode armazenar o endereço de outro objeto compatível.\n> - **Desreferenciar**: usar `*p` para acessar o objeto designado por `p`.\n> - **Tipo apontado**: tipo de objeto indicado pelo ponteiro, como `int` em `int *p`.\n> - **NULL**: macro que representa uma constante de ponteiro nulo em C.\n\n### Declarar, obter endereço e acessar o objeto\n\nA declaração `int *p;` declara `p` como ponteiro para `int`. O asterisco faz parte do declarador: em `int *p, n;`, apenas `p` é ponteiro; `n` é um `int`. O tipo importa porque determina como o compilador interpreta o objeto acessado e o passo da aritmética de ponteiros.\n\nO operador unário `&` obtém o endereço de um objeto: se `int n = 7;`, então `int *p = &n;` faz `p` apontar para `n`. O operador unário `*`, aplicado a um ponteiro válido, acessa o objeto apontado. Assim, `*p = 9;` altera `n`, e ler `*p` obtém o valor atual de `n`. A mesma grafia `*` também aparece na declaração; o contexto distingue declaração de expressão.\n\n```c\nint n = 7;\nint *p = &n;\n*p = 9;   /* agora n vale 9 */\n```\n\nO endereço não deve ser tratado como um número portátil para cálculo. O programa deve operar segundo tipos e regras de C, sem supor que todos os endereços tenham certo tamanho, ordem ou representação. Um `int *` deve designar um objeto `int` apropriado; converter tipos arbitrariamente e depois desreferenciar pode violar alinhamento ou regras de acesso.\n\n### Ponteiro nulo e ponteiro sem validade\n\nUm ponteiro nulo não aponta para um objeto. Pode ser usado como estado explícito de “sem objeto associado”, comparado com `NULL` e testado antes do acesso. Desreferenciar um ponteiro nulo não é uma forma de obter zero: o comportamento é indefinido.\n\nUm ponteiro não inicializado também não é automaticamente nulo. Uma variável local automática declarada como `int *p;` tem valor indeterminado até receber uma atribuição válida; usá-la pode causar comportamento indefinido. Inicialize com um endereço compatível ou com `NULL`. Depois de liberar um bloco, o ponteiro que conservou aquele endereço fica pendente: `free` não muda automaticamente o valor da variável.\n\n### Alterar objetos por função\n\nC passa argumentos por valor. Para que uma função possa modificar uma variável do chamador, passe o endereço dela e receba um ponteiro. A função altera o objeto usando `*`.\n\n```c\nvoid zerar(int *alvo) {\n    if (alvo != NULL) *alvo = 0;\n}\n```\n\nA verificação protege contra um argumento nulo, mas não torna seguro um endereço pendente ou inválido. Uma função que recebe ponteiro deve ter um contrato claro sobre nulidade, duração de vida e permissão para modificar o objeto.\n\n### Como cai na prova\n\n- `&x` produz o endereço do objeto `x`; `*p` acessa o objeto indicado por `p`.\n- `int *p, x;` não declara duas variáveis ponteiro.\n- Um ponteiro nulo, não inicializado ou pendente não pode ser desreferenciado com segurança.\n- Para modificar uma variável do chamador, passe seu endereço e altere o objeto por meio do ponteiro recebido."
+    },
+    {
+      "title": "2. Ponteiros, arrays e aritmética",
+      "markdown": "### O problema que este assunto resolve\n\nUm array guarda elementos do mesmo tipo em posições contíguas. Ponteiros permitem percorrer essa sequência sem perder a informação do tipo do elemento. A sintaxe de indexação e a aritmética de ponteiros estão relacionadas, mas array e ponteiro continuam sendo categorias diferentes.\n\n> **Siglas e termos deste capítulo**\n> - **Array (vetor)**: objeto que contém uma sequência fixa de elementos do mesmo tipo.\n> - **Índice**: posição de um elemento, começando em zero.\n> - **Aritmética de ponteiros**: avanço ou recuo em unidades do tipo apontado.\n> - **Um após o fim**: ponteiro que designa a posição imediatamente seguinte ao último elemento, permitido para comparação/iteração, mas não para desreferenciação.\n> - **Decaimento**: conversão de expressão de array em ponteiro para o primeiro elemento na maioria dos contextos.\n\n### Indexação e relação com ponteiro\n\nDado `int v[4] = {10, 20, 30, 40};`, na maioria das expressões o nome `v` converte-se em ponteiro para `v[0]`. Por isso, `v[i]` equivale a `*(v + i)`: soma-se o índice em unidades de elementos `int` e acessa-se o resultado. `int *p = v;` faz `p` apontar ao primeiro elemento. `p + 1` aponta ao próximo `int`, não necessariamente ao próximo byte.\n\nA conversão do nome do array não ocorre em todos os contextos. `sizeof v` mede o array inteiro quando `v` ainda é array naquele escopo; `sizeof p` mede o próprio ponteiro. Em parâmetro de função, uma declaração como `void f(int a[])` é ajustada para parâmetro ponteiro (`int *a`), então a função não recebe o tamanho do array automaticamente. Passe também a quantidade de elementos.\n\n### Limites da aritmética\n\nA aritmética deve permanecer dentro do mesmo array, incluindo a posição imediatamente após o último elemento. Criar esse ponteiro final é permitido para controlar um laço, mas lê-lo ou escrevê-lo é inválido. Não se deve avançar para além dessa posição nem comparar/subtrair ponteiros de objetos independentes como se pertencessem ao mesmo array.\n\n```c\nfor (int *p = v; p < v + 4; ++p) {\n    /* *p é um elemento válido */\n}\n```\n\nSubtrair ponteiros para elementos do mesmo array produz uma diferença em quantidade de elementos (tipo `ptrdiff_t`), não em bytes. Comparações de ordem têm significado para posições da mesma sequência. Não se pode somar dois ponteiros nem multiplicar ou dividir ponteiros.\n\n### Arrays multidimensionais e strings\n\nEm `int m[2][3]`, cada linha é um array de três `int`. Ao passar `m` a uma função, a expressão converte-se em ponteiro para uma linha (`int (*)[3]`), e não em `int **`. Um ponteiro para ponteiro representa um objeto que aponta para outro ponteiro; não é automaticamente um array bidimensional contíguo.\n\nUma string em C é uma sequência de caracteres terminada pelo caractere nulo `\\0`. Um array de caracteres com espaço para o terminador precisa incluí-lo. Um ponteiro para o primeiro caractere não carrega consigo o comprimento nem garante que exista terminador. Não escreva por meio de ponteiro para literal de string: modificar um literal tem comportamento indefinido.\n\n### Como cai na prova\n\n- `v[i]` equivale a `*(v + i)`; o passo depende do tipo apontado.\n- Array não é ponteiro: `sizeof` e atribuição mostram diferenças importantes.\n- O ponteiro um após o fim é útil para delimitar percurso, mas não pode ser desreferenciado.\n- Array de arrays e ponteiro para ponteiro têm tipos e layouts distintos."
+    },
+    {
+      "title": "3. Modificadores, níveis e ponteiros para funções",
+      "markdown": "### O problema que este assunto resolve\n\nDeclarar corretamente o tipo de um ponteiro evita alterações acidentais e permite descrever dados e funções de maneira precisa. As posições de `const` e os níveis de indireção mudam o significado da declaração; eles não são detalhes decorativos.\n\n> **Siglas e termos deste capítulo**\n> - **`const` apontado**: o ponteiro não permite alterar o objeto por aquele acesso.\n> - **Ponteiro constante**: o próprio endereço armazenado não pode ser trocado após inicialização.\n> - **Ponteiro duplo**: ponteiro cujo objeto apontado também é um ponteiro, como `int **`.\n> - **Ponteiro para função**: armazena uma função compatível com uma assinatura.\n> - **`void *`**: ponteiro genérico para objeto em C, que deve ser convertido para tipo de objeto apropriado antes de desreferenciar.\n\n### Onde fica o `const`\n\n`const int *p` (também escrito `int const *p`) significa que `p` pode ser redirecionado, mas não se pode modificar o `int` por meio de `p`. Isso não prova que o objeto seja imutável por todos os outros caminhos. Já `int * const p` impede mudar o endereço armazenado em `p`, mas permite modificar o `int` apontado, se ele próprio não for constante. `const int * const p` impede ambos pelo identificador `p`.\n\n| Declaração | Pode trocar o endereço em `p`? | Pode escrever `*p`? |\n| --- | --- | --- |\n| `int *p` | Sim | Sim, se o alvo for modificável e válido |\n| `const int *p` | Sim | Não por meio de `p` |\n| `int * const p` | Não | Sim, nas mesmas condições |\n| `const int * const p` | Não | Não por meio de `p` |\n\n### Indireção adicional\n\n`int **pp` aponta para um objeto do tipo `int *`. Se `int *p = &n;`, então `pp = &p` permite que `*pp` acesse `p` e `**pp` acesse `n`. O nível adicional é útil quando uma função precisa atualizar o próprio ponteiro do chamador, mas aumenta o dever de verificar cada nível antes de acessar.\n\n`void *` pode guardar endereço de objeto de tipo diverso e ser convertido de volta para o tipo correto. Em C, não se desreferencia diretamente `void *`, pois não há tipo apontado para definir o acesso. Ponteiros para função são outra categoria: não se deve assumir que um ponteiro para função possa ser convertido com segurança em `void *`.\n\n### Ponteiros para funções\n\nUma declaração como `int (*op)(int, int);` descreve ponteiro para função que recebe dois `int` e retorna `int`. Os parênteses são essenciais: `int *op(int, int)` declararia uma função que retorna `int *`. Um ponteiro para função pode selecionar uma operação em tempo de execução, por exemplo em uma tabela de callbacks, desde que a função chamada tenha assinatura compatível.\n\n### Como cai na prova\n\n- Em `const int *p`, o alvo não é modificável por `p`; o próprio `p` pode receber outro endereço.\n- Em `int * const p`, o endereço não pode ser trocado; o objeto pode ser alterado se for modificável.\n- `int **` não é sinônimo de array bidimensional.\n- Parênteses distinguem ponteiro para função de função que retorna ponteiro."
+    },
+    {
+      "title": "4. Duração de vida e alocação dinâmica",
+      "markdown": "### O problema que este assunto resolve\n\nUm endereço só pode ser usado enquanto o objeto correspondente existe e enquanto o acesso respeita as regras da linguagem. Alocação dinâmica permite solicitar espaço durante a execução, mas transfere ao programa a responsabilidade de verificar o resultado e liberar o bloco uma única vez.\n\n> **Siglas e termos deste capítulo**\n> - **Duração de vida**: intervalo em que o objeto existe.\n> - **Heap**: termo comum para a área de armazenamento dinâmico gerenciada por funções como `malloc`; não é uma garantia de layout físico.\n> - **`malloc`**: solicita um bloco de bytes sem inicializar seu conteúdo.\n> - **`calloc`**: solicita espaço para elementos e inicializa os bytes do bloco com zero.\n> - **`realloc`**: redimensiona um bloco alocado dinamicamente, podendo movê-lo.\n> - **Vazamento**: bloco alocado que deixa de ter ponteiro acessível para liberá-lo.\n\n### Objetos locais e ponteiros pendentes\n\nO endereço de uma variável local automática não pode ser usado depois que a execução sai do bloco que encerra sua vida. Retornar esse endereço cria ponteiro pendente. A memória pode ser reutilizada para outro objeto; o ponteiro não mantém o objeto vivo. Variáveis estáticas têm duração de vida que se estende por toda a execução, enquanto objetos dinâmicos duram até serem liberados.\n\nUm ponteiro pendente (*dangling pointer*) não é necessariamente nulo. Após `free(p)`, definir `p = NULL` pode ajudar a impedir reutilização acidental daquele identificador, mas não corrige cópias do mesmo endereço guardadas em outras variáveis.\n\n### Alocar, verificar, usar e liberar\n\nAs funções `malloc`, `calloc` e `realloc` são declaradas em `<stdlib.h>`. Em C, `malloc` retorna `void *`, conversível implicitamente para ponteiro de objeto. Verifique o retorno antes de acessar. Reserve quantidade suficiente de bytes, com atenção a overflow ao multiplicar quantidade por tamanho de elemento.\n\n```c\nsize_t n = 10;\nint *dados = malloc(n * sizeof *dados);\nif (dados != NULL) {\n    /* usar dados[0] até dados[n - 1] */\n    free(dados);\n    dados = NULL;\n}\n```\n\n`sizeof *dados` acompanha o tipo do objeto apontado e evita repetir o tipo na expressão. Atribuir diretamente o resultado de `realloc` ao único ponteiro pode perder o bloco antigo se a realocação falhar. Use um ponteiro temporário, trate o caso de falha e entenda a regra especial de tamanho zero da implementação usada. Depois de liberar, não leia nem escreva o bloco; não chame `free` novamente para o mesmo bloco.\n\n`free(NULL)` não faz nada. `free` deve receber o início de um bloco obtido por alocador compatível e ainda não liberado; não se libera endereço de variável local, endereço interior de array ou bloco já liberado.\n\n### Como cai na prova\n\n- Ponteiro para variável local não sobrevive ao fim da duração de vida dela.\n- `malloc` pode falhar e não inicializa o conteúdo; teste o retorno antes do uso.\n- `realloc` pode mover o bloco; mantenha o endereço antigo até confirmar sucesso.\n- Toda alocação bem-sucedida precisa de uma estratégia clara de liberação, sem uso após `free` nem liberação dupla."
+    }
+  ],
+  "summary": "Em C, um ponteiro guarda um endereço associado a um tipo. `&objeto` obtém endereço e `*ponteiro` acessa o objeto, desde que o ponteiro seja válido e a duração de vida ainda esteja ativa. Ponteiros nulos e não inicializados não podem ser desreferenciados. Arrays convertem-se em ponteiros para o primeiro elemento na maioria das expressões, mas não são ponteiros; indexação equivale a *(base + índice), e a aritmética deve respeitar os limites do mesmo array. `const` pode qualificar o objeto apontado ou o próprio ponteiro. A memória dinâmica exige verificar alocação, respeitar tamanho e tipo, evitar ponteiros pendentes e liberar cada bloco adequadamente.",
+  "flashcards": [
+    { "front": "O que armazena um ponteiro?", "back": "Um valor que designa o endereço de um objeto compatível; não armazena o objeto em si." },
+    { "front": "O que faz `&x` em C?", "back": "Obtém o endereço do objeto x, produzindo um ponteiro para seu tipo." },
+    { "front": "O que significa `*p` em uma expressão?", "back": "Acessa o objeto designado por p, desde que p seja válido e aponte para objeto vivo." },
+    { "front": "`int *p, x;` declara dois ponteiros?", "back": "Não. p é ponteiro para int; x é um int comum." },
+    { "front": "Um ponteiro local não inicializado é nulo?", "back": "Não. Tem valor indeterminado; inicialize antes de usá-lo." },
+    { "front": "O que indica um ponteiro nulo?", "back": "Que ele não designa um objeto; compare com NULL e não o desreferencie." },
+    { "front": "Como uma função altera um int do chamador?", "back": "Recebe o endereço como int * e atribui ao objeto por meio de *p." },
+    { "front": "Qual relação existe entre `a[i]` e ponteiros?", "back": "Em C, a indexação equivale a `*(a + i)`." },
+    { "front": "O que faz `p + 1` para `int *p`?", "back": "Aponta ao próximo elemento int na sequência, escalando pelo tipo apontado." },
+    { "front": "Pode desreferenciar o ponteiro um após o fim do array?", "back": "Não. Ele pode delimitar iteração, mas não designa elemento acessível." },
+    { "front": "Arrays e ponteiros são o mesmo tipo?", "back": "Não. Arrays são objetos de sequência; conversão para ponteiro ocorre em muitos, mas não todos, contextos." },
+    { "front": "O que `sizeof array` mede?", "back": "Se array ainda é array naquele contexto, mede o tamanho total em bytes de todos os elementos." },
+    { "front": "O que significa `const int *p`?", "back": "p pode ser redirecionado, mas não pode modificar o int por esse acesso." },
+    { "front": "O que significa `int * const p`?", "back": "O endereço guardado por p é fixo; o int apontado pode ser alterado se for modificável." },
+    { "front": "O que acessa `**pp` quando pp é `int **` válido?", "back": "O int alcançado seguindo primeiro pp até um int * e depois esse ponteiro até um int." },
+    { "front": "Um `void *` pode ser desreferenciado diretamente em C?", "back": "Não; converta para um tipo de ponteiro para objeto apropriado antes de acessar." },
+    { "front": "Por que ponteiro para função tem sintaxe com parênteses?", "back": "Para distinguir `int (*f)(int)` de uma função que retorna ponteiro, como `int *f(int)`." },
+    { "front": "O que é ponteiro pendente?", "back": "Ponteiro cujo objeto já encerrou a duração de vida ou foi liberado." },
+    { "front": "O que `malloc` retorna e inicializa?", "back": "Retorna ponteiro para bloco ou NULL; os bytes do bloco não vêm inicializados." },
+    { "front": "Qual o cuidado central com `realloc`?", "back": "Pode mover o bloco ou falhar; use temporário para não perder o endereço antigo em caso de falha." },
+    { "front": "Quando `free` é válido?", "back": "Para NULL ou para o início de bloco ainda alocado por função compatível e ainda não liberado." },
+    { "front": "Passar um array como parâmetro também passa seu comprimento?", "back": "Não. O parâmetro ajusta-se a ponteiro; o comprimento deve ser passado separadamente." }
+  ],
+  "tips": [
+    "Leia a declaração junto ao identificador: o asterisco qualifica cada declarador separadamente.",
+    "Ao ver `*p`, pergunte primeiro se p foi inicializado, se não é nulo e se o alvo ainda vive.",
+    "Pense em `p + i` como avanço de i elementos do tipo apontado, não como soma de i bytes.",
+    "Em função que recebe array, receba também o comprimento para controlar os limites.",
+    "Leia `const` da direita para a esquerda em torno do asterisco: descubra se qualifica alvo ou ponteiro.",
+    "Para `realloc`, mantenha o ponteiro antigo até confirmar o retorno em uma variável temporária."
+  ],
+  "traps": [
+    "Confundir o valor zero de um inteiro com um ponteiro nulo desreferenciável.",
+    "Achar que declarar `int *p` inicializa p com NULL.",
+    "Tratar array e ponteiro como sinônimos porque o nome do array frequentemente decai para ponteiro.",
+    "Acessar a posição um após o fim ou avançar além dela durante aritmética de ponteiros.",
+    "Interpretar `const int *p` como ponteiro constante; nesse caso, o alvo é que não pode ser alterado por p.",
+    "Supor que `free` zera o ponteiro, libera cópias do endereço ou desfaz uma liberação dupla."
+  ],
+  "activeRecall": [
+    { "question": "Diferencie `&x` de `*p` e explique a condição necessária para usar a segunda expressão.", "answer": "&x obtém endereço; *p acessa o objeto nesse endereço e exige ponteiro válido, tipo compatível e objeto ainda vivo." },
+    { "question": "Explique por que `int *p, x;` não cria dois ponteiros.", "answer": "O asterisco pertence ao declarador p, não ao especificador int comum a todas as declarações separadas por vírgula." },
+    { "question": "Como percorrer um array com ponteiros sem acessar fora dos limites?", "answer": "Comece no primeiro elemento e avance enquanto o ponteiro for menor que o endereço um após o fim; só desreferencie antes desse limite." },
+    { "question": "Por que uma função que recebe `int a[]` deve receber outro argumento de tamanho?", "answer": "O parâmetro de array é ajustado para int * e não carrega automaticamente o número de elementos." },
+    { "question": "Compare `const int *p` e `int * const p`.", "answer": "No primeiro, p pode mudar mas não modifica o alvo por esse acesso; no segundo, o endereço não muda, mas o alvo pode ser modificado se não for const." },
+    { "question": "Descreva dois modos de criar um ponteiro pendente.", "answer": "Retornar endereço de objeto local após o fim de sua vida ou continuar usando endereço de bloco depois de free." },
+    { "question": "Que cuidados são necessários após chamar malloc?", "answer": "Verificar NULL, acessar somente o intervalo alocado e liberar o início do bloco uma vez quando não for mais necessário." },
+    { "question": "Por que atribuir diretamente `realloc` ao único ponteiro pode causar vazamento?", "answer": "Se falhar e retornar NULL, a atribuição substitui o endereço antigo e perde a única referência ao bloco ainda alocado." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Ponteiro nulo ou indeterminado desreferenciado", "summary": "NULL significa ausência de objeto; ponteiro local sem inicialização tem valor indeterminado. Nenhum deles pode ser usado como endereço de objeto válido." },
+    { "key": "e2", "title": "Array confundido com ponteiro", "summary": "Array decai para ponteiro em muitas expressões, mas conserva identidade e tamanho em contextos como sizeof; parâmetros de array ajustam-se a ponteiro." },
+    { "key": "e3", "title": "Aritmética fora da sequência", "summary": "Ponteiro só percorre posições do mesmo array e pode alcançar um após o fim; acessar essa posição ou seguir além gera comportamento indefinido." },
+    { "key": "e4", "title": "Objeto ou bloco já encerrado", "summary": "Endereço não estende duração de vida. Após fim do escopo ou free, leituras e escritas pelo ponteiro são inválidas; free não limpa cópias." },
+    { "key": "e5", "title": "Confusão sobre const e indireção", "summary": "A posição de const determina se o alvo ou o próprio ponteiro não pode ser alterado. Níveis int ** representam ponteiro para ponteiro, não array bidimensional automaticamente." }
+  ],
+  "questions": [
+    {
+      "statement": "Considere `int n = 4; int *p = &n;`. Qual afirmação descreve corretamente `*p = 8;`?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Troca o identificador n por uma constante com valor oito.", "correct": false },
+        { "key": "B", "text": "Troca o endereço de n pelo número inteiro 8.", "correct": false },
+        { "key": "C", "text": "Altera somente a cópia local de p, sem tocar em n.", "correct": false },
+        { "key": "D", "text": "Atribui 8 ao objeto n por meio do endereço guardado em p.", "correct": true },
+        { "key": "E", "text": "Faz p apontar ao próximo elemento de um array de inteiros.", "correct": false }
+      ],
+      "explanation": "p contém o endereço de n, e *p designa o próprio objeto n; a atribuição modifica esse objeto. Não há aritmética nem mudança do endereço armazenado.",
+      "section": "1. Endereço, tipo e desreferenciação", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em C, `int *p, x;` declara p e x como ponteiros para int.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O asterisco pertence ao declarador p, e não ao especificador int compartilhado na declaração. Assim, p é ponteiro para int, enquanto x é uma variável int comum; ela não guarda endereço nem exige desreferenciação.",
+      "section": "1. Endereço, tipo e desreferenciação", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual expressão obtém o endereço do objeto `valor`, declarado como `int valor;`?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`*valor`, que lê o conteúdo armazenado na variável.", "correct": false },
+        { "key": "B", "text": "`&valor`, que produz um ponteiro para o objeto int.", "correct": true },
+        { "key": "C", "text": "`valor*`, que transforma o identificador em endereço.", "correct": false },
+        { "key": "D", "text": "`NULL(valor)`, que calcula sua posição na memória.", "correct": false },
+        { "key": "E", "text": "`sizeof(valor)`, que retorna o endereço de valor.", "correct": false }
+      ],
+      "explanation": "O operador unário & aplicado a um objeto obtém seu endereço. sizeof informa tamanho em bytes e * exige operando que já seja ponteiro.",
+      "section": "1. Endereço, tipo e desreferenciação", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma variável ponteiro local automática sem inicializador começa necessariamente com valor NULL.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Um ponteiro local automático sem inicialização tem valor indeterminado. Atribua endereço válido ou NULL antes de testar ou desreferenciar.",
+      "section": "1. Endereço, tipo e desreferenciação", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o propósito de verificar `p != NULL` antes de acessar `*p`?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Garantir que p aponta para o maior elemento de um array.", "correct": false },
+        { "key": "B", "text": "Converter automaticamente um endereço pendente em endereço válido.", "correct": false },
+        { "key": "C", "text": "Confirmar que p não é o valor nulo antes da desreferenciação.", "correct": true },
+        { "key": "D", "text": "Fazer com que o objeto apontado passe a ser constante.", "correct": false },
+        { "key": "E", "text": "Reinicializar p com NULL depois de testar seu valor anterior.", "correct": false }
+      ],
+      "explanation": "A comparação detecta o caso de ponteiro nulo. Ela não valida ponteiro não inicializado ou pendente, que também não deve ser desreferenciado.",
+      "section": "1. Endereço, tipo e desreferenciação", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em C, passar um ponteiro para uma função permite que ela altere o objeto do chamador por meio de `*p`, embora o argumento ponteiro seja passado por valor.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A função recebe uma cópia do endereço, mas essa cópia ainda designa o mesmo objeto. Escrever por meio de *p altera esse objeto do chamador.",
+      "section": "1. Endereço, tipo e desreferenciação", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual declaração cria um ponteiro `p` para um objeto do tipo `int`?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`int p;`, que reserva um endereço para outro inteiro.", "correct": false },
+        { "key": "B", "text": "`pointer int p;`, usando palavra-chave própria de C.", "correct": false },
+        { "key": "C", "text": "`int &p;`, que declara ponteiro em C padrão.", "correct": false },
+        { "key": "D", "text": "`int p*;`, com o asterisco após o identificador.", "correct": false },
+        { "key": "E", "text": "`int *p;`, declarando p como ponteiro para int.", "correct": true }
+      ],
+      "explanation": "Na declaração `int *p`, p é ponteiro para int. A referência `&` em declaração não é sintaxe de ponteiro em C, e int p é inteiro comum.",
+      "section": "1. Endereço, tipo e desreferenciação", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Desreferenciar um ponteiro nulo em C é uma forma definida de ler o inteiro zero.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Ponteiro nulo não designa objeto. Desreferenciá-lo provoca comportamento indefinido; NULL não é um objeto int com valor zero.",
+      "section": "1. Endereço, tipo e desreferenciação", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em `int x = 3; int *p = &x;`, qual é o valor de `*p` antes de qualquer outra atribuição?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O valor 3, armazenado no objeto x alcançado por p.", "correct": true },
+        { "key": "B", "text": "O endereço numérico de p convertido para int.", "correct": false },
+        { "key": "C", "text": "O tamanho em bytes do ponteiro p.", "correct": false },
+        { "key": "D", "text": "O endereço de x, sem acessar seu conteúdo.", "correct": false },
+        { "key": "E", "text": "Um valor indeterminado porque p foi inicializado.", "correct": false }
+      ],
+      "explanation": "p foi inicializado com &x, logo *p designa x e lê seu valor atual, que é 3. O endereço é o valor de p, não de *p. O tamanho do ponteiro é outra informação, obtida por sizeof p, e não pelo operador de desreferenciação.",
+      "section": "1. Endereço, tipo e desreferenciação", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Se `p` é um ponteiro válido para `n`, executar `*p = 0` altera o próprio endereço armazenado em p.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. *p designa o objeto apontado, então a atribuição modifica n. Para mudar o endereço guardado em p, atribua outro ponteiro diretamente a p.",
+      "section": "1. Endereço, tipo e desreferenciação", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao receber `int *p`, qual implementação altera o inteiro apontado para zero quando o argumento não é nulo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "`p = 0;`, que altera o objeto do chamador sem mudar o alvo.", "correct": false },
+        { "key": "B", "text": "`*p = 0;`, precedido por teste de que p não é NULL.", "correct": true },
+        { "key": "C", "text": "`&p = 0;`, que grava zero no inteiro apontado.", "correct": false },
+        { "key": "D", "text": "`sizeof p = 0;`, que altera o conteúdo do objeto.", "correct": false },
+        { "key": "E", "text": "`p == NULL;`, que modifica o inteiro por comparação.", "correct": false }
+      ],
+      "explanation": "Após verificar p, *p designa o int apontado e pode receber zero. Atribuir a p só altera a cópia local do ponteiro recebido.",
+      "section": "1. Endereço, tipo e desreferenciação", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma verificação `p != NULL` também garante que o endereço não ficou pendente após a liberação do objeto.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Um ponteiro pendente pode continuar diferente de NULL. O programa precisa controlar duração de vida e invalidação após liberar o objeto.",
+      "section": "1. Endereço, tipo e desreferenciação", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual frase diferencia melhor o valor de `p` do valor de `*p` quando p aponta para um int?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "p é sempre o número de elementos; *p é o tamanho do array.", "correct": false },
+        { "key": "B", "text": "p é o objeto int; *p é sempre um segundo endereço.", "correct": false },
+        { "key": "C", "text": "p é o endereço armazenado; *p é o objeto int designado por esse endereço.", "correct": true },
+        { "key": "D", "text": "p e *p são necessariamente cópias numéricas do mesmo endereço.", "correct": false },
+        { "key": "E", "text": "p é um ponteiro nulo; *p é a constante NULL correspondente.", "correct": false }
+      ],
+      "explanation": "O próprio ponteiro guarda o endereço. A desreferenciação usa esse endereço para designar o objeto apontado, cujo tipo neste caso é int.",
+      "section": "1. Endereço, tipo e desreferenciação", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O operador `&` aplicado a um objeto e o operador `*` aplicado a um ponteiro têm funções inversas em exemplos simples, mas `*` exige ponteiro válido.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Se p foi inicializado como &x e ambos permanecem válidos, *p designa x. Essa relação não autoriza desreferenciar ponteiros nulos, indeterminados ou pendentes.",
+      "section": "1. Endereço, tipo e desreferenciação", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O que deve ser passado a uma função que precisa alterar a variável `total` do chamador?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Uma cópia do valor de total, sem qualquer informação adicional.", "correct": false },
+        { "key": "B", "text": "O tamanho do tipo int, para que a função encontre total.", "correct": false },
+        { "key": "C", "text": "O valor de NULL, para que a função crie total novamente.", "correct": false },
+        { "key": "D", "text": "Um ponteiro para int inicializado com o endereço de total.", "correct": true },
+        { "key": "E", "text": "O endereço de uma cópia temporária criada pela função.", "correct": false }
+      ],
+      "explanation": "Passar &total a um parâmetro int * dá à função um endereço pelo qual pode modificar o objeto original com *parametro. Uma cópia simples não altera o chamador.",
+      "section": "1. Endereço, tipo e desreferenciação", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A cópia de um ponteiro passada por valor a uma função impede que a função altere o objeto designado pelo endereço copiado.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A função não muda automaticamente a variável ponteiro do chamador, mas sua cópia do endereço ainda pode designar o mesmo objeto, que ela pode alterar por desreferenciação.",
+      "section": "1. Endereço, tipo e desreferenciação", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Considere `int v[3] = {4, 7, 9};`. Qual expressão equivale a `v[1]`?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`*(v + 2)`, que acessa o terceiro elemento do array.", "correct": false },
+        { "key": "B", "text": "`*(v + 0)`, que acessa sempre a posição inicial.", "correct": false },
+        { "key": "C", "text": "`v + 1`, que por si só já lê o valor do elemento.", "correct": false },
+        { "key": "D", "text": "`&v[1]`, que produz o valor inteiro armazenado.", "correct": false },
+        { "key": "E", "text": "`*(v + 1)`, que desreferencia o endereço do índice um.", "correct": true }
+      ],
+      "explanation": "A indexação é definida em termos de *(v + i); para i igual a 1, o resultado é o valor 7 do segundo elemento. O índice dois acessa o valor 9, e as expressões v + 1 e &v[1] designam endereços, não leem por si sós o valor inteiro.",
+      "section": "2. Ponteiros, arrays e aritmética", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em C, `v[i]` equivale a `*(v + i)` quando v é expressão de array convertida em ponteiro para seu primeiro elemento.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A indexação soma o índice ao ponteiro para o primeiro elemento e desreferencia o resultado, dentro dos limites válidos do array.",
+      "section": "2. Ponteiros, arrays e aritmética", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Se `p` tem tipo `int *`, o efeito de `p + 1` é qual?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Somar exatamente um byte ao endereço, em qualquer plataforma.", "correct": false },
+        { "key": "B", "text": "Avançar para o próximo int da sequência em que p aponta.", "correct": true },
+        { "key": "C", "text": "Desreferenciar p e incrementar o valor do inteiro indicado.", "correct": false },
+        { "key": "D", "text": "Transformar p em ponteiro para o primeiro byte do objeto.", "correct": false },
+        { "key": "E", "text": "Avançar para o início de um array independente qualquer.", "correct": false }
+      ],
+      "explanation": "A aritmética é escalada pelo tamanho do tipo apontado. p + 1 designa o próximo elemento int, se essa posição estiver dentro do mesmo array ou imediatamente após ele.",
+      "section": "2. Ponteiros, arrays e aritmética", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A posição um após o último elemento de um array pode ser formada para controlar o fim de uma iteração, mas não pode ser desreferenciada.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. C permite formar e comparar o ponteiro um após o fim do mesmo array. Ele não designa elemento válido para leitura ou escrita.",
+      "section": "2. Ponteiros, arrays e aritmética", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual declaração inicializa `p` para percorrer o primeiro elemento de `int v[5]`?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`int *p = v;`, que recebe ponteiro para o primeiro elemento.", "correct": true },
+        { "key": "B", "text": "`int p = v;`, que converte o array inteiro em int.", "correct": false },
+        { "key": "C", "text": "`int *p = *v;`, que usa o primeiro valor como endereço.", "correct": false },
+        { "key": "D", "text": "`int **p = v;`, que cria ponteiro para ponteiro automaticamente.", "correct": false },
+        { "key": "E", "text": "`int p = &v;`, que guarda endereço em variável inteira.", "correct": false }
+      ],
+      "explanation": "Na inicialização, v converte-se em ponteiro para seu primeiro elemento, compatível com int *. Um int ** exige endereço de um objeto int *.",
+      "section": "2. Ponteiros, arrays e aritmética", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao avaliar `sizeof v` no mesmo escopo em que `v` é declarado como `int v[5]`, o resultado mede o array inteiro, não apenas um ponteiro para o primeiro elemento.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. sizeof é um dos contextos em que o nome do array não decai para ponteiro; mede os cinco elementos em bytes. Em parâmetro ajustado para ponteiro, o resultado é diferente.",
+      "section": "2. Ponteiros, arrays e aritmética", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma função que recebe um vetor como `int a[]` precisa receber separadamente seu comprimento?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Porque a função converte todos os elementos em ponteiros separados.", "correct": false },
+        { "key": "B", "text": "Porque `sizeof a` dentro dela sempre retorna o tamanho do array original.", "correct": false },
+        { "key": "C", "text": "Porque o parâmetro é ajustado para ponteiro e não informa a contagem.", "correct": true },
+        { "key": "D", "text": "Porque arrays não podem ser passados a funções na linguagem C.", "correct": false },
+        { "key": "E", "text": "Porque o endereço do último elemento é guardado em NULL.", "correct": false }
+      ],
+      "explanation": "Um parâmetro declarado com sintaxe de array ajusta-se para ponteiro. O comprimento não acompanha esse ponteiro e deve ser parte explícita da interface.",
+      "section": "2. Ponteiros, arrays e aritmética", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma função, `int a[]` como parâmetro é ajustado para ponteiro e não conserva automaticamente o tamanho do array passado pelo chamador.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A declaração do parâmetro é ajustada para ponteiro. A função precisa receber uma contagem ou usar outro contrato que determine o limite.",
+      "section": "2. Ponteiros, arrays e aritmética", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual comportamento é definido para a expressão `p + 1` quando p aponta ao último elemento de um array?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Ela sempre aponta ao primeiro elemento de um array vizinho.", "correct": false },
+        { "key": "B", "text": "Ela avança para a posição um após o fim, que não pode ser acessada.", "correct": true },
+        { "key": "C", "text": "Ela retorna NULL e encerra automaticamente o percurso.", "correct": false },
+        { "key": "D", "text": "Ela volta ao começo do mesmo array por operação circular.", "correct": false },
+        { "key": "E", "text": "Ela lê o valor seguinte sem precisar de desreferenciação.", "correct": false }
+      ],
+      "explanation": "Somar um ao ponteiro do último elemento forma o ponteiro um após o fim. É válido para delimitar uma faixa, mas não para acessar conteúdo nessa posição.",
+      "section": "2. Ponteiros, arrays e aritmética", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Somar dois ponteiros de objeto é a operação normal para avançar por um array em C.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Soma-se ou subtrai-se um inteiro de um ponteiro. A subtração entre ponteiros é restrita a elementos do mesmo array; soma de dois ponteiros não é operação definida.",
+      "section": "2. Ponteiros, arrays e aritmética", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em `int m[2][3]`, qual tipo descreve o ponteiro ao qual a expressão m normalmente se converte?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "`int *`, apontando diretamente a um int sem informação de linha.", "correct": false },
+        { "key": "B", "text": "`int **`, porque toda matriz é uma lista de ponteiros alocados.", "correct": false },
+        { "key": "C", "text": "`void *`, pois arrays bidimensionais perdem sempre o tipo.", "correct": false },
+        { "key": "D", "text": "`int (*)[3]`, ponteiro para array de três inteiros.", "correct": true },
+        { "key": "E", "text": "`int (*)[2]`, ponteiro para coluna com dois elementos.", "correct": false }
+      ],
+      "explanation": "m é array de duas linhas, cada uma com três int. Ao decair, aponta para uma linha, cujo tipo é array de três int; por isso o tipo resultante é int (*)[3], não int **.",
+      "section": "2. Ponteiros, arrays e aritmética", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um ponteiro `int **` não é equivalente ao tipo do endereço inicial de uma matriz C declarada `int m[2][3]`.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O array m decai para ponteiro para linha de três int. int ** aponta para objeto que é, ele próprio, int *; os tipos e layouts não são equivalentes.",
+      "section": "2. Ponteiros, arrays e aritmética", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve `const int *p`?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "p pode ser redirecionado, mas não altera o int por esse acesso.", "correct": true },
+        { "key": "B", "text": "p não pode ser redirecionado e sempre altera o alvo.", "correct": false },
+        { "key": "C", "text": "O objeto int é copiado para dentro do ponteiro p.", "correct": false },
+        { "key": "D", "text": "p passa a ser ponteiro nulo até receber const explicitamente.", "correct": false },
+        { "key": "E", "text": "O tipo permite modificar o alvo apenas com `p++`.", "correct": false }
+      ],
+      "explanation": "const qualifica o int apontado, impedindo escrita por meio de p. O próprio ponteiro não é const e pode receber outro endereço compatível.",
+      "section": "3. Modificadores, níveis e ponteiros para funções", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em `int * const p`, o identificador p não pode receber outro endereço depois de inicializado, embora o int apontado possa ser modificável.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. const qualifica o ponteiro, não o int apontado. A possibilidade de alterar o alvo depende também de o objeto designado não ser const e ser válido.",
+      "section": "3. Modificadores, níveis e ponteiros para funções", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual declaração permite trocar o endereço em `p`, mas não escrever no int apontado usando `*p`?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "`int * const p`, que fixa o endereço e libera escrita no alvo.", "correct": false },
+        { "key": "B", "text": "`const int *p`, que fixa o endereço e permite alterar o alvo.", "correct": false },
+        { "key": "C", "text": "`int const *p`, equivalente a ponteiro para int constante.", "correct": true },
+        { "key": "D", "text": "`const int * const p`, que deixa o endereço mutável.", "correct": false },
+        { "key": "E", "text": "`int ** const p`, que remove a qualificação const do alvo.", "correct": false }
+      ],
+      "explanation": "const int *p e int const *p são equivalentes: o alvo é const pelo acesso p, mas p não é ponteiro constante. C não permite escrever em *p.",
+      "section": "3. Modificadores, níveis e ponteiros para funções", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em `int **pp`, se pp, *pp e **pp forem válidos, `**pp` designa um int alcançado por dois níveis de indireção.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. pp aponta para um objeto int *; desreferenciar uma vez obtém esse ponteiro e uma segunda vez obtém o objeto int final.",
+      "section": "3. Modificadores, níveis e ponteiros para funções", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O que representa `int (*op)(int, int)`?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Uma função que retorna ponteiro para função com dois parâmetros.", "correct": false },
+        { "key": "B", "text": "Um ponteiro para função que recebe dois int e retorna int.", "correct": true },
+        { "key": "C", "text": "Um array de dois ponteiros para funções sem retorno definido.", "correct": false },
+        { "key": "D", "text": "Um ponteiro para dois inteiros que executa operação aritmética.", "correct": false },
+        { "key": "E", "text": "Uma função chamada op com retorno int e ponteiro constante.", "correct": false }
+      ],
+      "explanation": "Os parênteses em torno de *op fazem op ser ponteiro. A lista de parâmetros indica função com dois int e o int antes dos parênteses é o tipo de retorno.",
+      "section": "3. Modificadores, níveis e ponteiros para funções", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em C, um `void *` pode ser desreferenciado diretamente, pois o compilador infere automaticamente o tipo e o tamanho do objeto.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. void não informa tipo apontado para acesso. Converta para ponteiro de objeto apropriado antes de desreferenciar, garantindo que o tipo corresponda ao objeto real.",
+      "section": "3. Modificadores, níveis e ponteiros para funções", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre ponteiro para função é correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Ele pode chamar qualquer função, sem compatibilidade de parâmetros.", "correct": false },
+        { "key": "B", "text": "Ele é sempre convertido para void * antes de cada chamada.", "correct": false },
+        { "key": "C", "text": "Ele guarda endereço de objeto de dados e não pode designar função.", "correct": false },
+        { "key": "D", "text": "Sua assinatura precisa ser compatível com a função chamada.", "correct": true },
+        { "key": "E", "text": "Ele só pode apontar para funções que retornam void.", "correct": false }
+      ],
+      "explanation": "Uma chamada por ponteiro para função deve respeitar o tipo de função compatível, incluindo parâmetros e tipo de retorno. Não se deve tratar ponteiro de função como ponteiro genérico de objeto.",
+      "section": "3. Modificadores, níveis e ponteiros para funções", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ponteiros para funções e ponteiros para objetos são garantidamente intercambiáveis por conversão para `void *` em C padrão.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. void * é ponteiro genérico para objeto. Não se deve presumir conversão portável de ponteiro para função para void * e retorno que permita chamada correta.",
+      "section": "3. Modificadores, níveis e ponteiros para funções", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a consequência de retornar o endereço de uma variável local automática depois que a função termina?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O objeto local passa a ter duração estática automaticamente.", "correct": false },
+        { "key": "B", "text": "O endereço se transforma em ponteiro nulo garantido.", "correct": false },
+        { "key": "C", "text": "O ponteiro fica pendente porque a duração de vida do objeto acabou.", "correct": true },
+        { "key": "D", "text": "O compilador copia o objeto para o heap ao retornar.", "correct": false },
+        { "key": "E", "text": "A variável permanece viva enquanto algum ponteiro existir.", "correct": false }
+      ],
+      "explanation": "O endereço não estende a duração de vida do objeto local. Depois do retorno, usar esse ponteiro para acessar o objeto é inválido; use armazenamento com vida adequada ou copie o valor.",
+      "section": "4. Duração de vida e alocação dinâmica", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um endereço armazenado em ponteiro mantém vivo o objeto local automático mesmo após o encerramento do bloco em que ele foi declarado.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Ponteiros não prolongam duração de vida em C. Ao terminar o bloco, o objeto local deixa de existir e o endereço retido não pode ser usado para acessá-lo.",
+      "section": "4. Duração de vida e alocação dinâmica", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência descreve o uso responsável de memória obtida com `malloc`?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Alocar, testar NULL, respeitar o bloco e liberá-lo ao final.", "correct": true },
+        { "key": "B", "text": "Solicitar espaço, ignorar o retorno e liberar qualquer endereço interior depois.", "correct": false },
+        { "key": "C", "text": "Solicitar espaço, presumir bytes zerados e liberar o bloco várias vezes.", "correct": false },
+        { "key": "D", "text": "Solicitar espaço, desreferenciar mesmo se NULL e confiar no sistema operacional.", "correct": false },
+        { "key": "E", "text": "Solicitar espaço e retornar imediatamente seu endereço local ao sistema.", "correct": false }
+      ],
+      "explanation": "malloc pode falhar e retornar NULL, e o conteúdo não é inicializado. Acesso deve respeitar o tamanho e free deve receber o início do bloco alocado ainda não liberado.",
+      "section": "4. Duração de vida e alocação dinâmica", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "`malloc` não inicializa o conteúdo do bloco antes de retornar seu endereço.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. malloc aloca espaço sem inicializar seu conteúdo. calloc inicializa os bytes do bloco com zero, embora isso não substitua o entendimento da representação de cada tipo.",
+      "section": "4. Duração de vida e alocação dinâmica", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Após `free(p)`, o valor guardado na variável p não é automaticamente substituído por NULL.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. free libera o bloco, mas não altera a variável p. Atribuir NULL a p pode reduzir reutilização acidental, porém outras cópias continuam pendentes.",
+      "section": "4. Duração de vida e alocação dinâmica", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual ponteiro pode ser passado a `free` sem liberar indevidamente uma região?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O endereço de uma variável local automática ainda em uso.", "correct": false },
+        { "key": "B", "text": "O endereço interior obtido como `base + 1` de um bloco.", "correct": false },
+        { "key": "C", "text": "Um endereço já liberado anteriormente em outra função.", "correct": false },
+        { "key": "D", "text": "O endereço inicial de um bloco alocado e ainda não liberado.", "correct": true },
+        { "key": "E", "text": "O endereço de um elemento de array declarado localmente.", "correct": false }
+      ],
+      "explanation": "free aceita NULL ou o endereço inicial de bloco ainda alocado por função compatível. Endereço interior, variável local e bloco já liberado não podem ser liberados assim.",
+      "section": "4. Duração de vida e alocação dinâmica", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Chamar `free(NULL)` é permitido e não libera bloco algum.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A função free não faz nada quando recebe ponteiro nulo. Isso não torna seguro passar ponteiro indeterminado ou endereço inválido.",
+      "section": "4. Duração de vida e alocação dinâmica", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma atribuição direta `p = realloc(p, novo_tamanho)` preserva sempre o endereço antigo se a realocação falhar.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Se realloc falha para tamanho não zero, retorna NULL e o bloco antigo permanece alocado. A atribuição direta perde o único endereço; use ponteiro temporário e trate falha.",
+      "section": "4. Duração de vida e alocação dinâmica", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual padrão trata a falha de `realloc` para um tamanho não zero sem perder a referência ao bloco existente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Apagar p antes da chamada e usar o valor de retorno sem verificação.", "correct": false },
+        { "key": "B", "text": "Guardar o retorno em temporário e atualizar p só após sucesso.", "correct": true },
+        { "key": "C", "text": "Passar `&p` para free e presumir que realloc sempre move o bloco.", "correct": false },
+        { "key": "D", "text": "Chamar realloc duas vezes para compensar qualquer retorno NULL.", "correct": false },
+        { "key": "E", "text": "Converter p em inteiro e reconstruir o endereço em caso de erro.", "correct": false }
+      ],
+      "explanation": "Um ponteiro temporário conserva o retorno. Se for NULL, p ainda identifica o bloco antigo; se for diferente de NULL, atualize p para o bloco redimensionado, que pode ter mudado de endereço.",
+      "section": "4. Duração de vida e alocação dinâmica", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Usar depois de `free` outra cópia do mesmo endereço para ler o bloco é válido enquanto essa cópia não tiver sido zerada.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A liberação encerra a vida do bloco independentemente de quantas cópias do endereço existam. Usar qualquer cópia para acesso depois disso é uso de ponteiro pendente.",
+      "section": "4. Duração de vida e alocação dinâmica", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre a subtração entre ponteiros para elementos de um mesmo array é correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O resultado é sempre uma quantidade de bytes independente dos tipos.", "correct": false },
+        { "key": "B", "text": "A operação é válida entre quaisquer endereços da mesma execução.", "correct": false },
+        { "key": "C", "text": "O resultado é outro ponteiro para o início do array.", "correct": false },
+        { "key": "D", "text": "O resultado mede a diferença em quantidade de elementos, com tipo ptrdiff_t.", "correct": true },
+        { "key": "E", "text": "A operação move ambos os ponteiros até que se encontrem.", "correct": false }
+      ],
+      "explanation": "A subtração de ponteiros é definida para posições do mesmo array, ou a posição um após o fim, e resulta na diferença em elementos, representada por ptrdiff_t; não é uma contagem de bytes.",
+      "section": "2. Ponteiros, arrays e aritmética", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma cadeia de caracteres em C armazenada em array precisa reservar espaço para o caractere terminador `\\0` se também quiser guardar todos os caracteres visíveis.",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O terminador indica ao código que a sequência de caracteres acabou.", "correct": false },
+        { "key": "B", "text": "O terminador substitui o primeiro caractere e aumenta o limite do array.", "correct": false },
+        { "key": "C", "text": "O terminador permite que qualquer ponteiro determine o comprimento sem leitura.", "correct": false },
+        { "key": "D", "text": "O terminador é opcional mesmo quando funções esperam uma string C.", "correct": false },
+        { "key": "E", "text": "O array precisa conter os caracteres e mais uma posição para `\\0`.", "correct": true }
+      ],
+      "explanation": "Strings C usam caractere nulo terminador. Para representar todos os caracteres visíveis, o array deve ter capacidade para eles e para a posição final. Um ponteiro isolado não traz o comprimento.",
+      "section": "2. Ponteiros, arrays e aritmética", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "GNU C Language Manual — Pointers",
+      "publisher": "GNU Project",
+      "reference": "Conceito de ponteiro, tipo apontado e uso de endereços em C",
+      "url": "https://www.gnu.org/software/c-intro-and-ref/manual/html_node/Pointers.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "GNU C Language Manual — Pointers and Arrays",
+      "publisher": "GNU Project",
+      "reference": "Relação entre indexação, arrays e aritmética de ponteiros",
+      "url": "https://www.gnu.org/software/c-intro-and-ref/manual/html_node/Pointers-and-Arrays.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "GNU C Language Manual — Accessing Array Elements",
+      "publisher": "GNU Project",
+      "reference": "Indexação de elementos em termos de soma e desreferenciação",
+      "url": "https://www.gnu.org/software/c-intro-and-ref/manual/html_node/Accessing-Array-Elements.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Microsoft Learn — Const and volatile pointers",
+      "publisher": "Microsoft",
+      "reference": "Qualificação const do objeto apontado e do endereço guardado pelo ponteiro",
+      "url": "https://learn.microsoft.com/en-us/cpp/cpp/const-and-volatile-pointers?view=msvc-170",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

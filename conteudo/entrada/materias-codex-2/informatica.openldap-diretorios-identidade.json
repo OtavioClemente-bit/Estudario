@@ -1,0 +1,1824 @@
+{
+  "id": "informatica.openldap-diretorios-identidade",
+  "subject": "Informática",
+  "title": "OpenLDAP: diretórios e identidade",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "OpenLDAP e serviços de diretório",
+    "Servidor de diretório OpenLDAP",
+    "OpenLDAP para autenticação centralizada",
+    "Administração de diretórios LDAP",
+    "Diretório de usuários com OpenLDAP",
+    "LDAP com daemon slapd",
+    "Configuração dinâmica cn=config",
+    "Árvore de informações LDAP DIT",
+    "Entradas DN e RDN em LDAP",
+    "LDIF para administrar OpenLDAP"
+  ],
+  "scope": {
+    "covers": "Fundamentos de LDAP e OpenLDAP; serviço de diretório, DIT, entradas, atributos, objectClass, DN/RDN e operações; daemon slapd, bancos e backend MDB/LMDB; configuração dinâmica cn=config e administração via LDAP; LDIF e ferramentas ldapadd, ldapsearch, ldapmodify, ldapdelete, slapadd, slapcat e slapindex; autenticação Bind, TLS, SASL e ACL; esquema, filtros, índices e limites; replicação syncrepl provider-consumer e multi-provider; monitoramento e segurança operacional.",
+    "excludes": "Administração de Active Directory, protocolos de federação SAML/OAuth/OIDC, gestão de identidade em aplicações específicas, desenho completo de alta disponibilidade e conteúdo integral das RFCs LDAP."
+  },
+  "theoryTitle": "OpenLDAP: dados em árvore, acesso e administração",
+  "chapters": [
+    {
+      "title": "1. LDAP, diretórios e identificação das entradas",
+      "markdown": "### O problema que este assunto resolve\n\nUma organização costuma manter identidades, grupos, endereços e atributos compartilhados por vários sistemas. Um **serviço de diretório** centraliza esse tipo de informação e oferece pesquisa por atributos e navegação em uma estrutura hierárquica. O OpenLDAP é uma implementação de código aberto do protocolo LDAP; seu servidor principal é o `slapd`. LDAP é um protocolo de acesso, não o nome de um banco relacional nem, por si só, um sistema completo de gestão de identidades.\n\n> **Siglas e termos deste capítulo**\n> - **LDAP**: Lightweight Directory Access Protocol, protocolo leve de acesso a diretórios.\n> - **DIT**: Directory Information Tree, árvore hierárquica de entradas.\n> - **Entrada (entry)**: conjunto de atributos que representa um objeto do diretório.\n> - **DN**: Distinguished Name, nome que identifica uma entrada na árvore.\n> - **RDN**: Relative Distinguished Name, componente que identifica a entrada em relação ao pai.\n> - **Atributo**: tipo e um ou mais valores associados a uma entrada.\n\n### Entradas, atributos e nomes\n\nUma entrada pode descrever uma pessoa, grupo, serviço ou unidade organizacional. Atributos comuns incluem `cn` (nome comum), `sn` (sobrenome), `uid` (identificador de usuário), `mail` (correio eletrônico) e `objectClass` (classes que determinam as regras de atributos). Um atributo pode aceitar vários valores, conforme seu tipo e o esquema.\n\nExemplo de DIT baseado em domínio:\n\n```text\ndc=example,dc=com\n└── ou=People\n    └── uid=ana\n```\n\nO DN completo da pessoa é `uid=ana,ou=People,dc=example,dc=com`; seu RDN é `uid=ana`. A ordem textual do DN começa pelo componente mais específico e segue em direção à raiz. `dc` representa componente de domínio, `ou` unidade organizacional e `uid` identificador de usuário. O DN não é um caminho de arquivo: cada parte é um atributo de nome e valor.\n\n### O que o esquema valida\n\nO atributo `objectClass` indica classes estruturais e auxiliares que uma entrada satisfaz. Essas classes determinam atributos obrigatórios e permitidos. Por exemplo, se a classe estrutural selecionada exigir `sn`, adicionar uma entrada sem `sn` pode resultar em violação de objeto. As regras de esquema ainda definem sintaxe, correspondência e se um atributo admite valor único ou múltiplos valores. O servidor rejeita entradas incompatíveis, em vez de tratar qualquer texto como atributo válido.\n\n| Conceito | Papel | Exemplo |\n| --- | --- | --- |\n| DN | Identifica a entrada inteira | `uid=ana,ou=People,dc=example,dc=com` |\n| RDN | Nome relativo no nível atual | `uid=ana` |\n| `objectClass` | Impõe regras de atributos | `inetOrgPerson` |\n| `mail` | Atributo de contato | `ana@example.com` |\n\n### Operações e padrão de uso\n\nLDAP oferece operações de consulta e atualização: `search` localiza entradas por base e filtro; `add` cria; `modify` altera atributos; `delete` remove; `modify DN` renomeia ou move uma entrada. O uso típico é pesquisar muitas vezes e atualizar de forma controlada. Diretórios favorecem buscas e consultas estruturadas, mas não substituem automaticamente um banco transacional para aplicações que exigem atualizações complexas e intensas.\n\n### Como cai na prova\n\n- O DN identifica a entrada completa; o RDN é só o nome relativo naquele nível.\n- `objectClass` não é apenas uma etiqueta: orienta quais atributos são obrigatórios ou permitidos.\n- LDAP é protocolo cliente-servidor; `slapd` é o daemon de diretório do OpenLDAP.\n- A árvore é hierárquica, mas consultas usam filtros por atributos, não apenas navegação manual."
+    },
+    {
+      "title": "2. slapd, bancos de dados, LDIF e ferramentas",
+      "markdown": "### O problema que este assunto resolve\n\nO serviço LDAP precisa receber operações do cliente, aplicar regras de esquema e acesso e guardar as entradas. No OpenLDAP, `slapd` atende clientes LDAP e encaminha operações ao backend configurado. Um mesmo processo pode servir mais de uma base de dados e porções distintas da árvore. O backend `MDB` usa a biblioteca transacional LMDB e é a escolha usual para armazenar o diretório local.\n\n> **Siglas e termos deste capítulo**\n> - **Backend**: componente que implementa acesso ao armazenamento ou a outra fonte.\n> - **MDB/LMDB**: backend do OpenLDAP baseado no banco chave-valor transacional LMDB.\n> - **LDIF**: LDAP Data Interchange Format, formato textual para representar entradas e alterações.\n> - **Base DN**: ponto inicial da árvore a pesquisar ou administrar.\n> - **Overlay**: módulo que acrescenta comportamento a um banco do `slapd`.\n\n### LDIF como formato de intercâmbio\n\nUm registro LDIF descreve DN e atributos em linhas, separando entradas com uma linha vazia. Exemplo simplificado:\n\n```text\ndn: uid=ana,ou=People,dc=example,dc=com\nobjectClass: inetOrgPerson\nuid: ana\ncn: Ana Lima\nsn: Lima\nmail: ana@example.com\n```\n\nValores que não podem ser representados com segurança como texto simples podem ser codificados em Base64, e linhas longas podem continuar na linha seguinte iniciada por espaço. LDIF também representa operações de alteração, com diretivas como `changetype: modify`. Não confunda Base64 com criptografia: é uma codificação, não proteção de sigilo.\n\n### Ferramentas de administração\n\nOs clientes de linha de comando mais cobrados são `ldapsearch` (pesquisa), `ldapadd` (inclusão), `ldapmodify` (alteração), `ldapdelete` (remoção) e `ldapwhoami` (identidade autorizada da conexão). Eles se conectam ao servidor LDAP e podem receber credenciais e parâmetros de transporte. Entre as ferramentas offline do servidor, `slapadd` carrega entradas diretamente em uma base sem usar a conexão LDAP; `slapcat` exporta uma base para LDIF; `slapindex` reconstrói índices. Operações offline exigem cuidado com o estado do processo e os arquivos de dados.\n\n| Ferramenta | Uso característico | Via conexão LDAP? |\n| --- | --- | --- |\n| `ldapsearch` | Consulta entradas por base e filtro | Sim |\n| `ldapmodify` | Aplica alterações descritas em LDIF | Sim |\n| `ldapdelete` | Remove entradas autorizadas | Sim |\n| `slapadd` | Carrega dados diretamente no armazenamento | Não |\n| `slapcat` | Exporta dados da base em LDIF | Não |\n\n### Pesquisa e filtros\n\nUma pesquisa informa uma base, escopo (somente base, filhos diretos ou subárvore), filtro e atributos a retornar. Por exemplo, `(uid=ana)` busca correspondência pelo atributo `uid`; `(&(objectClass=person)(sn=Lima))` exige as duas condições; `(|(uid=ana)(uid=bia))` aceita uma ou outra. `(!(locked=TRUE))` nega uma condição. A sintaxe de filtro é própria do LDAP e parênteses são significativos.\n\n### Como cai na prova\n\n- `ldapmodify` usa o protocolo; `slapadd` trabalha diretamente na base local.\n- `slapcat` exporta; `slapindex` reconstrói índices; nenhum deles é uma operação LDAP de cliente.\n- Base64 em LDIF não torna senha ou dado secreto confidencial.\n- O filtro e o escopo determinam os resultados, além do DN base."
+    },
+    {
+      "title": "3. Configuração dinâmica e controle de acesso",
+      "markdown": "### O problema que este assunto resolve\n\nA configuração do servidor precisa ser atualizada sem transformar cada mudança em edição arriscada de arquivos ou reinicialização. OpenLDAP mantém a configuração dinâmica como uma árvore LDAP especial chamada `cn=config`, administrável pelas operações LDAP. A configuração também é armazenada em LDIF, mas isso não significa que os arquivos internos devam ser editados manualmente.\n\n> **Siglas e termos deste capítulo**\n> - **`cn=config`**: raiz da árvore de configuração dinâmica do `slapd`.\n> - **`olc`**: prefixo habitual dos atributos de configuração OpenLDAP.\n> - **ACL**: Access Control List, regras de controle de acesso.\n> - **rootdn**: identidade administrativa privilegiada de uma base configurada.\n> - **Bind**: operação LDAP pela qual o cliente estabelece identidade/autenticação.\n\n### Estrutura de `cn=config`\n\nA raiz `cn=config` guarda parâmetros globais. Abaixo dela aparecem definições de módulos, esquema, backends e bancos de dados; overlays ficam associados às entradas de banco. Atributos de configuração costumam começar com `olc`, como `olcDatabase` e `olcAccess`. A ordem indicada em nomes com `{n}` ajuda a manter a sequência consistente de definições.\n\nA mudança online é feita com ferramentas como `ldapmodify` apontando para a árvore de configuração, com credencial autorizada. A recomendação oficial é não editar diretamente os LDIFs persistidos. Para uma recuperação offline, há ferramentas e procedimentos próprios, por exemplo exportar configuração e carregá-la de novo, sempre preservando uma cópia válida. O arquivo antigo `slapd.conf` continua documentado, mas a configuração dinâmica é o modelo moderno.\n\n### Autenticação não é autorização\n\nO cliente executa `Bind` para apresentar identidade. No modo simples, envia nome distinguido e credencial; sem TLS, uma senha simples pode ficar exposta no transporte. SASL oferece mecanismos de autenticação, incluindo mecanismos integrados a credenciais externas. TLS protege o canal com confidencialidade e integridade e também pode autenticar certificados. Em OpenLDAP, StartTLS pode elevar uma conexão LDAP já estabelecida para TLS; LDAPS costuma indicar LDAP sobre TLS desde o início, conforme a configuração do serviço.\n\nAutenticar identifica o cliente; **autorizar** decide quais operações e atributos essa identidade pode acessar. ACLs (`olcAccess`) controlam leitura, busca, comparação, escrita e outros privilégios. As regras são avaliadas na ordem configurada, e a primeira regra aplicável pode definir o resultado. O `rootdn` da base tem privilégios administrativos na própria base e não é restringido por ACLs dessa base; proteja sua credencial e seu acesso.\n\n### Princípio do menor privilégio\n\nUma regra pode selecionar o alvo (entrada ou atributos), o sujeito (anônimo, usuário autenticado, grupo, DN ou condição) e o nível de acesso. `by *` alcança os demais sujeitos e deve ser pensado como regra explícita, não como detalhe inofensivo. Uma ACL pode permitir busca em atributos de identificação e negar leitura de `userPassword`. Também é comum permitir leitura de dados públicos e escrita apenas a um grupo administrativo. A ordem importa: uma regra permissiva inicial pode impedir que uma regra posterior restritiva tenha o efeito esperado.\n\n### Como cai na prova\n\n- `cn=config` é uma árvore LDAP especial e sua configuração deve ser alterada por operações LDAP, não pela edição casual de arquivos internos.\n- Bind autentica; ACL autoriza operações e acesso a dados.\n- TLS protege o transporte; não substitui ACLs.\n- O `rootdn` é administrativo na base correspondente, mas isso não torna seguro compartilhar sua senha."
+    },
+    {
+      "title": "4. Esquema, desempenho, replicação e operação segura",
+      "markdown": "### O problema que este assunto resolve\n\nUm diretório útil precisa aceitar atributos corretos, responder às consultas esperadas e continuar disponível. O esquema limita as entradas; índices aceleram pesquisas; replicação mantém cópias; TLS e ACLs reduzem exposição. Esses componentes resolvem problemas diferentes e precisam ser configurados em conjunto.\n\n> **Siglas e termos deste capítulo**\n> - **Syncrepl**: mecanismo de replicação LDAP Sync do OpenLDAP.\n> - **Provider**: servidor que disponibiliza alterações para replicação.\n> - **Consumer**: servidor que recebe e mantém cópia replicada.\n> - **Índice**: estrutura auxiliar que acelera filtros sobre atributos escolhidos.\n> - **TLS**: Transport Layer Security, proteção criptográfica do transporte.\n\n### Esquema e índices\n\nO esquema define tipos de atributos e classes de objeto, suas sintaxes, regras de igualdade e cardinalidade. O esquema `core` é fundamental; outros esquemas são habilitados conforme necessário. Uma entrada não deve ser criada com atributos inventados ou classe incompatível. Ao estender esquema, atribui-se identificador único aos elementos e definem-se nomes, sintaxe e classes com atenção à compatibilidade.\n\nÍndices são configurados para atributos que aparecem com frequência em filtros, por exemplo `uid`, `cn` ou `mail`. Um índice de igualdade ajuda filtros de igualdade; índices de presença e substring atendem outros padrões de busca. Indexar tudo aumenta custo de armazenamento e atualização, sem garantir ganho em consultas que não usam os atributos indexados. O desenho deve refletir pesquisas reais.\n\n### Replicação syncrepl\n\nNa configuração provider-consumer clássica, um servidor fornece mudanças e um ou mais consumers sincronizam suas bases. O consumer define parâmetros de syncrepl, como identidade usada para se conectar, base de busca, escopo, filtro, atributos, intervalo ou modo de atualização e o identificador de contexto de sincronização, conforme o desenho. A conexão e a identidade de replicação precisam de permissões adequadas. Replicação aumenta disponibilidade e distribui leitura, mas pode haver atraso temporário entre cópias.\n\nNo modo multi-provider, mais de um nó aceita escrita e replica alterações aos outros. Isso remove um único ponto de escrita, mas não significa que conflitos desapareçam nem que qualquer implantação fique automaticamente consistente. A topologia, identidade dos servidores, políticas de conflito, TLS, monitoramento e recuperação precisam ser planejados. Em instalações multi-provider são comuns configurações `olcServerID` distintas e `syncrepl` em cada participante.\n\n### Segurança e diagnóstico operacional\n\nUse TLS para proteger credenciais e dados em trânsito; valide certificados; evite Bind simples em canal sem proteção. Conceda ao usuário de replicação apenas os privilégios necessários para ler os atributos e o contexto de sincronização exigidos. Restrinja acesso anônimo e proteja `userPassword`; armazenamento de senha não é o mesmo que criptografia de transporte. Configure limites de tempo e tamanho para evitar consultas sem controle. O backend `monitor` expõe informações operacionais, quando habilitado, para acompanhar conexões, operações, bancos e threads.\n\nProblemas comuns têm pistas concretas: `No such object` pode indicar DN base inexistente; `Invalid credentials` aponta credencial inválida; `Insufficient access` indica falta de autorização; `Object class violation` indica conflito de esquema; `Can't contact LDAP server` sugere conectividade, endereço ou serviço indisponível. Diagnostique primeiro o código e o DN envolvidos, sem contornar ACLs ou desativar TLS às cegas.\n\n### Como cai na prova\n\n- Índices aceleram buscas compatíveis, com custo de manutenção e espaço.\n- Provider envia mudanças; consumer mantém cópia. Replicação não substitui backup.\n- Multi-provider permite escrita em mais de um nó, mas exige tratar conflitos e sincronização.\n- Um Bind bem-sucedido não garante que a ACL autorize a pesquisa subsequente."
+    }
+  ],
+  "summary": "OpenLDAP implementa serviços de diretório acessados pelo protocolo LDAP. O servidor `slapd` mantém entradas organizadas em uma DIT. Cada entrada tem um DN completo formado por RDN e componentes ancestrais, atributos tipados e valores, e classes `objectClass` que impõem regras do esquema. Pesquisas usam DN base, escopo e filtros. Clientes como `ldapsearch` e `ldapmodify` atuam pelo protocolo; ferramentas como `slapadd` e `slapcat` trabalham offline sobre o armazenamento. O backend MDB usa LMDB. A configuração dinâmica moderna é a árvore `cn=config`, alterada por operações LDAP e com atributos `olc`; os LDIFs internos não devem ser editados diretamente. Bind autentica, enquanto ACL autoriza operações e atributos. TLS protege transporte e SASL disponibiliza mecanismos de autenticação. Esquema valida entradas, índices aceleram filtros escolhidos e syncrepl replica alterações entre providers e consumers. Replicação pode aumentar disponibilidade, mas não substitui backup nem elimina atraso ou conflitos. Diagnósticos distinguem falha de conexão, credencial, autorização, DN e esquema.",
+  "flashcards": [
+    {
+      "front": "O que é LDAP?",
+      "back": "Protocolo leve de acesso a serviços de diretório, usado por clientes para pesquisar e atualizar entradas."
+    },
+    {
+      "front": "Qual é a função principal do `slapd`?",
+      "back": "É o daemon servidor do OpenLDAP que recebe operações LDAP, aplica regras e acessa bancos/backends configurados."
+    },
+    {
+      "front": "O que é uma DIT?",
+      "back": "É a árvore hierárquica de entradas do diretório LDAP."
+    },
+    {
+      "front": "O que identifica uma entrada LDAP sem ambiguidade?",
+      "back": "Seu DN, que combina o RDN próprio com os nomes dos ancestrais até a raiz."
+    },
+    {
+      "front": "Em `uid=ana,ou=People,dc=example,dc=com`, qual é o RDN?",
+      "back": "`uid=ana`, o componente relativo que nomeia a entrada perante o pai."
+    },
+    {
+      "front": "Para que serve `objectClass`?",
+      "back": "Indica classes que definem atributos obrigatórios e permitidos para uma entrada."
+    },
+    {
+      "front": "O que é LDIF?",
+      "back": "Formato textual para representar entradas LDAP e instruções de alteração, com registros separados por linha vazia."
+    },
+    {
+      "front": "O que faz `ldapsearch`?",
+      "back": "Executa uma pesquisa LDAP com base, escopo, filtro e atributos solicitados."
+    },
+    {
+      "front": "O que diferencia `slapadd` de `ldapadd`?",
+      "back": "`slapadd` carrega dados offline diretamente na base; `ldapadd` envia uma operação LDAP ao servidor."
+    },
+    {
+      "front": "Para que serve `slapcat`?",
+      "back": "Exporta dados da base local em formato LDIF."
+    },
+    {
+      "front": "Qual a finalidade de `cn=config`?",
+      "back": "É a árvore especial de configuração dinâmica do servidor slapd."
+    },
+    {
+      "front": "O que o prefixo `olc` costuma indicar?",
+      "back": "Atributos de configuração do OpenLDAP na árvore `cn=config`."
+    },
+    {
+      "front": "Como se recomenda alterar a configuração dinâmica?",
+      "back": "Por operações LDAP autorizadas, como `ldapmodify`, em vez de editar diretamente os LDIFs internos."
+    },
+    {
+      "front": "O que é Bind?",
+      "back": "Operação LDAP pela qual o cliente estabelece uma identidade e pode autenticar-se no servidor."
+    },
+    {
+      "front": "Autenticação e autorização são a mesma coisa?",
+      "back": "Não. Autenticação estabelece quem é o cliente; ACLs determinam o que ele pode fazer ou ler."
+    },
+    {
+      "front": "Qual é o papel de TLS na conexão LDAP?",
+      "back": "Protege o transporte com confidencialidade e integridade e pode autenticar certificados."
+    },
+    {
+      "front": "O que uma ACL controla?",
+      "back": "Direitos como leitura, busca, comparação e escrita sobre entradas ou atributos para sujeitos definidos."
+    },
+    {
+      "front": "Qual o papel do backend MDB?",
+      "back": "Armazena o diretório usando LMDB, banco chave-valor transacional integrado ao OpenLDAP."
+    },
+    {
+      "front": "Para que serve um índice LDAP?",
+      "back": "Acelera filtros de busca compatíveis em atributos escolhidos, com custo de espaço e atualização."
+    },
+    {
+      "front": "Quem é provider em syncrepl?",
+      "back": "Servidor que disponibiliza alterações de diretório para serem sincronizadas pelos consumers."
+    },
+    {
+      "front": "O que caracteriza o consumer?",
+      "back": "Mantém uma cópia sincronizada de dados que recebe de um provider."
+    },
+    {
+      "front": "Multi-provider permite o quê?",
+      "back": "Mais de um nó pode aceitar escritas e replicar alterações aos demais participantes."
+    },
+    {
+      "front": "Replicação substitui backup?",
+      "back": "Não. Exclusões e alterações indevidas podem ser replicadas; backup atende recuperação histórica."
+    },
+    {
+      "front": "O que significa `Insufficient access`?",
+      "back": "A identidade conectada não tem autorização suficiente para realizar a operação solicitada."
+    },
+    {
+      "front": "O que significa `Object class violation`?",
+      "back": "A entrada viola restrições de esquema, como atributo obrigatório ausente ou classe incompatível."
+    }
+  ],
+  "tips": [
+    "Leia um DN da esquerda para a direita: começa na entrada e percorre os ancestrais até a raiz.",
+    "Separe operação de cliente LDAP (`ldapmodify`) de ferramenta offline (`slapadd`).",
+    "Em uma questão de acesso, identifique primeiro o Bind e depois a ACL aplicada à operação/atributo.",
+    "Para analisar uma pesquisa, considere em conjunto base DN, escopo, filtro e atributos de retorno.",
+    "Associe `cn=config` à configuração dinâmica e `olc` aos atributos de configuração.",
+    "Provider-consumer replica dados; não confunda disponibilidade com estratégia de backup."
+  ],
+  "traps": [
+    "Tratar LDAP como banco relacional ou sistema completo de autenticação: LDAP é protocolo de acesso a diretório.",
+    "Confundir DN completo com RDN: o RDN só nomeia a entrada perante o nível pai.",
+    "Supor que Base64 no LDIF protege segredo: codificação Base64 é reversível e não cifra dados.",
+    "Achar que Bind bem-sucedido concede leitura: ACL ainda decide a autorização.",
+    "Editar arquivos internos de cn=config diretamente porque são LDIF: a orientação é usar operações LDAP.",
+    "Supor que índices aceleram qualquer busca sem custo: indexação consome espaço e manutenção."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique como o DN de uma pessoa é formado a partir de seu RDN e dos ancestrais.",
+      "answer": "O RDN nomeia a entrada no nível do pai; juntam-se os RDNs ancestrais em direção à raiz. Ex.: `uid=ana,ou=People,dc=example,dc=com`."
+    },
+    {
+      "question": "Que quatro elementos definem uma pesquisa LDAP típica?",
+      "answer": "Base DN, escopo, filtro e lista de atributos desejada."
+    },
+    {
+      "question": "Por que `objectClass` pode fazer uma inclusão falhar?",
+      "answer": "As classes definem atributos obrigatórios e permitidos; uma entrada que não satisfaz essas regras viola o esquema."
+    },
+    {
+      "question": "Compare `ldapadd` e `slapadd`.",
+      "answer": "`ldapadd` envia operação pelo protocolo ao servidor; `slapadd` carrega diretamente no armazenamento local, offline."
+    },
+    {
+      "question": "Como a configuração moderna do slapd é organizada?",
+      "answer": "Como árvore LDAP `cn=config`, com parâmetros globais, esquema, backends e bancos; os atributos de configuração frequentemente têm prefixo `olc`."
+    },
+    {
+      "question": "Qual a diferença entre autenticação e autorização no OpenLDAP?",
+      "answer": "Bind estabelece a identidade; regras ACL determinam quais operações e dados essa identidade pode acessar."
+    },
+    {
+      "question": "Como funciona a relação provider-consumer na replicação?",
+      "answer": "O provider disponibiliza mudanças e o consumer mantém cópia sincronizada por syncrepl; pode haver atraso entre cópias."
+    },
+    {
+      "question": "Por que replicação não é uma cópia de segurança suficiente?",
+      "answer": "Alterações destrutivas ou corrupção também podem chegar às réplicas; backup permite recuperar estado anterior conforme sua retenção."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "DN completo versus RDN",
+      "summary": "O RDN identifica a entrada no nível atual. O DN é o nome completo que incorpora o RDN e os componentes dos ancestrais até a raiz."
+    },
+    {
+      "key": "e2",
+      "title": "Bind versus ACL",
+      "summary": "Bind autentica ou estabelece identidade. ACLs autorizam operações, atributos e entradas; uma conexão autenticada ainda pode receber Insufficient access."
+    },
+    {
+      "key": "e3",
+      "title": "Operações online versus ferramentas offline",
+      "summary": "Clientes ldap* falam com o servidor por LDAP. slapadd, slapcat e slapindex operam sobre a base local, com implicações de estado e manutenção."
+    },
+    {
+      "key": "e4",
+      "title": "Codificação versus criptografia",
+      "summary": "Base64 pode transportar valores LDIF que não cabem como texto simples, mas não protege segredo. TLS é mecanismo de segurança do canal."
+    },
+    {
+      "key": "e5",
+      "title": "Replicação versus backup",
+      "summary": "Syncrepl mantém cópias atualizadas para disponibilidade e distribuição. Uma alteração ou exclusão pode se propagar; backup é necessário para recuperação histórica."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No DN `uid=lia,ou=RH,dc=org,dc=br`, qual componente é o RDN da entrada de Lia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`uid=lia`, pois nomeia a entrada em relação ao seu pai imediato.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`ou=RH`, pois identifica a unidade organizacional e toda a pessoa abaixo dela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`dc=org,dc=br`, pois a raiz do domínio é o nome relativo de cada usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`uid=lia,ou=RH`, pois o RDN sempre concatena dois níveis sucessivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Todo o DN, pois o RDN e o nome distinguido completo são expressões equivalentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O RDN é o componente de nome da entrada no nível atual, aqui `uid=lia`. O DN completo inclui também a unidade e os componentes de domínio, permitindo identificar a entrada sem ambiguidade na árvore.",
+      "section": "1. LDAP, diretórios e identificação das entradas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma entrada usa `objectClass: inetOrgPerson`, mas o atributo `sn` obrigatório pelo esquema não foi fornecido. Qual resultado é esperado ao tentar adicioná-la?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O servidor completa `sn` com o valor de `cn`, pois atributos de nome são intercambiáveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A entrada é aceita e o esquema só é consultado durante pesquisas futuras.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A adição pode falhar por violação de esquema devido ao atributo obrigatório ausente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O DN é convertido em RDN e a entrada é gravada sem validação de classe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O servidor altera a classe para `organizationalUnit` para acomodar os atributos enviados.",
+          "correct": false
+        }
+      ],
+      "explanation": "As classes de objeto impõem regras de atributos obrigatórios e permitidos. Se faltar um atributo exigido pela classe estrutural, o servidor pode rejeitar a operação com erro de violação de objeto; ele não inventa o valor nem troca a classe automaticamente.",
+      "section": "1. LDAP, diretórios e identificação das entradas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente LDAP e OpenLDAP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "LDAP é um banco relacional; OpenLDAP é a ferramenta que converte suas tabelas em arquivos CSV.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "LDAP é protocolo de acesso a diretório; OpenLDAP implementa esse serviço, cujo daemon é `slapd`.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "LDAP é um sistema de arquivos em árvore; OpenLDAP oferece apenas interface gráfica de navegação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "OpenLDAP é um protocolo de criptografia; `slapd` fornece certificados para conexões HTTPS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "LDAP é um formato de backup; OpenLDAP restaura bancos relacionais e controla transações SQL.",
+          "correct": false
+        }
+      ],
+      "explanation": "LDAP significa Lightweight Directory Access Protocol e define como clientes acessam serviços de diretório. OpenLDAP é uma implementação de software e `slapd` é seu servidor LDAP, não uma ferramenta de SQL, arquivos ou certificados web.",
+      "section": "1. LDAP, diretórios e identificação das entradas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aplicativo precisa localizar usuários cujo sobrenome seja Lima e obter apenas seus e-mails, abaixo de `ou=People,dc=exemplo,dc=br`. Qual descrição da consulta está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O filtro escolhe o atributo de retorno; a base DN determina a senha usada pelo aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O escopo define os valores de mail; a classe `person` escolhe automaticamente o usuário autenticado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O RDN substitui o filtro, pois qualquer pesquisa LDAP percorre toda a árvore por padrão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A base delimita o ponto inicial, o filtro compara `sn=Lima` e a lista de retorno pede `mail`.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O DN base é uma expressão SQL; o filtro LDAP serve apenas para selecionar a ordem dos resultados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma pesquisa combina base DN, escopo, filtro e atributos solicitados. Aqui o filtro seleciona entradas com sobrenome Lima e os atributos retornados podem se limitar a `mail`; o escopo define até onde a busca percorre a árvore.",
+      "section": "1. LDAP, diretórios e identificação das entradas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em LDAP, os atributos de uma entrada sempre possuem um único valor textual e não podem representar dados binários.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A cardinalidade depende do tipo de atributo: muitos atributos admitem vários valores. Há também atributos capazes de representar dados binários, como uma fotografia JPEG; a sintaxe definida pelo esquema determina os valores aceitos.",
+      "section": "1. LDAP, diretórios e identificação das entradas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pesquisa LDAP pode buscar entradas que correspondam a critérios expressos em um filtro e solicitar apenas alguns atributos dessas entradas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A operação search recebe base, escopo e filtro, e permite indicar quais atributos de cada entrada encontrada serão retornados. Isso evita confundir os critérios de seleção com o conjunto de atributos da resposta.",
+      "section": "1. LDAP, diretórios e identificação das entradas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer armazenar usuários, grupos e contatos consultados por diversos serviços, com informação organizada hierarquicamente e pesquisável por atributos. Qual ferramenta se encaixa diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um serviço LDAP como OpenLDAP, que centraliza entradas e permite consultas padronizadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um servidor DNS, que armazena atributos completos e oferece filtros por sobrenome.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um sistema ETL, que autentica usuários e administra ACLs sobre nomes distinguidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um proxy HTTP, que mantém classes de objeto e executa operações LDAP de inclusão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um repositório Git, que recebe Bind e responde pesquisas na árvore de diretório.",
+          "correct": false
+        }
+      ],
+      "explanation": "OpenLDAP implementa um serviço de diretório que guarda entradas hierárquicas e oferece acesso LDAP a atributos por meio de pesquisas. DNS resolve nomes e serviços, ETL transforma dados, proxy HTTP intermedeia tráfego e Git controla versões de arquivos.",
+      "section": "1. LDAP, diretórios e identificação das entradas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A operação `modify DN` pode ser usada para alterar o nome relativo de uma entrada ou movê-la para outra posição na árvore, conforme o pedido e as permissões.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. LDAP possui operação para renomear uma entrada e, conforme os parâmetros, reposicioná-la sob outro pai. Isso é distinto de simplesmente substituir um valor de atributo comum como `mail`.",
+      "section": "1. LDAP, diretórios e identificação das entradas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador deseja alterar o atributo `mail` por uma conexão ao servidor, com autenticação e controles normais de acesso. Qual ferramenta é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`slapcat`, que converte o LDIF exportado em uma operação de atualização autenticada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`slapindex`, que substitui os valores antigos de qualquer atributo durante a indexação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`ldapdelete`, que troca o valor de `mail` sem remover a entrada do diretório.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`slapadd`, que encaminha a solicitação LDAP pela porta de rede ao servidor ativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`ldapmodify`, com uma alteração LDIF enviada ao servidor e credenciais autorizadas.",
+          "correct": true
+        }
+      ],
+      "explanation": "`ldapmodify` envia uma operação LDAP para modificar atributos da entrada e fica sujeita à autenticação e às ACLs. `slapcat` exporta, `slapindex` trabalha índices, `ldapdelete` remove uma entrada e `slapadd` carrega dados diretamente na base offline.",
+      "section": "2. slapd, bancos de dados, LDIF e ferramentas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No LDIF, uma linha iniciada por espaço pode continuar a linha anterior; registros de entradas são separados por uma linha vazia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A sintaxe LDIF permite continuação por linha iniciada com um espaço, removido na interpretação, e separa registros com linha vazia. Essas regras são relevantes tanto para dados quanto para a configuração armazenada em LDIF.",
+      "section": "2. slapd, bancos de dados, LDIF e ferramentas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe codificou um valor de LDIF em Base64 e concluiu que agora ele está criptografado contra leitura por terceiros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Base64 é uma codificação reversível usada para representar certos valores em LDIF; qualquer pessoa que obtenha o texto pode decodificá-lo. Sigilo no transporte exige mecanismos criptográficos como TLS, além de controles de acesso adequados.",
+      "section": "2. slapd, bancos de dados, LDIF e ferramentas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ferramenta exporta uma base local do OpenLDAP em LDIF, sem atuar como cliente LDAP conectado ao daemon?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`ldapsearch`, pois exporta arquivos da base mesmo quando o slapd está parado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`ldapmodify`, pois gera automaticamente cópia de segurança da árvore alterada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`slapcat`, que produz uma representação LDIF a partir dos dados locais da base.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`ldapwhoami`, que converte todas as entradas em LDIF sem estabelecer conexão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`slapindex`, que reconstrói o arquivo de exportação junto com os índices existentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "`slapcat` lê a base local e produz conteúdo LDIF, sendo ferramenta offline. `ldapsearch` consulta via protocolo; `ldapmodify` altera entradas; `ldapwhoami` informa a identidade autorizada; `slapindex` reconstrói índices.",
+      "section": "2. slapd, bancos de dados, LDIF e ferramentas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O escopo de uma pesquisa LDAP pode limitar a consulta à própria base, aos filhos imediatos ou à subárvore abaixo dela.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. LDAP oferece escopos de base, um nível e subárvore. Portanto, conhecer apenas o filtro não basta para prever os resultados: a posição base e o escopo também restringem quais entradas serão consideradas.",
+      "section": "2. slapd, bancos de dados, LDIF e ferramentas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação descreve corretamente o backend MDB e as ferramentas `slapadd` e `ldapadd`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "MDB é um protocolo de pesquisa e ambos os comandos enviam consultas para localizar entradas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "MDB usa LMDB para armazenamento; `slapadd` carrega offline e `ldapadd` envia inclusão pelo LDAP.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "MDB armazena apenas configurações; `ldapadd` reconstrói índices e `slapadd` exporta dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MDB é o nome da árvore cn=config; `slapadd` autentica e `ldapadd` edita arquivos internos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MDB significa módulo de replicação; os dois comandos atuam diretamente nos arquivos do consumer.",
+          "correct": false
+        }
+      ],
+      "explanation": "MDB é o backend de armazenamento baseado em LMDB. `slapadd` escreve diretamente na base local em modo offline, enquanto `ldapadd` pede ao servidor a inclusão por meio de uma conexão LDAP e fica sujeito às regras de acesso.",
+      "section": "2. slapd, bancos de dados, LDIF e ferramentas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um filtro LDAP, `(&(objectClass=person)(sn=Lima))` exige que as duas condições sejam satisfeitas pela entrada pesquisada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O operador `&` representa conjunção: a entrada deve corresponder ao valor de `objectClass` e também ao sobrenome indicado. Já o operador `|` expressa alternativa entre filtros, e `!` nega uma condição.",
+      "section": "2. slapd, bancos de dados, LDIF e ferramentas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instalação atual organiza sua configuração dinâmica em uma árvore cujo DN raiz é `cn=config`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A raiz da configuração dinâmica do slapd é `cn=config`. Abaixo dela há entradas de configuração global, esquema, módulos, backends, bancos e overlays vinculados a bancos.",
+      "section": "3. Configuração dinâmica e controle de acesso",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como `cn=config` é armazenado em arquivos LDIF, a recomendação normal é editar diretamente esses arquivos enquanto o slapd permanece em execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Embora a configuração seja persistida em formato LDIF, a orientação é alterá-la por operações LDAP, como `ldapmodify`, e não editar os arquivos internos diretamente. Para alterações offline há procedimentos e ferramentas específicos.",
+      "section": "3. Configuração dinâmica e controle de acesso",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual entrada ocupa a raiz da árvore dinâmica de configuração do `slapd`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`cn=config`, que contém configurações globais e entradas subordinadas de configuração.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`dc=config`, que representa o domínio DNS usado pelos usuários do diretório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`olcDatabase=frontend`, que substitui a árvore de configuração e o esquema do servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`cn=People`, que guarda a senha administrativa e os módulos de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`uid=admin`, que é a raiz obrigatória de todos os bancos servidos pelo daemon.",
+          "correct": false
+        }
+      ],
+      "explanation": "A configuração dinâmica tem raiz `cn=config`. Nela e em suas entradas subordinadas ficam definições globais, esquema, backends e bancos; `dc=config`, `cn=People` e `uid=admin` não substituem essa raiz.",
+      "section": "3. Configuração dinâmica e controle de acesso",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mudança em `cn=config` pode ser solicitada por operação LDAP autorizada, sem editar manualmente o arquivo LDIF interno que persiste a configuração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. `cn=config` é uma árvore LDAP gerenciada pelas operações LDAP padrão. A forma dinâmica de administração é fazer a alteração com a identidade autorizada, preservando a consistência da configuração persistida.",
+      "section": "3. Configuração dinâmica e controle de acesso",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário conseguiu autenticar-se no Bind, mas recebeu `Insufficient access` ao pesquisar `userPassword`. Qual conclusão é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O servidor confundiu seu DN com o RDN e converteu o resultado em erro de esquema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O Bind prova que toda leitura está autorizada, então o erro só pode ser falha de rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A replicação do consumer não foi concluída e, por isso, o Bind perdeu validade na base.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A autenticação ocorreu, mas a ACL não concedeu acesso suficiente à operação ou atributo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O LDIF codificou a senha em Base64 e o servidor exige que se use `slapadd` para ler.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bind estabelece a identidade autenticada; a autorização é decidida separadamente pelas ACLs. O erro indica falta de permissão para a pesquisa ou para o atributo solicitado, o que é especialmente esperado para informações sensíveis como `userPassword`.",
+      "section": "3. Configuração dinâmica e controle de acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Bind é a operação LDAP usada pelo cliente para estabelecer sua identidade perante o servidor, enquanto ACLs tratam de autorização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A autenticação por Bind identifica o cliente ou estabelece credenciais SASL. Depois, regras ACL definem quais entradas, atributos e operações ficam disponíveis a essa identidade.",
+      "section": "3. Configuração dinâmica e controle de acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conexão simples envia senha sem proteção criptográfica do transporte. Qual medida protege credenciais em trânsito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Codificar a senha em Base64 no LDIF e manter o mesmo transporte sem criptografia.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Habilitar TLS e validar certificados, ou usar SASL com mecanismo apropriado e proteção adequada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ativar índice de igualdade em `userPassword`, evitando que os pacotes atravessem a rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o DN por seu RDN, pois nomes curtos cifram automaticamente os dados do Bind.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir acesso anônimo à base para que nenhum cliente precise enviar credenciais.",
+          "correct": false
+        }
+      ],
+      "explanation": "TLS fornece confidencialidade e integridade do canal; certificados também podem participar da autenticação. SASL oferece mecanismos de autenticação, mas a escolha deve considerar proteção do transporte. Base64, índice e nomes curtos não cifram uma conexão.",
+      "section": "3. Configuração dinâmica e controle de acesso",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O `rootdn` configurado para uma base do slapd tem privilégios administrativos nessa base e não é limitado pelas ACLs dessa própria base.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A identidade rootdn é um administrador especial da base correspondente e não se submete às ACLs configuradas para essa base. Isso exige proteger a credencial e evitar seu uso rotineiro por aplicações.",
+      "section": "3. Configuração dinâmica e controle de acesso",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ACL permissiva ampla foi definida antes de uma regra mais restritiva que deveria ocultar `userPassword`. O que deve ser revisado primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O formato LDIF de saída, pois a codificação em Base64 sempre decide a precedência das regras.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O backend MDB, pois ACLs são avaliadas apenas durante a reconstrução dos índices LMDB.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A ordem e o alvo das regras, pois uma regra anterior aplicável pode conceder acesso indevido.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O nome do RDN, pois mudar `uid` para `cn` faz uma ACL posterior passar a ser aplicada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A réplica consumer, pois o provider sempre ignora ACLs durante consultas autenticadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A avaliação de ACL depende do alvo, do sujeito e da ordem das regras. Uma regra permissiva que corresponda primeiro pode produzir um resultado diferente do esperado; deve-se revisar a sequência e testar explicitamente acesso de cada classe de usuário.",
+      "section": "3. Configuração dinâmica e controle de acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "TLS substitui integralmente as ACLs, pois qualquer cliente que estabeleça um canal criptografado passa a ter acesso autorizado a todos os atributos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. TLS protege o transporte e pode autenticar participantes, mas não concede por si só direitos de leitura ou escrita. As ACLs continuam controlando as operações e os atributos que uma identidade pode acessar.",
+      "section": "3. Configuração dinâmica e controle de acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe estrutural determina requisitos de uma entrada; ao acrescentar esquema próprio, também é necessário definir nomes, tipos e identificadores de forma compatível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O esquema declara tipos de atributos e classes de objeto, incluindo sintaxe e atributos obrigatórios ou permitidos. Extensões precisam de identificadores únicos e devem evitar incompatibilidades com classes e entradas existentes.",
+      "section": "4. Esquema, desempenho, replicação e operação segura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer acelerar buscas frequentes por igualdade em `uid`, mas evitar indexar atributos que nunca aparecem em filtros. Qual decisão é tecnicamente coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Indexar `uid` conforme o padrão de consulta e avaliar o custo de armazenamento e atualização.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Indexar apenas `cn=config`, porque atributos de usuários não podem receber índices no MDB.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover todos os filtros LDAP e usar o índice como mecanismo de autenticação de usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Indexar cada atributo existente, pois os índices não ocupam espaço nem afetam inclusões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter `uid` em DN base, pois índices só atuam em nomes de servidores provider.",
+          "correct": false
+        }
+      ],
+      "explanation": "Índices devem corresponder a filtros usados com frequência. Um índice de igualdade para `uid` pode ajudar pesquisas desse tipo, mas todo índice ocupa recursos e precisa ser atualizado quando entradas mudam; indexar indiscriminadamente não é gratuito.",
+      "section": "4. Esquema, desempenho, replicação e operação segura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ACL deve conceder ao usuário de replicação apenas as permissões necessárias para ler a base e os dados de sincronização usados pelo consumer.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A identidade de replicação precisa obter as entradas e atributos necessários à sincronização, mas não precisa receber automaticamente privilégios de administrador. O princípio do menor privilégio reduz o impacto de credenciais comprometidas.",
+      "section": "4. Esquema, desempenho, replicação e operação segura",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição expressa corretamente a relação provider-consumer na replicação syncrepl?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O consumer recebe uma cópia; o provider disponibiliza as mudanças de diretório para sincronização.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O provider recebe consultas de backup; o consumer autentica clientes e emite certificados TLS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O provider é sempre um arquivo LDIF; o consumer converte cada atributo em tabela SQL local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O consumer armazena apenas ACLs; o provider mantém os dados e não participa da replicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Provider e consumer são tipos de filtros que determinam o escopo de cada pesquisa LDAP.",
+          "correct": false
+        }
+      ],
+      "explanation": "No arranjo clássico, o provider disponibiliza alterações e o consumer sincroniza uma cópia. O consumer precisa alcançar a base e obter as informações de sincronização com a identidade configurada; ele não é simplesmente um arquivo, filtro ou serviço de certificados.",
+      "section": "4. Esquema, desempenho, replicação e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A propagação de exclusões e corrupção para réplicas significa que syncrepl, sozinho, não garante recuperação de um estado histórico anterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Replicação mantém cópias sincronizadas, de modo que mudanças indesejadas também podem se espalhar. Para recuperar dados removidos ou alterados indevidamente, é necessário um backup utilizável e um procedimento de restauração testado.",
+      "section": "4. Esquema, desempenho, replicação e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma implantação permite que dois nós aceitem escritas em uma topologia multi-provider. Qual afirmação é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conflitos são impossíveis porque LDAP ordena todas as alterações globais antes de gravá-las.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mais de um nó pode aceitar mudanças, mas topologia, sincronização e conflitos ainda precisam ser planejados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apenas o consumer aceita escrita, enquanto providers ficam obrigatoriamente em modo somente leitura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O modo transforma cada nó em backup histórico sem replicar exclusões feitas nos demais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Basta dar o mesmo `olcServerID` aos participantes para unificar as identidades de replicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Multi-provider permite que mais de um nó aceite operações de escrita e replique mudanças. Isso melhora redundância de escrita, mas não elimina questões de convergência, identificação dos servidores, atraso e tratamento de conflitos; a configuração não é automática.",
+      "section": "4. Esquema, desempenho, replicação e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pesquisa lenta usa repetidamente filtro de substring em `cn`, mas só existe índice de igualdade para esse atributo. Qual análise faz sentido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O índice de igualdade necessariamente atende toda substring porque ambos examinam o mesmo atributo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O Bind falhou, pois filtros de substring só são aceitos por usuários anônimos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O DN base deve ser indexado como atributo e substituir qualquer configuração de busca.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O padrão de filtro pode precisar de índice de substring; tipos de índice atendem buscas diferentes.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O backend MDB não suporta pesquisa; toda consulta de `cn` deve ser enviada ao provider.",
+          "correct": false
+        }
+      ],
+      "explanation": "Índices de igualdade, presença e substring apoiam padrões de filtro distintos. Se a consulta frequente usa substring e somente igualdade foi indexada, o índice atual pode não atender ao padrão; deve-se avaliar o tipo de indexação e custo correspondente.",
+      "section": "4. Esquema, desempenho, replicação e operação segura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O backend `monitor`, quando habilitado, pode expor informações operacionais como conexões, operações, bancos e threads para acompanhamento do servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O monitoramento do slapd pode apresentar entradas operacionais sobre conexões, operações, bancos, threads, logs e outros componentes. A exposição dessas informações também deve ser protegida pelas regras de acesso apropriadas.",
+      "section": "4. Esquema, desempenho, replicação e operação segura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente recebe `No such object` ao pesquisar sob `ou=Staff,dc=example,dc=com`. Qual hipótese deve ser verificada primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se o certificado TLS do servidor expirou, pois esse código sempre sinaliza falha criptográfica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Se o DN base existe e foi digitado corretamente na árvore consultada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Se a classe `inetOrgPerson` exige que o atributo mail seja retornado em toda pesquisa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se o consumer possui índice de presença, pois ausência de índice apaga o DN base.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se a senha está em Base64, porque o servidor usa esse código para falha de autenticação.",
+          "correct": false
+        }
+      ],
+      "explanation": "`No such object` indica que o objeto solicitado, frequentemente o DN base da busca, não foi encontrado. Deve-se conferir grafia, posição e existência da entrada base. Problemas de TLS, credencial ou ACL têm diagnósticos diferentes.",
+      "section": "4. Esquema, desempenho, replicação e operação segura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente apresenta credenciais inválidas no Bind. A resposta `Invalid credentials` é diagnóstico compatível com falha de autenticação, distinta de `Insufficient access` após autenticar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. `Invalid credentials` informa falha de credenciais durante autenticação. `Insufficient access` indica que a identidade não tem direitos para a operação ou dado solicitado, que é uma etapa de autorização posterior.",
+      "section": "4. Esquema, desempenho, replicação e operação segura",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor LDAP permite pesquisa anônima de nomes, mas deve ocultar `userPassword` e restringir alterações a administradores. Qual controle realiza essa separação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma ACL que concede leitura aos atributos públicos e define acesso mais restrito à senha e escrita.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um índice de igualdade que esconde o valor da senha e impede operações de escrita.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma classe de objeto que cifra automaticamente a conexão de qualquer usuário anônimo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um filtro de pesquisa que transforma todos os clientes em rootdn durante o Bind.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um arquivo LDIF em Base64, pois usuários anônimos não conseguem decodificar esses valores.",
+          "correct": false
+        }
+      ],
+      "explanation": "ACLs distinguem sujeitos, atributos e operações. É possível permitir leitura de atributos públicos e negar o atributo sensível, além de reservar escrita a identidades administrativas. Índices, filtros de consulta e Base64 não implementam essa política de autorização.",
+      "section": "3. Configuração dinâmica e controle de acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ferramenta `slapindex` é usada para reconstruir índices da base local do OpenLDAP, e não para alterar o valor de atributos por uma operação LDAP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. `slapindex` é uma ferramenta offline para construção ou reconstrução de índices. Alteração de atributos por protocolo é feita com operações LDAP, por exemplo via `ldapmodify`, e requer autorização no servidor.",
+      "section": "2. slapd, bancos de dados, LDIF e ferramentas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao configurar uma nova classe de objeto particular, o administrador deve garantir que os atributos e a estrutura respeitem o esquema e não colidam com identificadores já atribuídos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Extensões de esquema declaram elementos identificados por OIDs e devem definir nomes e regras válidas. Colisões ou inconsistências de classe, sintaxe e herança podem invalidar a configuração ou entradas dependentes.",
+      "section": "4. Esquema, desempenho, replicação e operação segura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe vai habilitar sincronização consumer por syncrepl. Além de apontar para provider, que conjunto de configuração é conceitualmente necessário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o nome de um índice global, porque o consumer herda automaticamente base, identidade e filtro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O DN do rootdn do provider e a senha universal de todos os clientes LDAP da organização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Parâmetros de conexão e busca, identidade autorizada, base e regras de sincronização apropriadas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Um arquivo de exportação Base64, pois syncrepl não estabelece conexão com servidores LDAP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apenas uma ACL anônima, já que o consumer não precisa identificar-se perante o provider.",
+          "correct": false
+        }
+      ],
+      "explanation": "Syncrepl exige que o consumer conheça como conectar ao provider e qual parte da árvore sincronizar, com filtros, escopo e atributos conforme a necessidade. A identidade usada deve ter permissões suficientes, sem compartilhar credenciais administrativas universais.",
+      "section": "4. Esquema, desempenho, replicação e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Replicação provider-consumer pode apresentar atraso temporário, de modo que uma leitura no consumer ainda não reflita imediatamente a última mudança feita no provider.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A sincronização não deve ser presumida como instantânea em toda topologia. Réplicas podem divergir temporariamente enquanto as alterações são propagadas e processadas, devendo o desenho considerar requisitos de consistência e disponibilidade.",
+      "section": "4. Esquema, desempenho, replicação e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A operação anônima de busca está habilitada. Isso significa que qualquer cliente também poderá incluir e remover entradas sem autenticação, independentemente das ACLs.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Permitir determinada pesquisa anônima não implica autorizar escrita ou remoção. ACLs podem conceder direitos diferentes por operação, atributo, entrada e identidade; leitura pública deve ser configurada separadamente de alterações.",
+      "section": "3. Configuração dinâmica e controle de acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um diretório com consultas em `mail` e `uid` passa a indexar todos os atributos, embora quase nunca sejam pesquisados. Qual afirmação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A medida sempre reduz o custo de escrita e o espaço, pois índices só são criados durante pesquisas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Índices de atributos não afetam atualizações e devem ser habilitados universalmente por segurança.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O servidor deixará de validar o esquema porque índices substituem classes e tipos de atributos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Índices devem ser escolhidos conforme filtros usados, ponderando ganho de busca e custo de manutenção.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A indexação converte valores LDAP em DN e faz toda consulta ocorrer somente no cache TLS.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada índice pode reduzir trabalho em consultas compatíveis, mas consome espaço e exige manutenção quando os dados mudam. O desenho prático seleciona atributos e tipos de índice com base nos filtros efetivamente utilizados, e não indexa tudo por padrão.",
+      "section": "4. Esquema, desempenho, replicação e operação segura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A identidade autenticada de um aplicativo precisa ler `cn` e `mail`, mas não tem necessidade de ler `userPassword`. A ACL pode conceder os dois primeiros atributos e negar o atributo sensível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O controle de acesso pode ser seletivo por atributo, além de considerar entradas e sujeitos. O aplicativo recebe o mínimo necessário para sua função, enquanto a senha permanece protegida por uma regra mais restritiva.",
+      "section": "3. Configuração dinâmica e controle de acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ferramenta realiza uma exclusão solicitada pelo protocolo LDAP, sujeita às permissões do usuário conectado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`slapcat`, que apaga do banco cada entrada exportada para LDIF.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`ldapdelete`, que solicita ao servidor a remoção da entrada identificada pelo DN.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`slapindex`, que elimina entradas cujo valor não consta no índice reconstruído.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`ldapwhoami`, que remove a identidade autenticada após cada consulta bem-sucedida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`slapadd`, que exclui registros locais para reescrever toda a base em formato LDIF.",
+          "correct": false
+        }
+      ],
+      "explanation": "`ldapdelete` emite a operação LDAP de exclusão para a entrada indicada e depende das permissões concedidas ao cliente. `slapcat` exporta, `slapindex` trata índices, `ldapwhoami` informa identidade e `slapadd` importa dados offline.",
+      "section": "2. slapd, bancos de dados, LDIF e ferramentas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "OpenLDAP pode servir múltiplos bancos ao mesmo tempo, cada qual associado a uma parte lógica da árvore e a um backend configurado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Um processo slapd pode responder por porções logicamente distintas da árvore e associá-las a instâncias de banco, inclusive com backends diferentes. A arquitetura não exige um daemon independente para cada base lógica.",
+      "section": "2. slapd, bancos de dados, LDIF e ferramentas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma entrada contém `objectClass: inetOrgPerson`, `cn`, `sn` e `mail`. O administrador conclui que `mail` será sempre obrigatório apenas por estar presente nessa entrada.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A conclusão procede, pois qualquer atributo presente passa automaticamente a obrigatório no esquema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A conclusão procede somente se o DN começar com `mail`, independentemente da classe declarada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A conclusão procede porque `mail` é sempre atributo operacional reservado a rootdn.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A presença em uma entrada torna o atributo obrigatório para todas as entradas da mesma base.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A obrigatoriedade depende das classes e definições de esquema, não da presença do valor isoladamente.",
+          "correct": true
+        }
+      ],
+      "explanation": "O esquema e as classes associadas à entrada determinam quais atributos são obrigatórios ou opcionais. O fato de um registro conter `mail` não transforma o atributo em requisito global nem altera a regra de outras entradas.",
+      "section": "1. LDAP, diretórios e identificação das entradas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O nome `ldapsearch` indica uma ferramenta cliente; ela precisa conectar-se a um servidor LDAP para executar a pesquisa solicitada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. `ldapsearch` é um cliente de linha de comando que envia a operação search ao servidor. Sem conexão, endereço e parâmetros adequados, não consegue consultar remotamente a árvore mantida pelo slapd.",
+      "section": "2. slapd, bancos de dados, LDIF e ferramentas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede exige confidencialidade de credenciais e dados no transporte, além de limitar consultas muito extensas. Que combinação atende diretamente a esses dois objetivos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "TLS para o canal e limites de tempo/tamanho apropriados para pesquisas LDAP.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Base64 para o canal e índice de substring como limite de tamanho das respostas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RDN curto para cifrar o Bind e réplica consumer para cortar respostas longas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Esquema permissivo para canal seguro e `slapcat` para impor prazo a consultas remotas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`objectClass` para criptografar o transporte e provider para negar qualquer filtro de busca.",
+          "correct": false
+        }
+      ],
+      "explanation": "TLS protege a comunicação em trânsito. Limites LDAP separados podem controlar duração e quantidade de resultados de pesquisas, reduzindo consultas que consomem recursos sem controle. Codificação, índices, nomes e exportação não substituem essas medidas.",
+      "section": "4. Esquema, desempenho, replicação e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ferramenta `ldapwhoami` informa a identidade de autorização associada à conexão, mas não substitui a avaliação de ACL para cada leitura ou alteração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. `ldapwhoami` ajuda a verificar qual identidade a conexão apresenta ao servidor. Saber essa identidade não determina sozinho os direitos efetivos: ACLs e configuração da base continuam controlando as operações.",
+      "section": "3. Configuração dinâmica e controle de acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina precisa carregar um conjunto LDIF diretamente em uma base local durante manutenção offline. Qual ferramenta corresponde a essa tarefa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`ldapsearch`, pois importa registros locais por filtro sem contactar o slapd.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`ldapdelete`, que carrega entradas e reconstrói o estado de replicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`slapadd`, que carrega entradas diretamente no armazenamento local da base.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`ldapwhoami`, que traduz registros LDIF em comandos de inclusão autenticada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`slapcat`, que importa em vez de exportar os dados existentes da base.",
+          "correct": false
+        }
+      ],
+      "explanation": "`slapadd` é a ferramenta offline para carregar entradas no armazenamento local. Como não aplica uma operação LDAP através do servidor, deve ser usada em procedimento de manutenção que considere o estado da base e do processo slapd.",
+      "section": "2. slapd, bancos de dados, LDIF e ferramentas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O LDAPv3 inclui recursos como SASL, TLS, suporte a Unicode, referrals e extensibilidade por controles e operações estendidas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A versão 3 ampliou mecanismos de autenticação e segurança de dados, internacionalização, referências, descoberta de esquema e extensibilidade. A documentação do OpenLDAP trata LDAPv2 como histórico e desaconselha sua implantação.",
+      "section": "1. LDAP, diretórios e identificação das entradas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ACL identifica sujeito, alvo e nível de acesso, podendo distinguir leitura, busca, comparação e escrita conforme a política aplicada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. As regras de acesso do slapd especificam quais dados são alvo, quem recebe direitos e que nível de acesso é concedido. Não se deve reduzir a ACL a um simples indicador de autenticação bem-sucedida.",
+      "section": "3. Configuração dinâmica e controle de acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um consumer está atualizado, mas um administrador remove acidentalmente uma unidade no provider. A réplica elimina a unidade e não há cópia histórica. Qual princípio foi ignorado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O de que Base64 é a única forma de proteger cópias de entradas removidas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O de que `slapindex` conserva automaticamente versões anteriores de cada entrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O de que o Bind deve executar apenas no consumer, nunca no servidor provider.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O de que replicação mantém cópias sincronizadas, mas não substitui backup recuperável.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O de que RDNs impedem exclusões em árvores replicadas quando têm nomes únicos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A replicação distribui alterações, inclusive exclusões acidentais, para os consumidores. Ela não conserva necessariamente um estado anterior recuperável; backups com retenção e restauração testada são necessários para recuperação após erro operacional.",
+      "section": "4. Esquema, desempenho, replicação e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Diante de `Can't contact LDAP server`, revisar endereço, conectividade, porta, disponibilidade do serviço e parâmetros TLS é mais pertinente que alterar `objectClass` da entrada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Esse diagnóstico aponta primeiro para impossibilidade de estabelecer ou manter contato com o servidor. Esquema e objectClass são examinados em operações de entrada; verificar rede e configuração de transporte é o primeiro passo coerente.",
+      "section": "4. Esquema, desempenho, replicação e operação segura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre LDAP e banco relacional é mais cuidadosa para uma questão de arquitetura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "LDAP garante transações complexas e rollback equivalentes aos de todo SGBD relacional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Diretórios favorecem consultas por atributos e não substituem todo banco transacional.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um SGBD relacional não consegue armazenar atributos multivalorados nem ser acessado por aplicativos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "OpenLDAP exige que todo dado seja uma tabela SQL normalizada com chave primária relacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "LDAP é apenas um mecanismo de backup e não oferece operações de consulta ou atualização.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação caracteriza diretórios como estruturas voltadas a buscas, navegação e informação por atributos, sem assumir os esquemas transacionais complexos típicos de certos SGBDs. A escolha depende do modelo e da carga da aplicação, não de uma substituição universal.",
+      "section": "1. LDAP, diretórios e identificação das entradas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração em classe ou atributo do esquema pode afetar a validade de entradas existentes, portanto deve ser avaliada em relação às regras e dados já armazenados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Esquema determina requisitos de estrutura e validação. Uma mudança pode tornar entradas incompatíveis ou exigir migração de dados, por isso precisa ser planejada e testada junto às classes e aos valores já existentes.",
+      "section": "4. Esquema, desempenho, replicação e operação segura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "OpenLDAP Software 2.6 Administrator's Guide",
+      "publisher": "OpenLDAP Foundation",
+      "reference": "Guia oficial: introdução, LDAP, slapd, configuração, LDIF, segurança, replicação e manutenção.",
+      "url": "https://www.openldap.org/doc/admin26/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Introduction to OpenLDAP Directory Services",
+      "publisher": "OpenLDAP Foundation",
+      "reference": "Entradas e atributos, DIT, DN/RDN, operações, filtros e LDAPv3.",
+      "url": "https://www.openldap.org/doc/admin26/intro.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Configuring slapd",
+      "publisher": "OpenLDAP Foundation",
+      "reference": "Configuração dinâmica cn=config, estrutura da árvore e alteração por operações LDAP.",
+      "url": "https://www.openldap.org/doc/admin26/slapdconf2.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Access Control",
+      "publisher": "OpenLDAP Foundation",
+      "reference": "Regras ACL, sujeitos, níveis de acesso e avaliação de controle de acesso.",
+      "url": "https://www.openldap.org/doc/admin26/access-control.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Replication",
+      "publisher": "OpenLDAP Foundation",
+      "reference": "Syncrepl, provider-consumer e alternativas de replicação multi-provider.",
+      "url": "https://www.openldap.org/doc/admin26/replication.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The LDIF text entry format",
+      "publisher": "OpenLDAP Foundation",
+      "reference": "Formato textual LDIF para entradas LDAP e operações de manutenção.",
+      "url": "https://www.openldap.org/doc/admin26/ldif.html",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

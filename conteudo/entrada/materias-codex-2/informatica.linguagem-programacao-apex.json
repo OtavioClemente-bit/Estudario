@@ -1,0 +1,1882 @@
+{
+  "id": "informatica.linguagem-programacao-apex",
+  "subject": "Informática",
+  "title": "Linguagem de programação Apex",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Linguagem de programação Apex",
+    "Programação na plataforma Salesforce",
+    "Desenvolvimento Apex na Salesforce",
+    "Apex classes e objetos Salesforce",
+    "Apex triggers e eventos de dados",
+    "Consultas SOQL na linguagem Apex",
+    "Busca textual SOSL em Apex",
+    "DML e registros sObject no Apex",
+    "Limites de governança da Salesforce Apex",
+    "Processamento em lote de registros Apex",
+    "Segurança de dados em código Apex",
+    "Testes unitários para código Apex",
+    "Execução assíncrona Apex Salesforce",
+    "Tratamento de exceções em Apex",
+    "Transações de banco em código Apex"
+  ],
+  "scope": {
+    "covers": "Características e ambiente da linguagem Apex na Salesforce Platform; sintaxe tipada e orientada a objetos; classes, métodos, interfaces e coleções; sObjects, SOQL, SOSL e DML; acionadores e contexto de execução; processamento em lote, transações e limites de governança; controles de segurança de compartilhamento e CRUD/FLS; exceções; execução assíncrona; testes unitários e dados de teste.",
+    "excludes": "Administração completa da Salesforce, configuração declarativa de Flow, desenvolvimento de componentes Lightning, Visualforce em profundidade, sintaxe completa de integrações REST/SOAP, limites numéricos de edições específicas e detalhes de versões específicas da API."
+  },
+  "theoryTitle": "Programação Apex na plataforma Salesforce",
+  "chapters": [
+    {
+      "title": "1. Apex e o ambiente Salesforce",
+      "markdown": "### O problema que este assunto resolve\n\nApex é a linguagem usada para acrescentar lógica de negócio executada nos servidores da Salesforce Platform. Ela permite reagir a operações sobre registros, validar regras, consultar e alterar dados e expor serviços. A linguagem é fortemente tipada e orientada a objetos, com sintaxe familiar a Java, mas integrada ao esquema e ao modelo transacional da plataforma. Apex não é uma linguagem geral para criar qualquer aplicação: seu runtime é hospedado pela Salesforce e opera sobre os recursos da organização (org).\n\n> **Siglas e termos deste capítulo**\n> - **Org**: organização Salesforce que contém dados, metadados e configurações de um cliente.\n> - **sObject**: tipo de registro da plataforma, como `Account`, `Contact` ou um objeto personalizado.\n> - **Metadados**: definições de objetos, campos, classes e demais componentes da org.\n> - **API**: interface usada para integrar sistemas e acessar operações da plataforma.\n\n### Código tipado e integrado ao esquema\n\nUma variável Apex tem tipo declarado, como `String`, `Integer`, `Boolean`, `Date` ou um tipo de objeto. Tipos de sObject permitem acessar campos e relacionamentos definidos no esquema. Referências inválidas ao esquema podem ser identificadas na compilação. Classes agrupam estado e comportamento; objetos são instâncias de classes. Interfaces declaram contratos que classes implementadoras concretizam. Apex também possui modificadores de acesso, métodos e campos estáticos e de instância, construtores, propriedades e exceções. Uma classe Apex de nível superior não pode ser declarada `static`, embora seus membros possam ser estáticos.\n\nA linguagem inclui coleções: `List` mantém uma sequência ordenada e pode conter duplicatas; `Set` reúne valores únicos; `Map` associa chaves a valores. Coleções são essenciais porque uma chamada pode receber muitos registros, mesmo quando um usuário iniciou a operação sobre um único formulário.\n\n### Onde a lógica é executada\n\nApex pode ser acionado por classes chamadas por outras partes da plataforma, por triggers associados a operações em objetos, por execução anônima para tarefas administrativas e por mecanismos assíncronos. Também pode ser exposto como serviço quando configurado com as anotações e permissões apropriadas. O código roda no servidor; a linguagem não substitui a camada de interface gráfica.\n\nA Salesforce é multitenant: várias organizações compartilham infraestrutura. Para evitar que uma execução monopolize recursos, o runtime aplica limites de governança por transação. Atingir limite pode interromper a execução com exceção de runtime que o programa não consegue simplesmente capturar e ignorar. Por isso, boa lógica Apex agrupa trabalho e considera cenários com muitos registros.\n\n### Como cai na prova\n\n- Apex é fortemente tipado, orientado a objetos e hospedado na plataforma; não é uma linguagem geral executada livremente no computador do desenvolvedor.\n- `List`, `Set` e `Map` têm propriedades distintas: ordem, unicidade e associação chave/valor.\n- A execução considera múltiplos registros e limites compartilhados, ainda que a ação do usuário pareça individual."
+    },
+    {
+      "title": "2. Classes, consultas e manipulação de dados",
+      "markdown": "### O problema que este assunto resolve\n\nApex permite trabalhar com os registros Salesforce diretamente. Consultas leem dados; comandos DML criam, alteram, removem ou restauram registros. Entender a diferença evita consultas incorretas e operações repetidas que consomem limites.\n\n> **Siglas e termos deste capítulo**\n> - **SOQL**: Salesforce Object Query Language, consulta estruturada de objetos e relacionamentos.\n> - **SOSL**: Salesforce Object Search Language, pesquisa textual que pode localizar termos em vários objetos.\n> - **DML**: Data Manipulation Language, operações que modificam registros.\n> - **CRUD**: criar, ler, atualizar e excluir dados.\n\n### SOQL e SOSL têm propósitos distintos\n\nSOQL consulta um tipo de objeto e pode percorrer relacionamentos. Um exemplo é `SELECT Id, Name FROM Account WHERE Industry = 'Technology'`. O resultado pode ser atribuído a uma lista de registros ou percorrido em um `for`. Uma consulta que espera exatamente um resultado pode gerar exceção se não encontrar registro ou retornar mais de um; em regra, uma lista torna o tratamento de zero, um ou muitos resultados explícito. Campos e objetos personalizados usam nomes de API, frequentemente com sufixo `__c`; relacionamentos personalizados podem usar `__r`.\n\nSOSL procura termos textuais em objetos e campos pesquisáveis e pode devolver resultados agrupados por tipo de sObject. Não é substituto de SOQL quando a necessidade é filtrar registros por critérios estruturados de um único objeto.\n\n### DML e o estado dos registros\n\nAs instruções DML incluem `insert`, `update`, `upsert`, `delete`, `undelete` e `merge` (com aplicabilidade conforme o objeto). O DML pode operar sobre um registro ou uma coleção. `upsert` insere ou atualiza conforme identificador apropriado, como Id ou campo externo marcado para essa finalidade. `Database` oferece métodos como `Database.insert(registros, false)` para permitir resultado parcial por registro; com o DML de instrução tradicional, uma falha em um dos registros pode fazer a operação falhar como unidade. Os resultados devem ser examinados quando se permite sucesso parcial.\n\nA alteração em memória de um sObject não persiste automaticamente. É preciso executar DML ou estar em contexto em que a plataforma persista a alteração, como trigger antes da gravação usando os registros de `Trigger.new`. Em transação Apex, mudanças são confirmadas juntas no commit; falhas não tratadas podem levar ao rollback da transação.\n\n### Bulkificação e limites\n\nO código deve tratar coleções. Em vez de consultar dentro de um laço e fazer um `update` por registro, reúna os identificadores, execute uma consulta fora do laço, monte a coleção de alterações e envie um DML em lote. Isso diminui o número de operações de consulta e DML. Laços ainda podem processar cada elemento em memória; o ponto é evitar chamadas repetidas ao banco dentro deles.\n\n### Como cai na prova\n\n- SOQL responde a consultas estruturadas; SOSL é busca textual em vários objetos.\n- DML sobre listas e consultas fora de laços são padrões de bulkificação.\n- Alterar um objeto Apex em memória não equivale, por si só, a persistir a mudança no banco."
+    },
+    {
+      "title": "3. Triggers, transações, segurança e exceções",
+      "markdown": "### O problema que este assunto resolve\n\nUma trigger executa lógica automaticamente em resposta a operações de banco em um objeto. Ela pode rodar antes ou depois de inserção, atualização, exclusão e outras operações suportadas. É útil para regras que devem valer independentemente da tela ou integração que iniciou a mudança. A lógica deve considerar que uma única execução da trigger pode receber uma coleção de registros.\n\n> **Siglas e termos deste capítulo**\n> - **Trigger**: código Apex vinculado a eventos de banco de um objeto.\n> - **Contexto**: operação e fase corrente, como `before insert` ou `after update`.\n> - **CRUD/FLS**: permissões de objeto e de campo, respectivamente.\n> - **Sharing**: regras que determinam quais registros um usuário pode compartilhar ou acessar.\n\n### Contexto de trigger e fluxo de gravação\n\n`Trigger.new` apresenta os novos registros em eventos de inserção e atualização; em eventos apropriados pode ser usado para alterar campos antes da gravação. `Trigger.old` representa os valores anteriores em atualização e exclusão. Mapas como `Trigger.newMap` e `Trigger.oldMap` permitem localizar registros pelo Id quando disponíveis no evento. Variáveis como `Trigger.isInsert`, `Trigger.isUpdate`, `Trigger.isBefore` e `Trigger.isAfter` identificam o contexto. Em uma trigger `before`, modificar os campos de `Trigger.new` não exige um `update` adicional. Em `after`, os registros já foram gravados no contexto corrente e alterações exigem operação posterior, sujeita a recursão se mal desenhada.\n\nA plataforma pode executar automações relacionadas à mesma gravação. A lógica deve evitar recursão descontrolada e depender de condições de mudança reais, em vez de presumir que uma trigger será chamada uma única vez por registro. Uma abordagem comum é manter a trigger curta e delegar regras a classes de serviço com processamento em lote.\n\n### Segurança não é uma única chave\n\nA execução Apex tradicional pode operar em contexto de sistema, sem aplicar automaticamente todas as permissões do usuário da mesma forma que a interface. `with sharing` aplica regras de compartilhamento de registros para a classe; `without sharing` ignora essas regras; `inherited sharing` herda o contexto do chamador. Sharing de registros não substitui checagens de acesso a objeto e campo. O desenvolvedor deve aplicar controles CRUD/FLS, por exemplo com operações de segurança apropriadas, `Security.stripInaccessible` ou verificações de acessibilidade. Consultas dinâmicas e concatenação de valores fornecidos pelo usuário precisam ser protegidas contra injeção; vincular variáveis na consulta é preferível a concatenar texto.\n\n### Exceções e integridade\n\n`try`, `catch` e `finally` organizam o tratamento: `try` contém o trecho sujeito a falha; `catch` lida com tipo específico de exceção; `finally` executa a limpeza independentemente de ocorrer exceção. `throw` sinaliza uma falha. `DmlException` pode informar problema em operações de banco. Capturar uma exceção sem corrigir a condição nem comunicar o erro pode esconder falha e produzir resultado incompleto. Limites de governança excedidos geram exceções não recuperáveis por tratamento comum.\n\n### Como cai na prova\n\n- Triggers são orientadas a eventos e devem ser bulkificadas.\n- `before` permite alterar o registro antes de persistir; `after` é adequado quando a lógica depende de Id ou da gravação concluída.\n- `with sharing` cuida de compartilhamento de registros, não resolve por si só CRUD/FLS."
+    },
+    {
+      "title": "4. Execução assíncrona, testes e implantação",
+      "markdown": "### O problema que este assunto resolve\n\nTarefas demoradas ou integrações podem não caber bem na resposta síncrona de uma tela. Apex oferece opções assíncronas com características diferentes. O teste unitário, por sua vez, permite verificar comportamento em contexto controlado antes de implantar código.\n\n> **Siglas e termos deste capítulo**\n> - **Queueable**: trabalho assíncrono enfileirado, com suporte a estado e encadeamento controlado.\n> - **Batch Apex**: processamento de grandes conjuntos em blocos, por etapas.\n> - **Future**: método marcado para execução futura, com parâmetros limitados.\n> - **Callout**: chamada de Apex a serviço externo pela rede.\n> - **Cobertura**: proporção de linhas executáveis exercitadas pelos testes.\n\n### Escolha do mecanismo assíncrono\n\n`@future` agenda um método estático para execução futura e aceita parâmetros simples compatíveis, não sObjects complexos como argumentos diretos. Queueable Apex permite enfileirar uma classe que implementa `Queueable`, transportar estado serializável e acompanhar o trabalho por identificador; em certos contextos admite encadear uma nova execução. Batch Apex divide o conjunto em lotes: `start` identifica os registros, `execute` processa cada bloco e `finish` realiza ações finais. Cada bloco executa em sua própria transação e precisa respeitar limites. Scheduled Apex agenda uma classe para horário recorrente. A escolha depende de volume, necessidade de estado, monitoramento e latência.\n\nPara callouts HTTP, Apex usa classes como `HttpRequest` e `Http`; execução assíncrona pode ser indicada quando a chamada não deve bloquear uma interação, respeitando as regras do contexto e da plataforma. Não se deve assumir que uma tarefa assíncrona termina imediatamente ou na mesma transação da chamada que a enfileirou.\n\n### Testes que verificam comportamento\n\nMétodos de teste ficam em classes marcadas com `@isTest`. `Test.startTest()` e `Test.stopTest()` delimitam a execução sob teste e fazem com que trabalho assíncrono enfileirado seja executado ao final do trecho de teste, permitindo verificações. `Test.getStandardPricebookId()` e dados construídos pelo próprio teste são exemplos de recursos usados para preparar cenários; testes Apex normalmente não dependem de registros de negócio preexistentes da organização. Dados criados pelo teste são transitórios e não são confirmados no banco. `@testSetup` pode preparar dados reutilizáveis para métodos de teste da classe.\n\nTestes bons verificam resultados e casos de erro, incluindo listas vazias, múltiplos registros e permissões relevantes. Cobertura mede linhas exercitadas, mas uma porcentagem alta não prova sozinha que o comportamento está correto. A plataforma exige testes e cobertura mínima aplicável para implantação de código Apex em produção, porém não basta escrever testes que apenas executem linhas sem asserções.\n\n### Como cai na prova\n\n- Batch Apex processa conjuntos em blocos e cada execução de `execute` é uma transação própria.\n- Testes criam seus próprios dados e usam `Test.startTest/stopTest` para isolar limites e executar trabalho assíncrono pendente no teste.\n- Cobertura não substitui asserções; testes devem confirmar efeitos esperados e falhas previstas."
+    }
+  ],
+  "summary": "Apex é uma linguagem fortemente tipada e orientada a objetos hospedada na Salesforce Platform. Classes organizam lógica; sObjects representam registros. SOQL consulta dados, SOSL busca texto e DML persiste alterações. Triggers respondem a eventos de banco e devem ser bulkificadas. O runtime multitenant aplica limites por transação, então consultas e DML devem ser agrupados. Sharing, CRUD e FLS são dimensões distintas de segurança. Queueable, Batch, Future e Scheduled Apex atendem estilos diferentes de execução assíncrona. Testes Apex criam dados próprios, validam comportamento com asserções e podem exercitar trabalho assíncrono.",
+  "flashcards": [
+    {
+      "front": "O que é Apex?",
+      "back": "Linguagem fortemente tipada e orientada a objetos que executa lógica no servidor Salesforce."
+    },
+    {
+      "front": "O que representa um sObject?",
+      "back": "Um registro de objeto da plataforma, padrão ou personalizado."
+    },
+    {
+      "front": "Qual diferença básica entre List e Set?",
+      "back": "List mantém ordem e aceita duplicatas; Set reúne valores únicos."
+    },
+    {
+      "front": "Para que serve Map?",
+      "back": "Associar chaves a valores, por exemplo Ids a registros."
+    },
+    {
+      "front": "Quando usar SOQL?",
+      "back": "Para consultar registros e campos por critérios estruturados."
+    },
+    {
+      "front": "Quando SOSL é apropriado?",
+      "back": "Para pesquisar termos textuais em vários objetos e campos pesquisáveis."
+    },
+    {
+      "front": "O que DML faz?",
+      "back": "Insere, atualiza, combina, exclui ou restaura registros."
+    },
+    {
+      "front": "O que é bulkificação?",
+      "back": "Processar coleções com poucas consultas e operações DML fora dos laços."
+    },
+    {
+      "front": "O que acontece ao exceder limite de governança?",
+      "back": "A execução pode falhar com exceção de runtime não recuperável por catch comum."
+    },
+    {
+      "front": "O que é uma trigger Apex?",
+      "back": "Código executado em resposta a eventos de banco de um objeto."
+    },
+    {
+      "front": "O que Trigger.new contém?",
+      "back": "Os novos registros do contexto de inserção ou atualização."
+    },
+    {
+      "front": "Para que serve Trigger.old?",
+      "back": "Consultar valores anteriores em contextos compatíveis, como atualização ou exclusão."
+    },
+    {
+      "front": "Qual vantagem de alterar Trigger.new em before?",
+      "back": "O campo pode ser ajustado antes da gravação sem DML adicional."
+    },
+    {
+      "front": "O que with sharing aplica?",
+      "back": "Regras de compartilhamento de registros para a classe."
+    },
+    {
+      "front": "with sharing verifica automaticamente CRUD/FLS?",
+      "back": "Não; permissões de objeto e campo precisam de controles próprios."
+    },
+    {
+      "front": "Para que serve Security.stripInaccessible?",
+      "back": "Remover dos registros campos que o usuário não pode acessar para a operação."
+    },
+    {
+      "front": "O que fazem try e catch?",
+      "back": "try delimita código sujeito a falha; catch trata um tipo de exceção."
+    },
+    {
+      "front": "Para que serve finally?",
+      "back": "Executar limpeza ou finalização independentemente da ocorrência de exceção."
+    },
+    {
+      "front": "Qual a característica central de Batch Apex?",
+      "back": "Divide grandes conjuntos em lotes processados por transações separadas."
+    },
+    {
+      "front": "Qual papel de Queueable?",
+      "back": "Enfileirar uma classe para execução assíncrona com estado e acompanhamento."
+    },
+    {
+      "front": "O que `@isTest` marca?",
+      "back": "Classe ou método de teste Apex."
+    },
+    {
+      "front": "O que ocorre com dados criados em teste?",
+      "back": "São transitórios e não ficam confirmados no banco da organização."
+    },
+    {
+      "front": "Para que servem Test.startTest e stopTest?",
+      "back": "Isolam a execução sob teste e permitem processar trabalho assíncrono pendente."
+    },
+    {
+      "front": "Cobertura alta garante teste correto?",
+      "back": "Não; asserções devem validar resultados e comportamentos esperados."
+    },
+    {
+      "front": "O que faz upsert?",
+      "back": "Insere ou atualiza registros conforme Id ou campo externo adequado."
+    }
+  ],
+  "tips": [
+    "Associe SOQL a consulta estruturada e SOSL a pesquisa textual em vários objetos.",
+    "Em triggers, imagine sempre uma lista de registros, não uma única linha.",
+    "Reúna Ids e faça consulta/DML fora de laços para reduzir consumo de limites.",
+    "Diferencie sharing de registros das permissões CRUD e FLS.",
+    "Escolha Batch para grandes conjuntos e Queueable para tarefas enfileiradas com estado.",
+    "Exija asserções nos testes: executar uma linha não comprova o resultado correto."
+  ],
+  "traps": [
+    "Confundir SOSL com SOQL: a primeira busca texto; a segunda consulta registros por estrutura.",
+    "Supor que um trigger recebe apenas um registro porque a ação começou em uma tela individual.",
+    "Acreditar que alterar um sObject em memória já atualiza o banco sem DML ou contexto before.",
+    "Tratar with sharing como substituto de verificações de CRUD e FLS.",
+    "Capturar toda exceção e ignorá-la, deixando falhas de integridade ocultas.",
+    "Tomar cobertura de código como prova suficiente de qualidade dos testes."
+  ],
+  "activeRecall": [
+    "Explique por que Apex aplica limites de governança em uma plataforma multitenant.",
+    "Compare List, Set e Map usando um exemplo de processamento de contatos.",
+    "Escreva em palavras uma SOQL que selecione Id e Name das contas ativas.",
+    "Explique por que consultas dentro de laços podem levar a falha de limite.",
+    "Diferencie o uso de Trigger.new e Trigger.old em uma atualização.",
+    "Compare o momento apropriado para lógica before e after em triggers.",
+    "Explique por que uma trigger deve suportar muitos registros de uma vez.",
+    "Diferencie sharing de registros das permissões de objeto e campo.",
+    "Explique por que cobertura de linhas não substitui asserções funcionais."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "SOQL e SOSL",
+      "summary": "SOQL recupera registros de modo estruturado; SOSL procura texto em objetos pesquisáveis."
+    },
+    {
+      "key": "e2",
+      "title": "Bulkificação e limites",
+      "summary": "Uma trigger pode receber coleção; consultas e DML repetidos dentro de laços consomem limites por transação."
+    },
+    {
+      "key": "e3",
+      "title": "Sharing e CRUD/FLS",
+      "summary": "Regras de compartilhamento tratam acesso a registros; permissões de objeto e campo exigem controle próprio."
+    },
+    {
+      "key": "e4",
+      "title": "Contexto de trigger",
+      "summary": "before permite ajustar os registros antes da gravação; after ocorre após a gravação no contexto corrente."
+    },
+    {
+      "key": "e5",
+      "title": "Testes e cobertura",
+      "summary": "Cobertura mede execução de linhas, enquanto asserções verificam se os resultados estão corretos."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Apex é uma linguagem fortemente tipada e orientada a objetos executada na Salesforce Platform.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Apex usa tipos, classes e objetos e é hospedada e executada pelo runtime da Salesforce Platform. O código é compilado contra metadados da organização e executado no servidor, com acesso integrado a registros e transações.",
+      "section": "1. Apex e o ambiente Salesforce",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Apex é uma linguagem geral que pode iniciar threads livremente e gravar arquivos temporários no servidor Salesforce.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Apex é voltada à plataforma e não oferece criação livre de threads nem arquivos temporários locais como uma linguagem geral de servidor.",
+      "section": "1. Apex e o ambiente Salesforce",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma List Apex mantém sequência e pode conter valores repetidos, enquanto Set representa valores únicos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. List é uma coleção ordenada que admite duplicatas; Set é usado para manter elementos únicos. Por exemplo, um conjunto de Ids evita enviar a mesma chave mais de uma vez a uma consulta em lote.",
+      "section": "1. Apex e o ambiente Salesforce",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "SOSL é a consulta recomendada para filtrar campos estruturados de um único objeto por condições relacionais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. SOQL consulta campos e relacionamentos com filtros estruturados; SOSL é voltada à pesquisa textual que pode abranger vários objetos.",
+      "section": "2. Classes, consultas e manipulação de dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Alterar o campo de um sObject em memória sempre persiste a alteração no banco, mesmo fora de trigger before.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Em regra é necessário executar DML; a alteração direta em Trigger.new antes da gravação é um contexto especial que a plataforma persiste na operação corrente.",
+      "section": "2. Classes, consultas e manipulação de dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Agrupar registros em uma lista e realizar um DML fora do laço costuma reduzir o consumo de operações DML.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Uma operação DML sobre coleção trata vários registros com uma chamada, reduzindo o número de instruções consumidas pela transação.",
+      "section": "2. Classes, consultas e manipulação de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A trigger deve presumir que receberá apenas um registro porque cada operação DML representa uma linha individual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Uma operação em lote pode acionar a trigger com vários registros; o código precisa iterar e processar coleções sem consultas por registro.",
+      "section": "3. Triggers, transações, segurança e exceções",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em contexto before de inserção ou atualização, campos de Trigger.new podem ser ajustados antes da gravação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A trigger before pode alterar os registros recebidos e a própria operação que os grava persiste os valores ajustados.",
+      "section": "3. Triggers, transações, segurança e exceções",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A declaração with sharing garante por si só que todas as permissões de objeto e campo do usuário foram verificadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. with sharing aplica regras de compartilhamento de registros; CRUD e FLS são verificações distintas que precisam ser tratadas explicitamente.",
+      "section": "3. Triggers, transações, segurança e exceções",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O bloco finally pode executar instruções de finalização tanto quando ocorre exceção quanto quando não ocorre.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. finally é executado independentemente da ocorrência de exceção e serve, por exemplo, para tarefas de limpeza. O bloco não substitui catch nem confirma uma transação; ele organiza a finalização do fluxo.",
+      "section": "3. Triggers, transações, segurança e exceções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Cada bloco execute do Batch Apex roda como parte da mesma transação única de start e finish.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Os blocos execute são processados em transações separadas, permitindo dividir um conjunto grande em partes com limites próprios.",
+      "section": "4. Execução assíncrona, testes e implantação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os dados criados em um teste Apex são transitórios e não ficam confirmados na base da organização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Dados montados por testes são isolados e não são persistidos como dados de negócio da organização. Assim, a suíte prepara seus próprios registros e não depende de uma base de produção específica.",
+      "section": "4. Execução assíncrona, testes e implantação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cobertura de linhas alta prova que os testes confirmam todos os resultados funcionais esperados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Cobertura mede linhas executadas; sem asserções, um teste pode percorrer código sem verificar se o resultado está correto.",
+      "section": "4. Execução assíncrona, testes e implantação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Test.startTest e Test.stopTest delimitam a parte exercitada e permitem processar trabalho assíncrono pendente no teste.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O par isola limites da execução sob teste e o stopTest faz executar trabalho assíncrono enfileirado no contexto do teste.",
+      "section": "4. Execução assíncrona, testes e implantação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+
+    {
+      "statement": "Uma classe Apex de nível superior pode receber o modificador static, embora seus campos e métodos também possam ser estáticos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Apex permite membros estáticos, mas classes Apex de nível superior não podem ser declaradas static. Um método ou campo estático pertence à classe e não exige uma instância.",
+      "section": "1. Apex e o ambiente Salesforce",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição caracteriza melhor a linguagem Apex?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Linguagem tipada e orientada a objetos hospedada na plataforma Salesforce.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Linguagem de marcação executada apenas pelo navegador do usuário final.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ferramenta visual que substitui todos os serviços e objetos da plataforma.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Linguagem geral local que controla diretamente os servidores físicos Salesforce.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Banco relacional independente que armazena código sem usar metadados Salesforce.",
+          "correct": false
+        }
+      ],
+      "explanation": "Apex é uma linguagem fortemente tipada e orientada a objetos executada no servidor Salesforce e integrada ao modelo de dados da plataforma.",
+      "section": "1. Apex e o ambiente Salesforce",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe mantém um mapa de contatos por Id e precisa testar se a chave já existe. Qual operação expressa essa relação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Inserir cada chave em uma List e esperar que ela associe o valor correspondente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar um Set de Ids e recuperar nele o registro vinculado a cada chave.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar um Map de Id para Contact e consultar a chave antes de acessar o valor.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Executar SOSL a cada acesso porque mapas não mantêm associação em memória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Declarar uma trigger estática que transforme automaticamente todos os Ids em valores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Map associa chaves a valores e oferece operações para verificar a presença de uma chave e recuperar o contato correspondente.",
+      "section": "1. Apex e o ambiente Salesforce",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário é mais adequado para utilizar SOSL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Buscar uma frase em campos pesquisáveis de contas e contatos simultaneamente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Selecionar contas por uma condição exata de data em um único objeto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atualizar o campo Industry de uma conta já carregada em memória.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover registros de uma lista que já foi consultada anteriormente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Verificar o acesso de leitura a um campo personalizado na sessão atual.",
+          "correct": false
+        }
+      ],
+      "explanation": "SOSL realiza busca textual que pode abranger objetos e campos pesquisáveis. Consultas estruturadas de um objeto são normalmente feitas com SOQL.",
+      "section": "2. Classes, consultas e manipulação de dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço precisa carregar contas cuja classificação seja igual a um valor informado. Qual recurso é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um bloco finally que localiza as contas depois de encerrar a transação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma declaração de interface sem implementação para consultar campos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um Set que consulta automaticamente o banco ao receber um filtro textual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma pesquisa SOSL sem critério, seguida de exclusão dos resultados irrelevantes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma consulta SOQL com filtro estruturado aplicado ao campo da conta.",
+          "correct": true
+        }
+      ],
+      "explanation": "SOQL recupera registros por objeto, campos e condições estruturadas, como uma igualdade aplicada a um campo. O filtro reduz os resultados no servidor, sem exigir busca textual indiscriminada seguida de descarte.",
+      "section": "2. Classes, consultas e manipulação de dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O serviço recebeu vários registros modificados e deve persistir todas as alterações. Qual padrão de DML é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar update isolado para cada elemento dentro do laço que percorre a lista.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Adicionar os registros alterados a uma coleção e executar update sobre a coleção.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar uma busca SOSL e considerar a resposta como persistência automática.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar os campos somente na memória e encerrar sem operação de gravação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar uma classe estática, pois a palavra static confirma os dados no banco.",
+          "correct": false
+        }
+      ],
+      "explanation": "DML sobre uma coleção persiste vários registros com uma instrução, evitando uma chamada de gravação por item e reduzindo consumo de limites.",
+      "section": "2. Classes, consultas e manipulação de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual coleção é mais indicada para guardar códigos de país sem repetições?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma List, pois ela impede duplicatas e associa códigos a objetos automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um Map sem valor, pois suas chaves são sempre ordenadas e únicas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma coleção de sObjects, pois campos de texto não podem integrar coleções Apex.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um Set de String, pois a coleção mantém cada valor uma única vez.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma classe abstrata, pois ela elimina repetições de valores durante a execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Set é a coleção apropriada quando a unicidade dos elementos é necessária, como em uma lista de códigos sem duplicatas. Ao adicionar novamente um código já presente, o conjunto não passa a representar uma segunda ocorrência distinta.",
+      "section": "1. Apex e o ambiente Salesforce",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+
+    {
+      "statement": "Uma trigger de atualização deve buscar os registros relacionados aos novos contatos. Que implementação reduz risco de limite?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar uma consulta SOQL para cada contato, sem agrupar os identificadores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Fazer uma busca SOSL por cada campo antes de percorrer os contatos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reunir os Ids relacionados e consultar uma única vez fora do laço principal.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Criar uma nova transação síncrona para cada contato dentro da trigger.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ler todos os objetos da organização e filtrar apenas no navegador do usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "A bulkificação reúne identificadores e consulta as relações em lote, reduzindo operações SOQL por transação. O código pode então associar os resultados aos contatos em memória, em vez de abrir uma consulta nova para cada registro.",
+      "section": "2. Classes, consultas e manipulação de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma importação precisa inserir novos registros ou atualizar os já existentes por chave externa. Qual operação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "delete, que remove duplicados e cria um registro substituto no mesmo comando.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "upsert, usando Id ou campo externo configurado como identificador adequado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "undelete, que recupera qualquer registro sem verificar sua existência anterior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SOSL, que converte resultados de pesquisa textual em atualizações persistentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "finally, que confirma automaticamente os registros depois de um erro tratado.",
+          "correct": false
+        }
+      ],
+      "explanation": "upsert escolhe entre inserir e atualizar conforme Id ou campo externo apropriado, sendo adequado à sincronização por chave.",
+      "section": "2. Classes, consultas e manipulação de dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um desenvolvedor quer lidar com falhas por registro sem impedir o sucesso dos demais itens válidos. Qual abordagem ajuda?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar Database.insert com sucesso parcial e inspecionar os resultados por registro.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar insert tradicional e assumir que falhas isoladas serão sempre ignoradas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar uma consulta SOQL para gravar os registros e ocultar erros de DML.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Colocar cada registro em finally para confirmar apenas os registros que falharam.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar SOSL e contar resultados, pois essa busca atualiza os itens válidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os métodos Database podem aceitar a opção de sucesso parcial e devolver resultados individuais que identificam sucessos e erros.",
+      "section": "2. Classes, consultas e manipulação de dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma query foi escrita por concatenação de texto fornecido pelo usuário. Qual medida reduz risco de injeção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar a consulta em modo after para que o texto deixe de ser interpretado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter a consulta para SOSL e concatenar o mesmo texto sem validação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Colocar a expressão dentro de catch, dispensando controle do conteúdo recebido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar compartilhamento à classe e presumir que a string ficará neutralizada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Vincular valores à consulta e validar entradas usadas em trechos dinâmicos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Variáveis vinculadas tratam valores como dados, não como parte da sintaxe. Trechos dinâmicos que não aceitam bind precisam de validação cuidadosa.",
+      "section": "3. Triggers, transações, segurança e exceções",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma trigger before update quer preencher um campo derivado no próprio registro recebido. Qual ação evita DML desnecessário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alterar Trigger.old e pedir à plataforma que compare os valores antigos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Alterar o campo em Trigger.new no contexto antes da gravação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Criar um novo registro e apagar o original em cada atualização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Agendar um Batch Apex para atualizar cada registro antes do commit.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar uma consulta SOSL e confiar que ela atualize o campo derivado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em before, a trigger pode ajustar os novos registros e a gravação corrente persiste o campo; outro DML no mesmo registro é desnecessário.",
+      "section": "3. Triggers, transações, segurança e exceções",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto contém contexto que pode distinguir uma atualização e acessar valores anteriores?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trigger.isInsert junto de Trigger.new, sem qualquer referência ao estado anterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trigger.isAfter junto de uma classe Queueable e seus parâmetros serializados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trigger.isDelete junto de Trigger.newMap para localizar todos os novos registros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trigger.isUpdate junto de Trigger.old e Trigger.new para comparar valores.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Trigger.isFuture junto de Trigger.oldMap para consultar métodos agendados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em atualização, os registros novos e antigos permitem detectar mudanças; variáveis de contexto indicam o tipo de operação corrente.",
+      "section": "3. Triggers, transações, segurança e exceções",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe deve respeitar o compartilhamento de registros do usuário chamador. Qual declaração corresponde a essa intenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "without sharing, que aplica automaticamente as regras pessoais do chamador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "static sharing, que ativa verificações de objeto e campo para cada método.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "with sharing, que aplica regras de compartilhamento de registros à classe.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "inherited CRUD, que substitui perfis e conjuntos de permissões da org.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "public sharing, que oculta registros sem compartilhar nenhum dado retornado.",
+          "correct": false
+        }
+      ],
+      "explanation": "with sharing aplica regras de compartilhamento de registros. As permissões de objeto e campo ainda exigem controles separados.",
+      "section": "3. Triggers, transações, segurança e exceções",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+
+    {
+      "statement": "Uma classe executa query em contexto de sistema e deve remover campos sem acesso antes de devolver registros ao chamador. Qual recurso pode apoiar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Database.rollback, que apaga campos proibidos de toda consulta concluída.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trigger.oldMap, que aplica FLS a qualquer retorno de serviço Apex.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Test.stopTest, que filtra campos privados ao encerrar chamadas assíncronas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SOSL, que aplica permissões CRUD ao pesquisar em todos os objetos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Security.stripInaccessible, que remove campos inacessíveis para a operação indicada.",
+          "correct": true
+        }
+      ],
+      "explanation": "Security.stripInaccessible permite sanitizar sObjects em relação ao acesso a campos; compartilhamento de registros continua sendo uma dimensão separada.",
+      "section": "3. Triggers, transações, segurança e exceções",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina deve limpar estado temporário mesmo se o bloco principal lançar exceção. Onde fica a limpeza?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "No bloco catch, que sempre é executado mesmo quando não há exceção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "No bloco finally, que executa independentemente da ocorrência de exceção.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "No bloco throw, que continua a execução sem propagar falhas ao chamador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "No bloco select, que executa depois de toda consulta SOQL válida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "No modificador static, que garante a limpeza ao finalizar cada transação.",
+          "correct": false
+        }
+      ],
+      "explanation": "finally é destinado a ações de finalização e roda quando há ou não uma exceção no trecho protegido. A limpeza pode ocorrer ali, enquanto o tratamento de uma falha recuperável fica em um bloco catch apropriado.",
+      "section": "3. Triggers, transações, segurança e exceções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é uma consequência comum de uma exceção não tratada durante uma transação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A plataforma transforma todos os comandos DML em commits independentes por registro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O sistema repete automaticamente a transação até todos os limites serem removidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A trigger converte a falha em uma resposta SOSL com os registros restantes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A execução pode falhar e a transação pode sofrer rollback das alterações pendentes.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O bloco finally confirma os dados antes que o erro chegue ao chamador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Exceções não tratadas interrompem o fluxo e podem causar rollback das alterações pendentes da transação; finally não confirma a transação.",
+      "section": "3. Triggers, transações, segurança e exceções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo precisa percorrer um conjunto muito grande de registros, processando blocos com lógica de início e encerramento. Qual recurso se ajusta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Batch Apex, com fases start, execute e finish para o processamento dividido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SOSL, com fases start, execute e finish para pesquisar registros em lotes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma propriedade static, que cria automaticamente uma transação por registro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um bloco finally, que agenda cada parte do conjunto sem fila de execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma trigger before, que executa continuamente até consumir todos os dados da org.",
+          "correct": false
+        }
+      ],
+      "explanation": "Batch Apex foi projetado para tratar grandes conjuntos em partes e oferece métodos de início, processamento dos lotes e encerramento.",
+      "section": "4. Execução assíncrona, testes e implantação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja enfileirar uma unidade de trabalho com estado e acompanhar sua execução pelo identificador retornado. Qual opção é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SOSL, pois uma consulta textual retorna o identificador de um processo enfileirado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trigger.old, que cria uma fila ao receber os registros anteriores da operação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Queueable Apex, implementado por uma classe que executa trabalho assíncrono.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "finally, que mantém o estado do método após o fim da transação síncrona.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Set Apex, que agenda valores únicos e monitora seu status no Setup.",
+          "correct": false
+        }
+      ],
+      "explanation": "Queueable permite enfileirar uma implementação de Queueable e obter um identificador para acompanhar o trabalho assíncrono.",
+      "section": "4. Execução assíncrona, testes e implantação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa recorrente precisa ser disparada em horário programado, sem depender de um usuário abrir uma tela. Qual recurso atende?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma List com valores de horário, que executa sozinha ao atingir seu último elemento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma consulta SOQL agendada, que chama qualquer método ao encontrar uma linha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um trigger after, que aguarda o relógio e inicia sem operação no registro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um método catch, que repete o processamento em intervalos regulares.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Scheduled Apex, que agenda uma classe para execução em horário definido.",
+          "correct": true
+        }
+      ],
+      "explanation": "Scheduled Apex permite definir execução programada de uma classe que implementa a interface de agendamento da plataforma.",
+      "section": "4. Execução assíncrona, testes e implantação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+
+    {
+      "statement": "Em uma classe Queueable, qual afirmação descreve seu mecanismo de entrada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A classe precisa ser uma trigger nomeada e chamada somente por evento de exclusão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A classe implementa Queueable e seu método execute recebe o contexto da fila.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A classe implementa Schedulable e seu método start percorre os blocos do lote.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A classe declara apenas uma consulta SOSL e a plataforma infere o método execute.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A classe precisa estender List e enviar seus elementos diretamente ao servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma classe Queueable implementa a interface Queueable e fornece o método execute, chamado pela plataforma quando o trabalho é processado.",
+      "section": "4. Execução assíncrona, testes e implantação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Uma integração HTTP demorada não deve bloquear a resposta síncrona ao usuário. Qual desenho é coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar a chamada repetidamente em trigger before e aguardar cada resposta no formulário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Transformar a URL em campo de texto e esperar que SOQL envie a requisição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Capturar todo erro de rede e executar o mesmo callout dentro de finally.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Enfileirar o trabalho apropriado e realizar o callout em contexto compatível.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar uma classe estática, pois métodos static rodam sempre em segundo plano.",
+          "correct": false
+        }
+      ],
+      "explanation": "Apex assíncrono pode desacoplar uma tarefa lenta da interação síncrona, mas callouts devem respeitar os requisitos do contexto escolhido.",
+      "section": "4. Execução assíncrona, testes e implantação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Qual anotação identifica uma classe ou método de teste Apex?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "@future, que marca toda rotina executada exclusivamente como teste unitário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "@isTest, que identifica código destinado à estrutura de testes Apex.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "@sharing, que configura a cobertura e cria dados de teste automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "@query, que transforma uma classe comum em método de teste implantável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "@bulk, que executa as asserções e registra a cobertura da organização.",
+          "correct": false
+        }
+      ],
+      "explanation": "@isTest identifica classes ou métodos de teste, que podem criar dados, executar código Apex e verificar resultados. A anotação permite que a plataforma reconheça o código de teste e o execute pela estrutura de testes.",
+      "section": "4. Execução assíncrona, testes e implantação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+
+    {
+      "statement": "Um método de teste dispara um Queueable e precisa verificar seus efeitos depois da execução. Qual estrutura usar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enfileirar a classe antes de toda preparação e omitir qualquer verificação posterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Colocar a chamada dentro de Trigger.old e aguardar execução ao final do método.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Chamar startTest, enfileirar o trabalho e chamar stopTest antes das asserções.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Executar somente SOSL dentro do teste para iniciar qualquer método Queueable.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar a fila no bloco finally e verificar seu resultado antes de iniciá-la.",
+          "correct": false
+        }
+      ],
+      "explanation": "O trabalho assíncrono enfileirado entre startTest e stopTest é processado ao chegar a stopTest; então o teste pode avaliar os efeitos com asserções.",
+      "section": "4. Execução assíncrona, testes e implantação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Que prática torna um teste de trigger mais representativo de uma importação em massa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Inserir vários registros no mesmo cenário e verificar os resultados de todos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar apenas um registro e assumir que os demais caminhos são equivalentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar dados existentes da produção sem criar registros próprios para o teste.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificar somente a cobertura numérica e deixar de comparar os valores gerados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar a trigger no teste para evitar que ela processe a coleção recebida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Inserir vários registros exercita o caminho em lote e permite verificar que toda a coleção foi tratada sem pressupor execução individual.",
+      "section": "4. Execução assíncrona, testes e implantação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a principal finalidade de uma asserção em um teste Apex?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar automaticamente os limites SOQL disponíveis em produção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar metadados de objeto que faltam na organização de destino.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir os dados de teste por registros reais existentes na organização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Confirmar que o método executou ao menos uma linha, sem avaliar valores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Comparar resultado obtido com comportamento esperado e falhar se divergirem.",
+          "correct": true
+        }
+      ],
+      "explanation": "Asserções verificam condições funcionais, como valores de campos ou exceções esperadas, e denunciam divergência entre resultado e expectativa.",
+      "section": "4. Execução assíncrona, testes e implantação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método precisa validar um caminho que não encontra registros e outro que recebe muitos resultados. Que estratégia de teste é melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Testar somente uma conta existente e inferir o comportamento em qualquer quantidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar cenários separados com lista vazia e vários registros, verificando cada resposta.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Evitar consultas no teste e considerar que a classe nunca receberá listas vazias.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar cobertura por chamadas repetidas sem verificar os retornos produzidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar em produção para reutilizar dados reais e dispensar asserções locais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cenários de borda e de volume testam caminhos distintos; asserções confirmam tratamento apropriado tanto para ausência quanto para pluralidade de registros.",
+      "section": "4. Execução assíncrona, testes e implantação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+
+    {
+      "statement": "Uma classe utilitária precisa guardar um contador compartilhado sem criar instância para acessar o membro. Qual recurso Apex expressa isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma classe static, pois Apex exige que toda classe seja declarada estática.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma variável local, que persiste entre transações sem referência ao método.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma interface, que armazena diretamente o valor mutável de todas as instâncias.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um membro static da classe, acessível sem instanciar essa classe.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma propriedade de trigger, que mantém estado global e durável entre execuções.",
+          "correct": false
+        }
+      ],
+      "explanation": "Apex permite membros estáticos, acessados pela classe; a própria classe Apex de nível superior não pode ser declarada static. Um campo static pertence à classe e pode ser acessado sem criar uma instância, mas não é armazenamento durável entre transações.",
+      "section": "1. Apex e o ambiente Salesforce",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe consumidora deve implementar um contrato com assinaturas definidas, mas sem comportamento concreto inicial. Qual estrutura é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma interface, implementada pela classe que fornece o corpo dos métodos exigidos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um Set, que declara assinaturas abstratas e exige métodos para cada elemento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma trigger after, que funciona como tipo substituível para qualquer classe Apex.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma exceção DmlException, que define comportamento obrigatório para serviços.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um Map de métodos, que a plataforma converte automaticamente em contrato tipado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Interfaces declaram assinaturas de métodos; uma classe que implementa a interface fornece suas implementações. O contrato separa a operação esperada de uma implementação concreta, permitindo que classes distintas cumpram a mesma API.",
+      "section": "1. Apex e o ambiente Salesforce",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação DML tradicional falha em um dos registros de uma lista. Qual entendimento sobre atomicidade é mais seguro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os demais registros sempre são confirmados porque cada elemento tem uma transação própria.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O Salesforce converte automaticamente a falha em resultado Database.SaveResult.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A falha pode fazer a operação tradicional falhar como unidade; sucesso parcial requer API apropriada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O bloco finally transforma todo registro inválido em sucesso depois da exceção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SOQL decide quais registros serão persistidos sem depender do comando DML.",
+          "correct": false
+        }
+      ],
+      "explanation": "DML tradicional trata a operação como unidade diante de falhas; métodos Database com opção de sucesso parcial devolvem resultados por registro.",
+      "section": "2. Classes, consultas e manipulação de dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço consulta registros sob regras de compartilhamento do chamador, mas também precisa evitar exposição de campos restritos. Qual conclusão é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "with sharing resolve simultaneamente todos os acessos de registro, objeto e campo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A classe deve tratar sharing e controles CRUD/FLS como verificações distintas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "without sharing é obrigatório para que as permissões da interface sejam preservadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SOSL aplica FLS apenas quando a busca não encontra resultados correspondentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "finally remove campos restritos automaticamente em todos os sObjects retornados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sharing trata visibilidade de registros. Permissões de objeto e campo não são automaticamente resolvidas por essa declaração e precisam de controles próprios.",
+      "section": "3. Triggers, transações, segurança e exceções",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma trigger atualiza o mesmo registro em after update sem condição de saída. Qual risco de desenho aparece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A consulta SOSL elimina necessariamente a trigger antes de qualquer nova execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O método finally impede que a operação DML acione automações adicionais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A classe deixa de compilar porque after update proíbe qualquer DML na org.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O sistema converte todas as atualizações seguintes em operações de leitura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A nova gravação pode reacionar a automação e gerar recursão ou consumo excessivo.",
+          "correct": true
+        }
+      ],
+      "explanation": "Atualizar os mesmos dados pode disparar novamente a cadeia de automações; condições de mudança e desenho controlado evitam recursão e limites excedidos.",
+      "section": "3. Triggers, transações, segurança e exceções",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe precisa processar pequenos trabalhos com estado e depois agendar outro trabalho relacionado, respeitando restrições de encadeamento. Qual alternativa melhor descreve Queueable?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Queueable enfileira classe com estado serializável e permite encadeamento controlado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Queueable substitui SOQL e percorre automaticamente todos os registros da organização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Queueable executa sempre no mesmo instante e na mesma transação do chamador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Queueable só pode receber parâmetros primitivos e não fornece monitoramento de trabalho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Queueable é uma consulta que salva seu resultado em uma tabela temporária automática.",
+          "correct": false
+        }
+      ],
+      "explanation": "Queueable permite representar trabalho assíncrono por classe e transportar estado serializável; o encadeamento existe com restrições, e o processamento não é síncrono ao enfileiramento.",
+      "section": "4. Execução assíncrona, testes e implantação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste precisa preparar contas usadas por diversos métodos de uma mesma classe sem repetir a criação. Qual recurso pode organizar essa preparação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trigger.oldMap, que prepara os registros uma vez antes de toda classe de teste.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "@testSetup, que cria dados reutilizáveis como base para métodos da classe.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "@future, que executa a preparação uma vez e a mantém no banco da org.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A propriedade static de produção, que compartilha registros persistidos entre testes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Test.stopTest, que cria dados padrão sem instruções da classe de teste.",
+          "correct": false
+        }
+      ],
+      "explanation": "O método @testSetup prepara dados que servem como base reutilizável para os métodos de teste da classe; os registros permanecem no contexto transitório de testes.",
+      "section": "4. Execução assíncrona, testes e implantação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao avaliar qualidade de um teste Apex, qual critério complementa a cobertura de linhas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas a quantidade de comentários, sem executar casos alternativos ou falhas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A existência de nomes longos, que garante que todos os resultados sejam corretos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A execução da classe em produção antes de qualquer asserção no ambiente de teste.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Asserções sobre resultados e cenários negativos relevantes para a regra de negócio.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O uso obrigatório de SOSL em qualquer método, mesmo sem necessidade de busca textual.",
+          "correct": false
+        }
+      ],
+      "explanation": "Além de executar linhas, testes úteis afirmam resultados esperados e cobrem cenários válidos, limites e erros relevantes.",
+      "section": "4. Execução assíncrona, testes e implantação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Apex Developer Guide — What is Apex?",
+      "publisher": "Salesforce Developers",
+      "reference": "Características da linguagem, integração com SOQL/DML, runtime hospedado e ambiente multitenant",
+      "url": "https://developer.salesforce.com/docs/platform/apex-dev/references/apex-dev/apex-intro-what-is-apex.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apex Developer Guide — Running Apex within Governor Execution Limits",
+      "publisher": "Salesforce Developers",
+      "reference": "Limites por transação e padrões de bulkificação de consultas e DML",
+      "url": "https://developer.salesforce.com/docs/platform/apex-dev/references/apex-dev/apex-limits-tips.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apex Developer Guide — Classes",
+      "publisher": "Salesforce Developers",
+      "reference": "Classes, objetos, métodos, interfaces e triggers",
+      "url": "https://developer.salesforce.com/docs/platform/apex-dev/references/apex-dev/apex-classes-understanding.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apex Developer Guide — Exception Statements",
+      "publisher": "Salesforce Developers",
+      "reference": "throw, try, catch e finally",
+      "url": "https://developer.salesforce.com/docs/platform/apex-dev/references/apex-dev/apex-exception-statements.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apex Developer Guide — Testing Apex",
+      "publisher": "Salesforce Developers",
+      "reference": "Testes unitários, dados de teste, execução e cobertura",
+      "url": "https://developer.salesforce.com/docs/platform/apex-dev/references/apex-dev/apex-testing.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apex Developer Guide — Invoking Apex",
+      "publisher": "Salesforce Developers",
+      "reference": "Execução por triggers, métodos assíncronos e serviços REST/SOAP",
+      "url": "https://developer.salesforce.com/docs/platform/apex-dev/references/apex-dev/apex-invoking.html",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

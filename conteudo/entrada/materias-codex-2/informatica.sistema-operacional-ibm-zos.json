@@ -1,0 +1,1828 @@
+{
+  "id": "informatica.sistema-operacional-ibm-zos",
+  "subject": "Informática",
+  "title": "Sistema operacional IBM z/OS",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Sistema operacional IBM z/OS",
+    "Sistema operacional z/OS da IBM",
+    "IBM z/OS para mainframe",
+    "Sistema z/OS em computadores IBM",
+    "Arquitetura e operação do IBM z/OS",
+    "Conceitos fundamentais do sistema z/OS",
+    "IBM z/OS e seus subsistemas",
+    "IBM z/OS, JES e processamento em lote",
+    "IBM z/OS e UNIX System Services",
+    "IBM z/OS, sysplex e alta disponibilidade"
+  ],
+  "scope": {
+    "covers": "Conceitos fundamentais do sistema operacional IBM z/OS: relação com IBM Z e z/Architecture; IPL, espaços de endereçamento, PARMLIB e subsistemas; trabalhos em lote, JCL, JES2/JES3, filas e spool; TSO/E, ISPF, UNIX System Services e sistemas de arquivos; conjuntos de dados e catálogo; RACF e controle de acesso; sysplex, XCF, coupling facility, WLM e disponibilidade.",
+    "excludes": "Comandos JCL em profundidade, instalação passo a passo, administração detalhada de RACF, programação em assembler ou COBOL, especificações de hardware de modelos específicos e parâmetros exclusivos de determinada versão do z/OS."
+  },
+  "theoryTitle": "Entendendo o sistema operacional IBM z/OS",
+  "chapters": [
+    {
+      "title": "1. O z/OS e sua organização interna",
+      "markdown": "### O problema que este assunto resolve\n\nO IBM z/OS é um sistema operacional para os servidores IBM Z, voltado a executar muitos trabalhos e transações com grande disponibilidade e controles de operação. Para entender sua organização, imagine várias aplicações e usuários compartilhando o mesmo computador: o sistema precisa separar a memória de cada execução, coordenar dispositivos e iniciar serviços essenciais. O z/OS faz isso com espaços de endereçamento, componentes do sistema e subsistemas.\n\n> **Siglas e termos deste capítulo**\n> - **IBM Z**: família de servidores corporativos da IBM.\n> - **z/Architecture**: arquitetura de processador usada pelos servidores IBM Z.\n> - **IPL**: Initial Program Load, processo de inicialização do sistema.\n> - **Address space**: espaço de endereçamento que isola recursos de uma tarefa ou componente.\n> - **ASID**: identificador associado a um espaço de endereçamento.\n> - **PARMLIB**: biblioteca de parâmetros de configuração do sistema.\n\n### Inicialização e subsistemas\n\nDurante o IPL, rotinas de inicialização preparam áreas do sistema e criam espaços de endereçamento de componentes. O espaço do master scheduler, chamado `*MASTER*`, é estabelecido primeiro. Ele participa da comunicação entre o z/OS e o subsistema primário de entrada de trabalhos. Em seguida, a instalação inicia JES2 ou JES3 e os demais serviços conforme sua configuração e sequência operacional.\n\nDefinições de subsistemas são mantidas em membros da PARMLIB, incluindo `IEFSSNxx`. Entre os subsistemas que podem estar presentes estão o JES, bancos de dados e gerenciadores de transações. Um espaço de endereçamento é criado também para tarefas iniciadas, usuários em TSO/E e trabalhos em lote. Assim, o z/OS não é um único programa monolítico: componentes cooperam, cada qual com seu espaço de execução.\n\n| Componente | Papel característico |\n| --- | --- |\n| `*MASTER*` e master scheduler | Inicia serviços centrais e estabelece comunicação com o JES primário |\n| JES2 ou JES3 | Recebe e organiza trabalhos e saídas de lote |\n| TSO/E | Oferece ambiente interativo para usuários |\n| Subsistemas como Db2 ou CICS | Oferecem serviços de banco de dados ou transações |\n| PARMLIB | Fornece parâmetros usados na inicialização e operação |\n\n### Isolamento por espaço de endereçamento\n\nUm espaço de endereçamento oferece a cada usuário, tarefa ou componente uma visão de armazenamento virtual. O sistema controla áreas privadas e áreas comuns; uma área privada não fica automaticamente disponível a todos os outros espaços. Isso permite que diversos programas sejam executados simultaneamente sem tratar a memória como uma área única e irrestrita. O espaço não é sinônimo de um processador físico: é uma unidade lógica de execução e proteção.\n\n### Como cai na prova\n\n- O z/OS roda nos servidores IBM Z; IBM Z identifica a plataforma e z/OS, o sistema operacional.\n- O master scheduler cria a relação inicial com o JES primário; o JES pode ser JES2 ou JES3.\n- PARMLIB contém definições e parâmetros do sistema; não é uma fila de trabalhos nem um sistema de arquivos de usuário.\n- Espaço de endereçamento é contexto lógico de execução, não um núcleo de CPU nem um usuário obrigatoriamente."
+    },
+    {
+      "title": "2. Trabalhos em lote, JCL e JES",
+      "markdown": "### O problema que este assunto resolve\n\nNem toda atividade depende de uma pessoa interagindo com o computador. Folhas de pagamento, consolidações e rotinas noturnas podem ser descritas e submetidas para processamento em lote. No z/OS, o trabalho identifica o que deve ser executado e os recursos necessários; o JES organiza a entrada, a seleção para execução e a saída.\n\n> **Siglas e termos deste capítulo**\n> - **JCL**: Job Control Language, linguagem de controle que descreve um trabalho e seus passos.\n> - **JOB**: declaração que identifica o trabalho e opções de execução.\n> - **EXEC**: declaração de um passo e do programa ou procedimento invocado.\n> - **DD**: declaração que associa arquivos, conjuntos de dados ou dispositivos a um passo.\n> - **JES**: Job Entry Subsystem, subsistema de entrada de trabalhos.\n> - **Spool**: armazenamento temporário de fluxos de entrada e saída geridos pelo JES.\n> - **SYSIN / SYSOUT**: entrada e saída associadas a trabalhos, frequentemente tratadas pelo spool.\n\n### Do cartão de entrada ao resultado\n\nUma submissão em lote normalmente contém JCL. As declarações identificam o trabalho, os passos e os recursos de dados. Em termos simplificados, `JOB` identifica o trabalho, `EXEC` especifica o programa ou procedimento de um passo e `DD` descreve arquivos ou recursos ligados a esse passo. O programa executado não é o próprio JCL: o JCL orienta o sistema sobre como iniciar e fornecer recursos ao programa.\n\nO JES recebe os fluxos de trabalho, prepara as declarações para a execução, mantém filas e seleciona trabalhos conforme regras da instalação e disponibilidade de iniciadores. Quando o programa termina, o JES organiza a saída, como mensagens e conjuntos `SYSOUT`, e pode mantê-la para impressão, consulta ou encaminhamento. O spool dá suporte ao armazenamento intermediário da entrada e da saída.\n\n| Fase simplificada | O que ocorre |\n| --- | --- |\n| Entrada | O trabalho e sua JCL são submetidos e registrados |\n| Preparação e fila | O JES interpreta/prepara informações e aguarda condições de execução |\n| Execução | Um iniciador disponibiliza recursos e executa o passo do trabalho |\n| Saída | O JES organiza SYSOUT e outros resultados |\n| Encerramento | Após o tratamento da saída, os recursos de spool podem ser liberados |\n\n### JES2 e JES3\n\nJES2 e JES3 são alternativas de subsistema de entrada de trabalhos. Ambos tratam entrada, seleção para processamento, saída e limpeza de trabalhos. Em instalações JES2, cada sistema participante gerencia sua operação de trabalhos. JES3 é conhecido pelo controle centralizado de processamento em complexos específicos: um processador global coordena processadores locais e uma fila comum. Não se deve presumir que todo ambiente usa os dois ao mesmo tempo como componentes obrigatórios.\n\n### Como cai na prova\n\n- `JOB`, `EXEC` e `DD` cumprem funções distintas; `EXEC` descreve o passo, e `DD` associa dados ou recursos.\n- O JES gerencia o ciclo dos trabalhos e o spool, mas não é o programa de negócio que a JCL chama.\n- `SYSOUT` é saída gerada para um trabalho, não uma instrução que define o programa.\n- JES2 e JES3 têm funções semelhantes, mas a organização de controle distribuído/centralizado permite distingui-los em questões."
+    },
+    {
+      "title": "3. Acesso interativo, dados e serviços UNIX",
+      "markdown": "### O problema que este assunto resolve\n\nO z/OS combina processamento em lote com interfaces interativas e serviços para aplicações. Um operador ou desenvolvedor pode usar TSO/E e ISPF; aplicações e usuários também podem usar a interface de shell de z/OS UNIX. Há ainda duas formas de organizar arquivos que aparecem muito em questões: conjuntos de dados tradicionais e arquivos em sistema hierárquico.\n\n> **Siglas e termos deste capítulo**\n> - **TSO/E**: Time Sharing Option/Extensions, ambiente interativo de compartilhamento de tempo.\n> - **ISPF**: Interactive System Productivity Facility, interface de painéis para tarefas interativas.\n> - **USS**: UNIX System Services, ambiente UNIX integrado ao z/OS.\n> - **POSIX**: família de padrões de interfaces de sistemas operacionais UNIX.\n> - **Data set**: conjunto de dados z/OS, identificado por nome e organizado segundo métodos de acesso.\n> - **HFS / zFS**: sistemas de arquivos hierárquicos utilizados com z/OS UNIX.\n> - **RACF**: Resource Access Control Facility, produto IBM de segurança e controle de acesso.\n\n### TSO/E e ISPF\n\nTSO/E permite que o usuário trabalhe interativamente, por exemplo executando comandos e acessando aplicações. ISPF apresenta painéis e funções para tarefas como editar membros, navegar em bibliotecas e submeter trabalhos. As interfaces podem ser usadas em conjunto: painéis ISPF operam dentro da experiência interativa do TSO/E. Elas não substituem o JES; um usuário pode submeter um trabalho e consultar sua saída por ferramentas próprias do ambiente.\n\n### Conjuntos de dados e catálogo\n\nNo modelo tradicional, conjuntos de dados podem ser sequenciais ou particionados. Uma biblioteca particionada (PDS ou PDSE) contém membros nomeados, como programas ou procedimentos, e é diferente de uma pasta UNIX. O catálogo ajuda a localizar conjuntos de dados e associá-los aos volumes onde residem. Declarações DD na JCL podem referenciar conjuntos de dados usados pelo programa.\n\nO z/OS UNIX acrescenta uma árvore de diretórios e arquivos, com interfaces de shell e de programação. O ambiente é parte do sistema z/OS, não uma máquina UNIX separada. Usuários podem alternar entre a interface tradicional TSO/E e a interface shell conforme a tarefa. O sistema de arquivos zFS armazena arquivos UNIX em conjuntos de dados lineares VSAM.\n\n### Segurança de acesso\n\nRACF identifica e verifica usuários, autoriza ou nega acesso a recursos protegidos e registra tentativas não autorizadas e acessos configurados para auditoria. Na prática, autenticação confirma identidade; autorização verifica se essa identidade pode usar determinado recurso. A permissão depende das definições de segurança e dos perfis da instalação: conhecer o nome de um conjunto de dados não concede acesso automaticamente.\n\n### Como cai na prova\n\n- TSO/E é o ambiente interativo; ISPF oferece painéis e ferramentas dentro desse uso.\n- USS fornece interfaces UNIX dentro do z/OS e pode coexistir com a interface tradicional.\n- Um membro de PDS/PDSE não é a mesma coisa que um arquivo em diretório UNIX.\n- RACF controla acesso a recursos e pode registrar eventos; não executa a agenda de trabalhos do JES."
+    },
+    {
+      "title": "4. Sysplex, compartilhamento e gestão da carga",
+      "markdown": "### O problema que este assunto resolve\n\nUma organização pode precisar continuar atendendo transações mesmo quando uma imagem de sistema ou componente apresenta indisponibilidade. O z/OS oferece serviços para que sistemas cooperem em um sysplex, compartilhem dados de modo coordenado e distribuam ou priorizem carga. Esse arranjo amplia a disponibilidade e a capacidade, mas exige configuração e serviços específicos.\n\n> **Siglas e termos deste capítulo**\n> - **Sysplex**: conjunto de sistemas z/OS que se comunicam e cooperam para processar cargas.\n> - **Parallel Sysplex**: configuração que permite processamento paralelo e compartilhamento de dados por várias imagens z/OS.\n> - **XCF**: Cross-System Coupling Facility, componente que permite comunicação entre programas no mesmo sistema ou entre sistemas do sysplex.\n> - **Coupling facility (CF)**: recurso compartilhado que fornece estruturas para dados, listas e coordenação entre sistemas.\n> - **WLM**: Workload Manager, componente que administra cargas com base em objetivos de serviço.\n> - **LPAR**: partição lógica que disponibiliza recursos de um servidor como ambiente separado.\n\n### Cooperação entre sistemas\n\nUm sysplex reúne sistemas z/OS que comunicam e cooperam. O XCF oferece mecanismos de comunicação entre membros e também entre programas do mesmo sistema. A coupling facility mantém estruturas que permitem compartilhar informações e coordenar aplicações e subsistemas; ela contribui para consistência e disponibilidade dos dados compartilhados. Não é simplesmente um disco compartilhado comum.\n\nParallel Sysplex amplia esse modelo para processar cargas em paralelo em várias imagens z/OS, inclusive em diferentes servidores, conforme a arquitetura instalada. Isso permite repartir carga e, em cenários preparados, continuar o processamento quando um participante deixa de operar. Sysplex não significa que várias imagens se tornam um único sistema operacional: são sistemas que cooperam por serviços e conexões definidos.\n\n### Objetivos de serviço e prioridade\n\nWLM permite definir objetivos de desempenho para classes de serviço e auxilia a gestão da carga. O objetivo pode expressar, por exemplo, expectativa de tempo de resposta ou de conclusão para uma categoria de trabalho. Em ambiente sysplex, informações de WLM podem apoiar decisões de distribuição de conexões ou trabalho entre imagens, conforme a configuração. WLM administra prioridades e objetivos; não substitui o JES nem executa por si só o programa da aplicação.\n\n| Elemento | Função resumida |\n| --- | --- |\n| XCF | Comunicação entre membros e sistemas |\n| Coupling facility | Estruturas para compartilhamento e coordenação |\n| WLM | Objetivos de serviço e gestão da carga |\n| Sysplex | Cooperação de sistemas z/OS |\n| JES | Entrada, filas e saída de trabalhos em lote |\n\n### Como cai na prova\n\n- XCF trata comunicação; WLM define objetivos e administra carga; não inverta esses papéis.\n- Coupling facility apoia compartilhamento consistente, não é apenas armazenamento em disco.\n- Parallel Sysplex trabalha com várias imagens z/OS em cooperação e pode melhorar disponibilidade e escalabilidade.\n- Objetivos WLM são associados a classes de serviço; não significam garantia absoluta de um tempo fixo em qualquer condição."
+    }
+  ],
+  "summary": "O z/OS é o sistema operacional dos servidores IBM Z. No IPL, cria espaços de endereçamento e inicia serviços configurados em bibliotecas de parâmetros; o master scheduler estabelece comunicação com o JES primário. JCL descreve trabalhos e passos, enquanto JES2 ou JES3 recebe trabalhos, mantém filas, coordena execução e trata saída em spool. TSO/E e ISPF dão acesso interativo; z/OS UNIX oferece interfaces UNIX integradas. Conjuntos de dados tradicionais coexistem com arquivos hierárquicos, e RACF controla acesso a recursos protegidos. Em sysplex, XCF permite comunicação, a coupling facility apoia compartilhamento coordenado e WLM administra carga por objetivos de serviço.",
+  "flashcards": [
+    {
+      "front": "Em que plataforma é executado o z/OS?",
+      "back": "Nos servidores IBM Z, baseados na z/Architecture."
+    },
+    {
+      "front": "O que é IPL?",
+      "back": "Processo de inicialização que prepara o z/OS e inicia serviços e componentes."
+    },
+    {
+      "front": "Qual espaço de endereçamento é estabelecido primeiro?",
+      "back": "O do master scheduler, chamado *MASTER*."
+    },
+    {
+      "front": "O que faz o master scheduler em relação ao JES?",
+      "back": "Estabelece comunicação entre o sistema e o subsistema primário de entrada de trabalhos."
+    },
+    {
+      "front": "O que é PARMLIB?",
+      "back": "Biblioteca com membros de parâmetros e definições usados na configuração do sistema."
+    },
+    {
+      "front": "O que significa ASID?",
+      "back": "Identificador de um espaço de endereçamento."
+    },
+    {
+      "front": "Para que serve um espaço de endereçamento?",
+      "back": "Dá contexto lógico de execução e separa áreas de armazenamento de tarefas e componentes."
+    },
+    {
+      "front": "O que a JCL descreve?",
+      "back": "O trabalho a executar, seus passos e os recursos necessários."
+    },
+    {
+      "front": "Qual o papel da declaração JOB?",
+      "back": "Identificar o trabalho e suas opções de execução."
+    },
+    {
+      "front": "Qual o papel de EXEC na JCL?",
+      "back": "Identificar o programa ou procedimento executado em um passo."
+    },
+    {
+      "front": "Qual o papel de DD na JCL?",
+      "back": "Associar conjuntos de dados ou recursos de entrada e saída a um passo."
+    },
+    {
+      "front": "Qual é a função central do JES?",
+      "back": "Receber, enfileirar, selecionar, acompanhar e tratar entrada e saída dos trabalhos."
+    },
+    {
+      "front": "O que é spool?",
+      "back": "Armazenamento intermediário de fluxos de trabalho e saída gerenciados pelo JES."
+    },
+    {
+      "front": "O que é SYSOUT?",
+      "back": "Saída produzida por ou para um trabalho, gerenciada pelo JES."
+    },
+    {
+      "front": "Como JES2 e JES3 se relacionam?",
+      "back": "São alternativas de subsistema de entrada de trabalhos, com funções semelhantes e diferenças operacionais."
+    },
+    {
+      "front": "Qual característica de controle é associada ao JES3?",
+      "back": "Controle centralizado por um processador global sobre processadores locais em complexos configurados para isso."
+    },
+    {
+      "front": "O que é TSO/E?",
+      "back": "Ambiente de interação de usuários com o z/OS, comandos e aplicações."
+    },
+    {
+      "front": "O que é ISPF?",
+      "back": "Conjunto de painéis e ferramentas interativas frequentemente utilizado dentro do TSO/E."
+    },
+    {
+      "front": "O que são z/OS UNIX System Services?",
+      "back": "Serviços integrados ao z/OS que oferecem interfaces de programação e shell do tipo UNIX."
+    },
+    {
+      "front": "O que distingue um PDS/PDSE de um diretório UNIX?",
+      "back": "PDS/PDSE organiza membros nomeados em uma biblioteca de conjunto de dados; UNIX usa diretórios hierárquicos."
+    },
+    {
+      "front": "O que o catálogo de conjuntos de dados ajuda a localizar?",
+      "back": "Conjuntos de dados e informações sobre os volumes em que estão armazenados."
+    },
+    {
+      "front": "Qual a função do RACF?",
+      "back": "Identificar usuários, controlar acesso a recursos protegidos e registrar eventos de segurança configurados."
+    },
+    {
+      "front": "O que é um sysplex?",
+      "back": "Conjunto de sistemas z/OS que se comunicam e cooperam para processar cargas."
+    },
+    {
+      "front": "Qual papel tem o XCF?",
+      "back": "Permitir comunicação entre programas e membros no sistema ou entre sistemas do sysplex."
+    },
+    {
+      "front": "Qual papel tem a coupling facility?",
+      "back": "Oferecer estruturas para compartilhamento e coordenação consistentes entre sistemas."
+    },
+    {
+      "front": "Qual papel tem o WLM?",
+      "back": "Definir objetivos de serviço e administrar a carga de trabalho."
+    },
+    {
+      "front": "O que é Parallel Sysplex?",
+      "back": "Configuração de cooperação e processamento paralelo entre várias imagens z/OS."
+    },
+    {
+      "front": "WLM substitui o JES?",
+      "back": "Não. WLM administra carga e objetivos; JES gerencia o fluxo de trabalhos em lote."
+    },
+    {
+      "front": "Uma imagem z/OS equivale a um espaço de endereçamento?",
+      "back": "Não. Uma imagem contém muitos espaços de endereçamento para usuários, tarefas e componentes."
+    },
+    {
+      "front": "Para que serve o zFS?",
+      "back": "É um sistema de arquivos usado por z/OS UNIX para armazenar arquivos hierárquicos."
+    }
+  ],
+  "tips": [
+    "Separe plataforma e sistema: IBM Z é a família de servidores; z/OS é o sistema operacional.",
+    "Memorize a sequência conceitual: IPL prepara o sistema, master scheduler inicia a relação com JES, e subsistemas entram conforme a configuração.",
+    "Na JCL, JOB identifica, EXEC solicita o passo e DD associa dados ou recursos.",
+    "JES cuida do ciclo do trabalho e de sua saída; o programa de negócio é chamado no passo EXEC.",
+    "Pense em TSO/E como acesso interativo, ISPF como painéis e USS como interface UNIX integrada.",
+    "Para sysplex, associe XCF a comunicação, coupling facility a estruturas compartilhadas e WLM a objetivos de serviço."
+  ],
+  "traps": [
+    "Confundir IBM Z com z/OS: um designa a plataforma de hardware, o outro é o sistema operacional.",
+    "Afirmar que JCL é o programa executado: ela descreve a execução e os recursos solicitados.",
+    "Trocar JOB, EXEC e DD: identificador do trabalho, passo/programa e associação de dados têm papéis diferentes.",
+    "Tratar TSO/E, ISPF e USS como sinônimos: são ambiente interativo, ferramentas em painéis e serviços de interface UNIX.",
+    "Dizer que a coupling facility é apenas um disco compartilhado: ela fornece estruturas de coordenação e dados compartilhados.",
+    "Atribuir ao WLM a execução de lote: JES gerencia o fluxo dos trabalhos; WLM orienta objetivos e gestão da carga."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o papel do IPL, do master scheduler e do JES na inicialização.",
+      "answer": "O IPL prepara o sistema e estabelece espaços e componentes; o master scheduler inicia comunicação com o JES primário, que passa a receber e organizar trabalhos conforme a configuração."
+    },
+    {
+      "question": "Explique a diferença entre sistema operacional e espaço de endereçamento.",
+      "answer": "O z/OS é o sistema operacional; um espaço de endereçamento é um contexto lógico de execução e armazenamento para determinada tarefa ou componente."
+    },
+    {
+      "question": "O que JOB, EXEC e DD fazem em uma JCL?",
+      "answer": "JOB identifica o trabalho, EXEC identifica o programa/procedimento de um passo e DD associa conjuntos de dados ou recursos utilizados pelo passo."
+    },
+    {
+      "question": "Resuma o ciclo de um trabalho em lote pelo JES.",
+      "answer": "O JES recebe e prepara a entrada, mantém o trabalho em fila, seleciona-o para execução, organiza a saída SYSOUT e encerra o trabalho liberando recursos de spool após o tratamento."
+    },
+    {
+      "question": "Diferencie TSO/E, ISPF e z/OS UNIX.",
+      "answer": "TSO/E é o ambiente interativo; ISPF oferece painéis e ferramentas nesse ambiente; z/OS UNIX fornece shell e interfaces UNIX integrados ao sistema."
+    },
+    {
+      "question": "Compare PDS/PDSE com um sistema de arquivos UNIX.",
+      "answer": "PDS/PDSE é uma biblioteca de conjunto de dados organizada em membros nomeados; o sistema UNIX organiza arquivos numa árvore de diretórios."
+    },
+    {
+      "question": "O que o RACF verifica e protege?",
+      "answer": "Identifica e verifica usuários e autoriza o acesso a recursos protegidos, podendo registrar tentativas e acessos para auditoria."
+    },
+    {
+      "question": "Associe XCF, coupling facility e WLM a suas funções.",
+      "answer": "XCF oferece comunicação; coupling facility oferece estruturas compartilhadas e coordenação; WLM define objetivos de serviço e administra carga."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Inicialização e organização confundidas",
+      "summary": "IPL inicia o sistema; master scheduler é estabelecido primeiro; PARMLIB contém definições e parâmetros; espaços de endereçamento isolam contextos de execução."
+    },
+    {
+      "key": "e2",
+      "title": "JCL e JES trocados",
+      "summary": "JCL descreve trabalho, passos e recursos; JES recebe e organiza o fluxo, as filas, a execução e a saída em spool."
+    },
+    {
+      "key": "e3",
+      "title": "Interfaces e arquivos misturados",
+      "summary": "TSO/E oferece interação; ISPF oferece painéis; USS oferece interfaces UNIX; conjuntos de dados tradicionais diferem de diretórios hierárquicos."
+    },
+    {
+      "key": "e4",
+      "title": "Segurança de acesso simplificada demais",
+      "summary": "RACF verifica identidades, autoriza acessos a recursos protegidos e registra eventos; autenticação não equivale a autorização."
+    },
+    {
+      "key": "e5",
+      "title": "Serviços de sysplex com papéis trocados",
+      "summary": "XCF comunica; coupling facility sustenta estruturas compartilhadas; WLM administra carga segundo objetivos de serviço; JES mantém funções de lote."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "IBM Z é o sistema operacional e z/OS identifica a família de servidores que o executa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. IBM Z identifica a família de servidores; z/OS é o sistema operacional que pode ser executado nessa plataforma. A afirmação inverteu os nomes do hardware e do software.",
+      "section": "1. O z/OS e sua organização interna",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O z/OS identifica o processador físico, enquanto IBM Z é o nome do sistema operacional instalado nele.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. IBM Z designa a família de servidores; z/OS é o sistema operacional que pode ser executado nessa plataforma. A afirmação trocou os nomes da plataforma e do software.",
+      "section": "1. O z/OS e sua organização interna",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante a inicialização, *MASTER* é criado somente depois que todos os espaços de endereço de usuário já existem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O espaço do master scheduler é estabelecido primeiro na sequência de componentes do sistema; usuários e trabalhos recebem espaços próprios posteriormente, após os serviços iniciais.",
+      "section": "1. O z/OS e sua organização interna",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A PARMLIB é a fila temporária em que o JES mantém trabalhos aguardando execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. PARMLIB contém membros com parâmetros e definições do sistema; as filas e o spool de trabalhos são funções do JES.",
+      "section": "1. O z/OS e sua organização interna",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Trabalhos em lote compartilham obrigatoriamente um único espaço de endereçamento e não podem ter contextos próprios.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O z/OS cria um espaço de endereçamento para cada trabalho em lote, além dos espaços usados por componentes e tarefas iniciadas, mantendo contextos de execução separados.",
+      "section": "1. O z/OS e sua organização interna",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um espaço de endereçamento é necessariamente um processador físico dedicado a um único programa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. É um contexto lógico de execução e armazenamento; não equivale a um processador físico dedicado. Os processadores são recursos de hardware compartilhados pelo sistema.",
+      "section": "1. O z/OS e sua organização interna",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As definições de JES2 e de outros subsistemas ficam exclusivamente em diretórios UNIX e não usam PARMLIB.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Membros IEFSSNxx da PARMLIB contêm definições de subsistemas primários e secundários; diretórios UNIX não substituem esse mecanismo de configuração.",
+      "section": "1. O z/OS e sua organização interna",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O master scheduler estabelece comunicação entre o z/OS e o subsistema primário de entrada de trabalhos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O subsistema primário pode ser JES2 ou JES3, e o master scheduler estabelece a comunicação com ele durante a inicialização do sistema, antes dos trabalhos dos usuários.",
+      "section": "1. O z/OS e sua organização interna",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A área privada de um espaço de endereçamento fica, por definição, acessível a todos os demais espaços do sistema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Áreas privadas pertencem ao contexto daquele espaço; áreas comuns são as concebidas para acesso compartilhado, sujeitas aos controles do sistema.",
+      "section": "1. O z/OS e sua organização interna",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instalação z/OS precisa executar JES2 e JES3 simultaneamente como dois JES primários obrigatórios.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A instalação configura um subsistema primário de entrada de trabalhos, que pode ser JES2 ou JES3; os dois não são exigidos juntos como primários simultâneos.",
+      "section": "1. O z/OS e sua organização interna",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na JCL, EXEC identifica o passo e o programa ou procedimento que será invocado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A declaração EXEC define um passo e indica o programa ou procedimento executado nele. Outras declarações, como DD, associam os dados e recursos utilizados pelo passo.",
+      "section": "2. Trabalhos em lote, JCL e JES",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A declaração DD serve principalmente para especificar o nome do sistema operacional que receberá o trabalho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. DD associa conjuntos de dados, arquivos ou dispositivos aos passos do trabalho; não seleciona o sistema operacional.",
+      "section": "2. Trabalhos em lote, JCL e JES",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O JES recebe e organiza trabalhos, controla filas e trata fluxos de entrada e saída em spool.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Spooling, enfileiramento, seleção de trabalhos e processamento de saída fazem parte das funções do JES. A JCL descreve a solicitação e o programa executa a tarefa de negócio.",
+      "section": "2. Trabalhos em lote, JCL e JES",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "JCL é o próprio programa de negócio executado pelo lote; JES apenas imprime o código-fonte submetido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. JCL descreve trabalho, passos e recursos; o programa indicado no passo é executado pelo sistema, e JES gerencia o fluxo do trabalho e sua saída depois da execução.",
+      "section": "2. Trabalhos em lote, JCL e JES",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "SYSOUT costuma identificar saída produzida por ou para um trabalho e tratada pelo JES.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O JES gerencia saídas de trabalho, inclusive mensagens e conjuntos SYSOUT direcionados a filas ou dispositivos de saída.",
+      "section": "2. Trabalhos em lote, JCL e JES",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O spool é uma área de armazenamento intermediário usada no tratamento de fluxos de entrada e saída dos trabalhos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O JES utiliza spool para guardar e organizar temporariamente entrada e saída, desacoplando sua produção do consumo posterior.",
+      "section": "2. Trabalhos em lote, JCL e JES",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "JES2 e JES3 são nomes para a linguagem de controle usada em todos os trabalhos z/OS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. JES2 e JES3 são subsistemas de entrada de trabalhos; a linguagem de controle é JCL, que descreve a solicitação e os recursos de cada trabalho.",
+      "section": "2. Trabalhos em lote, JCL e JES",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma saída pode permanecer em fila após o programa terminar, para ser encaminhada ou processada conforme as regras do sistema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O JES trata a saída depois da execução, organizando-a por classe e destino; a conclusão do programa não exige impressão imediata da saída.",
+      "section": "2. Trabalhos em lote, JCL e JES",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma instalação JES3 apropriada, o processador global pode coordenar processadores locais e uma fila comum.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Essa organização de controle centralizado é uma característica descrita para JES3 em complexos com processadores locais.",
+      "section": "2. Trabalhos em lote, JCL e JES",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "TSO/E é um ambiente para interação de usuários com o z/OS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. TSO/E oferece recursos interativos para usuários, inclusive comandos e acesso a aplicações do ambiente z/OS. ISPF pode apresentar painéis nesse ambiente.",
+      "section": "3. Acesso interativo, dados e serviços UNIX",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "ISPF é o subsistema que enfileira trabalhos em lote e administra o spool de saída.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. ISPF fornece painéis e ferramentas interativas; o gerenciamento de filas e spool compete ao JES, que organiza a entrada e saída dos trabalhos em lote.",
+      "section": "3. Acesso interativo, dados e serviços UNIX",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "z/OS UNIX é um ambiente UNIX implementado dentro do sistema operacional z/OS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. UNIX System Services faz parte do z/OS e fornece interfaces de programação e uma interface interativa de shell. Usuários também podem utilizar TSO/E e ferramentas tradicionais.",
+      "section": "3. Acesso interativo, dados e serviços UNIX",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "PDS ou PDSE organiza membros nomeados, enquanto o sistema de arquivos UNIX organiza arquivos em diretórios hierárquicos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. São modelos distintos de organização: bibliotecas de conjuntos de dados com membros e sistemas de arquivos com diretórios e caminhos.",
+      "section": "3. Acesso interativo, dados e serviços UNIX",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "RACF apenas executa programas autorizados e não participa de autenticação, autorização ou auditoria.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. RACF identifica e verifica usuários, controla acesso a recursos protegidos e registra tentativas ou acessos conforme configurado.",
+      "section": "3. Acesso interativo, dados e serviços UNIX",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sysplex é um conjunto de sistemas z/OS que se comunicam e cooperam para processar cargas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Sistemas participantes cooperam por serviços e componentes de sysplex; isso não os transforma literalmente em uma única imagem de sistema.",
+      "section": "4. Sysplex, compartilhamento e gestão da carga",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "XCF facilita comunicação entre programas no mesmo sistema ou entre sistemas participantes do sysplex.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O componente XCF oferece serviços de comunicação entre membros e sistemas do sysplex, permitindo cooperação sem fundir as imagens do sistema.",
+      "section": "4. Sysplex, compartilhamento e gestão da carga",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A coupling facility é apenas um dispositivo de disco compartilhado, sem estruturas de coordenação entre sistemas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A coupling facility fornece estruturas compartilhadas para dados e coordenação, contribuindo para consistência e disponibilidade; não é simplesmente um disco comum acessado pelos sistemas.",
+      "section": "4. Sysplex, compartilhamento e gestão da carga",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "WLM pode definir objetivos de serviço para diferentes classes de carga de trabalho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. WLM permite definir objetivos de desempenho, como expectativas de resposta, e administrar cargas segundo sua importância e configuração. O objetivo orienta a gestão, sem garantir um tempo fixo em toda condição.",
+      "section": "4. Sysplex, compartilhamento e gestão da carga",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Parallel Sysplex pode repartir processamento por várias imagens z/OS e favorecer continuidade da carga quando um participante falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Com hardware e software configurados para isso, Parallel Sysplex permite processamento paralelo e reaproveitamento da capacidade disponível diante da indisponibilidade de um participante.",
+      "section": "4. Sysplex, compartilhamento e gestão da carga",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No z/OS, qual opção diferencia corretamente a plataforma IBM Z do sistema operacional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "IBM Z é uma família de servidores; z/OS é um sistema operacional que pode rodar nela.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "IBM Z é o gerenciador de filas batch que substitui o JES; z/OS é a linguagem de controle de lote.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "IBM Z é um sistema de arquivos; z/OS é uma tabela de parâmetros de inicialização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "IBM Z é um subsistema UNIX; z/OS é a interface de painéis para usuários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "IBM Z é o nome de uma partição lógica; z/OS é um membro de catálogo.",
+          "correct": false
+        }
+      ],
+      "explanation": "IBM Z designa uma família de servidores; z/OS é o sistema operacional destinado a essa plataforma. JES, JCL, UNIX System Services e PARMLIB têm outras funções.",
+      "section": "1. O z/OS e sua organização interna",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição do processo de IPL e da participação inicial do master scheduler está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O IPL apenas limpa o spool; o master scheduler imprime a saída acumulada antes de iniciar o sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O IPL prepara o sistema; o master scheduler é estabelecido e pode iniciar a comunicação com o JES primário.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O IPL cria somente o shell UNIX; o master scheduler autentica usuários e substitui as verificações do RACF.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O IPL inicia o WLM como único espaço de endereço; o master scheduler escolhe o programa de negócio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O IPL é uma declaração JCL; o master scheduler associa arquivos DD às etapas do trabalho.",
+          "correct": false
+        }
+      ],
+      "explanation": "O IPL inicializa o sistema e estabelece espaços de componentes. O master scheduler é criado nessa sequência e estabelece comunicação com o subsistema primário JES2 ou JES3.",
+      "section": "1. O z/OS e sua organização interna",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso é usado para guardar parâmetros e definições de configuração do sistema z/OS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O spool do JES, que armazena temporariamente cada opção de inicialização do usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A tabela de saída SYSOUT, que funciona como catálogo central dos parâmetros de inicialização de subsistemas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A PARMLIB, composta por membros de parâmetros e definições, incluindo os de subsistemas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A coupling facility, que armazena todos os arquivos de configuração em membros nomeados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A JCL, que atua como biblioteca permanente de todas as opções de hardware do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "PARMLIB contém membros usados para configurar e iniciar componentes do z/OS. Spool guarda fluxos de trabalho, SYSOUT é saída, coupling facility fornece estruturas de sysplex e JCL descreve trabalhos.",
+      "section": "1. O z/OS e sua organização interna",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve melhor um espaço de endereçamento do z/OS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É sempre um processador central exclusivo, com memória física reservada integralmente a um único trabalho em lote.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É uma fila do JES que separa saídas SYSOUT de entradas SYSIN por classe.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É um diretório UNIX que contém todos os arquivos privados da instalação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É um contexto lógico de execução e armazenamento associado a uma tarefa ou componente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "É uma partição física de hardware que executa somente o master scheduler.",
+          "correct": false
+        }
+      ],
+      "explanation": "O espaço de endereçamento oferece contexto de armazenamento virtual e execução para tarefas ou componentes. Não é processador, fila de saída, diretório ou necessariamente partição de hardware.",
+      "section": "1. O z/OS e sua organização interna",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação relaciona corretamente declarações JCL e suas funções?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "JOB identifica o trabalho, EXEC define o passo executável e DD associa dados ou recursos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "JOB associa conjuntos de dados, EXEC autentica o usuário por RACF e DD define a classe WLM para o lote.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "JOB inicia o IPL, EXEC administra o catálogo e DD escolhe o sistema JES instalado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "JOB define arquivos UNIX, EXEC reserva a coupling facility e DD inicia o TSO/E.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "JOB imprime SYSOUT, EXEC cria o spool e DD concede acesso por perfil RACF.",
+          "correct": false
+        }
+      ],
+      "explanation": "JOB identifica o trabalho; EXEC especifica programa ou procedimento para um passo; DD descreve os conjuntos de dados e recursos associados à execução.",
+      "section": "2. Trabalhos em lote, JCL e JES",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina de folha de pagamento será executada sem interação contínua do usuário. Como o z/OS normalmente descreve a solicitação de processamento em lote?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Por uma entrada RACF que contém o código-fonte, escolhe as tabelas e autoriza seu uso sem consultar perfis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Por uma estrutura WLM que substitui o programa e gera diretamente os valores da folha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Por uma declaração de sysplex que lista as instruções de máquina de cada transação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Por um membro PARMLIB que é interpretado como programa de negócio em cada inicialização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Por um trabalho JCL com passos, programas e associações dos conjuntos de dados necessários.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um trabalho em lote é descrito por JCL, que identifica o trabalho, seus passos e recursos. O sistema então coordena sua execução por meio do JES e dos iniciadores disponíveis.",
+      "section": "2. Trabalhos em lote, JCL e JES",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja entender qual componente organiza entrada, fila, seleção para execução e saída dos trabalhos em lote. Qual deve consultar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ISPF, pois os painéis interativos mantêm e despacham todas as filas do sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RACF, pois os perfis de usuário interpretam JCL e controlam a ordem dos passos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "JES, que gerencia o fluxo de trabalhos e as saídas associadas ao processamento.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "XCF, pois a comunicação entre sistemas também processa cada instrução EXEC.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PARMLIB, pois seus membros armazenam permanentemente os resultados de cada lote.",
+          "correct": false
+        }
+      ],
+      "explanation": "JES é o subsistema de entrada de trabalhos, responsável por spooling, filas e tratamento de entrada e saída. Os demais itens têm funções de interface, segurança, comunicação ou configuração.",
+      "section": "2. Trabalhos em lote, JCL e JES",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação distingue adequadamente JES2 e JES3?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "JES2 é a linguagem de controle; JES3 é o catálogo de conjuntos de dados particionados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "JES2 e JES3 são interfaces com painéis para usuários, substituindo TSO/E e ISPF em qualquer instalação de lote.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "JES2 gerencia somente entradas, enquanto JES3 é exclusivamente responsável por arquivos UNIX.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ambos tratam trabalhos; JES3 pode usar controle global sobre processadores locais em complexos configurados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Ambos são obrigatórios juntos, um para executar programas e outro para controlar perfis RACF.",
+          "correct": false
+        }
+      ],
+      "explanation": "JES2 e JES3 são alternativas que compartilham funções gerais de processamento de trabalhos. A arquitetura JES3 pode centralizar o controle por um processador global e distribuir trabalhos aos locais.",
+      "section": "2. Trabalhos em lote, JCL e JES",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após um programa terminar, a saída SYSOUT ainda precisa ser organizada e encaminhada. Qual componente cumpre esse papel?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "TSO/E, que converte todo resultado em membros de biblioteca antes do encerramento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O JES, que organiza a saída em filas e aplica critérios de classe ou destino.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A JCL, que continua executando o programa depois que o passo já terminou.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O RACF, que imprime cada conjunto de dados sem consultar regras de acesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A coupling facility, que converte relatórios em estruturas de comunicação XCF.",
+          "correct": false
+        }
+      ],
+      "explanation": "O JES mantém e processa saída depois da execução, podendo selecionar saída por classe e destino. JCL descreve a solicitação, mas não é o gerenciador persistente da fila.",
+      "section": "2. Trabalhos em lote, JCL e JES",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa precisa navegar por painéis, editar membros e submeter trabalhos em interação com o sistema. Qual associação é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ISPF fornece painéis e ferramentas interativas normalmente utilizadas no ambiente TSO/E.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "WLM fornece painéis para editar membros e funciona como uma sessão de shell UNIX.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "XCF fornece menus locais de usuário e controla a edição das declarações DD.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "JES3 fornece interface de edição e substitui todos os recursos do ambiente TSO/E.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RACF apresenta painéis de edição e executa o código submetido pelo usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "ISPF oferece painéis e ferramentas para tarefas interativas e é frequentemente usado a partir do TSO/E. JES gerencia trabalhos, WLM cargas, XCF comunicação e RACF segurança.",
+      "section": "3. Acesso interativo, dados e serviços UNIX",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa caracteriza corretamente z/OS UNIX System Services?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É um sistema operacional externo que sempre exige outro servidor IBM Z separado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É a tabela central do JES que guarda os diretórios dos trabalhos submetidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É um mecanismo do RACF que traduz todas as senhas em comandos POSIX.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É uma interface de arquivos que impede o uso simultâneo de TSO/E e ISPF.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É um ambiente integrado ao z/OS com interface shell e serviços para aplicações UNIX.",
+          "correct": true
+        }
+      ],
+      "explanation": "UNIX System Services está implementado dentro do z/OS e oferece interfaces de aplicação e shell. Usuários podem combinar ou alternar essa experiência com interfaces tradicionais do z/OS.",
+      "section": "3. Acesso interativo, dados e serviços UNIX",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa precisa identificar um membro de biblioteca tradicional e, em outro caso, um arquivo por caminho de diretórios. Qual distinção é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambos são sempre membros de uma mesma PDS e não podem estar em sistemas de arquivos diferentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O membro pertence a PDS/PDSE; o caminho hierárquico é próprio do sistema de arquivos UNIX.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O caminho UNIX é uma fila SYSOUT e o membro PDS é uma classe de serviço WLM.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PDS/PDSE descreve apenas discos físicos; UNIX usa exclusivamente instruções DD da JCL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O membro fica no catálogo RACF e o arquivo hierárquico é armazenado na PARMLIB.",
+          "correct": false
+        }
+      ],
+      "explanation": "PDS e PDSE são bibliotecas de conjuntos de dados com membros. z/OS UNIX organiza arquivos por caminhos numa hierarquia de diretórios; são modelos distintos que coexistem.",
+      "section": "3. Acesso interativo, dados e serviços UNIX",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de funções está associado ao RACF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Receber JCL, selecionar iniciadores e organizar relatórios na fila de impressão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir metas de resposta para classes de serviço e distribuir transações no sysplex.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Identificar e verificar usuários, controlar acesso a recursos e registrar eventos de segurança.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Criar estruturas de compartilhamento de dados e comunicação entre membros XCF.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Interpretar declarações EXEC e iniciar cada programa de negócio da aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "RACF é um gerenciador de segurança que identifica e verifica usuários, autoriza acesso a recursos protegidos e pode registrar tentativas e acessos. As outras alternativas descrevem JES, WLM, coupling facility ou execução de lote.",
+      "section": "3. Acesso interativo, dados e serviços UNIX",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário autenticado tenta ler um conjunto de dados protegido. Qual afirmação sobre o controle de acesso é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A autenticação confirma identidade, mas a autorização ainda determina se o recurso pode ser acessado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A autenticação concede automaticamente acesso irrestrito a todos os conjuntos de dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A autorização é feita pelo JES ao imprimir, sem consultar as definições de segurança.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O nome conhecido do conjunto de dados substitui qualquer verificação de perfil RACF.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "WLM autentica o usuário e concede permissões conforme o tempo de resposta obtido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Autenticar verifica quem é o usuário; autorizar verifica o que ele pode fazer em determinado recurso. O RACF aplica as regras de acesso definidas para recursos protegidos.",
+      "section": "3. Acesso interativo, dados e serviços UNIX",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa explica a função do XCF em um sysplex?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Controlar o catálogo e localizar volumes para cada membro de biblioteca PDS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar os passos JCL e converter SYSOUT em relatórios impressos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir o perfil de resposta e a prioridade de serviço para cada aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir comunicação entre programas e membros no mesmo sistema ou em sistemas do sysplex.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Proteger arquivos UNIX por senha e substituir toda a administração RACF.",
+          "correct": false
+        }
+      ],
+      "explanation": "XCF permite que programas autorizados comuniquem-se no mesmo sistema e entre sistemas z/OS do sysplex. WLM trata objetivos, JES trabalhos, RACF segurança e catálogo localização de conjuntos de dados.",
+      "section": "4. Sysplex, compartilhamento e gestão da carga",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instalação precisa coordenar estruturas de dados compartilhadas por aplicações em sistemas diferentes e preservar sua consistência. Qual elemento atende diretamente a esse propósito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ISPF, porque seus painéis replicam automaticamente bibliotecas para todos os usuários.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A coupling facility, que oferece estruturas para compartilhamento e coordenação entre sistemas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "JCL, porque cada declaração DD mantém uma cópia transacional entre servidores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "TSO/E, porque sessões interativas serializam globalmente os acessos a dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O spool, porque relatórios de lote garantem integridade dos bancos compartilhados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A coupling facility disponibiliza estruturas compartilhadas para aplicações e subsistemas de diferentes sistemas, apoiando consistência, disponibilidade e coordenação. Não se confunde com interfaces de usuário, JCL ou spool.",
+      "section": "4. Sysplex, compartilhamento e gestão da carga",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde ao Workload Manager do z/OS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Administra objetivos de serviço e carga de trabalho, podendo apoiar decisões de distribuição.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Recebe JCL, mantém o spool e seleciona todos os programas que serão compilados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mantém exclusivamente o catálogo de arquivos e cria membros de bibliotecas particionadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substitui o RACF na autenticação e libera acessos conforme a fila de execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É o sistema de arquivos hierárquicos que guarda os objetivos de desempenho.",
+          "correct": false
+        }
+      ],
+      "explanation": "WLM define objetivos de serviço para cargas e oferece informações ou recomendações que ajudam a administrar capacidade e prioridades. Não substitui JES, RACF ou sistemas de arquivos.",
+      "section": "4. Sysplex, compartilhamento e gestão da carga",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um ambiente Parallel Sysplex, várias imagens z/OS podem cooperar no processamento de carga e no compartilhamento de dados.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não; Parallel Sysplex é uma única sessão TSO/E replicada entre usuários do mesmo sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Não; o nome indica apenas uma biblioteca de parâmetros em disco compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sim; imagens cooperam por serviços de sysplex e podem compartilhar estruturas via coupling facility.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Sim; todas as imagens deixam de ter sistemas próprios e passam a executar um único JES local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim; cada imagem se torna um espaço privado sem comunicação ou dados compartilhados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Parallel Sysplex permite processamento paralelo por várias imagens z/OS e compartilhamento coordenado, com mecanismos como XCF e coupling facility. As imagens permanecem sistemas distintos que cooperam.",
+      "section": "4. Sysplex, compartilhamento e gestão da carga",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa distribuir conexões entre imagens z/OS conforme objetivos e níveis de carga definidos. Qual componente pode apoiar essa gestão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ISPF, pois escolhe a imagem menos ocupada sempre que um painel é aberto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "JES, pois todas as conexões de rede são convertidas em trabalhos batch na fila.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RACF, pois permissões de usuário determinam por si mesmas a capacidade livre de cada LPAR.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "WLM, que informa níveis de carga e pode apoiar decisões de distribuição configuradas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "PARMLIB, que executa o balanceamento contínuo sem serviços de sysplex ou rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em sysplex, WLM pode fornecer informações de nível de carga ou recomendações de distribuição segundo a configuração e os objetivos da aplicação. Isso não significa que WLM execute a aplicação ou substitua os serviços de rede.",
+      "section": "4. Sysplex, compartilhamento e gestão da carga",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O JES primário do z/OS pode ser escolhido entre JES2 e JES3, conforme a instalação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A configuração do z/OS utiliza um subsistema primário de entrada de trabalhos, que pode ser JES2 ou JES3. As duas opções têm funções semelhantes de processamento em lote.",
+      "section": "1. O z/OS e sua organização interna",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um trabalho JCL, qual alternativa relaciona corretamente JOB, EXEC e DD?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "JOB identifica o trabalho, EXEC descreve um passo, e DD associa dados ou recursos usados nele.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "JOB define o sistema de arquivos, EXEC concede acesso RACF, e DD configura o WLM.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "JOB inicia o IPL, EXEC escolhe o JES primário, e DD distribui conexões no sysplex.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "JOB cria uma fila SYSOUT, EXEC cataloga volumes, e DD executa o programa de segurança.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "JOB define um membro PDS, EXEC abre a sessão ISPF, e DD autentica o usuário interativo.",
+          "correct": false
+        }
+      ],
+      "explanation": "JOB identifica o trabalho, EXEC define o programa ou procedimento de um passo e DD associa conjuntos de dados ou recursos. Essas declarações descrevem a execução, mas não são o próprio programa de negócio.",
+      "section": "2. Trabalhos em lote, JCL e JES",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização deseja executar rotinas em lote e manter seus resultados disponíveis para tratamento posterior. Qual sequência representa melhor esse fluxo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "RACF recebe a JCL, executa o programa e imprime SYSOUT sem intermediação do sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ISPF interpreta o JCL, grava os resultados na PARMLIB e libera o trabalho ao WLM.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "JES recebe o trabalho, mantém filas, coordena execução e gerencia a saída em spool.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "XCF compila o programa, abre os conjuntos de dados e apaga a fila quando termina.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A coupling facility inicia cada passo, autentica o operador e converte relatórios em JCL.",
+          "correct": false
+        }
+      ],
+      "explanation": "JES recebe a entrada, controla filas e seleção para execução e organiza a saída, que pode permanecer em spool até ser processada. RACF, ISPF, XCF e coupling facility desempenham outras funções.",
+      "section": "2. Trabalhos em lote, JCL e JES",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual interface corresponde ao ambiente UNIX integrado ao z/OS, com shell e serviços para aplicações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ISPF, que é a interface de painéis usada para controlar os perfis de segurança RACF.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "JES2, que apresenta um shell UNIX para editar arquivos hierárquicos e programas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "TSO/E, que é o subsistema de arquivos hierárquicos e substitui a JCL de lote.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "UNIX System Services, que fornece interfaces UNIX como parte do próprio z/OS.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "WLM, que interpreta comandos POSIX e monta as filas de saída do sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "UNIX System Services integra o ambiente z/OS e oferece interfaces de programação e shell. TSO/E e ISPF são associados ao uso interativo tradicional, e JES e WLM cuidam de outras funções.",
+      "section": "3. Acesso interativo, dados e serviços UNIX",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário conseguiu se autenticar, mas ainda precisa de autorização para ler um conjunto de dados protegido. Qual componente administra esse controle?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "JES, que decide o acesso lendo a classe SYSOUT escolhida para o conjunto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "WLM, que libera recursos conforme o tempo de resposta da consulta solicitada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "XCF, que converte a identificação do usuário em uma mensagem para outros sistemas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PARMLIB, que cataloga permissões dentro dos mesmos membros usados no IPL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RACF, que verifica identidades e autoriza o acesso aos recursos protegidos.",
+          "correct": true
+        }
+      ],
+      "explanation": "RACF verifica usuários e controla autorização para recursos protegidos. Autenticação confirma a identidade, mas não concede automaticamente acesso irrestrito a cada conjunto de dados.",
+      "section": "3. Acesso interativo, dados e serviços UNIX",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sysplex, qual associação entre XCF, coupling facility e WLM está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "XCF comunica membros, coupling facility oferece estruturas compartilhadas e WLM administra carga por objetivos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "XCF organiza SYSOUT, coupling facility autentica usuários e WLM mantém o catálogo de volumes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "XCF controla classes de serviço, coupling facility executa JCL e WLM armazena dados compartilhados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "XCF cria sistemas de arquivos, coupling facility imprime trabalhos e WLM configura membros PARMLIB.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "XCF concede acessos RACF, coupling facility compila aplicações e WLM inicializa o sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "XCF permite comunicação entre sistemas e membros; coupling facility mantém estruturas compartilhadas para coordenação; WLM define objetivos de serviço e administra carga. JES e RACF mantêm, respectivamente, papéis de lote e segurança.",
+      "section": "4. Sysplex, compartilhamento e gestão da carga",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instalação quer classificar tipos de trabalho por expectativas de resposta e orientar o uso de capacidade do sistema. Qual componente é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "JES, porque suas filas substituem objetivos de serviço e classificações de carga.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "WLM, que permite estabelecer objetivos de desempenho para classes de serviço.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "ISPF, porque seus painéis decidem automaticamente a prioridade de cada programa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RACF, porque as autorizações de acesso definem o tempo máximo das transações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "JCL, porque declara os objetivos de resposta que o usuário deve cumprir no sysplex.",
+          "correct": false
+        }
+      ],
+      "explanation": "WLM permite definir objetivos de serviço para tipos de carga e orienta sua gestão. Não substitui JES no processamento de lote, RACF no controle de acesso ou JCL na descrição de trabalhos.",
+      "section": "4. Sysplex, compartilhamento e gestão da carga",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "System address spaces and the master scheduler",
+      "publisher": "IBM Documentation",
+      "reference": "IPL, espaços de endereçamento, master scheduler, JES e inicialização de subsistemas",
+      "url": "https://www.ibm.com/docs/en/zos-basic-skills?topic=storage-system-address-spaces-master-scheduler",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "System IPL: Address space creation and subsystem initialization",
+      "publisher": "IBM Documentation",
+      "reference": "Espaços de componentes, PARMLIB, IEFSSNxx e JES primário",
+      "url": "https://www.ibm.com/docs/en/zos-basic-skills?topic=process-system-ipl-address-space-creation-subsystem-initialization",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Job entry subsystem",
+      "publisher": "IBM Documentation",
+      "reference": "Spooling e agendamento de fluxos de entrada e saída",
+      "url": "https://www.ibm.com/docs/en/zos/2.5.0?topic=sets-job-entry-subsystem",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Glossary of z/OS terms and abbreviations",
+      "publisher": "IBM Documentation",
+      "reference": "Definições de JCL, JES2, JES3, RACF e z/OS UNIX",
+      "url": "https://www.ibm.com/docs/en/zos-basic-skills?topic=glossary-zos-terms-abbreviations",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Introduction to z/OS UNIX",
+      "publisher": "IBM Documentation",
+      "reference": "Interfaces de aplicação e shell fornecidas pelo UNIX System Services",
+      "url": "https://www.ibm.com/docs/en/zos/3.1.0?topic=planning-introduction-zos-unix",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Characteristics of a sysplex",
+      "publisher": "IBM Documentation",
+      "reference": "XCF, coupling facility, sinalização, WLM e conjuntos de dados couple",
+      "url": "https://www.ibm.com/docs/en/zos/3.2.0?topic=introduction-characteristics-sysplex",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Managing coupling facility resources",
+      "publisher": "IBM Documentation",
+      "reference": "Compartilhamento de dados e recursos, consistência e disponibilidade",
+      "url": "https://www.ibm.com/docs/en/zos/3.1.0?topic=sysplex-managing-coupling-facility-resources",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Workload Manager (WLM)",
+      "publisher": "IBM Documentation",
+      "reference": "Objetivos de desempenho e contribuição para distribuição de carga em sysplex",
+      "url": "https://www.ibm.com/docs/en/zos-basic-skills?topic=sysplex-workload-manager-wlm",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Parallel Sysplex support",
+      "publisher": "IBM Documentation",
+      "reference": "Processamento paralelo em imagens z/OS e vantagens de disponibilidade e crescimento",
+      "url": "https://www.ibm.com/docs/en/systems-hardware/zsystems/3931-A01?topic=operation-parallel-sysplex-support",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

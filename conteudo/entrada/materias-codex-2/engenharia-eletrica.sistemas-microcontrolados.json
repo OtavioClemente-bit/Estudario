@@ -1,0 +1,2356 @@
+{
+  "id": "engenharia-eletrica.sistemas-microcontrolados",
+  "subject": "Engenharia Elétrica",
+  "title": "Sistemas microcontrolados e embarcados",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Sistemas microcontrolados",
+    "Fundamentos de microcontroladores",
+    "Sistemas embarcados e microcontroladores",
+    "Arquitetura de microcontroladores",
+    "Programação de sistemas embarcados",
+    "Aplicações com microcontroladores",
+    "Microcontroladores Arduino e PIC",
+    "Microcontroladores AVR e ARM",
+    "ESP8266 e Internet das Coisas",
+    "IoT e redes de sensores sem fio",
+    "Arquiteturas Harvard e Von Neumann",
+    "Memória RAM Flash e EEPROM",
+    "GPIO e portas de entrada e saída",
+    "Timers contadores e PWM",
+    "Interrupções e conversores analógicos digitais",
+    "Interfaces UART SPI e I2C",
+    "Projeto de automação com sensores e atuadores",
+    "Circuitos de interface e potência para microprocessadores"
+  ],
+  "scope": {
+    "covers": "Fundamentos e blocos de sistemas microcontrolados e embarcados; CPU, memória, barramentos, mapeamento, endereçamento, arquiteturas Harvard e Von Neumann, RISC e CISC; famílias 8051, PIC, AVR e ARM; programação e aplicações em Arduino, PIC, ESP8266 e Raspberry Pi/Pico; GPIO, pinagem e funções alternativas; RAM, Flash e EEPROM; temporizadores, contadores, PWM, interrupções internas e externas, ADC; UART, SPI e I2C; aplicações de IoT e redes de sensores sem fio; dimensionamento de E/S, seleção de sensores e atuadores e circuitos de interface, controle e potência.",
+    "excludes": "Projeto detalhado de placas de circuito impresso, cálculo completo de fontes e estágios analógicos, protocolos de rede além de sua função em IoT, programação avançada de sistemas operacionais embarcados e características elétricas específicas de modelos não identificados. Valores de pinos, tensões e periféricos dependem do chip e da placa e devem ser conferidos em seu datasheet."
+  },
+  "theoryTitle": "Do pino ao sistema: como microcontroladores leem, decidem e atuam",
+  "chapters": [
+    {
+      "title": "1. Sistema embarcado, MCU e arquitetura",
+      "markdown": "### O problema que este assunto resolve\n\nUm sistema embarcado é um computador incorporado a um produto para cumprir uma função delimitada: controlar temperatura, contar peças, regular velocidade ou reportar uma medição. Em geral, ele combina processamento, memória, entradas e saídas, alimentação e firmware. Um **microcontrolador (MCU)** reúne no mesmo circuito integrado CPU, memórias e periféricos; um **microprocessador (MPU)** costuma depender de componentes externos para formar um sistema completo, embora a fronteira comercial varie.\n\n> **Siglas e termos deste capítulo**\n> - **CPU**: unidade central de processamento; executa instruções.\n> - **MCU**: microcontrolador; CPU, memória e periféricos integrados.\n> - **Firmware**: programa persistente que controla o equipamento.\n> - **ALU**: unidade lógico-aritmética.\n> - **ISA**: conjunto de instruções visível ao software.\n> - **RISC/CISC**: estilos de projeto de conjuntos de instruções, respectivamente com instruções geralmente mais simples e regulares ou mais variadas/complexas.\n\n### Caminho de dados e ciclo do programa\n\nO núcleo busca uma instrução, decodifica-a e executa a operação, atualizando registradores e, conforme necessário, memória ou periféricos. O contador de programa aponta para a próxima instrução; a pilha guarda endereços de retorno e dados temporários. Um relógio fornece a referência temporal, mas um ciclo de instrução pode consumir mais de um ciclo de clock. O reset leva o núcleo a um estado conhecido e inicia a execução pelo vetor de reset.\n\nNa arquitetura **Von Neumann**, instruções e dados compartilham espaço e caminho de acesso; essa organização pode criar contenção entre busca de instrução e acesso a dados. Na **Harvard**, programa e dados têm espaços ou caminhos separados, permitindo acessos simultâneos em certas implementações. Existem variantes modificadas: a classificação não garante, por si só, determinada velocidade nem descreve todos os detalhes do chip. PIC16 de faixa aprimorada usa barramentos separados de instrução e dados; núcleos Arm Cortex-M também podem ter arquitetura interna Harvard, embora a organização externa varie.\n\nRISC e CISC descrevem tendências da ISA, não a quantidade de periféricos nem uma garantia automática de desempenho. AVR e muitos núcleos Arm Cortex-M adotam conjuntos de instruções RISC; x86 é exemplo conhecido de ISA CISC. O compilador traduz C/C++ para instruções que o núcleo implementa.\n\n| Família ou plataforma | Exemplo de papel e característica |\n| --- | --- |\n| **8051** | Família clássica de MCU de 8 bits, com variantes modernas de vários fabricantes; recursos concretos variam por derivado. |\n| **PIC** | Famílias Microchip de 8, 16 e 32 bits; PIC16 aprimorado usa Harvard e periféricos integrados. |\n| **AVR** | Família de 8 bits usada, por exemplo, no ATmega328P da Arduino Uno R3. |\n| **ARM** | Núcleos licenciados; Cortex-M é comum em controle embarcado e usa ISA Arm M-profile. |\n| **ESP8266** | SoC com Wi-Fi integrado para aplicações conectadas; placa não implica pinagem universal. |\n| **Raspberry Pi** | Nome de uma família que inclui computadores de placa única com Linux e placas microcontroladoras Pico; não são a mesma classe de dispositivo. |\n\n### Como cai na prova\n\nSepare conceito de garantia: Harvard não significa necessariamente duas memórias físicas independentes em toda a placa; RISC não significa sempre “uma instrução por ciclo”; e a placa Arduino não é o próprio microcontrolador. Identifique o componente pelo modelo e consulte seu datasheet antes de afirmar recursos ou limites elétricos."
+    },
+    {
+      "title": "2. Memória, barramentos, endereços e pinos",
+      "markdown": "### O problema que este assunto resolve\n\nO programa precisa permanecer após desligar, variáveis precisam ser lidas e alteradas durante a execução, e configurações podem precisar sobreviver a reinicializações. O mapa de memória e os pinos conectam esses recursos ao software.\n\n> **Siglas e termos deste capítulo**\n> - **RAM/SRAM**: memória volátil de trabalho; perde o conteúdo sem alimentação.\n> - **Flash**: memória não volátil comum para firmware.\n> - **EEPROM**: memória não volátil regravável, frequentemente usada para parâmetros.\n> - **GPIO**: pino digital de entrada/saída de uso geral.\n> - **MMIO**: periféricos acessados por endereços no espaço de memória.\n> - **Pull-up/pull-down**: resistor que dá nível definido a uma entrada sem acionamento externo.\n\n### Onde ficam programa, dados e periféricos\n\nA Flash guarda código e constantes; SRAM guarda pilha, variáveis e buffers em execução; EEPROM, quando presente, serve a dados que devem persistir, como calibração. Flash e EEPROM têm limites de ciclos de gravação e tempos de escrita diferentes da RAM: não se deve gravar continuamente um contador em memória não volátil sem estratégia de desgaste. Alguns chips não têm EEPROM dedicada e emulam armazenamento usando Flash.\n\nO **barramento** transporta dados, endereços e sinais de controle. No mapeamento de memória, registradores de periféricos ocupam endereços e são lidos/escritos por instruções comuns de memória; outra arquitetura pode usar espaço e instruções de I/O separados. Mapeamento não significa que cada endereço corresponda a RAM: regiões podem representar registradores de controle, Flash ou memória externa.\n\nModos de endereçamento descrevem como uma instrução encontra seu operando: **imediato** (valor dentro da instrução), **direto/absoluto** (endereço indicado), **indireto** (registrador ou ponteiro contém o endereço), **indexado** (base mais índice/deslocamento) e **relativo** (deslocamento em relação ao contador de programa). O conjunto disponível depende da ISA.\n\n### GPIO: o pino tem configuração e limites\n\nUma GPIO pode ser configurada como entrada ou saída; muitos chips também multiplexam no mesmo pino UART, SPI, I2C, PWM ou ADC. Selecionar uma função alternativa pode retirar o pino do uso digital simples. Entradas sem nível definido podem oscilar; pull-up interno ou resistor externo resolve isso quando compatível com o circuito. Saídas não são fontes universais de potência: limites de corrente por pino e pelo conjunto de portas, tensão lógica, tolerância e corrente de acionamento são especificados no datasheet.\n\nA pinagem de uma placa não deve ser inferida só pelo nome da plataforma. Na Arduino Uno R3 baseada em ATmega328P, o cabeçalho e as funções são documentados para aquela placa. Raspberry Pi Pico com RP2040 tem GPIO multifunção; nem toda função está disponível em qualquer pino e a placa expõe uma seleção do chip. GPIO de Raspberry Pi computador de placa única trabalha com lógica de 3,3 V e não deve receber 5 V sem interface adequada.\n\n### Como cai na prova\n\nPara escolher pino, verifique função alternativa, ADC disponível, tensões, corrente, estado durante reset e conflitos com depuração ou memória. RAM é volátil; Flash guarda firmware; EEPROM (quando existente) retém pequenos dados. Um endereço pode apontar para registrador de periférico, não somente para célula de RAM."
+    },
+    {
+      "title": "3. Temporização, conversão e comunicação",
+      "markdown": "### O problema que este assunto resolve\n\nUm controlador deve reagir no tempo correto, medir sinais analógicos e trocar dados com sensores e outros módulos. Os periféricos internos fazem tarefas temporais e de comunicação sem exigir que a CPU conte cada transição em software.\n\n> **Siglas e termos deste capítulo**\n> - **Timer/counter**: contador acionado por clock interno (timer) ou por eventos externos (counter).\n> - **PWM**: modulação por largura de pulso.\n> - **ADC**: conversor analógico-digital.\n> - **ISR**: rotina de serviço de interrupção.\n> - **UART**: interface serial assíncrona.\n> - **SPI**: barramento serial síncrono com seleção de dispositivo.\n> - **I2C**: barramento serial síncrono de dois fios, com endereçamento.\n\n### Temporizadores, contadores e PWM\n\nUm timer avança a cada pulso de uma fonte de clock; prescaler divide essa frequência. Ao atingir um limite pode gerar comparação, captura, atualização ou interrupção. Um counter pode contar pulsos vindos de um pino, útil para encoder ou medidor de frequência. Largura do contador, prescaler, frequência e modo de operação determinam resolução e faixa; não há valores universais.\n\nNo PWM, o período define a frequência e a razão entre tempo ativo e período é o **duty cycle**. Alterar o duty regula potência média entregue a uma carga compatível, como brilho de LED ou velocidade de motor por estágio de acionamento. PWM não é uma tensão analógica contínua: para obter um nível analógico filtrado, usa-se filtro e considera-se ripple, carga e resolução. O pino, a frequência e a resolução dependem do periférico e do chip.\n\n### Interrupções e ADC\n\nUma interrupção sinaliza evento que requer atenção, por exemplo estouro de timer, recepção serial ou borda externa. A CPU suspende temporariamente o fluxo corrente, salva contexto definido pela arquitetura, executa a ISR e retorna. A ISR deve ser curta: registrar evento ou dado e deixar processamento demorado para o laço principal/tarefa. Compartilhamento de variáveis entre ISR e código principal exige atenção a atomicidade e sincronização. Interrupções internas vêm de periféricos; externas são disparadas por sinais de pinos.\n\nO ADC amostra tensão e a quantiza em códigos digitais. Com N bits há 2^N códigos possíveis, mas precisão real também depende de referência, ruído, impedância da fonte, tempo de aquisição e erro do conversor. A entrada deve permanecer dentro da faixa permitida; sinal bipolar ou acima da referência exige condicionamento. Sensor analógico produz tensão/corrente que precisa ser compatível; sensor digital pode comunicar por protocolo.\n\n### UART, SPI e I2C\n\n| Interface | Sinais e organização | Uso e cuidado típico |\n| --- | --- | --- |\n| **UART** | TX e RX, assíncrona; ambos os lados configuram taxa e formato compatíveis. | Comunicação ponto a ponto ou via transceptor; cruzar TX com RX e compartilhar referência de terra. |\n| **SPI** | SCLK, MOSI, MISO e seleção CS por dispositivo; síncrona, normalmente full-duplex. | Alta taxa e protocolo simples; cada escravo costuma exigir CS e modos de clock compatíveis. |\n| **I2C** | SDA e SCL compartilhados, linhas open-drain com resistores de pull-up e endereços. | Vários dispositivos no mesmo barramento; verificar endereço, capacitância e tensão lógica. |\n\nA UART não define por si só níveis elétricos de cabo; RS-232 e lógica TTL/CMOS são camadas elétricas distintas. SPI não costuma trazer endereçamento padronizado no barramento, enquanto I2C prevê endereço de dispositivo e condições de START/STOP.\n\n### Como cai na prova\n\nTimer mede ou agenda tempo; counter conta eventos externos; PWM controla duty; ADC lê grandeza analógica; interrupção reduz espera ativa. Não confunda interfaces por número de fios: UART é assíncrona, SPI usa clock e seleção, I2C compartilha clock e dados com pull-ups."
+    },
+    {
+      "title": "4. Aplicação, IoT e projeto de automação",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação real começa por uma grandeza física e termina numa ação ou informação útil. O microcontrolador precisa adquirir sinais, processá-los, comandar atuadores e, quando necessário, comunicar o estado a outro sistema.\n\n> **Siglas e termos deste capítulo**\n> - **IoT**: Internet das Coisas; objetos conectados que medem, atuam ou trocam dados.\n> - **RSSF/WSN**: rede de sensores sem fio; nós distribuídos que coletam e encaminham medições.\n> - **Atuador**: elemento que converte comando em ação física.\n> - **Condicionamento**: adaptação elétrica do sinal ao ADC ou à entrada digital.\n> - **Driver**: estágio que fornece tensão/corrente de acionamento à carga.\n\n### Dimensionar entradas e saídas antes de escolher a placa\n\nFaça uma lista de pontos: quantos sensores analógicos e digitais, quantos atuadores, quais interfaces, taxa de atualização, faixa de medição, distância, alimentação, ambiente e comportamento seguro em falha. Conte GPIOs efetivamente disponíveis depois de reservar UART de depuração, barramento, PWM, ADC, pinos de boot e conexões já usadas. Compare a resolução e faixa do ADC com a exatidão requerida; um ADC com muitos bits não corrige sensor inadequado ou ruído.\n\nSensores devem ser escolhidos por faixa, exatidão, repetibilidade, tempo de resposta, interface, ambiente e necessidade de calibração. Atuadores devem ser escolhidos por tensão, corrente, potência, ciclo de trabalho e carga mecânica/térmica. A saída de MCU geralmente fornece sinal de controle, não potência para motor, relé ou solenoide. Use transistor/MOSFET, ponte H, driver ou relé apropriado; em cargas indutivas, preveja caminho de recirculação ou proteção conforme o circuito. Isolação pode ser necessária quando há tensão perigosa, ruído ou requisitos de segurança.\n\n### Firmware e redes de sensores\n\nUm laço de controle costuma adquirir, filtrar/validar, decidir e atuar. Use temporização previsível, limites, watchdog quando aplicável e estados seguros. Debounce evita múltiplos eventos de uma chave mecânica; filtragem reduz ruído, mas acrescenta atraso. Registre falhas de sensor e evite assumir que leitura inválida equivale a zero.\n\nEm IoT, o nó pode ler sensores e enviar telemetria por Wi-Fi, por exemplo com ESP8266; um gateway ou servidor agrega dados. Uma RSSF distribui nós com restrições de energia, memória e alcance. Projetar inclui topologia, frequência de amostragem, retransmissão, sincronização, cobertura, segurança de credenciais e política de perda de conexão. O link sem fio não substitui o controle local crítico: mantenha resposta segura quando rede ou servidor estiver indisponível.\n\nArduino é ecossistema de placas e ambiente de programação, e cada placa usa um MCU específico. PIC é uma família de MCUs programada com toolchains próprios. ESP8266 é SoC Wi-Fi frequentemente usado em placas de desenvolvimento. Raspberry Pi computador de placa única executa sistema operacional e oferece GPIO por software; Raspberry Pi Pico é uma placa de MCU com RP2040. Escolha pelo requisito de tempo, recursos, energia e interfaces, não pelo nome popular.\n\n### Como cai na prova\n\nA saída GPIO não deve alimentar diretamente uma carga acima de seus limites; um estágio de potência separa comando e energia. Para cada escolha de placa, confirme datasheet e pinout. Em IoT/RSSF, considere perda de enlace, consumo e proteção dos dados, e preserve comportamento local seguro."
+    }
+  ],
+  "summary": "Sistemas microcontrolados integram CPU, memórias e periféricos para executar uma função embarcada. Harvard e Von Neumann descrevem organização de acesso a instruções e dados; RISC/CISC descrevem tendências de ISA. RAM é volátil, Flash armazena firmware e EEPROM ou Flash configurada pode reter parâmetros. GPIOs têm funções multiplexadas e limites elétricos. Timers, counters, PWM, interrupções e ADC realizam temporização, controle e aquisição. UART, SPI e I2C atendem padrões de comunicação diferentes. Em automação e IoT, dimensione E/S, sensores, atuadores, interfaces, potência, energia e resposta segura a falhas com base no datasheet do dispositivo escolhido.",
+  "flashcards": [
+    {
+      "front": "O que integra um microcontrolador típico?",
+      "back": "CPU, memórias e periféricos de entrada/saída no mesmo circuito integrado."
+    },
+    {
+      "front": "Qual é a função da Flash em um MCU?",
+      "back": "Armazenar firmware e outros dados não voláteis, conforme o dispositivo."
+    },
+    {
+      "front": "Para que serve a SRAM?",
+      "back": "Guardar dados de execução, como variáveis, pilha e buffers; é volátil."
+    },
+    {
+      "front": "Qual é a característica da EEPROM?",
+      "back": "Retém dados sem alimentação e permite gravação, com limites de endurance."
+    },
+    {
+      "front": "O que distingue Harvard de Von Neumann?",
+      "back": "Harvard separa caminhos/espaços de instruções e dados; Von Neumann compartilha o caminho/espaço."
+    },
+    {
+      "front": "RISC e CISC classificam o quê?",
+      "back": "Tendências de organização do conjunto de instruções (ISA)."
+    },
+    {
+      "front": "O que faz o contador de programa?",
+      "back": "Indica a posição da próxima instrução a buscar."
+    },
+    {
+      "front": "O que é MMIO?",
+      "back": "Acesso a registradores de periféricos por endereços no espaço de memória."
+    },
+    {
+      "front": "O que é endereçamento indireto?",
+      "back": "O endereço do operando é obtido de um registrador ou ponteiro."
+    },
+    {
+      "front": "O que é GPIO?",
+      "back": "Pino digital configurável como entrada ou saída, frequentemente multiplexado com periféricos."
+    },
+    {
+      "front": "Por que uma entrada flutuante é problemática?",
+      "back": "Seu nível lógico pode variar por ruído; pull-up/pull-down define um estado inativo."
+    },
+    {
+      "front": "O que determina o duty cycle de PWM?",
+      "back": "A fração do período durante a qual o sinal permanece ativo."
+    },
+    {
+      "front": "Timer e counter diferem como?",
+      "back": "Timer avança por clock; counter pode contar eventos externos."
+    },
+    {
+      "front": "Qual é a função do prescaler?",
+      "back": "Dividir a frequência da fonte que alimenta um contador ou timer."
+    },
+    {
+      "front": "O que faz o ADC?",
+      "back": "Amostra e quantiza um sinal analógico em códigos digitais."
+    },
+    {
+      "front": "Quantos códigos ideais há em um ADC de N bits?",
+      "back": "2^N códigos, embora a precisão real dependa também de referência, ruído e erros."
+    },
+    {
+      "front": "O que é uma ISR?",
+      "back": "Rotina executada em resposta a uma interrupção."
+    },
+    {
+      "front": "Por que uma ISR deve ser curta?",
+      "back": "Para reduzir latência e permitir que outras tarefas e eventos prossigam."
+    },
+    {
+      "front": "Quais linhas básicas usa UART?",
+      "back": "TX e RX; a comunicação é assíncrona e requer parâmetros compatíveis."
+    },
+    {
+      "front": "Quais sinais usuais compõem SPI?",
+      "back": "SCLK, MOSI, MISO e uma seleção CS por dispositivo escravo."
+    },
+    {
+      "front": "Quais linhas compõem I2C?",
+      "back": "SDA e SCL, normalmente com pull-ups em linhas open-drain."
+    },
+    {
+      "front": "Como se aciona um motor a partir de MCU?",
+      "back": "Por driver ou estágio de potência adequado; GPIO é sinal de controle."
+    },
+    {
+      "front": "Qual família está no Arduino Uno R3 clássico?",
+      "back": "ATmega328P, da família AVR."
+    },
+    {
+      "front": "O que ESP8266 agrega a aplicações embarcadas?",
+      "back": "Conectividade Wi-Fi integrada no SoC, além de recursos de processamento e I/O específicos."
+    },
+    {
+      "front": "Raspberry Pi Pico é equivalente a um Raspberry Pi com Linux?",
+      "back": "Não; Pico é uma placa microcontroladora baseada em RP2040, enquanto outros Raspberry Pi são computadores de placa única."
+    }
+  ],
+  "tips": [
+    "Identifique o modelo exato do MCU e da placa antes de afirmar pinagem, tensão, ADC ou quantidade de periféricos.",
+    "Desenhe o caminho sensor → condicionamento → ADC/GPIO → firmware → driver → atuador.",
+    "Separe sinal lógico de potência: calcule corrente da carga e selecione transistor, ponte ou driver apropriado.",
+    "Para temporização precisa, use timer e compare frequência, resolução e prescaler; evite atrasos bloqueantes sem necessidade.",
+    "Na comunicação serial, compare topologia, clock, linhas, endereçamento e limites elétricos, além da taxa de dados.",
+    "Em IoT, mantenha uma resposta segura local para perda de Wi-Fi, sensor inválido ou reinicialização."
+  ],
+  "traps": [
+    "Tratar a placa Arduino como se todas as placas usassem o mesmo MCU e a mesma pinagem.",
+    "Confundir Raspberry Pi Pico microcontrolador com computador Raspberry Pi de placa única.",
+    "Afirmar que mais bits nominais de ADC garantem maior exatidão sem considerar ruído, referência e condicionamento.",
+    "Ligar motor, relé ou solenoide diretamente a uma GPIO sem avaliar corrente e proteção.",
+    "Supor que UART, RS-232 e níveis lógicos TTL/CMOS são eletricamente intercambiáveis.",
+    "Considerar uma saída PWM como tensão analógica contínua sem filtro e sem avaliar a carga."
+  ],
+  "activeRecall": [
+    "Compare Harvard e Von Neumann pelo caminho de acesso a instruções e dados e cite uma consequência possível.",
+    "Explique por que RAM, Flash e EEPROM atendem papéis diferentes em um equipamento que precisa guardar firmware e calibração.",
+    "Descreva como o mapa de memória pode permitir que uma instrução leia um registrador de periférico.",
+    "Diferencie endereçamento imediato, direto, indireto, indexado e relativo com exemplos conceituais.",
+    "Explique como prescaler, limite do contador e comparação afetam a geração de uma interrupção periódica.",
+    "Mostre por que PWM pode controlar potência média sem produzir, por si só, uma tensão analógica constante.",
+    "Compare UART, SPI e I2C por sincronismo, sinais e número/topologia de dispositivos.",
+    "Faça um plano de E/S para ler sensor analógico, contar pulsos de encoder, comunicar com sensor I2C e acionar um motor com resposta segura."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Família, núcleo e placa são níveis diferentes",
+      "summary": "Uma placa não é sinônimo da família de seu processador.",
+      "description": "Uma placa reúne MCU/SoC, alimentação, conectores e, por vezes, interface USB ou rádio. A família de núcleo não determina sozinha os recursos e limites do produto final."
+    },
+    {
+      "key": "e2",
+      "title": "Memória e mapa de endereços",
+      "summary": "Memórias diferem em persistência, e endereços podem apontar a periféricos.",
+      "description": "Memórias têm persistência e uso distintos; regiões mapeadas podem ser registradores de periférico, e não RAM comum."
+    },
+    {
+      "key": "e3",
+      "title": "Pinos e sinais elétricos",
+      "summary": "Pinos têm funções alternativas e limites definidos pelo dispositivo.",
+      "description": "GPIOs têm funções alternativas e limites de tensão/corrente. Uma pinagem de uma placa não deve ser transferida a outra revisão ou modelo sem conferência."
+    },
+    {
+      "key": "e4",
+      "title": "Periféricos de tempo e aquisição",
+      "summary": "Os periféricos realizam funções diferentes e têm parâmetros próprios.",
+      "description": "Timer, contador, PWM, interrupção e ADC são blocos distintos. A resolução ideal ou a frequência configurada não garantem precisão física equivalente."
+    },
+    {
+      "key": "e5",
+      "title": "Interfaces e acionamento de carga",
+      "summary": "Comunicação digital e acionamento de potência são funções distintas.",
+      "description": "UART, SPI e I2C diferem no enquadramento e na topologia; interfaces de comunicação não substituem drivers de potência nem adaptação de nível."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um firmware de controle precisa manter seu código depois que a alimentação é removida, enquanto variáveis de cálculo mudam continuamente durante a execução. Qual arranjo de memória atende diretamente a esses papéis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Flash para firmware e SRAM para variáveis de execução.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SRAM para firmware persistente e Flash para pilha volátil.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "EEPROM para cada variável temporária e registradores para o firmware completo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "GPIO para guardar código e RAM para preservar dados sem alimentação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Barramento de dados para reter firmware e contador para substituir a memória de trabalho.",
+          "correct": false
+        }
+      ],
+      "explanation": "A Flash é não volátil e costuma armazenar o firmware; a SRAM é volátil e adequada a pilha, variáveis e buffers de execução. EEPROM pode guardar parâmetros persistentes, mas não substitui normalmente a RAM de trabalho.",
+      "section": "2. Memória, barramentos, endereços e pinos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura Harvard, qual organização caracteriza o acesso a instruções e dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Instruções e dados compartilham necessariamente o mesmo espaço e caminho físico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Instruções são executadas sem memória e dados ficam apenas nos pinos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Há caminhos ou espaços separados para instruções e dados, conforme a implementação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A CPU só pode buscar instruções depois de desligar todos os periféricos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A arquitetura exige que o programa seja armazenado em EEPROM serial externa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Harvard separa os caminhos ou espaços de programa e dados, o que pode permitir acessos simultâneos. Implementações variam e a classificação, sozinha, não garante um desempenho específico.",
+      "section": "1. Sistema embarcado, MCU e arquitetura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No ATmega328P usado na Arduino Uno R3 clássica, a qual família de microcontroladores pertence o processador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "PIC, com núcleo de 16 bits e periféricos definidos pela placa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "8051, com arquitetura idêntica a todos os derivados atuais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "AVR, MCU de 8 bits usado na Uno R3 clássica.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "ESP8266, cujo rádio Wi-Fi integra o ATmega328P.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cortex-M, fornecido pela Raspberry Pi para a Uno R3.",
+          "correct": false
+        }
+      ],
+      "explanation": "A Arduino Uno R3 clássica usa o ATmega328P, pertencente à família AVR. Outras placas Arduino empregam componentes diferentes, por isso o nome da plataforma não basta para inferir o MCU.",
+      "section": "1. Sistema embarcado, MCU e arquitetura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um botão conectado a uma entrada digital fica aberto quando não pressionado. Qual medida evita que a leitura dependa de ruído no fio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar a entrada como saída de alta impedância e remover qualquer referência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conectar a entrada a uma saída PWM sem sincronizar os dois circuitos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar o clock do MCU para manter o nível lógico estável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar pull-up ou pull-down compatível para definir o nível inativo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aplicar tensão analógica acima da faixa para vencer a interferência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma entrada aberta pode flutuar e alternar de estado por ruído. Um pull-up ou pull-down compatível estabelece um nível conhecido quando o botão não a aciona.",
+      "section": "2. Memória, barramentos, endereços e pinos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para variar o brilho de um LED com uma saída digital, mantendo frequência fixa, qual grandeza do PWM deve ser ajustada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O endereço de memória do pino, sem alterar a duração do sinal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A frequência do clock da CPU, mantendo o comparador do PWM desconectado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A resolução do ADC, mesmo sem fazer uma conversão analógica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O endereço I2C do LED, ainda que ele esteja ligado a uma GPIO.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Duty cycle, fração do período em nível ativo.",
+          "correct": true
+        }
+      ],
+      "explanation": "Com a frequência mantida, alterar o duty cycle muda a fração de tempo em que a saída fica ativa e, portanto, a potência média entregue ao LED. O sinal continua sendo pulsado.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sensor comunica cada nova medição por duas linhas compartilhadas, uma para dados e outra para clock, usando endereços de dispositivo. Qual interface corresponde a essa descrição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "UART, com TX e RX assíncronos e um endereço obrigatório por nó.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SPI, com MOSI/MISO compartilhados e endereçamento padronizado no protocolo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "GPIO paralelo, com clock de referência e seleção automática por endereço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "I2C, com SDA/SCL, endereços e pull-ups.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "PWM, com duty cycle que codifica os endereços de sensores no barramento.",
+          "correct": false
+        }
+      ],
+      "explanation": "I2C usa SDA e SCL compartilhados, endereçamento de dispositivos e linhas open-drain que normalmente precisam de pull-ups. UART não tem clock compartilhado e SPI usa seleção de escravo em vez de um mecanismo de endereçamento padronizado equivalente.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma placa de desenvolvimento baseada em ESP8266 foi escolhida para enviar leituras por Wi-Fi. Qual descrição do componente é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É um SoC com Wi-Fi integrado, mas a pinagem e os limites dependem do chip e da placa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É um conversor USB que não executa firmware nem possui sinais de entrada e saída.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É uma placa Raspberry Pi com Linux e, por isso, sempre usa GPIO de 5 V.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É uma interface UART que exige outro processador para executar qualquer código.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É um MCU sem rádio, cuja conectividade Wi-Fi é produzida por PWM no pino analógico.",
+          "correct": false
+        }
+      ],
+      "explanation": "ESP8266 designa um SoC com conectividade Wi-Fi integrado e recursos de processamento. As placas de desenvolvimento variam em regulador, pinagem e sinais acessíveis; o datasheet e o esquema da placa determinam os limites concretos.",
+      "section": "4. Aplicação, IoT e projeto de automação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sensor analógico fornece uma tensão proporcional à temperatura. Qual bloco do MCU transforma essa tensão em um valor numérico para o firmware?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "UART, que converte diretamente tensão em caracteres sem amostragem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Timer, que mede a tensão sem comparar a entrada com referência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "GPIO digital, que preserva todos os níveis intermediários da tensão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ADC, que amostra e quantiza o sinal dentro da faixa permitida.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "EEPROM, que converte o valor analógico em endereço persistente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O ADC converte uma tensão analógica em um código digital por amostragem e quantização. A entrada deve respeitar faixa, referência e requisitos elétricos do dispositivo.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para comandar um motor cuja corrente supera a capacidade de uma GPIO, qual solução de projeto é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o duty cycle da GPIO até que ela forneça a corrente nominal do motor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar a entrada ADC como saída de potência e dispensar o circuito de acionamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conectar o motor ao pino e limitar a corrente apenas no firmware.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar UART em paralelo para dividir a corrente entre seus sinais digitais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar driver ou estágio de potência dimensionado, com proteção adequada à carga.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma GPIO é sinal de controle e tem limites de corrente. O motor deve ser acionado por estágio de potência ou driver adequado; cargas indutivas requerem proteção apropriada ao circuito.",
+      "section": "4. Aplicação, IoT e projeto de automação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O programa executa uma instrução, lê um sensor e escreve num pino. Em um MCU com periféricos mapeados em memória, qual afirmação descreve o acesso aos registradores de controle?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O endereço sempre seleciona uma célula de SRAM usada como variável comum.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma faixa de endereços pode representar registradores de periféricos acessados por leituras e escritas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Os registradores de periférico só podem ser acessados com comandos I2C externos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O mapeamento converte automaticamente todas as portas digitais em memória Flash.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O barramento de endereços transporta corrente de acionamento para os atuadores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em MMIO, registradores de periféricos ocupam endereços que o núcleo pode ler ou escrever como operações de memória. Isso não torna a região uma RAM comum: cada endereço pode ter efeitos e semântica próprios.",
+      "section": "2. Memória, barramentos, endereços e pinos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instrução recebe um valor constante embutido no próprio código, sem buscar esse operando em um endereço de dados. Qual modo de endereçamento foi usado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Indireto, pois um ponteiro contém o endereço do valor constante.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Relativo, pois o operando é calculado a partir do contador de programa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Indexado, pois um registrador soma um deslocamento à base.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Imediato, com o valor embutido na instrução.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Direto, pois um endereço absoluto aponta para uma célula de memória.",
+          "correct": false
+        }
+      ],
+      "explanation": "No modo imediato, o valor do operando está codificado junto à instrução. Nos modos direto, indireto, indexado e relativo, a localização é obtida por endereço explícito, ponteiro ou cálculo de endereço.",
+      "section": "2. Memória, barramentos, endereços e pinos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma equipe, uma tarefa lê pulsos de um encoder conectado ao pino e outra agenda uma ação após certo intervalo usando o clock interno. Qual distinção descreve melhor os blocos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambas são funções de ADC porque toda contagem começa por uma tensão analógica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A primeira requer I2C por definição; a segunda exige uma interrupção externa no pino.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A primeira usa PWM para contar e a segunda usa UART como relógio independente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A primeira usa Flash como contador e a segunda grava cada pulso em EEPROM.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Counter conta eventos externos; timer usa clock interno.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um contador pode avançar a partir de eventos externos, como pulsos do encoder. Um timer usa uma fonte de clock interna para medir intervalos ou gerar eventos temporais.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um enlace entre dois MCUs envia dados sem fio de clock compartilhado e exige que ambos configurem a mesma taxa e formato de quadro. Qual interface está descrita?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "SPI, que opera sem clock e usa endereços de sete bits para os nós.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "I2C, que envia quadros assíncronos por SDA e um fio de seleção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PWM, que define uma taxa de bits por endereço de duty cycle.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "UART, que usa TX/RX e parâmetros seriais compatíveis nos dois lados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "ADC, que amostra bits digitais sem referência de tempo ou comunicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "UART é serial assíncrona: não há linha de clock comum, então os lados precisam concordar em taxa e formato. Os níveis elétricos precisam ser compatíveis; UART lógica não é automaticamente RS-232.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rede SPI com vários dispositivos escravos, qual sinal seleciona normalmente o dispositivo que deve responder à transferência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "MISO, que funciona como endereço de destino codificado pelo mestre.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SCL, que escolhe o escravo pelo número de pulsos de clock enviados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "CS, ativado para selecionar o escravo participante daquela transação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "SDA, que carrega o endereço I2C em toda implementação SPI.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "TX, que substitui o clock e a seleção quando o SPI é full-duplex.",
+          "correct": false
+        }
+      ],
+      "explanation": "SPI costuma usar uma linha CS/SS por escravo, além de SCLK, MOSI e MISO. O mestre ativa a seleção correspondente; o barramento SPI não define um mecanismo universal de endereços de escravo como I2C.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma placa Raspberry Pi Pico baseada em RP2040 oferece GPIOs multifunção. Ao planejar um barramento SPI, qual verificação é necessária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar quais pinos podem receber a função SPI e se não conflitam com outras funções escolhidas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar qualquer pino como saída SPI sem configurar multiplexação ou direção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Assumir que todas as GPIOs do RP2040 são também pinos ADC com entradas de 5 V.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar o processador, porque RP2040 só permite SPI durante o reset.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir SPI por UART, pois as duas interfaces exigem exatamente os mesmos sinais.",
+          "correct": false
+        }
+      ],
+      "explanation": "No RP2040, funções de periférico são associadas a GPIOs por multiplexação, mas a disponibilidade depende do pino. Também é necessário respeitar níveis e limites elétricos documentados para o chip e a placa.",
+      "section": "2. Memória, barramentos, endereços e pinos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um PIC16 de faixa aprimorada busca uma instrução da Flash enquanto manipula um dado. Qual descrição da arquitetura é compatível com a documentação da família?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Von Neumann com um único barramento compartilhado e instruções de tamanho variável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Harvard com barramento de instrução e barramento de dados separados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "CISC sem memória de programa, usando somente instruções no barramento UART.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Arquitetura paralela de GPU com RAM externa obrigatória para o firmware.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Arquitetura de 8051 com memória de dados e programa sempre no mesmo espaço físico.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação do PIC16 aprimorado descreve arquitetura Harvard de barramento duplo: instruções vêm da memória de programa Flash e dados passam pelo barramento de dados. Detalhes e larguras variam entre famílias.",
+      "section": "1. Sistema embarcado, MCU e arquitetura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma placa Raspberry Pi Pico é proposta para uma aplicação que precisa de temporização por hardware, ADC e interfaces seriais. Qual afirmação é correta para o RP2040?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É um computador Linux sem microcontrolador, e seus pinos dependem de uma placa de vídeo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Não possui periféricos internos, sendo cada ADC e UART implementado em software externo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O RP2040 integra núcleo MCU e periféricos, e a placa Pico disponibiliza interfaces documentadas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "É uma variante de Arduino Uno que necessariamente usa ATmega328P e Wi-Fi ESP8266.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É somente um conversor USB para GPIO, sem memória de programa ou SRAM.",
+          "correct": false
+        }
+      ],
+      "explanation": "RP2040 é um microcontrolador; placas Pico o combinam com Flash externa e conectores. A documentação oficial lista GPIO multifunção, UART, SPI, I2C, PWM e ADC, com disponibilidade e roteamento especificados por placa.",
+      "section": "1. Sistema embarcado, MCU e arquitetura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ADC nominalmente de 12 bits lê um sensor com sinal ruidoso e referência instável. Qual conclusão sobre a medição é tecnicamente defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A medição terá necessariamente doze bits de exatidão, qualquer que seja o circuito.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A resolução nominal não garante exatidão; referência, ruído e condicionamento também importam.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O ADC remove ruído e calibra o sensor automaticamente quando a conversão termina.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A tensão pode ultrapassar a faixa permitida sem risco se o código digital for de 12 bits.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O número de bits determina diretamente a frequência de amostragem e a precisão do sensor.",
+          "correct": false
+        }
+      ],
+      "explanation": "N bits indicam 2^N códigos ideais, isto é, resolução de quantização. A exatidão real depende de referência, ruído, não linearidade, impedância e tempo de aquisição, além do próprio sensor.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma saída PWM de MCU controla um LED, mas o circuito precisa fornecer uma tensão aproximadamente contínua para um estágio seguinte. O que deve ser considerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O PWM já é contínuo por definição, então qualquer carga receberá tensão constante.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A frequência deve ser zero para que o duty cycle produza uma tensão analógica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um filtro pode suavizar o sinal, mas ripple e carga devem ser avaliados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Basta conectar o fio MISO ao pino para converter o PWM em corrente contínua.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar a resolução do ADC transforma automaticamente a saída digital em analógica.",
+          "correct": false
+        }
+      ],
+      "explanation": "PWM alterna entre níveis digitais. Um filtro, como uma rede passa-baixa dimensionada para a frequência e a carga, pode obter uma média mais suave, mas haverá ripple e limitações de resposta.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um evento de borda externa deve ser detectado sem que o programa consulte continuamente o pino. Qual mecanismo do MCU atende a essa necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Interrupção externa configurada para a borda ou nível suportado pelo pino.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "EEPROM configurada como entrada, pois memória não volátil detecta transições.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PWM interno usado como fonte de dados, sem conexão ao evento externo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Flash executada em cada mudança de nível, sem vetor de interrupção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "UART em modo assíncrono, mesmo sem receber quadro ou conectar TX/RX.",
+          "correct": false
+        }
+      ],
+      "explanation": "Interrupções externas permitem sinalizar eventos em pinos sem polling contínuo. O modo de borda/nível e os pinos disponíveis dependem do MCU; a rotina de serviço deve ser curta e segura.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe compara ISA RISC e CISC para selecionar um microcontrolador. Qual interpretação é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "RISC e CISC indicam quantas GPIOs existem no encapsulamento e quantos sensores cabem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RISC garante menor consumo em qualquer aplicação e CISC garante maior velocidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RISC exige Von Neumann e CISC exige Harvard em todas as implementações comerciais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RISC/CISC classificam tendências da ISA, não desempenho automático.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "CISC identifica microcontroladores com Wi-Fi, enquanto RISC identifica dispositivos sem rádio.",
+          "correct": false
+        }
+      ],
+      "explanation": "RISC e CISC caracterizam estilos de projeto da ISA. Desempenho, consumo e organização de memória dependem da implementação, processo, clock, compilador e carga de trabalho; não decorrem automaticamente do rótulo.",
+      "section": "1. Sistema embarcado, MCU e arquitetura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma UART lógica, um equipamento remoto usa transceptor RS-232. O que precisa ser verificado para interligá-los?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se a frequência de PWM da UART coincide com a frequência de rede elétrica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Se os sinais de nível lógico podem ser conectados diretamente ao padrão elétrico RS-232.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se o endereço I2C do equipamento corresponde ao número da porta serial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se há transceptor entre UART lógica e RS-232.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Se o ADC converte o fluxo serial antes que ele alcance o pino RX.",
+          "correct": false
+        }
+      ],
+      "explanation": "UART descreve enquadramento serial assíncrono, enquanto RS-232 define características elétricas de interface. Um transceptor apropriado adapta níveis e polaridades; conectar diretamente pode exceder os limites do pino.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema de medição deverá operar por bateria e transmitir uma leitura a cada intervalo longo. Qual abordagem reduz consumo sem abandonar a aquisição confiável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter rádio, CPU e ADC continuamente ativos para impedir toda perda de sincronismo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Avaliar duty cycle de aquisição e rádio, modos de baixo consumo e energia de transmissão.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Gravar cada amostra repetidamente na EEPROM e manter o processador em clock máximo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar a potência de transmissão ao máximo e ignorar cobertura e retransmissões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar toda validação do sensor, pois verificar uma leitura sempre consome mais que o rádio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Nós IoT/RSSF devem equilibrar frequência de amostragem, tempo ativo do rádio, modo de sono e qualidade do enlace. A energia depende do hardware e do cenário; a leitura deve continuar validada e o sistema precisa tratar perdas.",
+      "section": "4. Aplicação, IoT e projeto de automação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo controla uma válvula. O sensor passa a indicar valor impossível e o enlace de rede cai. Qual decisão de arquitetura é mais robusta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Continuar comandando a válvula com a última leitura como se fosse válida indefinidamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Esperar o servidor remoto responder antes de executar qualquer ação local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tratar falha de leitura e definir localmente um estado seguro para a válvula.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Converter o valor impossível em zero e registrar a decisão como medição normal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Acionar a saída GPIO com corrente maior para compensar a ausência da conexão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Controle crítico precisa validar sensores e definir resposta segura local mesmo com perda de comunicação. A rede pode monitorar e supervisionar, mas não deve ser o único caminho para reação a falhas se isso comprometer o processo.",
+      "section": "4. Aplicação, IoT e projeto de automação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma entrada analógica do MCU aceita apenas uma faixa de tensão especificada. Um sensor pode excedê-la em uma falha. Que providência deve integrar o projeto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dimensionar condicionamento e proteção para manter o pino dentro dos limites elétricos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar a resolução ADC para que o conversor aceite qualquer sobretensão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Configurar o pino como saída para que o ADC drene o excesso de tensão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar uma interrupção de timer para reduzir a tensão que chega ao conversor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Escolher I2C, pois o protocolo digital garante proteção em uma entrada analógica direta.",
+          "correct": false
+        }
+      ],
+      "explanation": "A entrada precisa permanecer nos limites absolutos e operacionais especificados. Divisor, buffer, limitador ou isolamento podem ser necessários segundo faixa, impedância e risco; mais bits não protegem o pino.",
+      "section": "4. Aplicação, IoT e projeto de automação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma medição do ADC muda lentamente mesmo com entrada estável, e o divisor do sensor tem impedância alta. Qual fator pode explicar erro de conversão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O endereço I2C do ADC, que altera o tempo de aquisição de todos os canais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A fonte de sinal pode não carregar o capacitor de amostragem dentro do tempo disponível.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A Flash do firmware armazena automaticamente a carga do capacitor do ADC.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ISA RISC impede que a CPU faça leituras estáveis de sensores analógicos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sinal UART RX converte o divisor resistivo em uma fonte de baixa impedância.",
+          "correct": false
+        }
+      ],
+      "explanation": "Muitos ADCs usam capacitor de amostragem cuja carga depende da impedância da fonte e do tempo de aquisição configurado. Buffer, menor impedância, tempo maior ou configuração recomendada podem ser necessários conforme datasheet.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao selecionar um sensor de temperatura para controle, qual critério de engenharia é mais completo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolher o componente de menor preço, pois calibração e ambiente não afetam a leitura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escolher pela quantidade de bits do MCU, sem comparar faixa ou interface do sensor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Comparar faixa, exatidão, repetibilidade, resposta, interface e condições ambientais.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Selecionar qualquer sensor digital, pois sua exatidão independe de alimentação e montagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar a corrente máxima do atuador para inferir a faixa de temperatura mensurável.",
+          "correct": false
+        }
+      ],
+      "explanation": "A seleção deve atender faixa e exatidão do processo, repetibilidade, tempo de resposta, interface, montagem e ambiente. Calibração e condicionamento podem ser essenciais; a resolução do MCU não corrige limitações do sensor.",
+      "section": "4. Aplicação, IoT e projeto de automação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um dispositivo com versão antiga e nova de firmware coexistindo durante atualização, uma alteração remove imediatamente um campo que a versão antiga ainda usa. Qual risco de projeto aparece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A versão antiga pode falhar durante a transição; a interface precisa ser compatível ou atualizada em etapas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A arquitetura Harvard converte automaticamente o campo removido em registrador de retorno.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O PWM mantém o campo disponível até a frequência cair abaixo do clock do MCU.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O ADC recupera o campo antigo medindo o nível lógico do pino de reset.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A comunicação SPI impede versões de firmware diferentes de acessarem qualquer memória.",
+          "correct": false
+        }
+      ],
+      "explanation": "Atualizações com coexistência exigem compatibilidade entre versões ou migração gradual de dados e interfaces. Remover de imediato algo ainda usado pela versão ativa pode quebrar o serviço durante a transição.",
+      "section": "4. Aplicação, IoT e projeto de automação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um nó IoT, o microcontrolador lê sensores, aplica regras locais e transmite telemetria a um gateway. Qual função melhor descreve o gateway nesse arranjo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir necessariamente cada sensor e executar a conversão analógica dentro do fio de rádio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Agregar ou encaminhar dados entre nós e uma rede/serviço, conforme a arquitetura adotada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Garantir que o nó nunca perca pacotes, mesmo sem cobertura ou alimentação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter toda saída GPIO em sinal de potência sem driver ou fonte externa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fazer com que UART, SPI e I2C tenham a mesma topologia e os mesmos níveis elétricos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um gateway pode concentrar, traduzir ou encaminhar comunicação entre os nós e a rede de aplicação. Ele não elimina limitações de rádio, sensores, energia nem a necessidade de tratamento local de falhas.",
+      "section": "4. Aplicação, IoT e projeto de automação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No projeto, uma rede de sensores sem fio perde enlace por alguns minutos. As medições durante esse período são necessárias para segurança do processo. Qual recurso deve ser considerado no nó?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acionar o atuador por UART, pois essa interface atravessa a rede sem fio sem gateway.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apagar as leituras, pois retransmissão torna impossível qualquer registro temporal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar o watchdog, já que ele restaura automaticamente a cobertura do rádio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar indefinidamente a potência do rádio sem verificar regulamentação ou consumo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Buffer local dimensionado e política de recuperação/alarme, além de ação local segura.",
+          "correct": true
+        }
+      ],
+      "explanation": "Se a continuidade da medição importa, o nó pode armazenar dados localmente e encaminhá-los após reconexão, dimensionando buffer e política de timestamp. A lógica local deve manter estado seguro; rádio não garante entrega contínua.",
+      "section": "4. Aplicação, IoT e projeto de automação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um estágio com relé de bobina é comandado por microcontrolador. Além de dimensionar o transistor de acionamento, que aspecto elétrico deve ser tratado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A frequência de I2C, que desliga o campo magnético quando o relé abre.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O endereço de memória do firmware, que absorve a tensão reversa da bobina.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A resolução do ADC, que limita diretamente a corrente de retorno da bobina.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A energia indutiva da bobina ao desligar e o caminho de proteção correspondente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O duty cycle de UART, que transforma a bobina em carga resistiva na comutação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A bobina é indutiva e pode gerar sobretensão quando a corrente é interrompida. O estágio precisa de proteção e dimensionamento adequados, como caminho de recirculação quando aplicável, além de respeitar corrente e tensão do transistor.",
+      "section": "4. Aplicação, IoT e projeto de automação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma placa Raspberry Pi de uso geral baseada em computador de placa única e uma Pico baseada em RP2040 são apresentadas como equivalentes. Qual distinção é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambas necessariamente executam o mesmo sistema operacional, pois têm a marca Raspberry Pi.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pico é uma placa microcontroladora; outros Raspberry Pi são computadores de placa única com recursos de sistema operacional.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O computador de placa única não possui processador, enquanto Pico possui CPU e memória.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pico usa sempre ATmega328P e o computador de placa única usa ESP8266.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A diferença é apenas o conector USB, porque os dois oferecem o mesmo mapa de memória e GPIO.",
+          "correct": false
+        }
+      ],
+      "explanation": "Raspberry Pi inclui classes distintas de produto. Pico com RP2040 é uma placa microcontroladora; computadores Raspberry Pi de placa única executam sistemas operacionais e têm SoC e periféricos diferentes.",
+      "section": "1. Sistema embarcado, MCU e arquitetura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma ISR de recepção, o programa realiza impressão formatada extensa e aguarda o envio terminar antes de limpar a condição de interrupção. Qual problema é mais provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A espera corrige toda condição de corrida, mesmo entre ISR e código principal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A impressão aumenta automaticamente a prioridade do ADC e impede qualquer erro de temporização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A rotina transforma a interrupção interna em externa e o problema desaparece sem alteração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A CPU deixa de executar firmware porque uma ISR sempre apaga a Flash do programa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ISR pode bloquear tarefas; registre o evento e processe depois.",
+          "correct": true
+        }
+      ],
+      "explanation": "Rotinas de interrupção longas aumentam latência e podem impedir tratamento oportuno de outros eventos ou esvaziamento de buffers. A ISR deve fazer o mínimo necessário, sinalizar ou guardar dados e deixar trabalho demorado para o fluxo principal.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um laço principal lê o valor de 16 bits atualizado por uma ISR em MCU de 8 bits. Por que pode ser necessário proteger a leitura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A palavra de 16 bits transforma a interrupção interna em um pulso analógico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma variável de 16 bits não pode existir em qualquer MCU de 8 bits.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A Flash sempre substitui automaticamente metade de cada variável durante uma interrupção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A UART altera registradores RAM quando a taxa de transmissão é ímpar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ISR pode atualizar entre leituras dos bytes e gerar valor inconsistente.",
+          "correct": true
+        }
+      ],
+      "explanation": "Em núcleo de 8 bits, uma leitura de 16 bits pode não ser atômica. Se a ISR altera o valor entre leituras dos bytes, o código pode observar uma combinação antiga e nova; uma seção crítica ou mecanismo apropriado evita isso.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina precisa contar eventos de um sensor em frequência superior àquela que o laço principal consegue consultar por polling. Qual recurso costuma atender melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Flash do programa, que soma pulsos sem periférico ou execução de instruções.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "EEPROM gravada em cada transição e lida a cada volta do laço principal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Saída PWM em frequência igual à do sensor, sem conexão entre os sinais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Endereçamento relativo, que incrementa automaticamente por eventos físicos externos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Contador/timer com entrada externa, se disponível no MCU.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um periférico de contagem externa ou captura pode registrar eventos sem exigir que o software observe cada pulso. A capacidade máxima e as opções dependem de clock, pino, sincronização e especificação do dispositivo.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa de várias saídas de controle com frequência comum e duty independente para LEDs. Qual recurso deve ser avaliado antes de implementar tudo por atrasos no software?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A rotina UART de depuração, que mantém duty constante sem uso de timer.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Linhas EEPROM, que geram pulsos sem clock e sem configurar GPIO.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Endereços I2C, que criam automaticamente saídas PWM em qualquer pino.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número de bits da ISA, pois cada bit corresponde a um canal de brilho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Canais PWM de hardware e pinos disponíveis na placa.",
+          "correct": true
+        }
+      ],
+      "explanation": "Canais PWM de hardware usam temporizadores e podem gerar sinais estáveis com baixa carga de CPU. É preciso conferir quantos canais existem, quais pinos os expõem e se canais compartilham período ou timer.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sensor I2C não responde no barramento. A linha SCL alterna e SDA permanece baixa. Qual investigação inicial é coerente com a interface?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover todos os pull-ups, pois linhas open-drain devem subir sem qualquer fonte.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o duty cycle de PWM, pois I2C codifica bits pela largura do pulso de saída.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar TX e RX, porque SDA e SCL são os nomes alternativos da UART.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar o programa da Flash para liberar o endereço exclusivo do sensor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Verificar pull-ups, curto, alimentação, endereço e sequência.",
+          "correct": true
+        }
+      ],
+      "explanation": "I2C usa linhas open-drain e depende de pull-ups. SDA baixa pode indicar dispositivo travado, curto, sequência incompleta ou problema de alimentação; também se verificam endereço, tensão e temporização conforme a especificação do barramento.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sensor SPI não funciona embora MOSI e MISO estejam conectados. Que conjunto de verificações é mais pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Frequência do rádio Wi-Fi, já que SPI transmite apenas por antena integrada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Endereço I2C de sete bits e resistores pull-up instalados exclusivamente em MOSI.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Taxa UART e bit de parada, pois SPI usa enquadramento assíncrono.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Duty cycle do ADC e conteúdo da EEPROM de calibração do mestre.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Clock, modo SPI, CS, níveis e temporização do dispositivo.",
+          "correct": true
+        }
+      ],
+      "explanation": "Além de MOSI/MISO, SPI depende de clock, seleção do escravo e convenções de fase/polaridade, além de níveis e limites de velocidade. A configuração precisa corresponder ao datasheet do periférico conectado.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema de controle com reset inesperado, o atuador não deve permanecer energizado por estado indefinido do pino. Que aspecto precisa ser especificado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Estado elétrico de reset/boot, polarização da entrada do driver e comportamento seguro da carga.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apenas a letra da alternativa correta no programa de teste do MCU.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente o endereço de início do firmware, sem considerar alimentação ou saída física.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A frequência de I2C, que define os níveis dos pinos durante qualquer reset.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O modelo de ADC, pois todos os atuadores são desligados automaticamente por conversão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Durante reset, pinos podem ficar como entrada ou assumir estados definidos pelo chip. O driver deve ter polarização e lógica de falha que mantenham o atuador em estado seguro até que o firmware configure as saídas.",
+      "section": "4. Aplicação, IoT e projeto de automação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O projeto possui 12 entradas digitais, 4 sensores analógicos, 3 canais PWM e uma UART de diagnóstico. A placa escolhida tem GPIO suficiente em número, mas dois pinos ADC já são usados pelo rádio e um PWM compartilha o pino serial. O que deve ser feito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Contar apenas o total físico de pinos e ignorar funções alternativas, pois multiplexação é automática.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Rever o mapa real de funções e conflitos, reservar sinais críticos e então escolher placa ou expansores.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar os pinos de alimentação como entradas digitais sem mudar o circuito.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar ADC por EEPROM e UART por timers para liberar as mesmas funções elétricas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter a alocação, pois uma GPIO executa ADC, PWM e UART simultaneamente sem restrições.",
+          "correct": false
+        }
+      ],
+      "explanation": "Dimensionamento considera pinos efetivamente disponíveis e conflitos de multiplexação, não só a contagem nominal. Deve-se reservar interfaces requeridas, verificar mapa e avaliar outra placa, multiplexador ou expansor compatível.",
+      "section": "4. Aplicação, IoT e projeto de automação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um circuito de interface paralela transfere vários bits simultaneamente em linhas de dados separadas. Qual custo típico deve ser considerado em relação a uma interface serial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mais pinos e trilhas, além de possíveis problemas de sincronismo entre linhas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Necessidade obrigatória de Wi-Fi, antena e endereçamento I2C em cada bit.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Impossibilidade de transferir dados em paralelo durante um ciclo de clock.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uso de um único fio de dados e ausência de qualquer sinal de controle.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conversão de todas as linhas em sinais analógicos antes de chegar ao MCU.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma interface paralela pode transferir vários bits por operação, mas consome mais pinos, conectores e trilhas, e diferenças de atraso entre linhas podem limitar a temporização. Serial reduz fios, com compromissos de protocolo e taxa.",
+      "section": "4. Aplicação, IoT e projeto de automação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um técnico usa um optoacoplador para comandar uma carga de outro domínio elétrico. O que a interface fornece quando projetada corretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Isolação galvânica entre circuitos, respeitadas as especificações e o layout.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conversão automática de qualquer tensão em protocolo I2C sem componentes adicionais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Corrente ilimitada na GPIO, dispensando dimensionamento do LED interno e da saída.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenamento não volátil das leituras do sensor por EEPROM óptica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sincronização de clock entre UART e SPI por meio de uma única linha analógica.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um optoacoplador pode transmitir sinal por luz mantendo isolamento galvânico, se forem respeitadas tensão de isolamento, distâncias, corrente do LED, capacidade da saída e regras de layout. Não é um driver universal de potência.",
+      "section": "4. Aplicação, IoT e projeto de automação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma saída de MCU deve comandar uma válvula alimentada em tensão superior à lógica. Qual prática reduz o risco de danificar o microcontrolador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Interpor driver/transistor dimensionado e verificar níveis, corrente, proteção e retorno de terra/isolação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Elevar a tensão da GPIO até a tensão da válvula por configuração de software.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conectar a válvula ao pino ADC, pois entradas analógicas suportam qualquer tensão externa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Enviar o comando por UART e ligar a linha RX em série com a bobina da válvula.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar o resistor pull-up interno como fonte de corrente de potência para a carga.",
+          "correct": false
+        }
+      ],
+      "explanation": "A GPIO não deve conduzir diretamente carga acima de seus limites. Driver, transistor ou módulo de potência precisa suportar a tensão e corrente da válvula, e cargas indutivas exigem proteção adequada.",
+      "section": "4. Aplicação, IoT e projeto de automação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Arquitetura de Harvard garante que todo MCU execute qualquer instrução e acesso a dados no mesmo ciclo. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Harvard descreve separação de caminhos ou espaços de instrução e dados. Número de ciclos e desempenho dependem da implementação, da instrução, dos estados de espera e dos periféricos envolvidos.",
+      "section": "1. Sistema embarcado, MCU e arquitetura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A SRAM usada para variáveis de execução normalmente perde seu conteúdo quando a alimentação do microcontrolador é removida. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. SRAM é memória volátil. Dados que precisam persistir sem alimentação devem ser armazenados em memória não volátil apropriada, observando capacidade e endurance.",
+      "section": "2. Memória, barramentos, endereços e pinos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma GPIO pode assumir uma função alternativa como UART ou PWM, e isso pode impedir seu uso simultâneo como entrada digital simples. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O multiplexador de funções seleciona qual bloco controla ou observa o pino. A disponibilidade varia por dispositivo e pino e deve ser confirmada no manual e no pinout da placa.",
+      "section": "2. Memória, barramentos, endereços e pinos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em qualquer placa Arduino, o microcontrolador e a pinagem são os mesmos da Uno R3 clássica. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Arduino é um ecossistema com diversas placas e MCUs. A Uno R3 clássica usa ATmega328P, mas outros modelos têm processadores, pinos e características diferentes.",
+      "section": "1. Sistema embarcado, MCU e arquitetura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O sinal PWM tem níveis digitais e duty cycle ajustável; sem filtragem, ele não é uma tensão analógica contínua. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. PWM alterna entre níveis lógicos e controla a média temporal. Um filtro pode suavizar a forma de onda, mas a saída filtrada depende de frequência, carga e ripple.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "I2C usa duas linhas compartilhadas, normalmente SDA e SCL, e dispositivos conectados podem ser selecionados por endereço. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. I2C compartilha dados e clock e prevê endereçamento. Linhas open-drain normalmente precisam de pull-ups dimensionados para tensão e capacitância do barramento.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma saída GPIO deve alimentar diretamente qualquer motor pequeno, desde que o firmware limite o duty cycle. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O firmware não aumenta os limites elétricos do pino. Motor exige corrente de acionamento compatível e normalmente um driver ou estágio de potência, com proteção para a carga indutiva.",
+      "section": "4. Aplicação, IoT e projeto de automação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um timer pode contar pulsos de um clock interno e gerar evento ao alcançar uma comparação configurada. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Timers usam uma fonte de clock e podem gerar eventos por overflow ou comparação. Prescaler e limite determinam a escala temporal conforme a configuração do periférico.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "UART lógica e RS-232 designam necessariamente os mesmos níveis de tensão e podem ser conectadas diretamente em qualquer MCU. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. UART define comunicação serial assíncrona; RS-232 define características elétricas distintas dos níveis lógicos do MCU. Um transceptor apropriado costuma fazer a adaptação.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ADC de N bits oferece 2^N códigos ideais, mas esse número não garante sozinho a exatidão da medição. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A quantidade de códigos expressa resolução de quantização ideal. Referência, ruído, erro do conversor, impedância da fonte, aquisição e sensor influem na medição real.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em SPI, MOSI e MISO são linhas de dados e SCLK fornece o clock; uma linha de seleção costuma identificar o escravo ativo. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. SPI é síncrono e normalmente usa clock, linhas de envio/recepção e CS/SS para selecionar o dispositivo. Polaridade, fase e velocidade devem atender ao periférico.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ISR longa pode atrasar o atendimento de outras interrupções e a execução do programa principal. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Enquanto uma rotina de serviço ocupa o processador, outros eventos podem ficar pendentes ou perder prazo. Rotinas curtas registram o evento e transferem processamento pesado para outro contexto.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A conectividade Wi-Fi de um nó IoT elimina a necessidade de considerar consumo, perda de enlace e segurança das credenciais. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Rádio consome energia, a cobertura pode falhar e credenciais/dados precisam de proteção. Uma aplicação robusta planeja reconexão, armazenamento ou alarme e operação local segura.",
+      "section": "4. Aplicação, IoT e projeto de automação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O mapa de memória de um MCU pode incluir endereços que representam registradores de periféricos, e não células de SRAM. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Em MMIO, ler ou escrever um endereço pode acessar um registrador de controle de periférico. O efeito da operação depende da definição do registrador e pode diferir de uma variável comum.",
+      "section": "2. Memória, barramentos, endereços e pinos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A organização Harvard exige que toda implementação tenha memórias fisicamente separadas dentro do encapsulamento e proíbe qualquer memória compartilhada externa. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Harvard se refere à separação de caminhos ou espaços para instruções e dados no modelo da arquitetura; detalhes de memória física e interfaces externas dependem da implementação, inclusive em variantes modificadas.",
+      "section": "1. Sistema embarcado, MCU e arquitetura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um contador de eventos externos e um timer acionado pelo clock interno são necessariamente o mesmo periférico, com entradas idênticas em todos os MCUs. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. As funções podem compartilhar blocos em alguns chips, mas timer e contagem externa descrevem fontes de incremento distintas. Pinos, larguras, sincronização e modos variam pelo dispositivo.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Interrupções externas costumam estar associadas a eventos em pinos, enquanto interrupções internas podem vir de timers ou periféricos seriais. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Uma fonte externa pode ser uma borda ou nível em pino configurável; fontes internas incluem overflow de timer, fim de conversão ADC ou evento de comunicação. O conjunto concreto depende do MCU.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O ATmega328P da Uno R3 e o ESP8266 têm obrigatoriamente a mesma pinagem porque ambos podem ser programados em C/C++. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Linguagem de programação não uniformiza encapsulamento, mapa de pinos ou periféricos. Cada chip e placa exigem documentação própria para GPIO, ADC, rádio, tensões e funções alternativas.",
+      "section": "1. Sistema embarcado, MCU e arquitetura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma linha I2C com dispositivos open-drain pode ser mantida em nível alto por resistores de pull-up, e os participantes puxam a linha para baixo para sinalizar nível baixo. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. No arranjo open-drain, os dispositivos puxam a linha para baixo e o pull-up a retorna ao nível alto. Valor do resistor, capacitância, velocidade e tensão precisam ser compatíveis com o barramento.",
+      "section": "3. Temporização, conversão e comunicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma carga indutiva pode gerar sobretensão ao interromper sua corrente, por isso o circuito de acionamento pode precisar de proteção além do transistor. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A energia armazenada no campo magnético causa tensão transitória quando a corrente é interrompida. Diodo de recirculação, TVS ou outra solução pode ser usada conforme a carga e o driver.",
+      "section": "4. Aplicação, IoT e projeto de automação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Escolher uma placa pelo número total de pinos, sem reservar os pinos de comunicação, ADC, PWM, boot e depuração, pode deixar o projeto sem E/S utilizável. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A quantidade física de pinos não equivale a recursos independentes disponíveis. É preciso mapear funções alternativas, interfaces ocupadas, pinos reservados e requisitos elétricos antes de fechar o dimensionamento.",
+      "section": "4. Aplicação, IoT e projeto de automação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "8-bit PIC MCU Enhanced Mid-Range Architectural Overview",
+      "publisher": "Microchip Technology",
+      "reference": "Arquitetura Harvard, barramentos de instrução e dados da família PIC16F1xxx",
+      "url": "https://developerhelp.microchip.com/xwiki/bin/view/products/mcu-mpu/8bit-pic/enhanced-family/mrarch/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ATmega328P Datasheet",
+      "publisher": "Microchip Technology / Arduino Documentation",
+      "reference": "Arquitetura, memória e periféricos do MCU usado na Arduino Uno R3 clássica",
+      "url": "https://docs.arduino.cc/resources/datasheets/ATmega328P-datasheet.pdf",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Arduino UNO R3",
+      "publisher": "Arduino",
+      "reference": "Placa baseada no ATmega328P, especificações e documentação da placa",
+      "url": "https://docs.arduino.cc/hardware/uno-rev3",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RP2040 Datasheet",
+      "publisher": "Raspberry Pi",
+      "reference": "Pinagem, funções alternativas, GPIO, PWM e interfaces do microcontrolador RP2040",
+      "url": "https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Pico microcontroller boards",
+      "publisher": "Raspberry Pi",
+      "reference": "Recursos das placas Pico, RP2040, interfaces, ADC, GPIO e distinção de variantes",
+      "url": "https://www.raspberrypi.com/documentation/microcontrollers/pico-series.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ESP8266EX Datasheet",
+      "publisher": "Espressif Systems",
+      "reference": "Definições de pinos, periféricos e características elétricas do SoC ESP8266EX",
+      "url": "https://docs.espressif.com/projects/esp8266-rtos-sdk/en/latest/esp8266/esp8266-datasheet_en.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "8051 Microcontrollers Hardware Manual",
+      "publisher": "Microchip Technology",
+      "reference": "Organização e periféricos de implementações compatíveis com 8051; consultar derivado específico",
+      "url": "https://ww1.microchip.com/downloads/aemDocuments/documents/OTH/ProductDocuments/UserGuides/doc4316.pdf",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Cortex-M4 Processor Datasheet",
+      "publisher": "Arm",
+      "reference": "Interfaces de barramento, arquitetura Harvard e recursos típicos do núcleo Cortex-M4",
+      "url": "https://developer.arm.com/-/media/Arm%20Developer%20Community/PDF/Processor%20Datasheets/Arm%20Cortex-M4%20Processor%20Datasheet.pdf",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

@@ -1,0 +1,1926 @@
+{
+  "id": "informatica.arquitetura-hardware-servidores",
+  "subject": "Informática",
+  "title": "Arquitetura de hardware de servidores",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Arquitetura hardware de servidores",
+    "Arquitetura de hardware para servidores",
+    "Hardware de servidores",
+    "Componentes de servidor corporativo",
+    "Arquitetura de computadores servidores",
+    "Processadores para servidores",
+    "Memória ECC em servidores",
+    "Memória NUMA em servidores",
+    "Armazenamento interno de servidores",
+    "Barramentos PCI Express em servidores",
+    "Gerenciamento remoto BMC de servidor",
+    "Fontes redundantes para servidores"
+  ],
+  "scope": {
+    "covers": "Arquitetura física de servidores: placa-mãe, CPU, núcleos, threads, cache, soquetes, canais de memória, ECC, DIMMs e NUMA; interconexão PCIe, controladoras e dispositivos de armazenamento; rede, aceleração, gerenciamento embarcado BMC e firmware; alimentação, refrigeração, redundância, formatos rack e blade; critérios para relacionar componentes à carga de trabalho e disponibilidade.",
+    "excludes": "Configuração detalhada de modelos comerciais específicos, dimensionamento de um ambiente concreto, instalação de sistemas operacionais, configuração de hipervisores, protocolos de aplicação, administração de SAN e procedimentos de manutenção dependentes do fabricante."
+  },
+  "theoryTitle": "Como os componentes de um servidor trabalham em conjunto",
+  "chapters": [
+    {
+      "title": "1. A placa-mãe, a CPU e o caminho dos dados",
+      "markdown": "### O problema que este assunto resolve\n\nUm servidor é um computador projetado para prestar serviços continuamente a muitos clientes e permitir expansão, diagnóstico e manutenção. O gabinete abriga componentes que precisam trocar dados com baixa latência e largura de banda adequada: processador, memória, armazenamento, adaptadores de rede e aceleradores. A **placa-mãe** (ou *server board*) organiza essa comunicação, fornece soquetes e slots e conecta os componentes por controladoras e enlaces. O desenho não é universal: cada plataforma define quais CPUs, DIMMs, unidades e placas são compatíveis.\n\n> **Siglas e termos deste capítulo**\n> - **CPU**: unidade central de processamento, que executa instruções.\n> - **Núcleo (core)**: unidade física de execução dentro de uma CPU.\n> - **Thread**: fluxo de execução lógico; alguns núcleos podem manter mais de um fluxo simultâneo por recurso de hardware.\n> - **Cache**: memória pequena e rápida, próxima ou integrada ao processador, que guarda dados usados com frequência.\n> - **Soquete (socket)**: encaixe elétrico e mecânico para o processador.\n> - **PCIe**: barramento serial de alta velocidade usado por placas e dispositivos.\n> - **Chipset/PCH**: conjunto de lógica da plataforma que fornece certas conexões de entrada e saída; as funções exatas variam por geração.\n\n### CPU: capacidade não é só frequência\n\nNúcleos, threads, frequência, cache e capacidade de entrada e saída influenciam o desempenho. Uma CPU com mais núcleos pode executar mais tarefas em paralelo, mas não torna automaticamente mais rápida uma tarefa que depende de uma sequência única de instruções. A frequência descreve o ritmo de ciclos do processador, e o cache reduz acessos mais lentos à memória principal quando os dados necessários já estão próximos do núcleo. A aplicação, o padrão de acesso à memória e a quantidade de operações de I/O também importam.\n\nThreads de hardware não são núcleos físicos adicionais: permitem que um núcleo mantenha mais de um fluxo de execução, conforme a arquitetura e a carga. Tampouco significam que toda aplicação ganhará o dobro de desempenho. Para selecionar servidor, avaliam-se o perfil das aplicações e limites de energia, refrigeração, memória e I/O.\n\n### Soquetes e plataforma\n\nEm uma plataforma de um soquete, há um processador instalado. Plataformas multiprocessadas podem ter vários soquetes, mas a placa, os processadores e o firmware precisam suportar essa configuração. O número de soquetes não é o número de núcleos: cada CPU pode conter diversos núcleos. Cada processador pode ainda oferecer controladores de memória e enlaces de I/O associados a ele.\n\nO processador comunica-se diretamente com determinados recursos e alcança outros por enlaces entre componentes. Por isso, a placa-mãe e a CPU precisam ser tratadas como um conjunto compatível. O manual da plataforma informa tipos de CPU, memória, canais, slots, limites elétricos e regras de instalação; não se deve generalizar a capacidade de um modelo para todos os servidores.\n\n### Caminho ilustrativo\n\nUma requisição recebida por uma NIC pode percorrer o enlace da placa até a memória, ser processada pelos núcleos e acessar dados num SSD ligado por PCIe ou por uma controladora. A resposta volta pela NIC. O gargalo pode estar em qualquer trecho: CPU saturada, memória distante ou insuficiente, enlace compartilhado, armazenamento lento ou rede limitada. A arquitetura importa porque cada componente participa de um caminho de dados completo.\n\n| Componente | Papel típico | Pergunta de dimensionamento |\n| --- | --- | --- |\n| CPU | Executar instruções e coordenar operações | A carga exige paralelismo, frequência ou recursos especializados? |\n| Memória | Manter instruções e dados ativos | Qual capacidade, largura de banda e latência são necessárias? |\n| PCIe e controladoras | Ligar dispositivos e transportar I/O | Há pistas e largura de banda para os dispositivos previstos? |\n| NIC | Transmitir e receber tráfego | A velocidade e o número de portas atendem à rede? |\n| Armazenamento | Persistir dados | Importam mais latência, IOPS, capacidade ou custo? |\n\n### Como cai na prova\n\n- Núcleos são unidades físicas de execução; threads são fluxos lógicos, e cache é memória rápida próxima à CPU.\n- A placa-mãe conecta CPU, memória, armazenamento, fontes e placas PCIe, mas a compatibilidade depende da plataforma.\n- Uma CPU com mais núcleos não resolve automaticamente gargalo de disco, memória ou rede."
+    },
+    {
+      "title": "2. Memória, ECC, canais e NUMA",
+      "markdown": "### O problema que este assunto resolve\n\nA memória principal guarda dados e instruções em uso. Servidores podem operar por longos períodos e processar dados críticos; erros de bit podem corromper resultados ou causar falhas. Por isso, muitas plataformas oferecem memória **ECC** e regras específicas para instalar módulos. A disposição dos DIMMs afeta capacidade, largura de banda, disponibilidade do sistema e inicialização.\n\n> **Siglas e termos deste capítulo**\n> - **RAM**: memória de acesso aleatório usada como área de trabalho.\n> - **DIMM**: módulo de memória instalado em um slot da placa.\n> - **ECC**: código de correção de erros; detecta erros e, em configurações compatíveis, corrige certos erros de memória.\n> - **RDIMM**: DIMM registrado, com lógica de registro para reduzir a carga elétrica de comandos no canal.\n> - **LRDIMM**: DIMM de carga reduzida, que utiliza buffer para reduzir carga elétrica e permitir capacidades maiores em plataformas compatíveis.\n> - **Canal de memória**: caminho entre controlador de memória e módulos.\n> - **NUMA**: acesso à memória não uniforme; a latência depende da proximidade entre CPU e região de memória.\n\n### ECC e compatibilidade\n\nECC é uma propriedade do sistema completo, não apenas do módulo. A CPU ou seu controlador, a placa e os DIMMs precisam aceitar o recurso. Em geral, a memória ECC detecta e corrige determinados erros, especialmente erros de bit isolado; não significa que todo defeito seja corrigível nem substitui cópias de segurança. ECC reduz uma classe de risco de corrupção silenciosa e pode registrar erros corrigidos ou não corrigidos para diagnóstico.\n\nDIMMs não são intercambiáveis sem restrições. Uma placa pode aceitar somente certos tipos, capacidades, ranks, velocidades e combinações. RDIMM e LRDIMM, por exemplo, não devem ser presumidas como misturáveis: siga a tabela de população do fabricante. A velocidade efetiva pode cair quando se instalam mais módulos por canal ou se combinam componentes, conforme as regras da plataforma.\n\n### Canais e população\n\nO controlador de memória pode oferecer vários canais independentes. Distribuir módulos de forma equilibrada entre canais pode ampliar a largura de banda disponível. Instalar toda a memória em poucos canais pode deixar outros sem uso e reduzir o desempenho. A ordem dos slots importa: manuais indicam qual slot preencher primeiro para cada processador e canal. Uma população incompatível pode gerar erro no POST, reduzir velocidade ou impedir a inicialização.\n\nEm um exemplo concreto, a placa Intel S2600WF suporta até 24 DIMMs DDR4, doze por processador instalado, e cada processador oferece seis canais. Esse exemplo ilustra por que a memória se organiza por processador, canal e slot; não é uma regra para qualquer servidor ou geração.\n\n### NUMA e localidade\n\nEm um servidor com múltiplos nós NUMA, cada CPU tem memória local e pode acessar memória ligada a outro processador por uma interconexão. O acesso local tende a ter menor latência e maior afinidade; acessar a memória remota pode custar mais tempo. O sistema operacional e aplicações conscientes de NUMA podem distribuir threads e dados para preservar localidade. Uma VM ou processo pode ter desempenho irregular se sua execução e memória ficarem em nós diferentes ou se um nó ficar sobrecarregado.\n\nNUMA não significa que os processadores não possam acessar memória remota; significa que o custo não é uniforme. BIOS/UEFI pode expor opções de configuração e o sistema operacional apresenta os nós. Alterar opções sem avaliar a carga pode prejudicar desempenho ou compatibilidade; a recomendação precisa ser específica da plataforma.\n\n| Conceito | O que afeta | Erro frequente |\n| --- | --- | --- |\n| ECC | Detecção/correção de certas falhas de bit | Supor que todo tipo de corrupção será corrigido |\n| Canal | Largura de banda da memória | Concentrar DIMMs e deixar canais vazios |\n| População | Compatibilidade e inicialização | Ignorar a ordem indicada no manual |\n| NUMA | Latência conforme proximidade | Tratar memória local e remota como idênticas |\n\n### Como cai na prova\n\n- ECC exige suporte do processador/controlador e módulos apropriados; não é apenas uma opção de software.\n- A quantidade de DIMMs não basta: canais ocupados e sequência de instalação influenciam operação.\n- NUMA expressa custos diferentes de acesso à memória conforme sua localização em relação à CPU."
+    },
+    {
+      "title": "3. PCIe, armazenamento, rede e aceleradores",
+      "markdown": "### O problema que este assunto resolve\n\nO servidor precisa comunicar CPU, memória e periféricos. PCI Express (PCIe) oferece enlaces seriais compostos por pistas (*lanes*); um enlace pode combinar várias pistas. Placas de rede, controladoras de armazenamento e aceleradores usam slots ou conexões PCIe. A geração e a largura do enlace, o roteamento pela placa e a partilha de recursos determinam a banda disponível. Um conector físico comprido não garante que todas as pistas estejam conectadas ou operem na geração máxima do dispositivo.\n\n> **Siglas e termos deste capítulo**\n> - **Lane/pista PCIe**: enlace de transmissão e recepção que compõe uma conexão PCIe.\n> - **NIC**: placa/interface de rede.\n> - **HBA**: adaptador de barramento de host que conecta o servidor a dispositivos, muitas vezes sem organizar RAID.\n> - **RAID**: arranjo de discos que distribui ou espelha dados para desempenho, disponibilidade ou capacidade, conforme o nível.\n> - **NVMe**: protocolo de acesso a armazenamento não volátil, normalmente usado sobre PCIe.\n> - **SATA/SAS**: interfaces de armazenamento; SAS também aparece em discos e enlaces de servidores corporativos.\n> - **GPU**: processador gráfico que pode acelerar cargas paralelas compatíveis.\n\n### Slots e largura de banda\n\nUm slot PCIe é descrito por geração e largura, como x4 ou x16. A largura é o número de pistas; gerações mais novas aumentam a taxa por pista. O slot, a CPU, a placa e o dispositivo negociam um modo suportado em comum. A placa pode dividir pistas entre slots, desabilitar portas quando outra conexão é usada ou ligar um slot a um processador específico. Antes de planejar NICs de alta velocidade, GPUs ou controladoras, consulte o diagrama de slots e a tabela de compartilhamento do modelo.\n\nA topologia também pode importar: dispositivos que trocam muito tráfego entre si podem se beneficiar de estarem ligados ao mesmo complexo raiz ou comutador PCIe, reduzindo travessias e contenção. Orientações de arquitetura para sistemas acelerados recomendam observar a afinidade entre GPU, NIC e SSD NVMe.\n\n### Armazenamento: meio, protocolo e controladora\n\nHDD usa discos magnéticos giratórios e cabeças mecânicas; SSD usa memória flash e não tem partes móveis. SSD costuma oferecer menor latência e mais operações aleatórias por segundo, enquanto HDD pode oferecer capacidade econômica. SATA, SAS e NVMe identificam interfaces ou protocolos em diferentes camadas; NVMe é projetado para tirar proveito de filas paralelas sobre PCIe, mas seu desempenho real depende do dispositivo e da carga.\n\nUma controladora RAID pode apresentar vários discos ao sistema como um volume lógico. Espelhamento mantém cópias dos dados em mais de um disco e pode tolerar a falha de uma unidade, conforme a configuração; paridade distribui informação adicional para reconstrução. RAID não substitui backup: exclusão, ransomware, falha da controladora ou desastre podem afetar o conjunto. Um HBA expõe dispositivos ao sistema sem necessariamente criar arranjo RAID. A escolha entre RAID por hardware, software ou HBA depende de requisitos e compatibilidade.\n\n### Rede e aceleração\n\nUma NIC conecta o servidor à rede e pode ter uma ou várias portas, velocidades e recursos de offload. Duas portas não garantem alta disponibilidade por si sós: ainda são necessários cabeamento, switches, configuração e caminhos independentes adequados. Uma GPU ou acelerador pode executar operações paralelas específicas, mas demanda energia, refrigeração, espaço e pistas PCIe; não acelera automaticamente qualquer aplicação.\n\n| Recurso | Vantagem típica | Limite que precisa ser verificado |\n| --- | --- | --- |\n| SSD NVMe | Baixa latência e paralelismo por PCIe | Pistas, dissipação, compatibilidade e carga real |\n| RAID | Disponibilidade/desempenho conforme arranjo | Não protege contra perda lógica ou desastre |\n| NIC adicional | Mais portas ou banda potencial | Switches, cabos, configuração e PCIe |\n| GPU | Aceleração de cargas compatíveis | Software, energia, refrigeração e topologia |\n\n### Como cai na prova\n\n- PCIe liga placas de expansão, mas o número de pistas e a geração dependem da plataforma e do slot.\n- NVMe usa filas e interfaces modernas, frequentemente sobre PCIe; não é sinônimo de qualquer SSD.\n- RAID pode aumentar disponibilidade de discos, porém não elimina a necessidade de backup independente."
+    },
+    {
+      "title": "4. Firmware, gerenciamento embarcado e disponibilidade",
+      "markdown": "### O problema que este assunto resolve\n\nUm servidor em rack pode estar em outro prédio ou centro de dados. Se o sistema operacional travar, não basta depender de um agente instalado nele para descobrir o defeito ou religar a máquina. A placa inclui um controlador de gerenciamento que monitora sensores e permite operações remotas independentes do sistema operacional. Em produtos Dell, por exemplo, o iDRAC é um controlador integrado; BMC é o nome geral da classe de controlador de gerenciamento de placa-base.\n\n> **Siglas e termos deste capítulo**\n> - **BMC**: controlador de gerenciamento embarcado da placa-mãe.\n> - **iDRAC**: implementação de gerenciamento remoto embarcado da Dell.\n> - **IPMI**: interface padronizada histórica para gerenciamento de plataforma.\n> - **Redfish**: interface de gerenciamento baseada em serviços web, usada por plataformas compatíveis.\n> - **BIOS/UEFI**: firmware que inicializa e configura a plataforma antes do sistema operacional.\n> - **POST**: autoteste executado durante a inicialização.\n> - **Out-of-band**: gerenciamento por caminho separado do sistema operacional do host.\n\n### Funções do BMC\n\nConforme a implementação, o BMC lê sensores de temperatura, tensão, ventiladores e fontes, registra eventos, envia alertas, controla energia e permite consultar inventário ou atualizar firmware. A interface de rede de gerenciamento pode ser dedicada ou compartilhada; o modelo define como o tráfego é isolado. Recursos de console remoto ou mídia virtual podem depender de licença e versão.\n\nO BMC possui firmware e credenciais próprios, portanto também deve ser protegido: trocar credenciais padrão, restringir a rede de gerenciamento, aplicar atualizações validadas e limitar acesso são medidas importantes. Por ser independente do sistema operacional, pode ajudar quando o host não inicia; isso não significa acesso irrestrito sem autenticação nem que todo serviço esteja disponível em qualquer estado de energia.\n\n### Inicialização e diagnóstico\n\nAo ligar, o firmware inicializa hardware e executa o POST. Erros de memória, CPU, ventiladores ou dispositivos podem ser indicados por códigos, LEDs, visor ou log do BMC. O firmware configura recursos como ordem de inicialização, virtualização de hardware, dispositivos integrados, modo de memória e opções de energia. As opções mudam conforme fabricante e geração.\n\nUma atualização de BIOS/UEFI ou BMC deve ser feita com pacote compatível e procedimento do fabricante. Interromper alimentação durante gravação pode deixar o componente inoperante; usar imagem de modelo errado também é arriscado. Não se deve confundir atualização de firmware com atualização do sistema operacional.\n\n### Redundância e pontos únicos de falha\n\nDisponibilidade é uma propriedade do sistema completo. Fontes redundantes em configuração apropriada podem manter a alimentação se uma fonte falhar, mas só se o conjunto restante suportar a carga e os cabos tiverem caminhos de energia adequados. Ligar duas fontes à mesma régua ou circuito vulnerável não elimina a falha desse circuito. Alguns servidores suportam troca a quente de fonte ou disco, mas depende do modelo e de a redundância estar ativa.\n\nVentiladores redundantes ajudam a manter refrigeração diante de falha, desde que o fluxo de ar não seja obstruído e a política térmica suporte a condição. RAID pode tolerar falha de disco conforme o nível; fontes redundantes toleram determinados defeitos de alimentação. Nenhuma dessas medidas cobre todas as falhas. Monitoramento, peças compatíveis, backup, cópias externas e testes de recuperação atendem riscos distintos.\n\n### Como cai na prova\n\n- BMC/iDRAC oferece gerenciamento embarcado, muitas vezes fora de banda e independente do sistema operacional principal.\n- Firmware inicializa e configura hardware; POST e registros ajudam a localizar falhas.\n- Redundância só protege contra a falha prevista quando há capacidade e caminhos realmente independentes."
+    },
+    {
+      "title": "5. Formatos, refrigeração e escolha da arquitetura",
+      "markdown": "### O problema que este assunto resolve\n\nAlém de CPU e memória, um servidor depende do espaço físico, da energia e da capacidade de remover calor. As formas mais comuns incluem torre, rack e blade. O formato escolhido influencia densidade, cabeamento, expansão, refrigeração e manutenção; não define sozinho o desempenho. Um servidor de 1U ocupa uma unidade vertical de rack e tende a priorizar densidade. Um chassis maior pode reservar espaço para mais discos, placas ou circulação de ar.\n\n> **Siglas e termos deste capítulo**\n> - **U**: unidade de altura padronizada de rack.\n> - **Rack**: estrutura para instalar equipamentos em módulos.\n> - **Blade**: módulo de servidor inserido em um chassis compartilhado.\n> - **PSU**: unidade de alimentação elétrica.\n> - **TDP**: indicador térmico de projeto do processador, expresso em potência; não é o consumo total do servidor.\n> - **Hot-swap/hot-plug**: substituição ou conexão com o sistema ligado quando o equipamento e procedimento suportam.\n\n### Torre, rack e blade\n\nServidor torre lembra um gabinete convencional e pode servir a locais com poucos equipamentos. Rack organiza máquinas em estrutura comum, facilita padronização e densidade, mas requer planejamento de profundidade, trilhos, peso, energia e fluxo de ar. Blade reduz fontes e cabeamento individuais ao compartilhar chassis e interconexões; isso aumenta densidade, mas o chassis torna-se componente crítico e pode limitar ou concentrar falhas.\n\n### Energia e resfriamento\n\nA PSU converte a energia de entrada para tensões usadas pelos componentes. Eficiência reduz perdas e calor, mas a potência nominal precisa cobrir CPUs, memória, discos, placas e picos. Em configuração redundante 1+1, uma fonte pode assumir a carga em caso de falha da outra se cada uma tiver capacidade suficiente e o sistema aceitar essa política. O número escrito na etiqueta não garante redundância: avalie a configuração homologada e o caminho elétrico.\n\nVentiladores conduzem ar pelo chassi; direção e pressão são projetadas para o modelo. Equipamentos devem ser instalados conforme as regras de frente/traseira, corredores e blanking panels, sem bloquear entradas. A CPU reduz frequência ou desliga em condição térmica crítica, conforme firmware, para proteção. TDP é um dado térmico do processador e não equivale à potência de entrada de todo o servidor.\n\n### Serviço e expansão\n\nBaias hot-swap permitem substituir unidades sem retirar todo o servidor de operação quando o backplane, controladora, sistema e arranjo suportam a operação. A troca de um disco ativo de RAID degradado exige identificar a unidade correta e seguir o procedimento do fabricante; retirar outro disco pode tornar o volume irrecuperável. Slots hot-plug e fontes removíveis também dependem do desenho. A arquitetura facilita manutenção, mas não torna qualquer componente seguro para remoção.\n\n### Relacionar arquitetura à carga\n\nPara banco de dados em memória, pesam capacidade e largura de banda de RAM, localidade NUMA e CPU. Para armazenamento, contam latência, IOPS, capacidade, redundância e caminho de I/O. Para virtualização, é comum considerar núcleos, memória, NICs, controladoras e suporte a recursos de virtualização. Para IA ou computação paralela, GPUs podem ser relevantes, desde que slots, energia, refrigeração e software atendam. Um sistema intensivo em rede requer NICs e caminhos PCIe adequados.\n\nA avaliação deve identificar a carga, estimar recursos, verificar compatibilidade e localizar gargalos. Não se escolhe servidor só pelo clock, quantidade de núcleos ou capacidade máxima divulgada: componentes compartilham limites da plataforma.\n\n### Como cai na prova\n\n- U mede altura de equipamento de rack; torre/rack/blade descrevem formatos, não categorias de CPU.\n- TDP é uma referência térmica do processador, não o consumo de toda a máquina.\n- Hot-swap e redundância dependem de suporte e configuração; um componente removível não é sempre removível com segurança."
+    }
+  ],
+  "summary": "Servidor é uma plataforma de placa-mãe, processador, memória, interconexões, dispositivos de I/O, firmware, alimentação e refrigeração dimensionada para serviço contínuo e expansão. CPU reúne núcleos, threads e cache; placa e processadores determinam soquetes, canais de memória e pistas PCIe. ECC exige suporte coordenado de processador/controlador, placa e DIMMs; população de módulos segue canais e slots indicados pelo fabricante. Em NUMA, memória local e remota têm custos de acesso distintos. PCIe conecta NICs, controladoras, SSDs NVMe e aceleradores; RAID organiza discos, mas não substitui backup. BMC, como iDRAC em servidores Dell, permite monitoramento e controle fora de banda, inclusive diante de falhas do sistema operacional. Fontes e ventiladores redundantes, hot-swap e formatos torre, rack e blade atendem objetivos diferentes, sempre dependentes da configuração. O projeto deve relacionar carga, capacidade, latência, largura de banda, energia, refrigeração, disponibilidade e compatibilidade da plataforma.",
+  "flashcards": [
+    {
+      "front": "Qual é o papel da placa-mãe de servidor?",
+      "back": "Aloja CPUs, memória e conexões e interliga alimentação, armazenamento e placas de expansão; a plataforma define compatibilidades."
+    },
+    {
+      "front": "Núcleo, thread e cache são a mesma coisa?",
+      "back": "Não. Núcleo é unidade física de execução; thread é fluxo lógico; cache é memória rápida próxima à CPU."
+    },
+    {
+      "front": "O que significa ECC?",
+      "back": "Código de correção de erros de memória; pode detectar e corrigir certas falhas, se CPU/controlador, placa e módulos oferecerem suporte."
+    },
+    {
+      "front": "O que é DIMM?",
+      "back": "Módulo de memória instalado em slot da placa, ligado a um canal do controlador de memória."
+    },
+    {
+      "front": "Por que balancear DIMMs entre canais?",
+      "back": "Para utilizar os canais disponíveis e obter largura de banda conforme a arquitetura da plataforma."
+    },
+    {
+      "front": "O que é RDIMM?",
+      "back": "Módulo registrado que adiciona lógica de registro aos sinais de comando; só se usa em plataformas compatíveis."
+    },
+    {
+      "front": "O que distingue memória local e remota em NUMA?",
+      "back": "A memória ligada ao nó da CPU tende a ser acessada com menor latência que a memória ligada a outro nó."
+    },
+    {
+      "front": "O que representa x16 em um slot PCIe?",
+      "back": "A largura do enlace, com até dezesseis pistas; operação real depende do slot, placa e dispositivo."
+    },
+    {
+      "front": "NVMe é sinônimo de SSD?",
+      "back": "Não. NVMe é um protocolo para acesso a armazenamento não volátil, normalmente sobre PCIe; SSD é um tipo de dispositivo."
+    },
+    {
+      "front": "O que faz uma NIC?",
+      "back": "Conecta o servidor à rede para transmitir e receber quadros e pacotes."
+    },
+    {
+      "front": "HBA e RAID são equivalentes?",
+      "back": "Não necessariamente: HBA conecta dispositivos ao host; uma controladora RAID pode agrupar discos em volumes lógicos."
+    },
+    {
+      "front": "RAID substitui backup?",
+      "back": "Não. RAID pode manter serviço após certas falhas de disco, mas não protege contra exclusão, ransomware ou desastre."
+    },
+    {
+      "front": "O que é BMC?",
+      "back": "Controlador embarcado de gerenciamento da placa, que monitora sensores e pode oferecer controle remoto independente do host."
+    },
+    {
+      "front": "O que é iDRAC?",
+      "back": "Controlador de gerenciamento remoto embarcado da Dell, uma implementação de gerenciamento de servidor."
+    },
+    {
+      "front": "O que é gerenciamento fora de banda?",
+      "back": "Administração por caminho separado do sistema operacional do servidor, útil quando o host está parado ou travado."
+    },
+    {
+      "front": "Qual a função do POST?",
+      "back": "Autoteste e inicialização de componentes durante a partida do sistema, antes do carregamento do sistema operacional."
+    },
+    {
+      "front": "TDP é o consumo elétrico do servidor?",
+      "back": "Não. É um indicador térmico de projeto do processador, não a potência total de entrada da máquina."
+    },
+    {
+      "front": "O que significa fonte 1+1 redundante?",
+      "back": "Duas fontes configuradas para que uma possa sustentar o sistema se a outra falhar, se cada unidade suportar a carga."
+    },
+    {
+      "front": "O que caracteriza hot-swap?",
+      "back": "Permite substituir componente com o sistema ligado quando o projeto, configuração e procedimento suportam a operação."
+    },
+    {
+      "front": "O que mede U em servidor rack?",
+      "back": "Unidade de altura padronizada para dimensionar equipamentos e espaços verticais no rack."
+    },
+    {
+      "front": "Blade compartilha quais elementos?",
+      "back": "Em geral insere módulos em chassis que compartilha recursos como alimentação e interconexões; o chassis também é dependência."
+    },
+    {
+      "front": "Por que uma GPU precisa ser avaliada além do desempenho?",
+      "back": "Ela exige compatibilidade de software, pistas PCIe, espaço, energia e refrigeração."
+    },
+    {
+      "front": "O que limita a velocidade de um enlace PCIe?",
+      "back": "A combinação de geração e largura suportada pelo processador, placa, slot, comutadores e dispositivo."
+    },
+    {
+      "front": "Memória ECC dispensa cópias de segurança?",
+      "back": "Não. ECC trata certos erros de memória e não protege dados persistidos contra perda ou corrupção de outras causas."
+    },
+    {
+      "front": "Por que consultar o manual de população de memória?",
+      "back": "Ele indica DIMMs compatíveis, ordem dos slots e distribuição por processador e canal para iniciar e operar corretamente."
+    }
+  ],
+  "tips": [
+    "Separe os conceitos de soquete, processador, núcleo e thread: cada um descreve um nível diferente da CPU.",
+    "Para memória, raciocine por processador, canal e slot; capacidade total sem distribuição pode esconder canal ocioso.",
+    "Leia PCIe como geração mais largura: um conector físico não garante que todas as pistas estejam ligadas.",
+    "Em questões de disponibilidade, pergunte qual falha a redundância cobre e se os caminhos são independentes.",
+    "BMC é gerenciamento embarcado fora do sistema operacional; recursos exatos variam por fabricante e licença.",
+    "Distinga interface, protocolo e meio: PCIe é interconexão, NVMe é protocolo, SSD/HDD são tipos de armazenamento."
+  ],
+  "traps": [
+    "Mais threads não significam o mesmo número de núcleos físicos nem garantem o dobro de desempenho.",
+    "ECC não corrige toda falha e só funciona quando o conjunto da plataforma suporta o recurso.",
+    "NUMA permite acesso remoto; o nome indica que latência e afinidade variam conforme a localização da memória.",
+    "RAID pode aumentar tolerância a falhas de disco, mas não é uma cópia de segurança independente.",
+    "Duas fontes só fornecem redundância efetiva quando a política e a capacidade suportam falha de uma delas.",
+    "TDP do processador não equivale ao consumo total do servidor nem determina sozinho a PSU necessária."
+  ],
+  "activeRecall": [
+    {
+      "question": "Quais fatores de CPU devem ser relacionados ao perfil de uma carga?",
+      "answer": "Núcleos, threads, frequência, cache, recursos especializados, memória, I/O e limites de energia e refrigeração; nenhum indicador isolado resume desempenho."
+    },
+    {
+      "question": "Por que a instalação de DIMMs segue uma ordem específica?",
+      "answer": "A ordem ocupa canais e slots conforme o desenho elétrico e os controladores da placa; a regra incorreta pode reduzir desempenho ou impedir POST."
+    },
+    {
+      "question": "Explique NUMA com memória local e remota.",
+      "answer": "Em múltiplos nós, cada CPU tem memória local e acessa memória de outro nó por interconexão; o custo de acesso difere, favorecendo afinidade entre tarefa e dados."
+    },
+    {
+      "question": "Como avaliar um slot PCIe antes de instalar uma placa?",
+      "answer": "Verifique geração, largura elétrica, pistas compartilhadas, ligação ao processador, espaço físico, potência e compatibilidade declarada pelo fabricante."
+    },
+    {
+      "question": "Que proteção RAID não oferece?",
+      "answer": "Não protege contra exclusão acidental, malware, corrupção propagada, roubo ou desastre; backup independente e restauração testada cobrem outros riscos."
+    },
+    {
+      "question": "O que o BMC permite quando o sistema operacional falha?",
+      "answer": "Conforme o produto, consulta sensores e logs, envia alertas, controla energia e oferece console ou atualização remota por interface separada."
+    },
+    {
+      "question": "Quais condições tornam fonte redundante realmente útil?",
+      "answer": "A capacidade restante deve sustentar a carga, o servidor deve suportar a política e, quando se busca redundância de circuito, as fontes precisam de caminhos elétricos distintos."
+    },
+    {
+      "question": "Como relacionar uma arquitetura à carga de trabalho?",
+      "answer": "Identifique gargalos e requisitos de CPU, memória e NUMA, I/O, rede, aceleração, energia, refrigeração, capacidade e disponibilidade; valide limites da plataforma."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "CPU e plataforma confundidas",
+      "summary": "Núcleos, threads, soquetes e frequência representam características diferentes. Compatibilidade de CPU depende de placa, firmware e limites da plataforma."
+    },
+    {
+      "key": "e2",
+      "title": "Memória tratada como simples capacidade",
+      "summary": "ECC exige suporte conjunto; canais, tipo de DIMM, população e localidade NUMA influenciam inicialização, largura de banda e latência."
+    },
+    {
+      "key": "e3",
+      "title": "PCIe e armazenamento generalizados",
+      "summary": "Geração e pistas dependem do caminho físico. NVMe, SATA, SAS, SSD, HDD, HBA e RAID descrevem conceitos diferentes."
+    },
+    {
+      "key": "e4",
+      "title": "Redundância confundida com proteção total",
+      "summary": "RAID, PSU redundante e ventiladores cobrem classes específicas de falha; não substituem backup nem caminhos de energia independentes."
+    },
+    {
+      "key": "e5",
+      "title": "Gerenciamento e consumo interpretados incorretamente",
+      "summary": "BMC/iDRAC pode operar fora do sistema operacional; TDP caracteriza necessidade térmica do processador, não o consumo total do servidor."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Sobre componentes de uma plataforma de servidor, assinale a descrição correta.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A placa-mãe executa sozinha as instruções de todos os programas instalados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A placa-mãe interliga CPUs, memória, energia e placas de expansão.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O gabinete define a quantidade de núcleos disponíveis em cada processador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A fonte de alimentação organiza os dados gravados nos módulos de memória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sistema operacional cria os canais elétricos entre a CPU e os DIMMs.",
+          "correct": false
+        }
+      ],
+      "explanation": "A placa-mãe fornece soquetes e conexões que interligam os principais componentes. A execução cabe à CPU; o gabinete não determina núcleos, a fonte entrega energia e os canais de memória são definidos pela plataforma física.",
+      "section": "1. A placa-mãe, a CPU e o caminho dos dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador compara duas CPUs para uma tarefa paralela. Qual afirmação descreve corretamente um critério de comparação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O total de threads sempre corresponde à quantidade de núcleos físicos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Núcleos extras ajudam quando a aplicação paraleliza o trabalho.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A frequência nominal determina sozinha o desempenho de qualquer carga.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O cache armazena permanentemente os arquivos após desligar o servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O soquete indica diretamente quantas instruções simultâneas a CPU executa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Núcleos adicionais podem executar mais tarefas em paralelo quando o software divide o trabalho. Threads, frequência e cache têm funções distintas, e o soquete descreve encaixe e conexão física, não desempenho isolado.",
+      "section": "1. A placa-mãe, a CPU e o caminho dos dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em relação a threads de hardware em processadores de servidor, marque a alternativa adequada.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada thread de hardware exige necessariamente um soquete independente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Threads representam módulos DIMM instalados em canais separados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Threads podem permitir que um núcleo mantenha mais de um fluxo lógico de execução.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Threads são blocos de cache que guardam dados após o desligamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Threads aumentam a capacidade física de cada unidade de armazenamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Algumas arquiteturas permitem que um núcleo mantenha mais de um fluxo lógico ativo. Isso não cria núcleos físicos, soquetes ou DIMMs, nem altera a capacidade persistente dos discos.",
+      "section": "1. A placa-mãe, a CPU e o caminho dos dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação fica lenta mesmo com baixa utilização média de CPU. Qual conclusão sobre a arquitetura é mais prudente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A frequência da CPU deve ser o gargalo, pois nenhum outro recurso afeta latência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um gargalo de I/O, memória ou rede também pode limitar a aplicação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O sistema requer obrigatoriamente um segundo soquete de processador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O cache eliminaria qualquer espera por armazenamento ou rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A quantidade de threads garante que todos os recursos fiquem ocupados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Desempenho depende do caminho completo. Espera por armazenamento, rede, memória ou contenção pode deixar a CPU parcialmente ociosa; por isso, é necessário medir a carga antes de escolher uma alteração de hardware.",
+      "section": "1. A placa-mãe, a CPU e o caminho dos dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O manual de uma placa informa que determinada CPU é compatível e aceita dois soquetes. O que se pode concluir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todo processador da mesma marca funcionará nos dois soquetes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A compatibilidade depende também de modelo, firmware e regras da plataforma.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Dois soquetes significam que há exatamente dois núcleos no sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A instalação de dois processadores duplica automaticamente toda a velocidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O número de soquetes determina a quantidade de portas de rede disponíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "O suporte a processador é específico da placa e da plataforma, incluindo soquete, geração e firmware. Dois soquetes indicam capacidade física de instalar CPUs compatíveis, não o número de núcleos nem um ganho fixo de desempenho.",
+      "section": "1. A placa-mãe, a CPU e o caminho dos dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma plataforma multiprocessada, cada CPU pode estar associada a controladores de memória e conexões de I/O próprios.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O desenho da plataforma pode distribuir controladores e recursos entre os processadores. Isso influencia topologia NUMA e o caminho de acesso a placas; os detalhes variam conforme servidor e geração.",
+      "section": "1. A placa-mãe, a CPU e o caminho dos dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A quantidade de núcleos de uma CPU é sempre igual à quantidade de soquetes ocupados no servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Soquete é o encaixe para um processador; cada processador pode conter vários núcleos. O total de núcleos depende do modelo e da quantidade de CPUs instaladas.",
+      "section": "1. A placa-mãe, a CPU e o caminho dos dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma thread de hardware é uma unidade de execução lógica e não deve ser contada automaticamente como um núcleo físico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Threads representam fluxos lógicos que a CPU pode manter em execução; em certas arquiteturas vários fluxos compartilham recursos de um núcleo físico.",
+      "section": "1. A placa-mãe, a CPU e o caminho dos dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma tarefa depende de operações em sequência, acrescentar núcleos necessariamente reduz seu tempo de execução na mesma proporção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Uma tarefa sequencial não divide automaticamente suas etapas entre núcleos. Ganho de paralelismo depende do algoritmo, da concorrência e de outros limites de memória e I/O.",
+      "section": "1. A placa-mãe, a CPU e o caminho dos dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para aproveitar ECC, basta que os DIMMs tenham ECC, mesmo se o controlador de memória da CPU não oferecer suporte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O recurso depende do suporte coordenado do processador ou controlador, da placa e dos módulos de memória. Um DIMM com ECC, sozinho, não habilita correção no sistema.",
+      "section": "2. Memória, ECC, canais e NUMA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Canais de memória são caminhos de comunicação entre o controlador e os módulos, e sua ocupação pode influenciar a largura de banda.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Canais independentes podem transferir dados em paralelo. A distribuição recomendada dos DIMMs procura usar os caminhos disponíveis respeitando a população indicada pelo fabricante.",
+      "section": "2. Memória, ECC, canais e NUMA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "RDIMM e LRDIMM podem ser combinadas livremente no mesmo canal, pois ambas são memórias registradas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Compatibilidade e combinações permitidas dependem da placa e do controlador; módulos de tipos diferentes não devem ser presumidos como misturáveis. Deve-se seguir a tabela de memória da plataforma.",
+      "section": "2. Memória, ECC, canais e NUMA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma máquina NUMA, uma CPU pode acessar memória ligada a outro nó, embora o custo de acesso possa ser diferente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. NUMA permite acesso à memória entre nós por interconexões, mas a latência tende a variar conforme a proximidade da CPU à região acessada.",
+      "section": "2. Memória, ECC, canais e NUMA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um exemplo de arquitetura NUMA, distribuir threads e dados em nós diferentes pode afetar a latência observada por uma aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Quando uma thread acessa frequentemente memória ligada a outro nó, o tráfego atravessa a interconexão e pode custar mais que o acesso local. Afinidade de CPU e memória pode ser relevante para cargas sensíveis à latência.",
+      "section": "2. Memória, ECC, canais e NUMA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Instalar módulos em poucos canais é sempre equivalente, em largura de banda, a distribuir a mesma capacidade entre todos os canais disponíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A capacidade total pode ser igual, mas menos canais ativos reduzem os caminhos que transferem dados em paralelo. A topologia e a regra de população do modelo definem o resultado.",
+      "section": "2. Memória, ECC, canais e NUMA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao instalar memória, um técnico ignora os slots prioritários, mas mantém todos os DIMMs do mesmo tipo. Qual risco permanece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O BMC converte automaticamente todos os canais em cache da CPU.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A rede Ethernet passa a usar os DIMMs como portas adicionais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A placa pode não concluir o POST ou usar canais subutilizados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O processador troca sua frequência nominal por capacidade de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O firmware transforma a memória volátil em cópia permanente dos discos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ordem dos slots pode determinar quais canais recebem módulos e se a configuração é válida. Mesmo módulos compatíveis podem causar operação subótima ou falha de inicialização quando instalados fora da sequência do fabricante.",
+      "section": "2. Memória, ECC, canais e NUMA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que a característica ECC oferece em uma configuração compatível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumenta permanentemente a capacidade do armazenamento local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Detecta e pode corrigir certas falhas de bit na memória.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Elimina a necessidade de backups do sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substitui controladores de memória e canais físicos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Garante que qualquer defeito de hardware seja corrigido sem aviso.",
+          "correct": false
+        }
+      ],
+      "explanation": "ECC trata determinados erros de dados na memória, podendo corrigi-los ou sinalizá-los conforme o tipo de falha e a implementação. Não amplia armazenamento persistente, não substitui backup e não corrige qualquer defeito de hardware.",
+      "section": "2. Memória, ECC, canais e NUMA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num servidor com dois nós NUMA, um processo sofre maior latência após ser movido para uma CPU cujo nó não contém seus dados mais acessados. Qual explicação é coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A largura PCIe do slot de rede reduz a frequência da RAM nesse processo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A memória remota fica permanentemente desconectada quando há dois processadores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ECC transforma automaticamente todo acesso remoto em acesso local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O acesso pode cruzar a interconexão até a memória de outro nó.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A topologia NUMA afeta somente unidades SSD e nunca a memória principal.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em NUMA, CPU e memória local formam afinidade, enquanto um acesso a dados ligados a outro nó precisa atravessar a interconexão entre processadores. Esse percurso pode elevar a latência observada. PCIe conecta dispositivos de I/O e não determina a frequência da RAM nem explica, por si só, a mudança de localidade do processo.",
+      "section": "2. Memória, ECC, canais e NUMA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um slot identificado como PCIe x16 informa, em termos gerais, a largura máxima prevista para o enlace daquele conector.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. x16 designa um enlace com até dezesseis pistas. A ligação efetiva pode ser menor ou negociada de acordo com slot, placa, processador e dispositivo.",
+      "section": "3. PCIe, armazenamento, rede e aceleradores",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Todo slot com conector físico x16 necessariamente recebe dezesseis pistas elétricas na geração mais recente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Forma física, largura elétrica e geração são propriedades distintas. O manual pode indicar menos pistas, conexões compartilhadas ou uma geração limitada para aquele slot.",
+      "section": "3. PCIe, armazenamento, rede e aceleradores",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O protocolo NVMe é frequentemente usado para que unidades SSD acessem armazenamento por meio de PCIe.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. NVMe foi concebido para armazenamento não volátil e é comumente transportado sobre PCIe. O dispositivo, o caminho e a carga determinam o desempenho real.",
+      "section": "3. PCIe, armazenamento, rede e aceleradores",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um volume RAID espelhado mantém uma cópia adicional e por isso protege também contra exclusão acidental e ransomware.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O espelhamento pode preservar disponibilidade quando uma unidade falha, mas exclusões e alterações maliciosas podem ser replicadas. Backups separados e testados atendem a riscos diferentes.",
+      "section": "3. PCIe, armazenamento, rede e aceleradores",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma NIC adicional pode aumentar portas disponíveis, mas sua utilização também depende da rede conectada e da topologia PCIe.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A placa de rede precisa de enlace e pistas adequados, além de cabos, switches e configuração compatíveis. O simples acréscimo da NIC não garante banda ou tolerância a falhas.",
+      "section": "3. PCIe, armazenamento, rede e aceleradores",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma GPU pode acelerar qualquer programa instalado, mesmo que ele não use processamento paralelo ou suporte ao dispositivo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A aplicação precisa usar a GPU ou uma API compatível e a carga deve se beneficiar de paralelismo. Também é necessário que energia, refrigeração, espaço e PCIe comportem o acelerador.",
+      "section": "3. PCIe, armazenamento, rede e aceleradores",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para inserir uma placa de rede de alta velocidade, qual verificação reduz o risco de limitação inesperada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desabilitar a memória ECC para liberar pistas PCIe adicionais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Verificar apenas a cor do conector externo no painel traseiro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escolher o slot com maior comprimento físico sem ler o manual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Checar a geração, as pistas e o compartilhamento do slot PCIe.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o tamanho do volume RAID para modificar o enlace de rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "As pistas podem ser compartilhadas entre slots e dispositivos, e a geração suportada limita a taxa efetiva da placa de rede. O diagrama da placa e as especificações do equipamento mostram o caminho real. A cor de um conector externo, a memória ECC e o tamanho de um volume RAID não informam a largura nem a geração do enlace PCIe.",
+      "section": "3. PCIe, armazenamento, rede e aceleradores",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização precisa separar o conceito de dispositivo e de protocolo ao avaliar armazenamento. Qual alternativa está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "NVMe é um meio magnético que utiliza pratos giratórios.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SSD descreve um tipo de unidade; NVMe descreve um protocolo de acesso.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "SAS significa memória volátil instalada no soquete da CPU.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PCIe designa exclusivamente uma controladora de RAID por software.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "HDD é o nome de um protocolo exclusivo de armazenamento em rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "SSD identifica uma unidade de estado sólido, enquanto NVMe define um protocolo de comandos usado em armazenamento não volátil, comumente sobre PCIe. HDD é a unidade magnética de pratos giratórios. Assim, NVMe não designa esse meio físico; também não se deve confundir a interconexão PCIe com uma controladora RAID.",
+      "section": "3. PCIe, armazenamento, rede e aceleradores",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após falha de um disco em RAID, o volume continua disponível. Qual ação conceitual ainda é necessária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover outro disco aleatório para forçar espelhamento temporário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar todos os registros do BMC para reconstruir a paridade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Seguir o procedimento de reconstrução e manter cópias de segurança.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Contar com o RAID como proteção contra toda falha lógica futura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Instalar uma CPU adicional para restaurar os dados perdidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "RAID tolera determinadas falhas conforme o nível e o estado do conjunto, mas não substitui backup. A unidade defeituosa deve ser identificada e tratada segundo a documentação, com reconstrução monitorada. Retirar um disco aleatório pode exceder a tolerância do arranjo e tornar o volume indisponível; cópias independentes continuam necessárias.",
+      "section": "3. PCIe, armazenamento, rede e aceleradores",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O BMC de um servidor pode fornecer monitoramento embarcado e recursos de gerenciamento independentes do sistema operacional do host.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O controlador embarcado pode ler sensores e expor operações remotas próprias. Recursos específicos, interfaces e disponibilidade dependem do modelo e da configuração.",
+      "section": "4. Firmware, gerenciamento embarcado e disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O nome iDRAC designa uma controladora de gerenciamento remoto presente em produtos Dell, não um nome universal para todo servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. iDRAC é a implementação Dell de gerenciamento embarcado. Outros fabricantes empregam produtos e nomes próprios para funções semelhantes de BMC.",
+      "section": "4. Firmware, gerenciamento embarcado e disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como o BMC é independente do sistema operacional, suas interfaces remotas não precisam de autenticação nem de proteção de rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Independência operacional não elimina riscos de segurança. Credenciais, segmentação da rede de gerenciamento, controle de acesso e atualizações do firmware continuam necessários.",
+      "section": "4. Firmware, gerenciamento embarcado e disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "POST é uma etapa de inicialização que pode identificar falhas de componentes antes de carregar o sistema operacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O autoteste ocorre durante a inicialização do hardware. Códigos, LEDs, visor ou logs de gerenciamento podem ajudar a investigar problemas detectados nessa fase.",
+      "section": "4. Firmware, gerenciamento embarcado e disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O BMC pode ajudar a diagnosticar ou controlar um servidor cujo sistema operacional não iniciou, conforme os recursos implementados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Como o controlador embarcado possui caminho de gerenciamento separado, ele pode continuar acessível quando o host está inoperante. A disponibilidade de console, mídia virtual e outros recursos varia por configuração.",
+      "section": "4. Firmware, gerenciamento embarcado e disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma atualização de firmware deve usar pacote compatível e procedimento do fabricante, pois uma interrupção pode comprometer o componente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Firmware é necessário à inicialização ou ao gerenciamento do hardware. Imagem incorreta ou perda de energia durante a gravação pode deixar o componente sem funcionamento e exigir recuperação específica.",
+      "section": "4. Firmware, gerenciamento embarcado e disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um host travou e não responde ao sistema operacional. Qual recurso pode permitir diagnóstico remoto fora de banda?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cache L3, acessado como console web em qualquer rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A controladora de memória, que substitui o firmware de gerenciamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O RAID, que fornece acesso administrativo ao sistema travado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O BMC, acessado pela interface de gerenciamento configurada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O slot PCIe x16, que inicializa uma sessão HTTPS sozinho.",
+          "correct": false
+        }
+      ],
+      "explanation": "O BMC é um controlador embarcado com gerenciamento separado do sistema operacional e pode expor sensores, eventos e operações remotas. Cache, RAID, controladores de memória e slots de expansão não cumprem essa função geral.",
+      "section": "4. Firmware, gerenciamento embarcado e disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um técnico pretende reduzir exposição do controlador de gerenciamento. Qual prática é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Restringir a rede de gerenciamento e proteger credenciais e firmware.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Publicar a interface administrativa diretamente para qualquer rede externa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter credenciais de fábrica para facilitar manutenção concorrente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar o monitoramento para que sensores não criem eventos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Instalar nele o sistema operacional do host como única camada de acesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "BMCs têm alto privilégio e operam mesmo quando o host está parado. Restringir conectividade, trocar credenciais padrão e manter firmware validado reduzem a superfície de ataque sem depender do sistema operacional principal.",
+      "section": "4. Firmware, gerenciamento embarcado e disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois servidores têm uma fonte cada, ambas ligadas à mesma régua elétrica. Essa configuração garante redundância de circuito.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Uma falha na régua ou no circuito pode interromper ambas as fontes. Redundância de alimentação requer avaliar também a distribuição elétrica e, quando necessário, caminhos independentes.",
+      "section": "4. Firmware, gerenciamento embarcado e disponibilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma configuração 1+1 suportada, uma fonte pode sustentar o servidor se a outra falhar, desde que a capacidade restante seja suficiente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A redundância depende da política suportada e da capacidade de uma fonte para manter a carga. Também é necessário considerar circuitos e distribuição elétrica conforme o objetivo de disponibilidade.",
+      "section": "4. Firmware, gerenciamento embarcado e disponibilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A expressão TDP de uma CPU indica a potência elétrica total que todas as partes do servidor consomem da tomada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. TDP é uma característica térmica de projeto do processador. Consumo do servidor inclui CPU, memória, discos, placas, ventiladores e perdas de conversão das fontes.",
+      "section": "5. Formatos, refrigeração e escolha da arquitetura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor blade costuma ser inserido em chassis que pode compartilhar alimentação e interconexões entre módulos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O chassis blade agrega módulos e recursos comuns, reduzindo parte do cabeamento e da duplicação de componentes. A dependência do chassis deve ser considerada no projeto e na disponibilidade.",
+      "section": "5. Formatos, refrigeração e escolha da arquitetura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma unidade hot-swap pode ser retirada de qualquer servidor ligado, mesmo sem verificar controlador, arranjo ou instruções do fabricante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A substituição com o sistema ligado exige suporte do chassi, backplane, controladora e configuração. Em um RAID degradado, remover a unidade errada pode provocar perda do volume.",
+      "section": "5. Formatos, refrigeração e escolha da arquitetura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um rack de maior densidade pode exigir atenção especial a energia, ventilação, profundidade e cabeamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Concentrar equipamentos aumenta a demanda de energia e dissipação térmica por espaço e torna importante planejar fluxo de ar, distribuição elétrica, trilhos e organização de cabos.",
+      "section": "5. Formatos, refrigeração e escolha da arquitetura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um rack de 2U possui sempre exatamente o dobro da capacidade de processamento de um servidor de 1U.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. U mede a altura do equipamento, não sua capacidade de processamento. Um chassi maior pode oferecer espaço para mais recursos, mas CPU e configuração determinam o processamento.",
+      "section": "5. Formatos, refrigeração e escolha da arquitetura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O TDP de um processador pode ser usado como referência térmica, mas não substitui o dimensionamento da alimentação do sistema completo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O processador é somente uma parte da carga. Memória, discos, aceleradores, NICs, ventiladores e eficiência de conversão também afetam potência e calor.",
+      "section": "5. Formatos, refrigeração e escolha da arquitetura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação de banco de dados mantém grande conjunto ativo em memória. Qual conjunto de aspectos de arquitetura merece atenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente a altura em U do gabinete e a cor dos slots PCIe.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A quantidade de portas USB, sem considerar capacidade de memória.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas o TDP do processador, que define toda a latência do banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número de fontes, que aumenta automaticamente a memória disponível.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RAM suficiente, localidade NUMA e capacidade da CPU.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma carga em memória exige capacidade suficiente e pode depender da largura de banda e da localidade NUMA; CPU e I/O continuam relevantes. Formato físico e redundância elétrica não substituem recursos de memória.",
+      "section": "5. Formatos, refrigeração e escolha da arquitetura",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao dimensionar servidor para virtualização, qual abordagem é mais completa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dimensionar só o volume RAID, pois as VMs não usam CPU física.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escolher apenas a CPU com maior frequência nominal disponível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Contar cada thread como um núcleo exclusivo e ignorar memória.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Avaliar CPU, memória, NUMA, I/O, rede e compatibilidade da plataforma.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Contar os slots vazios, sem verificar suas pistas ou limites elétricos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Máquinas virtuais compartilham os recursos físicos do host e podem disputar CPU, memória, rede e armazenamento. A localidade NUMA e a topologia dos dispositivos também influenciam certas cargas. Dimensionar apenas RAID ignora que as VMs executam instruções nos processadores físicos e dependem de todos esses caminhos.",
+      "section": "5. Formatos, refrigeração e escolha da arquitetura",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um centro de dados precisa tolerar a perda de uma fonte e também a interrupção de um circuito. Que princípio atende melhor ao requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar RAID espelhado para manter a corrente elétrica durante falhas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Instalar dois cabos na mesma tomada e considerar os circuitos independentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar fontes redundantes compatíveis em circuitos independentes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar alertas do BMC para manter fontes em operação contínua.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar os núcleos de CPU até que o consumo deixe de variar.",
+          "correct": false
+        }
+      ],
+      "explanation": "A redundância de fontes cobre a falha de uma unidade se a fonte remanescente sustentar a carga. Para tolerar também a interrupção de um circuito, cada fonte deve receber alimentação por caminho independente. RAID espelhado replica dados entre discos e não fornece energia nem elimina uma falha elétrica comum.",
+      "section": "5. Formatos, refrigeração e escolha da arquitetura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa escolhe SSD NVMe para uma carga de I/O intensa. Qual limite de arquitetura deve ser examinado além da especificação da unidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O número de threads de CPU, que determina diretamente a geração PCIe.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas a quantidade de saídas de vídeo da placa-mãe.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente se o gabinete dispõe de espaço para discos magnéticos giratórios.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A cor dos slots de DIMM, pois ela define o protocolo NVMe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pistas PCIe, topologia do enlace, refrigeração e compartilhamento de recursos.",
+          "correct": true
+        }
+      ],
+      "explanation": "A unidade precisa de um caminho PCIe adequado, e slots ou pistas podem ser compartilhados com outros dispositivos. SSDs rápidos também podem exigir atenção térmica, enquanto a CPU, os comutadores e a aplicação limitam a taxa observada. O número de threads não determina diretamente a geração PCIe; isso depende da plataforma e do enlace.",
+      "section": "3. PCIe, armazenamento, rede e aceleradores",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor com ventiladores redundantes fica imune a falhas térmicas mesmo se a entrada de ar estiver bloqueada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Ventiladores adicionais não compensam necessariamente fluxo de ar obstruído, temperatura ambiente inadequada ou falha comum de refrigeração. A instalação deve respeitar o caminho de ar previsto pelo fabricante.",
+      "section": "5. Formatos, refrigeração e escolha da arquitetura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um servidor rack, a designação 1U ou 2U descreve uma dimensão de altura padronizada para instalação no rack.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. U é uma unidade para a altura ocupada no rack. Ela não especifica diretamente número de processadores, capacidade de memória ou desempenho.",
+      "section": "5. Formatos, refrigeração e escolha da arquitetura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma plataforma pode limitar quais CPUs, DIMMs, slots e dispositivos de armazenamento funcionam em conjunto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Compatibilidade é determinada por soquetes, controlador, firmware, alimentação, conectores e validação do fabricante. Componentes com aparência semelhante não são automaticamente intercambiáveis.",
+      "section": "1. A placa-mãe, a CPU e o caminho dos dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A eficiência da PSU não elimina a necessidade de avaliar a potência exigida por processadores, memória, unidades e placas de expansão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Eficiência indica quanto da energia de entrada é convertido com perdas, mas a PSU ainda precisa fornecer potência suficiente para a carga e os picos previstos pelo fabricante.",
+      "section": "5. Formatos, refrigeração e escolha da arquitetura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe planeja colocar NIC e NVMe de alta velocidade junto a GPUs. Por que observar o diagrama de topologia PCIe pode importar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A topologia converte automaticamente qualquer GPU em controladora BMC.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O diagrama define se a unidade NVMe usa pratos magnéticos ou memória flash.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A proximidade PCIe pode reduzir travessias e contenção entre dispositivos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A mesma topologia garante que toda aplicação utilize a GPU sem suporte de software.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O diagrama substitui requisitos de energia e refrigeração dos aceleradores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Dispositivos conectados a diferentes complexos raiz ou comutadores podem trocar dados por caminhos distintos. Em cargas intensivas, afinidade e largura de banda do caminho influenciam a arquitetura. A topologia pode orientar o posicionamento, mas não transforma uma GPU em BMC: gerenciamento embarcado e processamento acelerado são funções de componentes diferentes.",
+      "section": "3. PCIe, armazenamento, rede e aceleradores",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor torre, um sistema rack e um blade diferem no formato físico e na forma como podem compartilhar recursos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Torre e rack são formatos de instalação diferentes; blade utiliza chassis com módulos e pode compartilhar componentes. Nenhum formato, por si só, define o desempenho da CPU.",
+      "section": "5. Formatos, refrigeração e escolha da arquitetura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação de rede exige alta disponibilidade. Duas portas de NIC no servidor, sem redundância de switch ou cabos, garantem dois caminhos independentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Portas adicionais só formam caminhos redundantes se o cabeamento, switches, alimentação e configuração evitarem pontos únicos de falha. A quantidade de conectores isoladamente não garante disponibilidade.",
+      "section": "3. PCIe, armazenamento, rede e aceleradores",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A quantidade de energia consumida pelo servidor pode ser estimada somando apenas os valores TDP dos processadores, sem considerar outros componentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. TDP não é uma medição completa do consumo de entrada e cobre apenas uma referência térmica do processador. Memória, armazenamento, aceleradores, NICs, ventiladores e conversão da PSU também pesam.",
+      "section": "5. Formatos, refrigeração e escolha da arquitetura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor com dois processadores compatíveis necessariamente apresenta desempenho duas vezes maior que a mesma máquina com um processador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O ganho depende de paralelismo, software, memória, topologia, I/O e contenção. Adicionar processador pode também alterar a distribuição NUMA e exige uma configuração suportada.",
+      "section": "1. A placa-mãe, a CPU e o caminho dos dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor precisa conectar discos SAS e expô-los ao sistema sem criar volumes RAID na placa. Qual tipo de adaptador pode atender a esse desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma HBA, se o modelo expuser os dispositivos ao host sem RAID.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma DIMM ECC, configurada como controladora de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um BMC, que transforma sensores térmicos em unidades SAS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um módulo NUMA, instalado no lugar da CPU principal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma PSU redundante, que organiza discos em volumes lógicos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma HBA conecta o host a dispositivos de armazenamento e pode apresentá-los individualmente ao sistema. Modelos e modos variam; DIMMs, BMC, NUMA e fontes têm funções distintas e não substituem o adaptador de I/O.",
+      "section": "3. PCIe, armazenamento, rede e aceleradores",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma controladora RAID apresenta vários discos ao sistema como um volume lógico. Qual afirmação descreve um limite importante desse arranjo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O volume substitui cópias de segurança em outra mídia.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma exclusão ou corrupção lógica ainda pode afetar os dados do volume.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O arranjo impede qualquer falha mecânica de todas as unidades.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A controladora converte unidades HDD em memória RAM volátil.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A presença de RAID elimina a necessidade de monitorar discos.",
+          "correct": false
+        }
+      ],
+      "explanation": "RAID pode distribuir ou espelhar dados para atingir disponibilidade ou desempenho, conforme o nível. Ele não é backup: exclusões, ransomware e falhas que atinjam o conjunto continuam exigindo cópias separadas e restauração testada.",
+      "section": "3. PCIe, armazenamento, rede e aceleradores",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma CPU suporta ECC, mas os DIMMs instalados são do tipo não ECC. Qual conclusão é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O sistema habilita ECC integral apenas com ajuste no sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O BMC pode converter os DIMMs instalados em memória corrigível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sem DIMMs ECC adequados, a correção não pode ser presumida.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O número de soquetes garante que todos os erros sejam corrigidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A placa usa as fontes redundantes para calcular os dados de paridade RAM.",
+          "correct": false
+        }
+      ],
+      "explanation": "O suporte à correção de memória depende do processador/controlador, da placa e dos módulos adequados. A CPU compatível, sozinha, não transforma DIMMs não ECC em memória com correção de erros.",
+      "section": "2. Memória, ECC, canais e NUMA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma placa anuncia conectores M.2 e slots PCIe, mas o projeto requer duas GPUs de largura dupla. O que deve ser confirmado antes da compra?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas a frequência base das CPUs indicadas na ficha comercial.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente se os SSDs estão formatados com sistema de arquivos compatível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se o BMC oferece console remoto para o sistema operacional instalado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Espaço, pistas PCIe, potência e refrigeração para as GPUs.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A capacidade nominal do RAID, que define o comprimento de cada placa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Duas GPUs de largura dupla ocupam espaço e consomem potência, além de exigirem pistas e fluxo térmico adequados. A presença de conectores M.2 ou slots não comprova que a configuração física e elétrica completa seja suportada.",
+      "section": "3. PCIe, armazenamento, rede e aceleradores",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um engenheiro quer saber se o servidor concluiu a inicialização do hardware antes de carregar o sistema operacional. Qual etapa deve observar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O POST, com códigos ou registros de diagnóstico disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A reconstrução de RAID, que sempre ocorre antes de ligar a CPU.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A negociação de DNS da aplicação depois que o usuário entra no sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A leitura de cache do navegador, feita pelo firmware da placa-mãe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A rotina de autoteste executada pelo firmware durante a partida.",
+          "correct": true
+        }
+      ],
+      "explanation": "POST é o autoteste de inicialização do hardware, executado pelo firmware antes do carregamento do sistema operacional. Códigos, LEDs e logs do controlador de gerenciamento podem ajudar a identificar em que fase houve falha.",
+      "section": "4. Firmware, gerenciamento embarcado e disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor antigo usa dois DIMMs por canal, mas a nova configuração preenche três slots por canal. Qual resultado pode ocorrer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O total de DIMMs nunca influencia a velocidade suportada pela plataforma.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O POST necessariamente converte canais de memória em portas de rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A frequência da memória pode ser reduzida conforme as regras da plataforma.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O BMC pode aumentar a velocidade ignorando limites elétricos da placa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sistema sempre dobra a largura de banda ao adicionar mais módulos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mais módulos por canal aumentam a carga elétrica e podem limitar a taxa de memória alcançável. O efeito exato depende do controlador, do tipo e rank dos DIMMs e das regras do fabricante; adicionar módulos não garante largura de banda maior.",
+      "section": "2. Memória, ECC, canais e NUMA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fonte redundante está instalada, mas o monitor de hardware informa que ela não participa da política ativa. Qual prática é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desconsiderar o alerta, pois a presença física da fonte garante redundância.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desconectar a outra fonte para testar a carga em produção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar sensores para eliminar alertas sem investigar a configuração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificar compatibilidade, estado, política de redundância e distribuição elétrica.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aumentar a RAM, que ativa a divisão de corrente entre as fontes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma PSU instalada pode estar incompatível, inativa ou fora da política de redundância. Deve-se consultar o estado e as regras do equipamento e verificar os cabos e circuitos antes de confiar na tolerância à falha.",
+      "section": "4. Firmware, gerenciamento embarcado e disponibilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Server Processors: Choosing the Right Server CPU",
+      "publisher": "Intel",
+      "reference": "Núcleos, threads, frequência, cache, placa de servidor e requisitos de ECC.",
+      "url": "https://www.intel.com/content/www/us/en/products/docs/processors/xeon/server-processor-overview.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Supported Memory and Memory Population Rules for the Intel Server Board S2600WF Family",
+      "publisher": "Intel",
+      "reference": "Canais, DIMMs, tipos de memória e exemplo das regras de população por processador.",
+      "url": "https://www.intel.com/content/www/us/en/support/articles/000055509.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "How To Enable and Verify NUMA and Intel SGX on Intel Xeon Processors",
+      "publisher": "Intel",
+      "reference": "Configuração e verificação de NUMA em BIOS e sistema operacional.",
+      "url": "https://www.intel.com/content/www/us/en/support/articles/000101064.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Dell EMC PowerEdge R650 Technical Guide",
+      "publisher": "Dell Technologies",
+      "reference": "Exemplo de opções de fonte, alimentação redundante, alertas e eficiência em uma plataforma concreta.",
+      "url": "https://i.dell.com/sites/csdocuments/product_docs/en/poweredge-r650-technical-guide.pdf",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PowerEdge: How to Configure the iDRAC and System Management Options on Servers",
+      "publisher": "Dell Technologies",
+      "reference": "Controlador embarcado, gerenciamento remoto e independência em relação ao sistema operacional.",
+      "url": "https://www.dell.com/support/kbdoc/en-us/000179517/dell-poweredge-how-to-configure-the-idrac-system-management-options-on-servers",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NVIDIA-Certified Systems Configuration Guide",
+      "publisher": "NVIDIA",
+      "reference": "Topologia PCIe e afinidade entre GPUs, NICs e unidades NVMe em sistemas acelerados.",
+      "url": "https://docs.nvidia.com/certification-programs/latest/nvidia-certified-configuration-guide.html",
+      "accessedAt": "2026-10-31"
+    }
+  ]
+}

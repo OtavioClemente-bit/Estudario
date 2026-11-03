@@ -1,0 +1,1548 @@
+{
+  "id": "informatica.arquitetura-sistemas-informacao-cliente-servidor-web",
+  "subject": "Informática",
+  "title": "Arquitetura de sistemas de informação, cliente-servidor e aplicações web",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Arquitetura de sistemas de informação",
+    "Arquitetura cliente-servidor e web",
+    "Sistemas de informação cliente servidor",
+    "Arquitetura de aplicações para ambiente web",
+    "Servidor de aplicações e servidor web",
+    "Conceitos de arquitetura de sistemas de informação",
+    "Especificação de metadados em sistemas de informação",
+    "Metadados e arquitetura de informação",
+    "Aplicações web cliente-servidor",
+    "Tecnologias de sistemas de informação"
+  ],
+  "scope": {
+    "covers": "Conceitos e aplicações de arquitetura de sistemas de informação; papéis de cliente e servidor, comunicação por requisição e resposta, camadas e separação de responsabilidades; metadados, esquemas e vocabulários de descrição e interoperabilidade, com exemplo do W3C DCAT; arquitetura web estática e dinâmica, protocolo HTTP, servidor web, servidor de aplicações, banco de dados, proxy, balanceamento e fluxo de uma requisição.",
+    "excludes": "Administração aprofundada de redes e sistemas operacionais, programação detalhada de frameworks, configuração específica de produtos como Apache, Nginx, Tomcat ou IIS, modelagem completa de bancos de dados, segurança ofensiva e normas de governança de dados que não estejam relacionadas à especificação de metadados."
+  },
+  "theoryTitle": "Como os sistemas de informação se organizam e atendem pela Web",
+  "chapters": [
+    {
+      "title": "1. Arquitetura de sistemas de informação",
+      "markdown": "### O problema que este assunto resolve\n\nUm sistema de informação reúne pessoas, processos, dados e tecnologia para coletar, processar, armazenar e disponibilizar informação útil a uma organização. A arquitetura descreve os elementos relevantes do sistema, suas responsabilidades e as relações entre eles. Ela serve para orientar decisões de construção e evolução: onde uma regra de negócio será aplicada, de onde virão os dados, como os componentes se comunicarão e quais partes poderão mudar sem exigir a reescrita de todas as demais.\n\n> **Siglas e termos deste capítulo**\n> - **SI**: sistema de informação.\n> - **Componente**: parte identificável do sistema com uma função e interfaces de interação.\n> - **Interface**: contrato pelo qual um componente oferece ou consome uma função.\n> - **Camada**: agrupamento lógico de responsabilidades relacionadas.\n> - **Acoplamento**: grau de dependência entre partes; quanto menor, mais independente tende a ser a evolução.\n\n### Arquitetura não é apenas desenho de computadores\n\nUm sistema de informação inclui mais que máquinas e programas. Um sistema de folha, por exemplo, tem regras de negócio (calcular remuneração), pessoas que cadastram e conferem dados, informação de vínculos e pagamentos, procedimentos de fechamento e tecnologia para executar e registrar as operações. Um diagrama de arquitetura seleciona e representa aspectos relevantes desse conjunto; não substitui a descrição dos processos, das regras nem dos dados.\n\nArquitetura lógica descreve responsabilidades e relações sem se prender necessariamente à localização física. Arquitetura de implantação mostra onde os componentes executam: navegador no computador do usuário, servidor web em uma zona de rede, aplicação em outro processo e banco em uma instância gerenciada. Uma camada lógica pode estar dividida em vários servidores físicos, e vários componentes lógicos podem compartilhar uma máquina.\n\n### Separação em camadas\n\n| Camada lógica | Responsabilidade típica | Exemplo em um portal de atendimento |\n| --- | --- | --- |\n| Apresentação | Interagir com a pessoa e exibir resultados | Formulário no navegador e validações de interface |\n| Aplicação | Coordenar os casos de uso e controlar o fluxo | Receber pedido de consulta e chamar serviços necessários |\n| Negócio | Aplicar regras próprias do domínio | Verificar se um requerimento pode ser aceito |\n| Dados | Persistir e recuperar informação | Consultar e gravar registros em banco |\n\nEssa divisão é uma organização lógica, não uma exigência de que cada camada rode numa máquina. Ela facilita localizar responsabilidades, substituir uma interface sem reescrever regras centrais e testar partes isoladamente. Porém, não garante automaticamente qualidade: interfaces mal definidas, dependências circulares e duplicação de regras também ocorrem em sistemas em camadas.\n\n### Cliente-servidor como padrão de interação\n\nNa arquitetura cliente-servidor, um componente cliente solicita um serviço e um componente servidor o oferece. O servidor pode validar a solicitação, aplicar regras, buscar ou atualizar dados e devolver resultado ou erro. O cliente normalmente controla a interação com o usuário; o servidor centraliza recursos e operações compartilhadas. Os papéis são relativos à interação: um servidor de aplicação pode ser cliente de um banco, e um serviço que atende a uma chamada pode iniciar outra chamada a um serviço distinto.\n\nA divisão permite atender muitos clientes com serviços e dados comuns, mas introduz dependência da rede, necessidade de tratar falhas e decisões sobre autenticação, concorrência, disponibilidade e capacidade. O cliente não deve ser tratado como fonte confiável de regras: dados enviados podem ser alterados, portanto as validações que protegem a integridade precisam ser aplicadas no lado sob controle do serviço.\n\n### Como cai na prova\n\n- Arquitetura é organização de responsabilidades e relações, e não sinônimo de topologia física.\n- Em cliente-servidor, cliente solicita e servidor oferece o serviço naquela interação; o papel não é uma característica imutável de uma máquina.\n- Separar interface, regras de negócio e persistência ajuda a organizar mudanças, mas não significa obrigatoriamente instalar cada parte em um computador diferente.\n- Uma aplicação pode envolver navegador, servidor web, aplicação e banco; todos são componentes de um sistema de informação quando cooperam para um propósito organizacional."
+    },
+    {
+      "title": "2. Cliente, servidor e comunicação em rede",
+      "markdown": "### O problema que este assunto resolve\n\nClientes e servidores precisam trocar solicitações em formato compreensível. Protocolos definem como identificar o destino, expressar a operação, transportar dados e interpretar o resultado. Na Web, o HTTP organiza mensagens de requisição e resposta. O navegador é um cliente comum, mas programas, robôs e outros serviços também podem desempenhar esse papel.\n\n> **Siglas e termos deste capítulo**\n> - **HTTP**: protocolo de aplicação usado para transferir representações de recursos.\n> - **URI/URL**: identificador ou endereço usado para localizar um recurso.\n> - **Agente de usuário**: programa que atua em nome do usuário, como um navegador.\n> - **Proxy**: intermediário que encaminha mensagens e pode aplicar cache, filtragem ou balanceamento.\n> - **API**: interface programática pela qual componentes solicitam operações.\n\n### Requisição e resposta\n\nEm um intercâmbio HTTP comum, o cliente envia uma requisição com método, alvo, campos de cabeçalho e, quando aplicável, conteúdo. O servidor processa a mensagem e devolve resposta com código de status, cabeçalhos e, em muitos casos, conteúdo. Por exemplo, o navegador solicita `/produtos/42`; o serviço pode devolver uma representação do produto ou um status indicando que o recurso não existe ou que o acesso não está autorizado.\n\nMétodos expressam a intenção da operação. `GET` solicita uma representação; `POST` envia conteúdo para processamento; `PUT` cria ou substitui o estado do recurso identificado; `DELETE` solicita remoção. O método, por si só, não comprova que o servidor realizou corretamente a operação, nem substitui autorização e validação. Um cabeçalho como `Content-Type` informa o tipo da representação enviada, enquanto `Accept` pode expressar formatos que o cliente aceita.\n\nHTTP é definido como protocolo sem estado: a interpretação de cada requisição não depende automaticamente de uma memória de requisições anteriores. Aplicações que precisam associar várias interações a uma sessão podem usar mecanismos explícitos, como identificadores em cookies ou tokens. O uso desses mecanismos não altera a definição básica do protocolo.\n\n### Cliente-servidor não significa uma máquina contra uma máquina\n\nO cliente é um papel de comunicação, não necessariamente um computador pessoal. Um servidor de aplicação que chama uma API externa torna-se cliente naquela chamada. O servidor também pode ser um conjunto distribuído de instâncias atrás de um balanceador. Um endereço público pode representar um serviço lógico cuja resposta é produzida por vários processos e componentes.\n\nProxies e caches são intermediários úteis. Um proxy reverso recebe tráfego destinado ao serviço e encaminha às instâncias internas; pode terminar TLS, aplicar regras de roteamento e distribuir carga. Um cache guarda respostas reutilizáveis segundo regras de validade, reduzindo latência e trabalho repetido. Cache mal configurado pode servir informação desatualizada ou privada ao destinatário errado, logo o conteúdo e as diretivas de cache importam.\n\n### Exemplo de fluxo\n\n1. A pessoa seleciona um item e o navegador envia uma requisição HTTP ao domínio do serviço.\n2. DNS e a infraestrutura de rede permitem chegar ao ponto de entrada; um proxy reverso pode receber a conexão.\n3. O ponto de entrada encaminha o caminho solicitado ao serviço apropriado.\n4. A aplicação verifica formato e autorização, executa regras e consulta dados quando necessário.\n5. O servidor retorna status e representação; o navegador interpreta HTML, JSON, imagens ou outros recursos.\n6. O navegador pode então fazer novas requisições para CSS, scripts, fontes e imagens referenciados.\n\n### Como cai na prova\n\n- Na troca HTTP, o cliente inicia a requisição e o servidor produz a resposta correspondente.\n- Sem estado significa que a sessão não é mantida automaticamente pelo protocolo; cookies e tokens podem ser usados pela aplicação para associar interações.\n- Um proxy pode encaminhar, filtrar, autenticar, registrar, armazenar em cache ou balancear, conforme sua função e configuração.\n- Um mesmo programa pode atuar como servidor numa conexão e como cliente noutra."
+    },
+    {
+      "title": "3. Metadados: descrição, especificação e interoperabilidade",
+      "markdown": "### O problema que este assunto resolve\n\nDados sem contexto são difíceis de localizar e interpretar. Um arquivo chamado `dados.csv` não informa, por si só, quem o produziu, o que suas colunas significam, de quando são os dados, qual licença permite seu uso ou como obter uma distribuição legível por máquina. **Metadados** são dados que descrevem outros recursos: identificam, contextualizam, permitem descoberta, apoiam gestão e ajudam a avaliar uso e proveniência.\n\n> **Siglas e termos deste capítulo**\n> - **Metadado**: propriedade descritiva ou administrativa associada a um recurso.\n> - **Esquema de metadados**: conjunto de campos e regras para descrever recursos.\n> - **Vocabulário controlado**: conjunto definido de termos usados com significado consistente.\n> - **RDF**: modelo para representar afirmações como relações entre recursos.\n> - **DCAT**: vocabulário W3C para interoperabilidade entre catálogos de dados publicados na Web.\n\n### Especificar metadados\n\nUma especificação útil define, para cada campo, seu nome, significado, tipo de valor, cardinalidade, obrigatoriedade, vocabulário permitido, regras de formato e, quando necessário, idioma e proveniência. Por exemplo, `issued` pode indicar a data de publicação de um conjunto de dados, enquanto `modified` registra alteração. Sem definições distintas, organizações podem preencher o mesmo campo com eventos diferentes e perder comparabilidade.\n\nUm catálogo pode descrever: título, descrição, criador ou publicador, assunto, data de publicação e atualização, identificador, idioma, licença, cobertura temporal ou geográfica, formato e endereço de distribuição. Nem todo esquema exige os mesmos campos nem todo recurso terá todos os valores. Campos opcionais devem ser omitidos ou marcados conforme a especificação, sem inventar informações.\n\nMetadado descritivo ajuda a encontrar e entender; metadado estrutural explica organização ou relações (por exemplo, colunas e formatos); metadado administrativo apoia gestão, direitos, acesso, preservação ou proveniência. As categorias podem se sobrepor segundo a finalidade do esquema. A qualidade depende de valores corretos, claros, atualizados e suficientemente completos, não apenas da presença de etiquetas.\n\n### Exemplo concreto: DCAT\n\nO W3C publicou DCAT como vocabulário RDF para facilitar a interoperabilidade entre catálogos de dados na Web. Seu modelo distingue, entre outras classes, `dcat:Catalog` (catálogo), `dcat:Dataset` (conjunto de dados) e `dcat:Distribution` (forma acessível ou distribuível do conjunto, como um arquivo CSV ou uma API). Um catálogo pode registrar um conjunto e suas distribuições, com formatos e endereços de acesso. A especificação também contempla serviços de dados e registros de catálogo.\n\nEssa distinção evita confundir o conteúdo conceitual com um arquivo específico: um conjunto de dados pode ter mais de uma distribuição, por exemplo CSV para download e API para consulta. DCAT fornece termos e relações compartilhados; não determina por si só a qualidade do conjunto, a política de acesso ou a licença aplicável. A organização que publica ainda precisa informar valores corretos e definir suas políticas.\n\n### Sintaxe, semântica e interoperabilidade\n\nJSON, XML, CSV e Turtle são formas de serializar ou representar informação; escolher uma sintaxe não resolve sozinho a semântica. Dois sistemas interoperam melhor quando concordam também sobre o significado dos campos, os formatos aceitos, os identificadores e as relações. Vocabulários padronizados reduzem ambiguidades, mas mapeamentos podem ser necessários quando esquemas diferentes descrevem conceitos próximos.\n\n### Como cai na prova\n\n- Metadados descrevem recursos; não são necessariamente os dados primários descritos.\n- DCAT é um vocabulário W3C baseado em RDF para troca e agregação de descrições de catálogos.\n- `Dataset` e `Distribution` representam conceitos diferentes: o conjunto e uma forma concreta de disponibilizá-lo.\n- Um esquema precisa definir significados e restrições dos campos; trocar CSV por JSON não harmoniza significados diferentes."
+    },
+    {
+      "title": "4. Servidor web e servidor de aplicações",
+      "markdown": "### O problema que este assunto resolve\n\nUm site dinâmico precisa receber tráfego HTTP, entregar arquivos e executar lógica que monta respostas com base em rotas, dados e regras. É comum dividir essas responsabilidades entre um servidor web, que trata conexões HTTP e conteúdo estático, e um servidor ou runtime de aplicações, que executa a lógica da aplicação. Os produtos podem combinar funções; a distinção é principalmente de responsabilidade.\n\n> **Siglas e termos deste capítulo**\n> - **Servidor web**: software que recebe solicitações HTTP e entrega recursos web.\n> - **Servidor de aplicações**: ambiente que executa componentes da aplicação e serviços associados.\n> - **Conteúdo estático**: arquivo entregue sem ser produzido especificamente para aquela requisição.\n> - **Conteúdo dinâmico**: resposta calculada conforme requisição, regras ou dados.\n> - **Balanceador**: componente que distribui requisições entre destinos.\n\n### O que faz o servidor web\n\nEm sua função mais direta, o servidor web aceita conexões HTTP, interpreta caminhos e cabeçalhos, localiza arquivos e envia respostas. Pode servir HTML, CSS, JavaScript, imagens e fontes diretamente. Também pode redirecionar, aplicar controles de acesso, comprimir respostas, registrar acessos, terminar TLS, usar cache ou encaminhar requisições dinâmicas. Uma página estática pode funcionar sem servidor de aplicações.\n\n### O que faz o servidor de aplicações\n\nO servidor de aplicações hospeda ou executa a lógica que trata casos de uso: validar entradas, aplicar regras de negócio, consultar serviços ou bancos e construir uma resposta. Em plataformas corporativas também pode oferecer serviços de runtime, como gerenciamento de componentes, pools de conexões, transações, segurança, configuração e monitoramento. Essas capacidades variam por produto e plataforma; não se deve assumir que todo servidor de aplicação implemente o mesmo conjunto.\n\n### Um fluxo de aplicação web dinâmica\n\n| Etapa | Componente e ação típica |\n| --- | --- |\n| 1 | Navegador solicita `/pedidos/73` por HTTP |\n| 2 | Servidor web ou proxy recebe e encaminha a rota dinâmica |\n| 3 | Aplicação valida a requisição e verifica identidade e permissão |\n| 4 | Lógica de negócio consulta o banco ou serviço necessário |\n| 5 | Aplicação monta HTML ou JSON e devolve o resultado |\n| 6 | Servidor web envia a resposta ao navegador |\n\nPara `/estilos/site.css`, o servidor web pode devolver o arquivo diretamente sem chamar a lógica de negócio. Para uma tela de extrato, a aplicação pode consultar dados e montar HTML ou JSON por usuário e período. Isso não exige que o servidor web e o servidor de aplicações estejam em máquinas diferentes: podem ser processos separados, co-localizados ou funções integradas no mesmo produto.\n\n### Escala, disponibilidade e limites\n\nInstâncias replicadas permitem atender mais requisições e tolerar a indisponibilidade de uma delas, desde que estado de sessão, arquivos e dados estejam disponíveis de forma compatível. Um balanceador distribui tráfego, mas não torna a aplicação automaticamente escalável: gargalos no banco, sessões locais ou tarefas demoradas ainda limitam capacidade. Cache alivia leituras repetidas; não substitui a fonte autoritativa dos dados.\n\nSeparar servidor web e aplicação pode permitir configurações e ciclos de escala diferentes e restringir a exposição do runtime. Em contrapartida, acrescenta um salto de rede e pontos de configuração. A decisão deve considerar carga, segurança, operação e desenho da aplicação; não existe uma única topologia obrigatória para toda aplicação web.\n\n### Como cai na prova\n\n- Servidor web entrega recursos HTTP e frequentemente atende arquivos estáticos; servidor de aplicações executa lógica e produz conteúdo dinâmico.\n- As funções podem estar integradas ou distribuídas; os nomes não garantem separação física.\n- Uma requisição dinâmica pode ser encaminhada pelo servidor web à aplicação, que consulta dados e retorna uma representação.\n- Aplicação web dinâmica costuma combinar servidor web, código da aplicação e, quando necessário, banco de dados."
+    }
+  ],
+  "summary": "Arquitetura de sistemas de informação descreve responsabilidades, interfaces e relações entre pessoas, processos, dados e tecnologia. No modelo cliente-servidor, clientes iniciam solicitações e servidores oferecem serviços; os papéis podem variar por conexão. HTTP usa mensagens de requisição e resposta e é sem estado por definição. Metadados descrevem recursos e precisam de campos com significado definido; DCAT é vocabulário W3C/RDF para interoperabilidade entre catálogos, distinguindo catálogo, conjunto e distribuição. Em ambiente web, servidor web recebe HTTP e pode servir arquivos estáticos ou encaminhar rotas; servidor de aplicações executa regras e gera respostas dinâmicas, possivelmente com acesso a banco. Essas funções podem estar integradas ou distribuídas.",
+  "flashcards": [
+    {
+      "front": "O que descreve a arquitetura de um sistema de informação?",
+      "back": "Os elementos relevantes, suas responsabilidades, interfaces e relações, incluindo aspectos lógicos e de implantação."
+    },
+    {
+      "front": "Arquitetura lógica exige máquinas separadas por camada?",
+      "back": "Não. Camadas organizam responsabilidades; podem compartilhar a mesma máquina ou ser distribuídas."
+    },
+    {
+      "front": "Qual é o papel do cliente no modelo cliente-servidor?",
+      "back": "Iniciar uma solicitação de serviço numa interação."
+    },
+    {
+      "front": "Um servidor pode ser cliente?",
+      "back": "Sim. Ao chamar outro serviço, desempenha o papel de cliente nessa interação."
+    },
+    {
+      "front": "Qual protocolo organiza requisições e respostas comuns na Web?",
+      "back": "HTTP, protocolo de aplicação para mensagens entre clientes e servidores."
+    },
+    {
+      "front": "O que normalmente compõe uma requisição HTTP?",
+      "back": "Método, alvo, cabeçalhos e, quando aplicável, conteúdo."
+    },
+    {
+      "front": "O que informa o status da resposta HTTP?",
+      "back": "O resultado do processamento da requisição, como sucesso, redirecionamento ou erro."
+    },
+    {
+      "front": "O que significa HTTP sem estado?",
+      "back": "Cada mensagem pode ser interpretada sem depender automaticamente de mensagens anteriores."
+    },
+    {
+      "front": "Como uma aplicação pode associar requisições a uma sessão?",
+      "back": "Com mecanismos explícitos, como cookies ou tokens."
+    },
+    {
+      "front": "O que é metadado?",
+      "back": "Informação que descreve, identifica, contextualiza ou administra outro recurso."
+    },
+    {
+      "front": "O que um esquema de metadados deve definir?",
+      "back": "Significado e regras dos campos, como tipo, formato, obrigatoriedade e cardinalidade."
+    },
+    {
+      "front": "Para que serve DCAT?",
+      "back": "Facilitar interoperabilidade entre catálogos de dados publicados na Web."
+    },
+    {
+      "front": "Qual modelo de representação usa DCAT?",
+      "back": "RDF, modelo de dados para representar recursos e relações."
+    },
+    {
+      "front": "Qual é a diferença entre Dataset e Distribution em DCAT?",
+      "back": "Dataset é o conjunto de dados; Distribution é uma forma de disponibilizá-lo, como arquivo ou API."
+    },
+    {
+      "front": "O que faz um servidor web em sua função básica?",
+      "back": "Recebe solicitações HTTP e devolve recursos web."
+    },
+    {
+      "front": "O que é conteúdo estático?",
+      "back": "Recurso entregue sem ser produzido especificamente com base naquela requisição."
+    },
+    {
+      "front": "O que faz um servidor de aplicações?",
+      "back": "Executa lógica da aplicação, aplica regras e pode consultar dados ou outros serviços."
+    },
+    {
+      "front": "Como pode ser entregue uma requisição por um arquivo CSS?",
+      "back": "O servidor web pode localizar o arquivo e devolvê-lo diretamente."
+    },
+    {
+      "front": "O que faz um proxy reverso?",
+      "back": "Recebe tráfego destinado a serviços internos e o encaminha, podendo aplicar outras funções."
+    },
+    {
+      "front": "Qual é a função típica de um balanceador?",
+      "back": "Distribuir requisições entre múltiplos destinos ou instâncias."
+    }
+  ],
+  "tips": [
+    "Diferencie organização lógica da distribuição física: camadas não exigem servidores distintos.",
+    "Leia cliente e servidor como papéis numa interação, pois o mesmo programa pode exercer os dois em chamadas diferentes.",
+    "Associe HTTP ao par requisição/resposta; a aplicação pode usar cookies ou tokens para manter uma sessão lógica.",
+    "Ao analisar metadados, confira significado e formato de cada campo, não apenas a sintaxe do arquivo.",
+    "Em DCAT, memorize a distinção entre catálogo, conjunto de dados e distribuição acessível.",
+    "Na arquitetura web, siga o caminho da rota: arquivo estático pode sair do servidor web; rota dinâmica chega à aplicação."
+  ],
+  "traps": [
+    "Confundir arquitetura em camadas com instalação obrigatória de cada camada em uma máquina.",
+    "Afirmar que um servidor nunca pode ser cliente de outro serviço.",
+    "Interpretar HTTP sem estado como proibição de sessões criadas pela aplicação.",
+    "Tratar metadados como sinônimo do conteúdo primário descrito.",
+    "Confundir uma distribuição, como um CSV, com o conjunto de dados conceitual.",
+    "Supor que todo servidor web executa regras de negócio ou que todo servidor de aplicações atende diretamente à Internet."
+  ],
+  "activeRecall": [
+    "Descreva o caminho de uma solicitação de consulta desde o navegador até a resposta dinâmica.",
+    "Compare arquitetura lógica e arquitetura de implantação usando apresentação, aplicação e dados.",
+    "Explique por que cliente e servidor são papéis relacionais e dê um exemplo de programa que exerce ambos.",
+    "Liste campos úteis para descrever um conjunto de dados e explique por que cada campo precisa de significado definido.",
+    "Diferencie Catalog, Dataset e Distribution no DCAT e construa um exemplo de catálogo com duas distribuições.",
+    "Compare a entrega de um arquivo estático com o processamento de uma rota dinâmica."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Camada lógica não determina localização física",
+      "summary": "Camadas organizam responsabilidades; elas não determinam em quais processos ou máquinas cada função precisa executar.",
+      "description": "Uma camada representa responsabilidades. Pode ser distribuída em processos ou máquinas, mas isso não é requisito conceitual."
+    },
+    {
+      "key": "e2",
+      "title": "Cliente e servidor são papéis da comunicação",
+      "summary": "Os papéis dependem de quem solicita e quem atende em cada interação, não são características permanentes do programa.",
+      "description": "Um software pode atender requisições numa conexão e iniciar requisições noutra."
+    },
+    {
+      "key": "e3",
+      "title": "HTTP sem estado não impede sessão da aplicação",
+      "summary": "O protocolo não vincula automaticamente mensagens, mas mecanismos explícitos podem associar requisições a uma sessão lógica.",
+      "description": "O protocolo não associa automaticamente requisições anteriores; mecanismos explícitos podem fazer essa associação."
+    },
+    {
+      "key": "e4",
+      "title": "Metadado precisa de semântica comum",
+      "summary": "Campos com nomes semelhantes só favorecem troca confiável quando seus significados, valores e formatos são definidos.",
+      "description": "Campos com rótulos iguais, mas significados diferentes, não garantem interoperabilidade."
+    },
+    {
+      "key": "e5",
+      "title": "Servidor web e servidor de aplicações têm responsabilidades distintas",
+      "summary": "A entrega de recursos HTTP e a execução da lógica dinâmica são funções distinguíveis, mesmo quando um produto as integra.",
+      "description": "O primeiro atende HTTP e pode entregar arquivos; o segundo executa lógica de aplicação. Produtos podem reunir funções, mas isso não apaga a diferença conceitual."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No modelo cliente-servidor, o cliente inicia uma solicitação e o servidor oferece um serviço na interação considerada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Cliente e servidor são papéis relativos à comunicação. O cliente solicita a operação e o servidor recebe e atende à solicitação, enviando uma resposta.",
+      "section": "1. Arquitetura de sistemas de informação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma arquitetura em camadas exige que apresentação, negócio e dados sejam instalados em três computadores distintos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Camadas são uma forma lógica de separar responsabilidades. A arquitetura de implantação pode colocar várias camadas numa máquina ou distribuir uma camada por várias instâncias.",
+      "section": "1. Arquitetura de sistemas de informação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A arquitetura de um sistema de informação pode descrever pessoas, processos, dados e tecnologia que cooperam para uma finalidade organizacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O sistema de informação é sociotécnico: envolve usuários e procedimentos além de hardware e software. A arquitetura seleciona e relaciona elementos relevantes para entender e orientar o sistema.",
+      "section": "1. Arquitetura de sistemas de informação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma vez que um programa é classificado como servidor, ele não pode atuar como cliente em nenhuma outra comunicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Os papéis variam conforme a conexão. Um serviço web recebe uma chamada como servidor e pode iniciar uma requisição a um serviço de pagamento, atuando como cliente nessa segunda interação.",
+      "section": "1. Arquitetura de sistemas de informação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A arquitetura lógica de uma aplicação e sua topologia de implantação respondem a perguntas diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A arquitetura lógica organiza responsabilidades e relações; a implantação indica onde processos e componentes são executados. Uma mesma estrutura lógica admite diversas topologias físicas.",
+      "section": "1. Arquitetura de sistemas de informação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No HTTP, é o servidor que normalmente inicia cada requisição do navegador para obter uma página.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O agente de usuário, em geral o navegador, inicia a requisição; o servidor a recebe e envia uma resposta. O navegador ainda pode iniciar novas solicitações para recursos citados na página.",
+      "section": "2. Cliente, servidor e comunicação em rede",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "HTTP é um protocolo de aplicação que organiza mensagens de requisição e resposta entre clientes e servidores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O cliente envia uma requisição com método e alvo; o servidor responde com status e, quando aplicável, cabeçalhos e conteúdo. HTTP atua na camada de aplicação.",
+      "section": "2. Cliente, servidor e comunicação em rede",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como HTTP é sem estado, uma aplicação não pode usar cookie ou token para associar várias requisições a uma sessão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Sem estado significa que o protocolo não vincula automaticamente a interpretação de uma requisição à anterior. Aplicações podem transportar um identificador explícito, como cookie ou token, para manter contexto de sessão.",
+      "section": "2. Cliente, servidor e comunicação em rede",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta HTTP pode incluir código de status, campos de cabeçalho e uma representação do recurso solicitado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O status informa o resultado da solicitação; cabeçalhos carregam metadados da resposta e do conteúdo; um corpo pode transportar a representação, embora nem toda resposta precise ter corpo.",
+      "section": "2. Cliente, servidor e comunicação em rede",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um proxy pode intermediar solicitações para aplicar encaminhamento, cache ou balanceamento de carga.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Proxies operam como intermediários de mensagens e podem oferecer funções como cache, filtragem, autenticação ou distribuição de tráfego, conforme sua posição e configuração.",
+      "section": "2. Cliente, servidor e comunicação em rede",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A troca da serialização CSV por JSON garante, por si só, que dois catálogos atribuam o mesmo significado a cada campo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. CSV e JSON são formas de representação. Interoperabilidade semântica exige definições compartilhadas ou mapeamentos dos conceitos, dos campos, dos valores e das relações representadas.",
+      "section": "3. Metadados: descrição, especificação e interoperabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Metadados podem indicar quem publicou um conjunto de dados, quando foi atualizado e como acessar suas distribuições.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Descrição, publicador, datas e endereços de distribuição são exemplos de metadados úteis para descoberta, avaliação e acesso a recursos de dados.",
+      "section": "3. Metadados: descrição, especificação e interoperabilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "DCAT é um vocabulário do W3C baseado em RDF que facilita a interoperabilidade entre catálogos de dados na Web.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O W3C define DCAT como vocabulário RDF para descrever catálogos e recursos relacionados, de modo a facilitar consumo e agregação de metadados entre catálogos.",
+      "section": "3. Metadados: descrição, especificação e interoperabilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em DCAT, Dataset e Distribution são sinônimos para o mesmo arquivo baixável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Dataset representa o conjunto de dados; Distribution representa uma forma de disponibilização desse conjunto, como um arquivo num formato específico ou uma API.",
+      "section": "3. Metadados: descrição, especificação e interoperabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um esquema de metadados pode declarar tipos de valor, formatos, cardinalidade e obrigatoriedade de campos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Uma especificação pode estabelecer significado, tipo, formato, quantas ocorrências são aceitas e se o campo é obrigatório, tornando descrições mais consistentes e processáveis.",
+      "section": "3. Metadados: descrição, especificação e interoperabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor web pode entregar diretamente arquivos CSS, JavaScript e imagens sem executar a regra de negócio da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Arquivos estáticos podem ser localizados e devolvidos pelo servidor web. O navegador pode solicitá-los separadamente depois de interpretar o HTML recebido.",
+      "section": "4. Servidor web e servidor de aplicações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor de aplicações pode validar entradas, aplicar regras de negócio e consultar um banco para produzir conteúdo dinâmico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A aplicação executa lógica associada aos casos de uso, acessa recursos necessários e constrói uma resposta adequada à solicitação recebida.",
+      "section": "4. Servidor web e servidor de aplicações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Todo servidor web precisa encaminhar cada solicitação ao servidor de aplicações, inclusive as de arquivos estáticos já hospedados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O servidor web pode entregar arquivos estáticos diretamente e encaminhar apenas rotas dinâmicas ou selecionadas à aplicação. O roteamento depende da arquitetura e da configuração.",
+      "section": "4. Servidor web e servidor de aplicações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "É possível que um mesmo produto reúna funções de servidor web e de execução da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. As expressões servidor web e servidor de aplicações destacam responsabilidades; produtos podem integrar funções, embora a distinção conceitual continue útil para entender o processamento.",
+      "section": "4. Servidor web e servidor de aplicações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num portal, a tela consulta dados particulares do usuário e monta uma resposta. Qual sequência descreve melhor o atendimento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O banco recebe a URL pública; o navegador aplica as regras e envia o resultado ao servidor web.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A aplicação recebe a rota e consulta os dados necessários para compor a resposta.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O servidor web modifica o navegador; a aplicação só guarda arquivos estáticos sem responder à rota, mesmo quando a rota exige consulta personalizada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O proxy substitui a aplicação; a resposta é sempre montada no sistema de nomes do domínio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O usuário consulta diretamente as tabelas; o servidor web apenas registra a escolha na interface.",
+          "correct": false
+        }
+      ],
+      "explanation": "A aplicação recebe ou processa a rota dinâmica, executa validações e regras, consulta os dados necessários e compõe uma resposta. O servidor web ou proxy participa do recebimento e encaminhamento, e o navegador apresenta o resultado.",
+      "section": "4. Servidor web e servidor de aplicações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização mantém sistema de folha e precisa separar cálculo remuneratório da apresentação dos formulários. Qual benefício arquitetural essa separação busca?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Obrigar o cálculo e a interface a compartilhar o mesmo arquivo de dados local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Separar a apresentação das regras centrais de cálculo para facilitar sua evolução independente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Garantir que qualquer dado digitado pelo navegador seja considerado confiável pelo sistema e dispense verificações no serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eliminar a necessidade de testar as regras porque a divisão já prova sua correção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Impedir que o sistema seja implantado em mais de um processo ou computador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Separar responsabilidades permite modificar a apresentação preservando as regras de negócio centralizadas. A divisão não elimina testes nem validação e não impõe uma localização física específica.",
+      "section": "1. Arquitetura de sistemas de informação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em arquitetura de sistemas, o que representa uma interface entre componentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma cópia física obrigatória de cada componente instalado em outra máquina.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um contrato que define como componentes interagem por operações e dados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma tabela de banco que armazena exclusivamente as senhas dos usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma rotina sem relação com a comunicação ou dependência entre partes do sistema, sem operações nem formatos compartilhados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um documento que elimina a necessidade de definir formatos e significados de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A interface define como uma parte interage com outra, incluindo operações e formatos esperados. Ela reduz a dependência de detalhes internos, mas precisa ter contrato claro.",
+      "section": "1. Arquitetura de sistemas de informação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço de pedidos chama uma API de pagamentos para autorizar uma compra. Como o serviço de pedidos atua nessa chamada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como servidor da API de pagamentos, pois todo sistema de negócio é servidor permanente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Como cliente da API de pagamentos, pois inicia a solicitação de autorização.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Como proxy de DNS, pois chamadas de negócio sempre alteram nomes de domínio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como navegador, pois uma API só pode ser solicitada por uma pessoa usando tela gráfica e não pode receber chamadas de outro serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como banco de dados, pois a autorização é armazenada no processo cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na chamada que inicia à API de pagamentos, o serviço de pedidos solicita uma operação e exerce o papel de cliente. Ele pode continuar sendo servidor nas chamadas recebidas de outros componentes.",
+      "section": "1. Arquitetura de sistemas de informação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual componente lógico é mais associado a verificar uma regra como 'um requerimento incompleto não pode ser protocolado'?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Camada de apresentação, pois regras só podem existir em rótulos e botões.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Camada de negócio, responsável por aplicar condições próprias do domínio.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Camada de rede, porque a rede decide a validade administrativa dos dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Camada de persistência, porque o banco deve ser a única interface visível ao usuário e decidir sozinho as regras administrativas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Servidor de nomes, porque DNS interpreta os campos preenchidos no requerimento.",
+          "correct": false
+        }
+      ],
+      "explanation": "A regra expressa uma condição do domínio e deve ser aplicada pela lógica de negócio do sistema, ainda que a interface também faça validações para orientar o usuário.",
+      "section": "1. Arquitetura de sistemas de informação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API HTTP recebe uma requisição e informa sucesso, mas não retorna conteúdo no corpo. Qual afirmação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A resposta é inválida, pois toda mensagem HTTP precisa conter uma página HTML completa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma resposta pode ser válida sem corpo, pois status e cabeçalhos comunicam informações.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A requisição não aconteceu, pois somente o corpo define se houve comunicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O servidor obrigatoriamente reenviará o corpo em uma conexão diferente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O cliente deve interpretar o código de status como conteúdo binário do recurso, pois códigos HTTP são arquivos compactados enviados no corpo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O corpo da resposta é opcional conforme o tipo de resposta e a operação. Status e cabeçalhos comunicam informações mesmo quando não há representação no corpo.",
+      "section": "2. Cliente, servidor e comunicação em rede",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O navegador precisa identificar que a representação devolvida para uma rota é JSON. Qual campo de mensagem ajuda a declarar o formato do conteúdo enviado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Accept, que sempre substitui o tipo do conteúdo que o servidor enviou.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Host, que informa a linguagem de programação usada para criar a resposta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Content-Type declara o tipo de mídia da representação enviada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Location, que define exclusivamente o tamanho em bytes do corpo da resposta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "User-Agent, que declara o formato do banco consultado pelo servidor e instrui o navegador a decodificar a representação como JSON.",
+          "correct": false
+        }
+      ],
+      "explanation": "Content-Type informa o tipo de mídia do conteúdo enviado, como application/json ou text/html. Accept é usado pelo cliente para indicar formatos que aceita receber.",
+      "section": "2. Cliente, servidor e comunicação em rede",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gateway encaminha o tráfego recebido para duas instâncias disponíveis do mesmo serviço. Que função está sendo exercida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Persistência, que mantém permanentemente cada resposta no banco principal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Serialização semântica, que converte todos os campos em conceitos padronizados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Balanceamento de carga distribui requisições entre instâncias disponíveis.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Renderização, que transforma uma resposta HTTP em elementos visuais na tela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Indexação de metadados, que substitui a aplicação por uma lista de arquivos e escolhe o destino da rede conforme o título do catálogo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Distribuir as solicitações entre instâncias é balanceamento de carga. O componente pode também executar outras funções, mas a situação descrita caracteriza a distribuição de tráfego.",
+      "section": "2. Cliente, servidor e comunicação em rede",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tela exibida em HTML referencia um arquivo de imagem hospedado no mesmo site. Como o navegador normalmente obtém esse arquivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Recebe a imagem automaticamente embutida no protocolo de nomes sem nova solicitação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O navegador pode solicitar a imagem em uma requisição HTTP separada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Pede ao banco de dados local do usuário que recupere a imagem pelo nome da página.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Solicita que o servidor de aplicação altere os pixels já exibidos sem transferir dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Abre uma conexão de banco diretamente, dispensando servidor HTTP e endereço web para transferir os pixels ao navegador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ao interpretar o HTML, o navegador identifica referências a imagens, CSS ou scripts e pode enviar solicitações HTTP separadas para obtê-los.",
+      "section": "2. Cliente, servidor e comunicação em rede",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um catálogo publica um conjunto em CSV e também por uma API de consulta. Qual descrição representa melhor essa relação em DCAT?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O Dataset é sempre o formato CSV, enquanto Distribution identifica a organização publicadora.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cada Distribution deve ser um catálogo inteiro e não pode apontar para o conjunto descrito.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O arquivo CSV e a API devem ser registrados como um único campo de título do catálogo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um Dataset pode ter distribuições associadas em formatos ou serviços distintos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "DCAT proíbe que um conjunto possua mais de uma forma de distribuição acessível, mesmo quando os formatos têm finalidades diferentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Dataset representa o conjunto de dados e pode ter diferentes distribuições associadas, por exemplo um arquivo CSV para download e um serviço de API para consulta.",
+      "section": "3. Metadados: descrição, especificação e interoperabilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois órgãos usam o campo 'data' para indicar, respectivamente, a coleta e a publicação do mesmo conjunto. Que providência melhora a interoperabilidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazenar os valores em nomes de arquivo, sem registrar significado no catálogo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter os dois arquivos para JSON e manter o nome ambíguo em ambos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover toda informação temporal porque sistemas não podem trocar datas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Especificar o significado de cada propriedade e mapear os esquemas quando preciso.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar o endereço IP do órgão como substituto universal para qualquer metadado temporal.",
+          "correct": false
+        }
+      ],
+      "explanation": "O rótulo igual não garante significado igual. É necessário especificar que evento cada propriedade representa e realizar mapeamento explícito entre vocabulários ou esquemas compatíveis.",
+      "section": "3. Metadados: descrição, especificação e interoperabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de campos oferece uma descrição útil de um conjunto de dados publicado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Endereço de rede interno sem título, contexto, formato ou informação de acesso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente nome do arquivo, cor do logotipo e modelo do monitor da equipe.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Senha do administrador, histórico pessoal do usuário e chave privada do servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Código-fonte integral do catálogo e nenhuma identificação do recurso descrito.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Título, publicador, contexto, datas, licença e acesso à distribuição.",
+          "correct": true
+        }
+      ],
+      "explanation": "Esses campos ajudam a localizar o recurso, entender seu conteúdo, identificar quem o publica, verificar atualidade e condições de reuso e obter uma distribuição disponível.",
+      "section": "3. Metadados: descrição, especificação e interoperabilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um campo obrigatório de metadados é desconhecido para determinado conjunto. Qual decisão respeita melhor uma especificação bem definida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar a regra documentada para valor ausente e não inventar uma informação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Preencher qualquer valor plausível, pois completude sempre prevalece sobre exatidão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Copiar um valor de outro conjunto sem verificar se descreve o mesmo recurso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o significado do campo localmente e não informar os consumidores do catálogo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apagar o esquema completo, pois ausência de um campo invalida todo metadado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A especificação deve orientar omissão, valor desconhecido ou outro indicador de ausência. Inventar ou copiar informação incorreta prejudica a qualidade e a confiança dos metadados.",
+      "section": "3. Metadados: descrição, especificação e interoperabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa agregar catálogos de conjuntos de dados de órgãos diferentes. Qual recurso técnico atende diretamente ao objetivo de vocabulário comum?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "DCAT, vocabulário RDF do W3C criado para facilitar interoperabilidade entre catálogos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "CSS, linguagem de apresentação que define relações entre conjuntos e distribuições.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DNS, sistema de nomes que atribui licença e assunto aos registros catalogados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "JPEG, formato de imagem que padroniza os campos de descrição de cada conjunto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SMTP, protocolo de correio que substitui toda necessidade de esquema de metadados.",
+          "correct": false
+        }
+      ],
+      "explanation": "DCAT fornece classes e propriedades RDF para publicar descrições de catálogos e conjuntos de dados de maneira mais interoperável e agregável.",
+      "section": "3. Metadados: descrição, especificação e interoperabilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma URL de distribuição funciona, mas o catálogo descreve um arquivo antigo como se tivesse sido atualizado hoje. Que dimensão da qualidade está comprometida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A exatidão e a atualidade dos metadados, pois a data não corresponde ao recurso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A cardinalidade do vocabulário, porque qualquer data deve ter pelo menos três valores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A arquitetura cliente-servidor, porque o navegador iniciou uma solicitação de leitura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A serialização RDF, pois uma data incorreta só pode ocorrer em arquivos XML.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A função de balanceamento, porque o catálogo possui uma única URL pública.",
+          "correct": false
+        }
+      ],
+      "explanation": "Metadados devem representar corretamente o recurso e seus eventos. Uma data de atualização falsa afeta confiabilidade e uso, ainda que o endereço de acesso esteja disponível.",
+      "section": "3. Metadados: descrição, especificação e interoperabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição distingue melhor conteúdo estático de conteúdo dinâmico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Estático é entregue como recurso hospedado; dinâmico é produzido conforme requisição, regra ou dado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Estático usa HTTP e dinâmico obrigatoriamente usa um protocolo de correio eletrônico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Estático existe apenas em banco relacional e dinâmico somente no computador do cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Estático precisa consultar a aplicação em cada acesso e dinâmico nunca consulta dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Estático descreve a rede física e dinâmico descreve a localização do navegador.",
+          "correct": false
+        }
+      ],
+      "explanation": "O servidor pode devolver um arquivo estático sem montá-lo para aquela solicitação. Conteúdo dinâmico é construído ou selecionado conforme a rota, os dados e as regras aplicáveis.",
+      "section": "4. Servidor web e servidor de aplicações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um portal serve imagens diretamente e encaminha /consulta para a lógica que busca registros. Qual divisão de trabalho é compatível com essa arquitetura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O banco monta os arquivos de imagem e o navegador aplica a regra de consulta sem servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O servidor web pode servir imagens e encaminhar rotas dinâmicas à aplicação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O servidor de aplicações só entrega imagens e o servidor web calcula as regras do domínio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O cliente envia a consulta ao sistema de metadados e recebe acesso direto às tabelas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O protocolo HTTP escolhe os registros e substitui tanto a aplicação quanto o banco.",
+          "correct": false
+        }
+      ],
+      "explanation": "O servidor web pode atender recursos estáticos diretamente e encaminhar rotas dinâmicas para a aplicação. A aplicação executa a lógica e consulta dados quando o caso de uso exige.",
+      "section": "4. Servidor web e servidor de aplicações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual responsabilidade é mais característica de um servidor de aplicações corporativas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir sozinho o significado institucional de cada campo de um catálogo de dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Resolver exclusivamente nomes de domínio para endereços de rede sem executar código.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar componentes da aplicação e oferecer serviços de runtime.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Renderizar toda interface no navegador sem receber mensagens de rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenar cópias de segurança físicas sem processar requisições da aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Servidores de aplicações oferecem ambiente de execução para componentes e podem fornecer serviços técnicos como gerenciamento de conexões, transações, segurança e monitoramento. O conjunto exato depende da plataforma.",
+      "section": "4. Servidor web e servidor de aplicações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma página de notícias é composta por um modelo HTML e dados diferentes a cada solicitação. Qual componente tende a produzir essa resposta variável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O protocolo TLS, que converte automaticamente valores do banco em parágrafos HTML.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O DNS, que injeta o conteúdo da notícia no navegador ao resolver o domínio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O balanceador, que calcula o texto da matéria com base no endereço IP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A aplicação combina dados e modelo para produzir a resposta variável.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O cache do navegador, que consulta diretamente todas as regras editoriais do sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma aplicação dinâmica pode buscar dados e inseri-los num modelo para montar a página. O servidor web pode encaminhar a requisição e transportar a resposta gerada.",
+      "section": "4. Servidor web e servidor de aplicações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que muda quando um servidor web encaminha uma rota para um servidor de aplicações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A solicitação passa a ignorar validação, autorização e regras implementadas no serviço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O navegador deixa de ser cliente e passa a funcionar como banco de dados permanente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O HTTP deixa de usar mensagens e passa a transmitir apenas arquivos sem cabeçalho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O servidor web apaga a rota original e transforma os dados em metadados DCAT.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A aplicação processa a lógica da rota antes de devolver a resposta.",
+          "correct": true
+        }
+      ],
+      "explanation": "O encaminhamento permite que o runtime da aplicação execute a lógica associada à rota e devolva o resultado. A aplicação ainda precisa aplicar validações, regras e controles pertinentes.",
+      "section": "4. Servidor web e servidor de aplicações",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço web foi replicado em três instâncias atrás de um proxy reverso, mas cada instância guarda sessão apenas em memória local. Qual risco arquitetural permanece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O proxy não pode encaminhar HTTP a mais de uma instância em qualquer circunstância.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Outra instância pode receber a requisição e não encontrar a sessão guardada localmente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A replicação garante que todo processo compartilhe automaticamente a mesma memória.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O banco deixa de armazenar registros porque o proxy passou a responder pelas tabelas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O HTTP passa a ser um protocolo com estado porque existem servidores replicados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Balanceamento distribui requisições, mas não replica por si só o estado local de sessão. A aplicação pode usar armazenamento compartilhado, tokens ou outra estratégia coerente para que instâncias atendam as interações.",
+      "section": "4. Servidor web e servidor de aplicações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação mantém versões antiga e nova durante implantação gradual. Qual desenho permite que a versão anterior ainda encontre seu endpoint e receba tráfego?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os metadados DCAT devem resolver rotas HTTP e alternar processos durante cada chamada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A camada de apresentação deve se conectar diretamente ao sistema de arquivos do banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um proxy ou balanceador pode rotear tráfego às instâncias ativas conforme a implantação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O código de status HTTP deve escolher a versão do executável antes de a requisição existir.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O navegador deve guardar uma cópia de todas as regras de negócio das duas versões.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um proxy reverso ou balanceador pode encaminhar tráfego às instâncias configuradas, apoiando implantações graduais. A compatibilidade entre versões e o estado compartilhado precisam ser tratados pela arquitetura da aplicação.",
+      "section": "4. Servidor web e servidor de aplicações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema recebe formulários no navegador, valida regras críticas apenas em JavaScript e grava os dados sem nova validação no servidor. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O proxy reverso substitui regras de negócio por inspeção de extensão de arquivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A validação no navegador é suficiente, pois HTTP impede que usuários alterem mensagens.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O servidor deve confiar no conteúdo quando o navegador enviou cabeçalho Accept.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O servidor deve validar os dados porque o cliente pode ser alterado por quem envia a requisição.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Metadados de apresentação autorizam qualquer dado recebido a ser persistido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Código executado no cliente pode melhorar a experiência, mas não é uma fronteira confiável. O servidor deve validar entradas e aplicar regras que protegem integridade, autorização e consistência dos dados.",
+      "section": "1. Arquitetura de sistemas de informação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer cachear respostas de uma rota personalizada por usuário. Qual cuidado é essencial para evitar conteúdo privado compartilhado indevidamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover os códigos de status para que caches não reconheçam a resposta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ativar cache público sem analisar cabeçalhos porque toda resposta HTTP é idêntica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter a resposta em CSV e presumir que a extensão impede compartilhamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Colocar o identificador de sessão no título do catálogo para isolar usuários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir políticas de cache que respeitem identidade e privacidade da resposta.",
+          "correct": true
+        }
+      ],
+      "explanation": "Caches precisam respeitar validade e escopo de reutilização. Conteúdo personalizado ou privado não deve ser servido a outro usuário por uma política que trate respostas distintas como equivalentes.",
+      "section": "2. Cliente, servidor e comunicação em rede",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer substituir o navegador por um aplicativo móvel sem duplicar as regras do cálculo central. Que abordagem arquitetural ajuda?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Disponibilizar as regras por uma interface de serviço consumível por diferentes clientes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Copiar todas as regras para cada tela e tornar os dados locais a fonte oficial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenar os cálculos nos metadados de cada arquivo de interface visual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformar o banco em um servidor web público sem camada de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exigir que os clientes compartilhem o mesmo sistema operacional para iniciar chamadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma interface de serviço permite que clientes diferentes solicitem as mesmas operações e que a lógica central permaneça no lado do serviço. O contrato precisa ser estável e os clientes devem tratar as respostas.",
+      "section": "1. Arquitetura de sistemas de informação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 9110 — HTTP Semantics",
+      "publisher": "Internet Engineering Task Force (IETF)",
+      "reference": "Papéis de cliente e servidor, protocolo sem estado, mensagens HTTP e semântica de métodos",
+      "url": "https://datatracker.ietf.org/doc/html/rfc9110",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Client-server overview",
+      "publisher": "MDN Web Docs / Mozilla",
+      "reference": "Fluxo de requisição e resposta, sites estáticos e dinâmicos, encaminhamento para aplicação e banco",
+      "url": "https://developer.mozilla.org/en-US/docs/Learn_web_development/Extensions/Server-side/First_steps/Client-Server_overview",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "What is a web server?",
+      "publisher": "MDN Web Docs / Mozilla",
+      "reference": "Função de servidor HTTP, entrega de arquivos e composição de servidor dinâmico com aplicação e banco",
+      "url": "https://developer.mozilla.org/en-US/docs/Learn_web_development/Howto/Web_mechanics/What_is_a_web_server",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Data Catalog Vocabulary (DCAT) — Version 3",
+      "publisher": "World Wide Web Consortium (W3C)",
+      "reference": "Vocabulário RDF para catálogos; classes Catalog, Dataset, Distribution, serviços e registros",
+      "url": "https://www.w3.org/TR/vocab-dcat-3/",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "DCAT 3 Vocabulary",
+      "publisher": "World Wide Web Consortium (W3C)",
+      "reference": "Namespace e serializações oficiais do vocabulário DCAT",
+      "url": "https://www.w3.org/ns/dcat3",
+      "accessedAt": "2026-10-31"
+    }
+  ]
+}

@@ -1,0 +1,922 @@
+{
+  "id": "informatica.automacao-infraestrutura-ansible-terraform-shell",
+  "subject": "Informática",
+  "title": "Infraestrutura como código e automação com Ansible, Terraform e scripts",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Infraestrutura como código e scripts Ansible, Terraform e ShellScript.",
+    "Infrastructure as Code e automação",
+    "Automação de infraestrutura com Terraform e Ansible",
+    "Terraform como infraestrutura declarativa",
+    "Ansible para provisionamento de servidores",
+    "Versionamento de infraestrutura como código",
+    "Linguagens de script Ansible Terraform Shell Script",
+    "Shell Script com Bash para administração",
+    "Automação de infraestrutura com PowerShell",
+    "Scripts de automação com linguagem Python",
+    "IaC declarativa e gerenciamento de configuração",
+    "Provisionamento e configuração automatizados"
+  ],
+  "scope": {
+    "covers": "Infraestrutura como código (IaC), automação e versionamento de configurações; diferenças e integração entre Terraform declarativo (recursos, providers, estado, plan e apply) e Ansible para configuração e provisionamento (inventário, playbooks, plays, tasks, módulos, handlers, variáveis e idempotência); fundamentos práticos de Bash/Shell Script, Windows PowerShell e Python na automação, incluindo variáveis, argumentos, fluxo de controle, execução de comandos, códigos de saída, tratamento de erros, segurança, testes e controle de versão.",
+    "excludes": "Sintaxe completa de provedores de nuvem específicos, operação de serviços de nuvem, administração detalhada de sistemas operacionais, programação avançada em Python, desenvolvimento de módulos próprios e configuração completa de pipelines de fornecedores específicos."
+  },
+  "theoryTitle": "Automatizar infraestrutura com código versionado",
+  "chapters": [
+    {
+      "title": "1. IaC: infraestrutura descrita e revisada como código",
+      "markdown": "### O problema que este assunto resolve\n\nCriar servidores, redes, regras de acesso e configurações manualmente torna difícil repetir um ambiente sem diferenças. Infraestrutura como código (Infrastructure as Code, IaC) descreve esses recursos em arquivos que podem ser revisados, versionados e aplicados por ferramentas. A equipe passa a discutir alterações em uma proposta de código antes de executá-las, em vez de depender de anotações e cliques não rastreados.\n\n> **Siglas e termos deste capítulo**\n> - **IaC**: Infrastructure as Code, gerenciamento de infraestrutura por definições legíveis por máquina.\n> - **Provisionamento**: criação ou disponibilização de recursos, como máquinas, redes e armazenamento.\n> - **Gerenciamento de configuração**: instalação e configuração do software e do estado desejado de sistemas já existentes.\n> - **Idempotência**: repetir uma operação deixa o sistema no mesmo estado final, sem acumular alterações indevidas.\n> - **Drift**: diferença entre o estado real da infraestrutura e o descrito ou registrado no código.\n\n### Descrever o resultado e registrar as mudanças\n\nUma configuração IaC guardada em Git permite comparar versões, identificar quem propôs uma alteração, revisar o diff e retornar a uma versão anterior do código. Isso não significa que reverter o commit sempre reverta automaticamente o ambiente: é preciso planejar e aplicar uma nova operação compatível com o estado real. Credenciais e chaves privadas não devem ser gravadas no repositório. Devem ser obtidas de mecanismos próprios de segredo ou do ambiente de execução.\n\nO versionamento ajuda a reproduzir ambientes e auditar mudanças, mas exige cuidado colaborativo. Dois processos simultâneos que alterem a mesma infraestrutura podem disputar estado ou produzir resultados incompatíveis; ferramentas e backends com bloqueio ajudam a serializar operações. O arquivo de estado também pode conter atributos sensíveis, portanto precisa de controle de acesso e armazenamento seguro.\n\n### Declarativo e imperativo\n\nNo estilo **declarativo**, registra-se o estado final desejado: por exemplo, “uma rede com esta faixa e duas sub-redes”. A ferramenta calcula ações para aproximar o ambiente desse resultado. No estilo **imperativo**, descreve-se a sequência de comandos ou passos: criar a rede, depois criar a sub-rede, depois associar uma rota. Terraform é principalmente declarativo. Scripts de shell e programas Python são normalmente imperativos; Ansible descreve estados desejados por tarefas e módulos, embora uma tarefa que rode um comando arbitrário possa não ser idempotente.\n\n| Necessidade | Exemplo de ferramenta ou abordagem | Resultado típico |\n| --- | --- | --- |\n| Criar e alterar recursos de infraestrutura | Terraform e providers | Plano de mudanças sobre recursos declarados |\n| Instalar pacotes e configurar serviços em hosts | Ansible | Tarefas aplicadas aos hosts selecionados |\n| Encadear comandos locais ou tarefas específicas | Bash, PowerShell ou Python | Script executado no sistema onde foi iniciado |\n\n### Como cai na prova\n\n- IaC não é simplesmente “usar um script”: envolve definir infraestrutura em arquivos e controlar sua evolução.\n- Declarativo indica o resultado pretendido; imperativo explicita passos.\n- Versionamento melhora revisão e rastreabilidade, mas não substitui proteção de segredos, estado, testes ou autorização de mudanças.\n- IaC pode criar recursos; gerenciamento de configuração pode prepará-los. Uma solução pode combinar as duas etapas."
+    },
+    {
+      "title": "2. Terraform: recursos declarados, plano e estado",
+      "markdown": "### O problema que este assunto resolve\n\nTerraform lê configurações que declaram recursos e usa plugins chamados **providers** para conversar com APIs de plataformas. Em arquivos `.tf`, blocos como `resource` descrevem objetos que a ferramenta deve gerenciar; blocos `variable` recebem parâmetros, e `output` expõe resultados úteis. A linguagem HCL é declarativa: a ordem textual dos blocos geralmente não determina a ordem de criação. Dependências entre recursos orientam a sequência.\n\n> **Siglas e termos deste capítulo**\n> - **Provider**: plugin que implementa a integração com uma plataforma ou serviço.\n> - **Resource**: objeto de infraestrutura que Terraform cria, lê, atualiza ou remove.\n> - **State (estado)**: registros que associam instâncias declaradas a objetos reais e guardam metadados.\n> - **Plan**: previsão das ações que Terraform propõe para aproximar o ambiente da configuração.\n> - **Backend**: local ou serviço usado para armazenar o estado.\n\n### Ciclo de trabalho controlado\n\nUm fluxo comum começa com `terraform init`, que prepara o diretório e instala os providers requeridos. `terraform plan` compara configuração, estado e informações consultadas aos providers, exibindo mudanças propostas sem aplicá-las. `terraform apply` executa as ações aprovadas e atualiza o estado. Alterar o arquivo de configuração descreve uma mudança; ela só é efetivada quando uma operação de aplicação a executa.\n\nO estado é necessário para mapear cada bloco de recurso ao objeto correspondente no mundo real. Por padrão, pode ser guardado localmente em `terraform.tfstate`; em equipe, um backend remoto com controle de acesso e bloqueio facilita o uso compartilhado. Não se deve editar o arquivo diretamente nem publicá-lo sem avaliar o risco: ele pode conter informações sensíveis e a perda ou concorrência do estado pode comprometer as operações.\n\nTerraform identifica dependências por referências entre recursos e também aceita dependência explícita quando a relação não aparece nos valores. A ferramenta constrói uma ordem de operações a partir dessas relações. Um recurso que deixou de constar na configuração pode ser proposto para remoção; portanto, revisar o plano é uma etapa de segurança importante.\n\n### Terraform não configura tudo sozinho\n\nTerraform costuma ser adequado para criar máquinas, redes, discos, permissões e outros recursos suportados pelo provider. Ansible pode então instalar pacotes, copiar arquivos e configurar serviços nesses hosts. Essa divisão é uma convenção útil, não uma fronteira absoluta. O Terraform gerencia o ciclo de vida dos objetos que declara; Ansible aplica tarefas a grupos de hosts descritos por inventário.\n\n### Como cai na prova\n\n- `plan` mostra ações previstas; não é sinônimo de aplicar. `apply` realiza mudanças.\n- O estado registra a associação entre recursos declarados e objetos reais; não é apenas um log dispensável.\n- Backend remoto e bloqueio ajudam colaboração, mas requerem proteção de acesso e de segredos.\n- Uma configuração declarativa descreve o fim desejado; Terraform calcula operações considerando dependências e estado."
+    },
+    {
+      "title": "3. Ansible: inventário, playbooks e configuração idempotente",
+      "markdown": "### O problema que este assunto resolve\n\nDepois de uma máquina existir, ainda é preciso instalar software, criar arquivos, configurar serviços e manter parâmetros consistentes. Ansible organiza esse trabalho em **playbooks** YAML que contêm um ou mais **plays**. Cada play seleciona hosts e associa tarefas a eles. Uma tarefa chama um **módulo**, unidade de trabalho que recebe parâmetros e retorna dados.\n\n> **Siglas e termos deste capítulo**\n> - **Inventário**: lista ou fonte de hosts gerenciados, grupos e variáveis associadas.\n> - **Playbook**: arquivo YAML que descreve plays e tarefas de automação.\n> - **Play**: associa um conjunto de hosts a tarefas e configurações.\n> - **Task (tarefa)**: chamada de módulo com parâmetros definidos.\n> - **Handler**: tarefa especial acionada por notificação, normalmente quando uma tarefa relata mudança.\n\n### Inventário e execução\n\nUm inventário INI pode agrupar máquinas, por exemplo `[webservers]` seguido pelos nomes dos servidores. Também pode ser escrito em YAML ou obtido dinamicamente por plugin. Os grupos permitem escolher os alvos e compartilhar variáveis. `all` representa todos os hosts do inventário; `ungrouped` reúne hosts que não pertencem a outro grupo. Em execução, `ansible-playbook -i inventario.ini site.yml` indica a fonte de inventário e o playbook a executar.\n\nUma tarefa como `ansible.builtin.service` pode declarar `name: nginx` e `state: started`. O módulo verifica o estado e, se apropriado, realiza a mudança. Muitas tarefas são idempotentes: executá-las novamente não altera um sistema que já está conforme. Já um módulo como `command` ou `shell` executa um comando e não infere necessariamente o estado desejado; repetir a tarefa pode repetir efeitos. Para estes casos, prefira módulos especializados ou condições e verificações explícitas.\n\nUma tarefa que detecta mudança pode usar `notify` para avisar um handler, como reiniciar um serviço. Handlers notificados são executados ao final das tarefas do play, evitando reiniciar o serviço desnecessariamente após cada tarefa. Variáveis podem vir do inventário, do play, de arquivos ou da linha de comando; valores têm precedências definidas, então variáveis de linha de comando podem sobrepor definições menos prioritárias.\n\n### Ansible e Terraform em sequência\n\nUm fluxo frequente declara com Terraform uma rede e máquinas; depois, o inventário dinâmico ou outro mecanismo fornece os hosts ao Ansible, que configura pacotes e serviços. Terraform não é, por isso, apenas um instalador de pacotes, e Ansible não precisa substituir o provisionamento declarativo de nuvem. Controle de acesso, credenciais, revisão e execução em ambientes de teste continuam necessários.\n\n### Como cai na prova\n\n- Inventário seleciona e agrupa hosts; playbook define plays; tarefas chamam módulos.\n- Idempotência é uma propriedade de muitas operações de módulos, não garantia absoluta para qualquer comando ou playbook.\n- Handler é acionado por notificação e costuma executar apenas se alguma tarefa comunicou mudança.\n- `--check` solicita modo de verificação para módulos que o suportam; não garante simulação perfeita de qualquer ação."
+    },
+    {
+      "title": "4. Bash, PowerShell e Python na automação segura",
+      "markdown": "### O problema que este assunto resolve\n\nScripts automatizam tarefas locais, integram ferramentas e verificam resultados. A escolha depende do sistema e da tarefa: Bash é comum em sistemas Unix e pipelines; PowerShell fornece cmdlets e objetos especialmente integrados ao ecossistema Windows, com versões também multiplataforma; Python é uma linguagem geral adequada a scripts com dados, lógica e bibliotecas. Os três podem executar comandos externos e precisam tratar falhas e entradas com cuidado.\n\n> **Siglas e termos deste capítulo**\n> - **Shell**: interpretador de comandos que também oferece variáveis, expansão e controle de fluxo.\n> - **Exit status**: resultado numérico retornado por um comando para indicar sucesso ou falha.\n> - **Pipeline**: passagem da saída de uma etapa como entrada da etapa seguinte.\n> - **Cmdlet**: comando nativo do PowerShell, geralmente com nomes do tipo `Verb-Noun`.\n> - **Exceção**: objeto Python que comunica uma condição de erro ou situação especial.\n\n### Bash: expansão, argumentos e resultado\n\nEm Bash, `$VAR` expande uma variável; `$(comando)` captura a saída de uma substituição de comando. Aspas duplas mantêm espaços dentro de um argumento e ainda permitem expansão de variáveis; aspas simples preservam o texto literal. Sem aspas adequadas, divisão de palavras e expansão de nomes de arquivos podem transformar uma entrada em vários argumentos. Scripts recebem argumentos posicionais como `$1`, `$2` e a lista `\"$@\"`.\n\nO status zero representa sucesso para o shell; status diferente de zero sinaliza falha. `$?` contém o status do comando anterior. `&&` executa a próxima etapa se a anterior teve sucesso; `||` executa a alternativa se a anterior falhou. `set -e` pode interromper scripts em algumas falhas, mas possui exceções e não substitui tratamento explícito. Redirecionamentos como `>` gravam saída padrão; `2>` encaminha saída de erro.\n\n### PowerShell: objetos e cmdlets\n\nPowerShell usa variáveis iniciadas por `$`, como `$nome`, e expressões entre aspas duplas podem expandi-las; aspas simples preservam o texto. Sua pipeline transmite objetos .NET com propriedades, em vez de apenas cadeias de caracteres. Cmdlets como `Get-Service` e `Restart-Service` seguem normalmente o padrão verbo-substantivo. `Where-Object` filtra objetos e `Select-Object` escolhe propriedades. Para comandos que podem falhar sem lançar exceção terminante, `-ErrorAction Stop` permite encaminhar a falha para `try/catch`.\n\nA política de execução do PowerShell controla condições para carregar arquivos e rodar scripts em Windows; é uma defesa em profundidade, não uma fronteira de segurança. `RemoteSigned`, por exemplo, exige assinatura confiável para scripts baixados da internet, enquanto scripts locais podem ser executados sem assinatura. A política efetiva depende de escopos e pode ser substituída por política de grupo. Não se deve confundi-la com antivírus ou controle completo de permissões.\n\n### Python: estrutura, subprocessos e tratamento\n\nPython usa indentação para delimitar blocos. `if`, `for` e `while` controlam o fluxo; funções definidas com `def` ajudam a dividir uma tarefa em partes reutilizáveis. Para executar um programa externo, `subprocess.run` recebe os argumentos em uma lista, pode capturar saída e, com `check=True`, gera `CalledProcessError` quando o processo termina com status diferente de zero. Uma lista de argumentos evita passar uma linha inteira a um shell por padrão, reduzindo riscos de injeção por metacaracteres.\n\nEntradas externas devem ser validadas; caminhos e argumentos devem ser passados sem concatenação insegura; segredos devem vir de armazenamento apropriado e não de arquivos versionados. Registre o resultado útil sem vazar credenciais. Teste o script em cópia ou ambiente controlado e valide a saída antes de realizar mudanças destrutivas.\n\n### Como cai na prova\n\n- Em Bash, `\"$@\"` preserva cada argumento separado; `$*` entre aspas normalmente os combina.\n- Bash interpreta status zero como sucesso; `$?` refere-se ao último comando executado.\n- PowerShell passa objetos pela pipeline; uma política de execução não é uma barreira de segurança completa.\n- Python oferece exceções para falhas e `subprocess.run` para programas externos; `check=True` transforma status não zero em exceção.\n- Automação confiável verifica erros, evita segredos em código e testa mudanças antes de aplicá-las."
+    }
+  ],
+  "summary": "IaC descreve recursos em arquivos revisáveis e versionáveis. Terraform é declarativo: providers implementam integrações, recursos representam objetos gerenciados, `init` prepara providers, `plan` apresenta ações previstas e `apply` as executa. O estado mapeia recursos declarados a objetos reais; em equipe, use backend remoto protegido e bloqueio, sem editar o arquivo diretamente nem versionar estado sem avaliar segredos. Ansible configura hosts selecionados por inventário. Playbooks YAML contêm plays; plays selecionam hosts; tasks chamam módulos. Muitas tarefas são idempotentes, mas comandos arbitrários podem repetir efeitos. Handlers respondem a notificações de mudança. Terraform pode criar máquinas e redes, enquanto Ansible as configura. Bash automatiza com variáveis, argumentos, expansões, redirecionamentos e status de saída; zero indica sucesso. PowerShell usa cmdlets e passa objetos pela pipeline; sua política de execução é defesa em profundidade, não fronteira de segurança. Python estrutura lógica com indentação, funções, exceções e subprocess.run. Em qualquer linguagem, valide entradas, trate falhas, proteja segredos e teste alterações antes de atingir produção.",
+  "flashcards": [
+    { "front": "O que caracteriza IaC?", "back": "Descrever recursos e configurações em arquivos que podem ser revisados, versionados e aplicados por ferramentas." },
+    { "front": "O que significa abordagem declarativa?", "back": "Declarar o resultado desejado e deixar a ferramenta calcular operações para alcançá-lo." },
+    { "front": "Qual é a função de um provider Terraform?", "back": "Implementar a integração com uma plataforma ou serviço para gerenciar seus recursos." },
+    { "front": "Para que serve terraform init?", "back": "Preparar o diretório de trabalho e instalar os providers necessários à configuração." },
+    { "front": "O que terraform plan apresenta?", "back": "Uma previsão das ações necessárias para aproximar a infraestrutura da configuração." },
+    { "front": "O que terraform apply faz?", "back": "Executa as ações aprovadas e atualiza o estado correspondente." },
+    { "front": "O que o estado do Terraform associa?", "back": "Instâncias de recursos declaradas a objetos reais e seus metadados." },
+    { "front": "Por que proteger o arquivo de estado?", "back": "Pode conter dados sensíveis, e sua perda ou alteração concorrente pode prejudicar o gerenciamento." },
+    { "front": "O que é drift?", "back": "Diferença entre a infraestrutura real e o estado descrito ou registrado pela automação." },
+    { "front": "Qual o papel do inventário Ansible?", "back": "Listar ou descobrir hosts, agrupá-los e associar variáveis." },
+    { "front": "O que há em um playbook?", "back": "Plays que escolhem hosts e organizam tarefas de automação." },
+    { "front": "O que uma task Ansible executa?", "back": "Um módulo com parâmetros sobre os hosts selecionados." },
+    { "front": "O que significa idempotência?", "back": "Repetir uma operação conforme não altera novamente um sistema que já está no estado desejado." },
+    { "front": "Para que serve um handler?", "back": "Executar uma tarefa notificada, geralmente após uma mudança, como reiniciar um serviço." },
+    { "front": "Como Bash indica sucesso?", "back": "Por status de saída zero; status não zero indica falha ou condição diferente de sucesso." },
+    { "front": "O que `$?` representa em Bash?", "back": "O status de saída do comando executado mais recentemente." },
+    { "front": "Qual a diferença de aspas simples e duplas em Bash?", "back": "Aspas simples preservam texto literal; duplas permitem expansão e protegem espaços como parte do argumento." },
+    { "front": "O que atravessa a pipeline do PowerShell?", "back": "Objetos com propriedades, que cmdlets seguintes podem filtrar e selecionar." },
+    { "front": "O que é um cmdlet?", "back": "Comando nativo do PowerShell, com frequência nomeado como Verbo-Substantivo." },
+    { "front": "A política de execução é uma fronteira de segurança?", "back": "Não; é uma defesa em profundidade que controla condições de execução de scripts em Windows." },
+    { "front": "Como Python estrutura blocos?", "back": "A indentação delimita blocos de instruções como funções, condicionais e laços." },
+    { "front": "O que `subprocess.run(..., check=True)` faz em Python?", "back": "Executa um processo e lança CalledProcessError se o processo terminar com status diferente de zero." },
+    { "front": "Qual sequência comum combina Terraform e Ansible?", "back": "Terraform cria recursos de infraestrutura; Ansible configura os sistemas operacionais e serviços nos hosts." },
+    { "front": "Versionar IaC elimina a necessidade de revisão?", "back": "Não; versionamento registra mudanças, e revisão ajuda a avaliar seus efeitos antes da execução." }
+  ],
+  "tips": [
+    "Leia o plano Terraform e confirme recursos que serão removidos ou substituídos antes de aplicar.",
+    "Mantenha configurações no controle de versão, mas forneça segredos por mecanismo apropriado.",
+    "Prefira módulos Ansible que declaram estado a comandos arbitrários repetidos.",
+    "Use inventários e grupos para direcionar cada play ao conjunto correto de hosts.",
+    "Em Bash, cite variáveis e use `\"$@\"` ao repassar argumentos preservando separação.",
+    "Em PowerShell e Python, capture falhas de comandos externos e examine seus resultados."
+  ],
+  "traps": [
+    "Confundir terraform plan, que prevê, com terraform apply, que executa mudanças.",
+    "Supor que todo playbook Ansible é idempotente, mesmo quando chama shell ou command.",
+    "Tratar o estado Terraform como cache descartável ou arquivo seguro para publicar sem análise.",
+    "Acreditar que o handler Ansible sempre roda após a task, mesmo sem notificação de mudança.",
+    "Supor que a pipeline do PowerShell transmite somente texto simples.",
+    "Considerar a política de execução do PowerShell uma barreira que impede todo código malicioso."
+  ],
+  "activeRecall": [
+    "Explique como IaC melhora repetibilidade e revisão de mudanças.",
+    "Compare descrição declarativa e sequência imperativa com um exemplo de infraestrutura.",
+    "Descreva o caminho entre terraform init, plan e apply.",
+    "Explique por que Terraform mantém estado e por que ele requer proteção.",
+    "Desenhe a relação entre inventário, playbook, play, task, módulo e handler.",
+    "Explique idempotência e dê um exemplo de tarefa que pode não ser idempotente.",
+    "Compare as aspas simples e duplas e os status de saída em Bash.",
+    "Compare a pipeline de objetos PowerShell com a passagem de dados entre etapas Python."
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Previsão e execução do Terraform confundidas", "summary": "Plan apresenta operações previstas; apply executa as aprovadas. A configuração alterada não modifica o ambiente até a aplicação." },
+    { "key": "e2", "title": "Estado Terraform tratado como arquivo dispensável", "summary": "Estado associa instâncias declaradas a objetos reais, sustenta decisões futuras e pode conter dados sensíveis; deve ser protegido e compartilhado com coordenação." },
+    { "key": "e3", "title": "Ansible confundido com execução sempre segura", "summary": "Inventário escolhe hosts e tarefas chamam módulos. Muitos módulos são idempotentes, mas command e shell podem repetir efeitos." },
+    { "key": "e4", "title": "Semântica das linguagens de script trocada", "summary": "Bash usa status de saída e expansão de shell; PowerShell passa objetos; Python estrutura blocos por indentação e oferece exceções para falhas." },
+    { "key": "e5", "title": "Proteções de automação consideradas absolutas", "summary": "Controle de versão, política de execução e tratamento automático de erros não substituem revisão, controle de acesso, validação de entradas e testes." }
+  ],
+  "questions": [
+    {
+      "statement": "IaC permite manter definições de infraestrutura em arquivos revisáveis e controlados por versão.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Arquivos de IaC podem ser comparados e revisados no controle de versão, permitindo rastrear as alterações propostas para os ambientes.",
+      "section": "1. IaC: infraestrutura descrita e revisada como código", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No estilo declarativo, o operador precisa codificar obrigatoriamente cada comando e a ordem exata de execução para criar os recursos.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A abordagem declarativa descreve o estado final desejado. A ferramenta determina as operações necessárias e sua ordem com base nas dependências.",
+      "section": "1. IaC: infraestrutura descrita e revisada como código", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O versionamento de arquivos IaC registra alterações, mas não garante por si só que reverter um commit reverta com segurança os recursos reais.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Um commit anterior restaura texto no repositório, mas a reversão dos recursos depende de analisar e aplicar uma mudança compatível com o estado real.",
+      "section": "1. IaC: infraestrutura descrita e revisada como código", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Terraform é principalmente declarativo, enquanto um script Bash costuma executar uma sequência explícita de comandos.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A configuração Terraform descreve recursos desejados e dependências; um script Bash normalmente lista comandos e fluxo de execução.",
+      "section": "1. IaC: infraestrutura descrita e revisada como código", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um repositório Git é um local apropriado para publicar chaves privadas de produção porque o histórico permite removê-las depois.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Segredos podem permanecer no histórico e em cópias do repositório. Devem ser fornecidos por mecanismos próprios de gestão de segredos e credenciais comprometidas precisam ser revogadas.",
+      "section": "1. IaC: infraestrutura descrita e revisada como código", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A ferramenta de IaC pode detectar uma diferença entre a infraestrutura real e a configuração ou estado esperado, diferença conhecida como drift.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Drift é o desvio entre o ambiente efetivo e o modelo ou estado gerenciado pela automação; alterações manuais podem produzi-lo.",
+      "section": "1. IaC: infraestrutura descrita e revisada como código", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Provisionamento e gerenciamento de configuração são expressões intercambiáveis que designam apenas instalação de pacotes em servidores existentes.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Provisionamento inclui disponibilizar recursos como redes e máquinas; gerenciamento de configuração costuma preparar software e estado de sistemas existentes. Um fluxo pode combinar ambos.",
+      "section": "1. IaC: infraestrutura descrita e revisada como código", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um backend remoto com bloqueio pode ajudar a equipe a compartilhar o estado Terraform e evitar operações simultâneas conflitantes.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O backend remoto fornece um estado compartilhado e backends com bloqueio podem serializar operações. Permissões e proteção dos dados do estado continuam necessárias.",
+      "section": "1. IaC: infraestrutura descrita e revisada como código", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A revisão de um diff de IaC pode revelar remoções ou mudanças de infraestrutura antes de sua aplicação.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Mudanças registradas em código podem ser examinadas antes da execução, e um plano Terraform também detalha ações propostas para revisão.",
+      "section": "1. IaC: infraestrutura descrita e revisada como código", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Executar duas operações Terraform simultâneas sobre o mesmo estado pode criar conflito, razão pela qual o bloqueio é útil em ambientes colaborativos.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Operações concorrentes podem partir de informações desatualizadas e disputar a atualização do estado; mecanismos de locking de backend coordenam o acesso.",
+      "section": "1. IaC: infraestrutura descrita e revisada como código", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um provider Terraform é um plugin de integração com uma plataforma ou serviço; ele não é o próprio objeto de infraestrutura declarado como resource.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Providers implementam a comunicação com APIs, enquanto blocos resource declaram objetos gerenciados por meio dessa integração.",
+      "section": "2. Terraform: recursos declarados, plano e estado", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Terraform usa apenas a ordem em que os blocos aparecem no arquivo para decidir a ordem de criação dos recursos.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A ordem textual geralmente não determina operações; Terraform considera dependências implícitas por referências e dependências explícitas declaradas.",
+      "section": "2. Terraform: recursos declarados, plano e estado", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O arquivo terraform.tfstate local pode conter atributos sensíveis e deve ser tratado com controles de acesso adequados.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A documentação do Terraform alerta que o estado pode conter segredos. Seu armazenamento e acesso precisam ser protegidos, seja em backend local ou remoto.",
+      "section": "2. Terraform: recursos declarados, plano e estado", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Terraform consegue funcionar normalmente sem qualquer forma de estado, pois consulta todos os provedores sem manter associações de recursos.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O estado mantém o vínculo entre instâncias declaradas e objetos reais, além de metadados. Ele é parte necessária do funcionamento do Terraform.",
+      "section": "2. Terraform: recursos declarados, plano e estado", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O comando terraform plan apresenta uma previsão de mudanças e, em seu uso normal, não as aplica à infraestrutura.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Plan calcula e mostra o efeito previsto da configuração. Para realizar a mudança, é necessário executar apply com o plano apropriado.",
+      "section": "2. Terraform: recursos declarados, plano e estado", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Terraform apply executa as ações propostas e, após uma operação bem-sucedida, atualiza o estado registrado.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Apply executa as operações aprovadas e, quando terminam com sucesso, atualiza o estado para refletir as associações entre os recursos declarados e os objetos reais resultantes.",
+      "section": "2. Terraform: recursos declarados, plano e estado", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A perda do estado local pode ser ignorada porque o Terraform descobre sempre, sem importação ou reconciliação, qual objeto real corresponde a cada resource.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O estado armazena vínculos necessários entre configuração e recursos remotos. Perder esse vínculo exige recuperação ou importação cuidadosa e pode levar a planos inadequados.",
+      "section": "2. Terraform: recursos declarados, plano e estado", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Terraform init prepara o diretório de trabalho e instala providers requeridos antes da execução habitual de plan e apply.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Init prepara o diretório de trabalho e obtém os providers exigidos pela configuração, além de preparar o uso dos módulos e do backend configurado para que os comandos seguintes possam operar.",
+      "section": "2. Terraform: recursos declarados, plano e estado", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um bloco resource que deixa de existir na configuração jamais pode levar Terraform a propor a remoção do objeto real associado.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Se um recurso gerenciado deixa a configuração, Terraform pode propor removê-lo para reconciliar o ambiente com o código; por isso o plano deve ser revisado.",
+      "section": "2. Terraform: recursos declarados, plano e estado", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em inventário Ansible, grupos podem reunir hosts associados e também receber variáveis compartilhadas.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Grupos classificam hosts para seleção e podem ser usados para atribuir valores comuns, como usuário ou parâmetros de serviço.",
+      "section": "3. Ansible: inventário, playbooks e configuração idempotente", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um playbook Ansible é um arquivo que pode conter plays, e cada play associa hosts selecionados a tarefas.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Um play associa um padrão de hosts do inventário a configurações e tarefas; o playbook pode conter diversos plays, cada qual selecionando seus próprios alvos para execução.",
+      "section": "3. Ansible: inventário, playbooks e configuração idempotente", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Toda tarefa Ansible que invoca command ou shell é idempotente automaticamente, pois o playbook está escrito em YAML.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. YAML apenas expressa os parâmetros. Um comando arbitrário pode repetir alterações ou efeitos; é preciso preferir módulos de estado ou fornecer verificações e condições.",
+      "section": "3. Ansible: inventário, playbooks e configuração idempotente", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um handler notificado por uma tarefa Ansible pode reiniciar um serviço somente quando uma tarefa relata mudança.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Uma tarefa pode notificar o handler quando altera algo; o handler é executado depois das tarefas notificadas, evitando reinícios sem necessidade.",
+      "section": "3. Ansible: inventário, playbooks e configuração idempotente", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O inventário Ansible serve apenas para armazenar senhas e não participa da seleção de hosts de um play.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O inventário lista hosts, grupos e variáveis e fornece padrões para o play selecionar seus alvos. Segredos devem ser tratados por mecanismo seguro.",
+      "section": "3. Ansible: inventário, playbooks e configuração idempotente", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um fluxo pode criar uma máquina com Terraform e depois configurar seu sistema e seus serviços com Ansible.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Terraform pode gerenciar recursos de infraestrutura e Ansible pode aplicar configuração aos hosts criados, desde que haja integração para identificar os alvos.",
+      "section": "3. Ansible: inventário, playbooks e configuração idempotente", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O modo de verificação do Ansible garante uma simulação idêntica à execução real para qualquer módulo e tarefa shell.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O suporte a check mode varia conforme o módulo e a tarefa. Comandos arbitrários podem não prever corretamente seus efeitos, então o resultado não é garantia universal.",
+      "section": "3. Ansible: inventário, playbooks e configuração idempotente", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, status de saída zero indica sucesso para o shell, e `$?` permite consultar o status do comando mais recente.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O manual de Bash define zero como sucesso e status não zero como falha ou condição específica; `$?` expõe o resultado mais recente.",
+      "section": "4. Bash, PowerShell e Python na automação segura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, aspas simples permitem expansão normal de `$VAR`, enquanto aspas duplas sempre preservam o cifrão literalmente.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Aspas simples preservam o texto literal; aspas duplas permitem expansão de parâmetros e, ao mesmo tempo, impedem a divisão de palavras em muitos contextos.",
+      "section": "4. Bash, PowerShell e Python na automação segura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A pipeline do PowerShell normalmente transmite objetos que podem conter propriedades, e não apenas texto sem estrutura.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Cmdlets recebem e produzem objetos, permitindo que etapas posteriores filtrem ou selecionem propriedades desses objetos.",
+      "section": "4. Bash, PowerShell e Python na automação segura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A política de execução do PowerShell é uma fronteira de segurança que impede um usuário determinado de executar qualquer código não autorizado.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A Microsoft descreve execution policy como recurso de segurança em profundidade, não como limite de segurança. Ela reduz execução não intencional, mas não substitui controles de segurança.",
+      "section": "4. Bash, PowerShell e Python na automação segura", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, a indentação delimita blocos e subprocess.run com check=True pode sinalizar falha de um processo externo por exceção.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A indentação faz parte da estrutura sintática de Python; check=True faz subprocess.run lançar CalledProcessError em retorno não zero.",
+      "section": "4. Bash, PowerShell e Python na automação segura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao capturar a saída de um comando Bash em variável, o uso de aspas e validação de argumentos pode ajudar a evitar expansão inesperada.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Expansão, divisão de palavras e expansão de nomes de arquivos têm efeitos distintos; citar valores e validar entradas reduz interpretações acidentais.",
+      "section": "4. Bash, PowerShell e Python na automação segura", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um repositório Terraform, qual comando tem como finalidade principal exibir a previsão de ações antes da execução?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "terraform init, que prepara o diretório e instala dependências dos providers", "correct": false },
+        { "key": "B", "text": "terraform plan, que calcula e apresenta as mudanças propostas", "correct": true },
+        { "key": "C", "text": "terraform apply, que executa as mudanças aprovadas no plano", "correct": false },
+        { "key": "D", "text": "terraform destroy, que remove os recursos gerenciados selecionados", "correct": false },
+        { "key": "E", "text": "terraform output, que exibe valores de saída registrados no estado", "correct": false }
+      ],
+      "explanation": "Plan compara configuração, estado e recursos consultados para mostrar ações previstas. Init prepara o diretório; apply executa; destroy remove recursos; output consulta resultados.",
+      "section": "2. Terraform: recursos declarados, plano e estado", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja criar sub-redes e máquinas virtuais descrevendo o estado desejado e revisando previamente as ações. Qual ferramenta atende diretamente a esse fluxo declarativo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Terraform, com recursos declarados e um plano antes da aplicação", "correct": true },
+        { "key": "B", "text": "Bash, executando apenas comandos locais sem consultar providers", "correct": false },
+        { "key": "C", "text": "PowerShell, sem acesso a APIs ou gerenciamento de estado", "correct": false },
+        { "key": "D", "text": "Python, que exige descrever recursos apenas como texto de saída", "correct": false },
+        { "key": "E", "text": "Ansible, cuja função exclusiva é compilar configurações Terraform", "correct": false }
+      ],
+      "explanation": "Terraform permite declarar recursos e revisar operações com plan antes de apply. Bash e Python podem automatizar etapas, PowerShell pode chamar APIs, e Ansible configura hosts; nenhuma dessas descrições substitui o fluxo pedido.",
+      "section": "2. Terraform: recursos declarados, plano e estado", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual componente Terraform implementa a integração necessária para gerenciar objetos de uma plataforma específica?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Um handler, acionado quando uma tarefa Ansible relata mudança", "correct": false },
+        { "key": "B", "text": "Um inventário, que agrupa máquinas gerenciadas por plays", "correct": false },
+        { "key": "C", "text": "Um provider, plugin que conversa com APIs de serviços", "correct": true },
+        { "key": "D", "text": "Uma variável, que guarda somente uma saída do sistema", "correct": false },
+        { "key": "E", "text": "Um shell, interpretador que expande argumentos de comandos", "correct": false }
+      ],
+      "explanation": "Provider é a integração de Terraform com uma plataforma ou serviço. Os demais termos pertencem a conceitos de configuração, inventário ou execução de comandos.",
+      "section": "2. Terraform: recursos declarados, plano e estado", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma configuração Terraform, o recurso de banco depende de uma rede já criada. Como representar essa relação de modo que Terraform ordene as operações?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Declarar uma referência ao identificador da rede no argumento do banco", "correct": true },
+        { "key": "B", "text": "Colocar o bloco da rede em arquivo separado sem outras referências", "correct": false },
+        { "key": "C", "text": "Renomear o arquivo da rede para que ele seja carregado primeiro", "correct": false },
+        { "key": "D", "text": "Adicionar um comentário explicando que a rede deve ser criada antes", "correct": false },
+        { "key": "E", "text": "Executar apply duas vezes sem alterar configuração ou estado", "correct": false }
+      ],
+      "explanation": "A referência cria uma dependência implícita que Terraform usa ao construir a ordem do grafo. A posição dos arquivos e um comentário não criam dependência operacional.",
+      "section": "2. Terraform: recursos declarados, plano e estado", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma equipe deve restringir acesso ao backend onde armazena estado Terraform?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Porque o estado contém apenas comentários que não podem ser recriados", "correct": false },
+        { "key": "B", "text": "Porque o estado pode incluir dados sensíveis e vínculos de recursos", "correct": true },
+        { "key": "C", "text": "Porque Terraform exige que todo estado seja público para os providers", "correct": false },
+        { "key": "D", "text": "Porque o backend contém somente o código-fonte dos playbooks Ansible", "correct": false },
+        { "key": "E", "text": "Porque estado remoto impede qualquer leitura durante um plano", "correct": false }
+      ],
+      "explanation": "Estado mantém associações usadas por Terraform e pode registrar atributos sensíveis. Controle de acesso e armazenamento protegido reduzem exposição e alteração indevida.",
+      "section": "2. Terraform: recursos declarados, plano e estado", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um operador quer configurar servidores por grupos e executar uma tarefa de serviço nos hosts web. Qual elemento lista e agrupa esses alvos no Ansible?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O provider, que instala plugins para criar máquinas virtuais", "correct": false },
+        { "key": "B", "text": "O inventário, que contém hosts, grupos e variáveis relacionadas", "correct": true },
+        { "key": "C", "text": "O estado, que vincula recursos remotos a blocos resource", "correct": false },
+        { "key": "D", "text": "O backend, que grava todas as saídas da pipeline PowerShell", "correct": false },
+        { "key": "E", "text": "O checksum, que registra o conteúdo de cada script executado", "correct": false }
+      ],
+      "explanation": "O inventário define hosts e grupos que podem ser selecionados pelos plays. Provider, state e backend são termos ligados ao Terraform, enquanto checksum não seleciona hosts.",
+      "section": "3. Ansible: inventário, playbooks e configuração idempotente", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a relação correta entre playbook, play e task no Ansible?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O handler contém todos os hosts; cada play apenas registra saídas", "correct": false },
+        { "key": "B", "text": "A task contém playbooks; cada inventário escolhe um provider", "correct": false },
+        { "key": "C", "text": "O playbook contém plays; cada play escolhe hosts e organiza tasks", "correct": true },
+        { "key": "D", "text": "O play contém apenas estado Terraform; cada task cria um backend", "correct": false },
+        { "key": "E", "text": "O inventário contém comandos Bash; cada play os converte em módulos", "correct": false }
+      ],
+      "explanation": "Playbooks são compostos por plays, que associam hosts a tarefas. Tasks chamam módulos. Inventários fornecem os alvos, e handlers respondem a notificações específicas.",
+      "section": "3. Ansible: inventário, playbooks e configuração idempotente", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa instala um pacote com módulo Ansible de estado. O pacote já está instalado e a versão pretendida permanece igual. Qual resultado expressa idempotência?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O módulo remove o pacote e o instala novamente em toda execução", "correct": false },
+        { "key": "B", "text": "A tarefa não faz mudança adicional porque o estado desejado existe", "correct": true },
+        { "key": "C", "text": "O playbook ignora todos os outros hosts do inventário", "correct": false },
+        { "key": "D", "text": "O handler executa antes da tarefa e altera sua versão", "correct": false },
+        { "key": "E", "text": "O inventário converte automaticamente a tarefa em um plano Terraform", "correct": false }
+      ],
+      "explanation": "Uma tarefa idempotente verifica o estado atual e não realiza ação quando o estado desejado já foi atingido; repetir a execução mantém o resultado.",
+      "section": "3. Ansible: inventário, playbooks e configuração idempotente", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja reiniciar um serviço apenas após mudança em seu arquivo de configuração. Qual recurso Ansible combina com esse comportamento?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Um backend remoto que executa reinicializações em paralelo", "correct": false },
+        { "key": "B", "text": "Um provider que consulta a API do sistema de serviço", "correct": false },
+        { "key": "C", "text": "Uma variável global de shell que reinicia todo servidor", "correct": false },
+        { "key": "D", "text": "Um handler notificado pela tarefa que altera o arquivo", "correct": true },
+        { "key": "E", "text": "Uma saída Terraform que modifica diretamente o processo", "correct": false }
+      ],
+      "explanation": "A tarefa de arquivo pode notificar um handler, que executa a reinicialização após mudança. Assim o serviço não é reiniciado em toda execução sem necessidade.",
+      "section": "3. Ansible: inventário, playbooks e configuração idempotente", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa executa `echo data >> arquivo` pelo módulo shell em cada rodada. Qual ajuste reduz o risco de acumular linhas repetidas?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Notificar um handler que repita o comando ao final do play", "correct": false },
+        { "key": "B", "text": "Executar a mesma tarefa duas vezes para estabilizar seu resultado", "correct": false },
+        { "key": "C", "text": "Mover o comando para um bloco YAML com nome mais descritivo", "correct": false },
+        { "key": "D", "text": "Colocar o host em dois grupos para que Ansible compare arquivos", "correct": false },
+        { "key": "E", "text": "Substituir a chamada por módulo que garanta o conteúdo ou verifique sua presença", "correct": true }
+      ],
+      "explanation": "O redirecionamento de acréscimo repete seu efeito. Um módulo de arquivo ou linha que declare o conteúdo desejado, ou uma condição idempotente explícita, evita duplicações.",
+      "section": "3. Ansible: inventário, playbooks e configuração idempotente", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma task precisa rodar nos hosts de um grupo chamado webservers. Como o play seleciona esse grupo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Declarando `$webservers` como status de saída do Bash", "correct": false },
+        { "key": "B", "text": "Declarando `resource: webservers` dentro de um arquivo `.tf`", "correct": false },
+        { "key": "C", "text": "Declarando `provider: webservers` no início do handler", "correct": false },
+        { "key": "D", "text": "Declarando `hosts: webservers` no play correspondente", "correct": true },
+        { "key": "E", "text": "Declarando `check: webservers` em todas as tasks do playbook", "correct": false }
+      ],
+      "explanation": "O campo hosts de um play contém o padrão de hosts ou grupos a atingir. O inventário fornece o grupo webservers que será resolvido na execução.",
+      "section": "3. Ansible: inventário, playbooks e configuração idempotente", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção descreve melhor o modo de verificação do Ansible?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Converte playbooks em recursos declarados no estado Terraform", "correct": false },
+        { "key": "B", "text": "Garante uma cópia idêntica da execução real para todo shell arbitrário", "correct": false },
+        { "key": "C", "text": "Solicita uma execução de verificação, cujo suporte depende dos módulos", "correct": true },
+        { "key": "D", "text": "Executa todos os handlers mesmo que nenhuma tarefa os notifique", "correct": false },
+        { "key": "E", "text": "Ignora o inventário e seleciona todos os hosts da rede local", "correct": false }
+      ],
+      "explanation": "Check mode permite a módulos compatíveis simularem ou preverem certas alterações, mas seu suporte não é uniforme e comandos arbitrários podem não ter simulação confiável.",
+      "section": "3. Ansible: inventário, playbooks e configuração idempotente", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um script Bash recebeu o caminho `/dados/meu arquivo.txt` em `$1`. Qual forma preserva o caminho como um argumento ao passá-lo adiante?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Usar `comando $1`, permitindo divisão do valor em palavras", "correct": false },
+        { "key": "B", "text": "Usar `comando \"$1\"`, mantendo o espaço dentro do argumento", "correct": true },
+        { "key": "C", "text": "Usar `comando '$1'`, enviando o texto literal `$1`", "correct": false },
+        { "key": "D", "text": "Usar `comando $?`, passando o código da chamada anterior", "correct": false },
+        { "key": "E", "text": "Usar `comando $@`, combinando todos os parâmetros sem aspas", "correct": false }
+      ],
+      "explanation": "Aspas duplas impedem a divisão do valor expandido em argumentos separados, mantendo o caminho completo como um único argumento. Aspas simples não expandem `$1`.",
+      "section": "4. Bash, PowerShell e Python na automação segura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um script Bash precisa executar a etapa B apenas se a etapa A tiver terminado com sucesso. Qual operador expressa essa condição?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A expansão `$?`, que executa qualquer comando seguinte", "correct": false },
+        { "key": "B", "text": "O operador `||`, que condiciona a segunda etapa ao sucesso anterior", "correct": false },
+        { "key": "C", "text": "O operador `2>`, que encaminha erro para um arquivo", "correct": false },
+        { "key": "D", "text": "O operador `&&`, que condiciona a segunda etapa ao sucesso anterior", "correct": true },
+        { "key": "E", "text": "A substituição `$(...)`, que ignora o status da etapa", "correct": false }
+      ],
+      "explanation": "Com `&&`, o comando à direita só é executado quando o anterior retorna zero, que Bash interpreta como sucesso. O operador `||` tem o comportamento complementar e executa a alternativa diante de uma falha.",
+      "section": "4. Bash, PowerShell e Python na automação segura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um script Bash quer ramificar conforme o último comando. Qual variável especial contém seu status de saída?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`$1`, que contém sempre o nome do último comando", "correct": false },
+        { "key": "B", "text": "`$?`, que contém o status retornado mais recentemente", "correct": true },
+        { "key": "C", "text": "`$@`, que contém sempre o código de saída anterior", "correct": false },
+        { "key": "D", "text": "`$#`, que contém o texto de erro do processo", "correct": false },
+        { "key": "E", "text": "`$$`, que contém a saída padrão do processo", "correct": false }
+      ],
+      "explanation": "`$?` é o parâmetro especial do Bash para o status do comando mais recente. `$1`, `$@`, `$#` e `$$` têm funções diferentes relacionadas a argumentos e processo.",
+      "section": "4. Bash, PowerShell e Python na automação segura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um script PowerShell obtém objetos de serviço e precisa manter somente os que estão parados. Qual abordagem usa a natureza estruturada da pipeline?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Usar `$?` como nome da propriedade de estado de cada serviço", "correct": false },
+        { "key": "B", "text": "Concatenar todos os objetos em uma linha e usar grep textual", "correct": false },
+        { "key": "C", "text": "Converter os serviços em hosts de inventário Terraform", "correct": false },
+        { "key": "D", "text": "Redirecionar os objetos para `2>` e ignorar suas propriedades", "correct": false },
+        { "key": "E", "text": "Passar os objetos a Where-Object para filtrar por uma propriedade", "correct": true }
+      ],
+      "explanation": "Where-Object filtra objetos de acordo com propriedades ou condições. A pipeline do PowerShell transmite objetos estruturados que cmdlets subsequentes podem examinar.",
+      "section": "4. Bash, PowerShell e Python na automação segura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um script PowerShell deve parar ao receber uma falha não terminante de determinado cmdlet para então tratá-la em catch. Qual opção é adequada nesse comando?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Usar `Where-Object` para substituir todos os blocos de erro", "correct": false },
+        { "key": "B", "text": "Usar `-ErrorAction Continue` para converter falha em exceção", "correct": false },
+        { "key": "C", "text": "Usar aspas simples no nome do cmdlet para ativar catch", "correct": false },
+        { "key": "D", "text": "Usar `-ErrorAction Stop` no cmdlet dentro de um bloco try", "correct": true },
+        { "key": "E", "text": "Usar política RemoteSigned para transformar erros em objetos", "correct": false }
+      ],
+      "explanation": "`-ErrorAction Stop` promove a falha tratável a erro terminante para o fluxo do comando, que pode ser recebido por catch associado ao try. A política de execução trata de outra questão.",
+      "section": "4. Bash, PowerShell e Python na automação segura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual abordagem executa um programa externo em Python preservando separação de argumentos e sinalizando retorno não zero?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Um bloco except sem operação que inicia o processo", "correct": false },
+        { "key": "B", "text": "eval sobre uma linha concatenada com os dados de entrada", "correct": false },
+        { "key": "C", "text": "subprocess.run com argumentos em lista e check=True", "correct": true },
+        { "key": "D", "text": "print sobre o comando, sem invocar processo externo", "correct": false },
+        { "key": "E", "text": "Um laço range que converte a saída em código Terraform", "correct": false }
+      ],
+      "explanation": "subprocess.run recebe uma lista de argumentos sem exigir shell e check=True lança CalledProcessError para status diferente de zero. Entradas ainda precisam ser validadas.",
+      "section": "4. Bash, PowerShell e Python na automação segura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa criar recursos em nuvem e depois instalar e manter serviços em seus sistemas operacionais. Qual divisão de trabalho é adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Python transforma inventários Ansible em estado Terraform sem configuração", "correct": false },
+        { "key": "B", "text": "Terraform declara recursos; Ansible configura os sistemas operacionais", "correct": true },
+        { "key": "C", "text": "Bash substitui providers e controla sozinho todo estado remoto", "correct": false },
+        { "key": "D", "text": "Ansible mantém sozinho o estado remoto e cria todos os recursos de nuvem", "correct": false },
+        { "key": "E", "text": "PowerShell substitui inventários e módulos de configuração do Ansible", "correct": false }
+      ],
+      "explanation": "Terraform gerencia recursos de infraestrutura declarados, enquanto Ansible aplica tarefas de configuração a hosts, como instalar pacotes e ajustar serviços. A integração ainda precisa disponibilizar os hosts ao inventário usado pelo playbook.",
+      "section": "3. Ansible: inventário, playbooks e configuração idempotente", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição distingue corretamente Terraform de um script imperativo simples?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Terraform executa apenas no Windows, enquanto scripts só rodam em nuvem", "correct": false },
+        { "key": "B", "text": "Terraform só imprime resultados; scripts são os únicos que criam recursos", "correct": false },
+        { "key": "C", "text": "Terraform declara recursos e estado; scripts costumam ordenar comandos", "correct": true },
+        { "key": "D", "text": "Terraform é um interpretador Bash e scripts são arquivos de estado remoto", "correct": false },
+        { "key": "E", "text": "Terraform dispensa providers, mas scripts sempre compartilham estado", "correct": false }
+      ],
+      "explanation": "Terraform declara recursos desejados e usa configuração e estado para planejar a convergência do ambiente. Um script imperativo normalmente especifica passos e comandos, sem oferecer por si só o mesmo vínculo gerenciado entre recursos declarados e objetos reais.",
+      "section": "1. IaC: infraestrutura descrita e revisada como código", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma esteira automatizada, qual prática reduz o risco de aplicar uma remoção acidental proposta pelo Terraform?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Remover do inventário os hosts antes de criar qualquer plano", "correct": false },
+        { "key": "B", "text": "Executar apply automaticamente sempre que o repositório mudar", "correct": false },
+        { "key": "C", "text": "Apagar o estado antes da aplicação para ocultar diferenças detectadas", "correct": false },
+        { "key": "D", "text": "Guardar credenciais no bloco resource para facilitar a auditoria", "correct": false },
+        { "key": "E", "text": "Gerar e revisar o plano, conferindo remoções e substituições antes de aplicar", "correct": true }
+      ],
+      "explanation": "A revisão do plano antes do apply permite identificar recursos que seriam removidos ou substituídos e avaliar se essas ações são intencionais. Apagar o estado ou aplicar sem examinar a proposta elimina informações úteis e aumenta o risco operacional.",
+      "section": "2. Terraform: recursos declarados, plano e estado", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização deseja limitar a execução de scripts baixados da internet no Windows sem tratar essa configuração como proteção absoluta. Qual política do PowerShell corresponde a exigir assinatura confiável para scripts remotos?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Unrestricted, que bloqueia todo script sem assinatura reconhecida", "correct": false },
+        { "key": "B", "text": "Bypass, que exige assinatura confiável de arquivos obtidos remotamente", "correct": false },
+        { "key": "C", "text": "Restricted, que permite scripts locais e valida assinatura dos remotos", "correct": false },
+        { "key": "D", "text": "RemoteSigned, aplicada conforme escopo e controles vigentes do sistema", "correct": true },
+        { "key": "E", "text": "Undefined, que impõe assinatura a qualquer arquivo em todos os escopos", "correct": false }
+      ],
+      "explanation": "RemoteSigned exige assinatura confiável para scripts identificados como baixados da internet, enquanto arquivos locais recebem tratamento diferente. A política de execução pode variar por escopo e não constitui uma barreira de segurança absoluta contra um usuário determinado.",
+      "section": "4. Bash, PowerShell e Python na automação segura", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um playbook possui uma tarefa de instalação e outra de configuração de arquivo. Qual unidade efetivamente executa o trabalho de cada tarefa nos hosts?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O handler, que executa toda tarefa antes de ser notificado", "correct": false },
+        { "key": "B", "text": "O provider Terraform que interpreta diretamente o YAML", "correct": false },
+        { "key": "C", "text": "O inventário, que executa comandos sem receber plays", "correct": false },
+        { "key": "D", "text": "O módulo chamado pela task com os parâmetros declarados", "correct": true},
+        { "key": "E", "text": "O backend remoto, que converte pacotes em recursos de nuvem", "correct": false }
+      ],
+      "explanation": "Tasks invocam módulos Ansible, que implementam operações como gerenciar pacotes, arquivos ou serviços. Inventário seleciona alvos e handlers são tarefas acionadas por notificação.",
+      "section": "3. Ansible: inventário, playbooks e configuração idempotente", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador precisa selecionar hosts de um inventário INI chamado inventario.ini ao executar site.yml. Qual comando expressa essa chamada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "powershell -i inventario.ini -Play site.yml", "correct": false },
+        { "key": "B", "text": "terraform plan -i inventario.ini site.yml", "correct": false },
+        { "key": "C", "text": "bash -i inventario.ini ansible-playbook", "correct": false },
+        { "key": "D", "text": "python -m inventory.ini site.yml", "correct": false },
+        { "key": "E", "text": "ansible-playbook -i inventario.ini site.yml", "correct": true }
+      ],
+      "explanation": "O executável ansible-playbook aceita `-i` para indicar fonte de inventário e recebe o arquivo de playbook como argumento, como no comando apresentado.",
+      "section": "3. Ansible: inventário, playbooks e configuração idempotente", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao chamar um programa Python com dados fornecidos por usuário, qual prática reduz a interpretação acidental de metacaracteres por um shell?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Gravar a entrada na mensagem de erro sem validação", "correct": false },
+        { "key": "B", "text": "Concatenar os dados a uma linha e executá-la sempre com shell", "correct": false },
+        { "key": "C", "text": "Aplicar eval à entrada para remover sinais especiais", "correct": false },
+        { "key": "D", "text": "Passar programa e argumentos em lista a subprocess.run sem shell", "correct": true },
+        { "key": "E", "text": "Usar somente uma variável global para qualquer comando", "correct": false }
+      ],
+      "explanation": "Fornecer uma lista de argumentos sem shell preserva os limites entre argumentos e evita que metacaracteres sejam interpretados pelo shell. A aplicação ainda deve validar valores permitidos.",
+      "section": "4. Bash, PowerShell e Python na automação segura", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer encontrar apenas o nome e o estado de cada serviço no PowerShell. Qual cmdlet pode projetar essas propriedades dos objetos?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Get-ExecutionPolicy, que extrai colunas de qualquer objeto", "correct": false },
+        { "key": "B", "text": "terraform output, que seleciona recursos no inventário", "correct": false },
+        { "key": "C", "text": "Select-Object, aplicado aos objetos recebidos pela pipeline", "correct": true },
+        { "key": "D", "text": "Where-Object, que sempre cria novos serviços no sistema", "correct": false },
+        { "key": "E", "text": "Start-Service, que apresenta propriedades sem iniciar serviço", "correct": false }
+      ],
+      "explanation": "Select-Object escolhe propriedades dos objetos da pipeline. Where-Object filtra objetos segundo condições, e Get-ExecutionPolicy consulta política de execução.",
+      "section": "4. Bash, PowerShell e Python na automação segura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração de configuração precisa criar a rede e então as máquinas, mas o arquivo Terraform não explicita relação entre os recursos. Qual forma pode expressar uma dependência que não aparece em referências?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Mover todas as declarações para arquivos com extensões diferentes", "correct": false },
+        { "key": "B", "text": "Renomear o provider para que recursos tenham ordenação lexical", "correct": false },
+        { "key": "C", "text": "Duplicar o estado local para forçar duas operações sequenciais", "correct": false },
+        { "key": "D", "text": "Usar uma dependência explícita entre os recursos envolvidos", "correct": true },
+        { "key": "E", "text": "Inserir uma anotação em comentário YAML no inventário Ansible", "correct": false }
+      ],
+      "explanation": "Terraform permite declarar dependência explícita quando a relação não é inferida por referências de argumentos. A ordem textual ou nomes de arquivos não substituem uma dependência no grafo.",
+      "section": "2. Terraform: recursos declarados, plano e estado", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre versionar o estado Terraform em um repositório Git é mais adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Evitar fazê-lo sem controles, pois o estado pode expor segredos e não oferece locking adequado", "correct": true },
+        { "key": "B", "text": "É obrigatório porque Terraform não aceita nenhum backend remoto", "correct": false },
+        { "key": "C", "text": "É seguro sempre que o repositório é privado, sem outras medidas", "correct": false },
+        { "key": "D", "text": "É necessário incluir chaves privadas para que providers sejam instalados", "correct": false },
+        { "key": "E", "text": "É a única forma de associar um bloco resource ao objeto real", "correct": false }
+      ],
+      "explanation": "Estado pode conter segredos e requer controle de acesso e coordenação de operações. A documentação recomenda backend remoto apropriado em equipe e alerta contra armazenamento sem locking e segurança.",
+      "section": "2. Terraform: recursos declarados, plano e estado", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, o administrador quer guardar a saída padrão em arquivo e manter mensagens de erro separadas. Qual redirecionamento trata especificamente o fluxo de erro padrão?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "`$(erros.log)`, que direciona erros sem executar comando", "correct": false },
+        { "key": "B", "text": "`> erros.log`, que redireciona apenas o status de saída", "correct": false },
+        { "key": "C", "text": "`&& erros.log`, que copia a saída para arquivo", "correct": false },
+        { "key": "D", "text": "`$? erros.log`, que grava variáveis e mensagens no mesmo fluxo", "correct": false },
+        { "key": "E", "text": "`2> erros.log`, que redireciona o descritor de erro padrão", "correct": true }
+      ],
+      "explanation": "O descritor 2 é a saída padrão de erro; `2>` a direciona para o arquivo indicado. O redirecionamento simples `>` trata a saída padrão, não o status numérico.",
+      "section": "4. Bash, PowerShell e Python na automação segura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O grupo webservers define uma variável e um host também define a mesma variável com outro valor. Qual princípio geral de precedência de Ansible ajuda a entender o resultado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Variáveis de grupo sempre vencem valores definidos diretamente no host", "correct": false },
+        { "key": "B", "text": "Ansible concatena automaticamente os valores conflitantes em uma lista", "correct": false },
+        { "key": "C", "text": "Em situações comuns, a variável do host prevalece sobre a do grupo", "correct": true },
+        { "key": "D", "text": "O estado Terraform escolhe o valor de inventário criado primeiro", "correct": false },
+        { "key": "E", "text": "Handlers apagam definições de variáveis antes de iniciar cada play", "correct": false }
+      ],
+      "explanation": "A precedência do Ansible leva em conta a origem e a categoria de cada variável; em uma comparação comum entre definição de grupo e definição diretamente associada ao host, a do host prevalece. Há outras categorias e regras que também precisam ser consideradas.",
+      "section": "3. Ansible: inventário, playbooks e configuração idempotente", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual cautela se aplica ao usar `set -e` em um script Bash?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Usá-lo para converter automaticamente falhas em status de sucesso", "correct": false },
+        { "key": "B", "text": "Usá-lo para preservar argumentos sem aspas em toda expansão", "correct": false },
+        { "key": "C", "text": "Usá-lo para capturar a saída padrão dentro da variável `$?`", "correct": false },
+        { "key": "D", "text": "Não substituir verificações explícitas, pois há contextos e exceções", "correct": true },
+        { "key": "E", "text": "Usá-lo para tornar idempotente qualquer comando executado pelo shell", "correct": false }
+      ],
+      "explanation": "A opção pode encerrar o script após diversas falhas, mas há exceções relacionadas a condicionais, listas de comandos e outros contextos. Por isso, operações críticas ainda devem ter seus resultados verificados e tratados de forma explícita.",
+      "section": "4. Bash, PowerShell e Python na automação segura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática protege melhor os parâmetros de um programa externo chamado por script contra injeção por concatenação de texto?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Concatenar os dados em uma linha shell e confiar na entrada recebida", "correct": false },
+        { "key": "B", "text": "Validar valores e fornecer argumentos separados sem compor código executável", "correct": true },
+        { "key": "C", "text": "Aplicar eval à entrada para remover metacaracteres antes da chamada", "correct": false },
+        { "key": "D", "text": "Guardar qualquer parâmetro em arquivo versionado para evitar interpretação", "correct": false },
+        { "key": "E", "text": "Repetir a chamada até o programa aceitar os parâmetros fornecidos", "correct": false }
+      ],
+      "explanation": "Validar a entrada e passar o executável e seus parâmetros em argumentos separados evita que o shell reinterprete metacaracteres como sintaxe de comando. Concatenação com shell e eval aumentam a superfície para injeção e não substituem validação.",
+      "section": "4. Bash, PowerShell e Python na automação segura", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência melhor representa um fluxo Terraform controlado em um diretório recém-obtido?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Aplicar os recursos, apagar o estado e inicializar providers depois", "correct": false },
+        { "key": "B", "text": "Consultar outputs antes da configuração e usar plan para remover tudo", "correct": false },
+        { "key": "C", "text": "Executar handlers Ansible e inventários antes de chamar terraform destroy", "correct": false },
+        { "key": "D", "text": "Usar check mode do Ansible para criar o backend e o estado Terraform", "correct": false },
+        { "key": "E", "text": "Inicializar dependências, revisar o plano e então aplicar as mudanças", "correct": true }
+      ],
+      "explanation": "O fluxo usual começa com init para preparar o diretório e obter dependências, segue com plan para examinar as ações propostas e termina com apply para executar as mudanças aprovadas. A revisão ajuda a detectar efeitos inesperados antes da execução.",
+      "section": "2. Terraform: recursos declarados, plano e estado", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação PowerShell precisa distinguir strings interpoladas e literais. Qual regra descreve o uso usual das aspas?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Aspas simples expandem variáveis; aspas duplas sempre as preservam", "correct": false },
+        { "key": "B", "text": "Os dois tipos de aspas convertem strings em objetos da pipeline", "correct": false },
+        { "key": "C", "text": "Aspas duplas podem interpolar variáveis; simples preservam o texto", "correct": true },
+        { "key": "D", "text": "Aspas duplas iniciam comentários e aspas simples executam cmdlets", "correct": false },
+        { "key": "E", "text": "A diferença de interpolação depende da política RemoteSigned", "correct": false }
+      ],
+      "explanation": "No uso usual do PowerShell, strings entre aspas duplas permitem interpolar variáveis, enquanto strings entre aspas simples preservam o conteúdo literalmente. Essa diferença afeta o valor final de parâmetros e mensagens construídas pelo script.",
+      "section": "4. Bash, PowerShell e Python na automação segura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um script de implantação Python deve separar a lógica principal de pequenas tarefas reutilizáveis. Qual recurso da linguagem atende esse desenho?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Comentários com instruções, executados na ordem em que aparecem", "correct": false },
+        { "key": "B", "text": "Um backend, que converte blocos Python em máquinas remotas", "correct": false },
+        { "key": "C", "text": "Um inventário, que define a sintaxe de toda rotina Python", "correct": false },
+        { "key": "D", "text": "Uma política de execução, que determina o escopo das funções", "correct": false },
+        { "key": "E", "text": "Funções declaradas com def, que podem ser chamadas para reutilizar lógica", "correct": true }
+      ],
+      "explanation": "Funções declaradas com def agrupam instruções sob um nome e podem ser chamadas em diferentes pontos do programa, o que favorece a reutilização da lógica. Comentários não executam tarefas, e os demais termos pertencem a outras ferramentas ou conceitos.",
+      "section": "4. Bash, PowerShell e Python na automação segura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual benefício concreto o controle de versão oferece a uma alteração de configuração Terraform proposta por pull request?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Aplica a mudança em produção assim que o pull request é criado", "correct": false },
+        { "key": "B", "text": "Armazena credenciais em texto claro com segurança garantida", "correct": false },
+        { "key": "C", "text": "Substitui o estado Terraform e elimina a necessidade de providers", "correct": false },
+        { "key": "D", "text": "Impede que alguém altere manualmente recursos fora do código", "correct": false },
+        { "key": "E", "text": "Permite comparar as linhas alteradas e revisar a proposta antes de aplicar", "correct": true }
+      ],
+      "explanation": "O diff do pull request evidencia as linhas alteradas para que a equipe revise e discuta a proposta antes de aplicá-la. O controle de versão registra mudanças, mas não executa sozinho a infraestrutura nem impede alterações manuais fora do repositório.",
+      "section": "1. IaC: infraestrutura descrita e revisada como código", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O administrador deseja definir um script que encontre todos os hosts em grupos do inventário. Qual grupo implícito do Ansible contém todos os hosts?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "ungrouped, que reúne todos os hosts pertencentes a grupos", "correct": false },
+        { "key": "B", "text": "localhost, que representa obrigatoriamente todos os alvos remotos", "correct": false },
+        { "key": "C", "text": "default, grupo implícito reservado a hosts que têm variáveis", "correct": false },
+        { "key": "D", "text": "all, grupo implícito que inclui todos os hosts do inventário", "correct": true },
+        { "key": "E", "text": "managed, grupo criado automaticamente por handlers notificados", "correct": false }
+      ],
+      "explanation": "O grupo implícito all permite selecionar todos os hosts conhecidos pelo inventário. Ungrouped tem sentido diferente: reúne hosts que não pertencem a outros grupos definidos, portanto não substitui o seletor global all.",
+      "section": "3. Ansible: inventário, playbooks e configuração idempotente", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma alteração de infraestrutura, um bloco de recurso passou a apontar para objeto diferente e pode substituí-lo. Qual etapa da prática IaC ajuda a avaliar esse risco antes da mudança real?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Examinar o plano Terraform e confirmar substituições ou destruições propostas", "correct": true },
+        { "key": "B", "text": "Apagar o backend e confiar que o código não mudará recursos", "correct": false },
+        { "key": "C", "text": "Executar somente o inventário Ansible sem inspecionar hosts", "correct": false },
+        { "key": "D", "text": "Comentar o bloco e aprovar sem gerar qualquer previsão", "correct": false },
+        { "key": "E", "text": "Renomear a pasta do módulo para ocultar o diff da equipe", "correct": false }
+      ],
+      "explanation": "Plan expõe operações previstas, incluindo destruição e substituição, para que a equipe confirme o impacto antes de apply. Ocultar o diff ou remover o estado não mitiga o risco.",
+      "section": "2. Terraform: recursos declarados, plano e estado", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Terraform Language Documentation",
+      "publisher": "HashiCorp Developer",
+      "reference": "Linguagem declarativa, recursos, configuração e dependências",
+      "url": "https://developer.hashicorp.com/terraform/language",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "terraform plan command reference",
+      "publisher": "HashiCorp Developer",
+      "reference": "Plano especulativo, aprovação e aplicação de planos salvos",
+      "url": "https://developer.hashicorp.com/terraform/cli/commands/plan",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "State",
+      "publisher": "HashiCorp Developer",
+      "reference": "Função do estado, backend remoto, colaboração, bloqueio e segurança",
+      "url": "https://developer.hashicorp.com/terraform/language/state",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Ansible playbooks",
+      "publisher": "Ansible Community Documentation",
+      "reference": "Plays, tarefas, execução e idempotência de módulos",
+      "url": "https://docs.ansible.com/projects/ansible-core/devel/playbook_guide/playbooks_intro.html",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "How to build your inventory",
+      "publisher": "Ansible Community Documentation",
+      "reference": "Hosts, grupos, inventário INI e YAML e variáveis",
+      "url": "https://docs.ansible.com/projects/ansible/latest/inventory_guide/intro_inventory.html",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Introduction to modules",
+      "publisher": "Ansible Community Documentation",
+      "reference": "Módulos como unidades de trabalho, parâmetros e idempotência",
+      "url": "https://docs.ansible.com/projects/ansible/latest/module_plugin_guide/modules_intro.html",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Bash Reference Manual: Exit Status",
+      "publisher": "GNU Project",
+      "reference": "Status de saída, sucesso, falha e parâmetro `$?`",
+      "url": "https://www.gnu.org/s/bash/manual/html_node/Exit-Status.html",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Bash Reference Manual: Shell Expansions",
+      "publisher": "GNU Project",
+      "reference": "Expansões de parâmetros, divisão de palavras e expansão de nomes",
+      "url": "https://www.gnu.org/s/bash/manual/html_node/Shell-Expansions.html",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "about_Execution_Policies",
+      "publisher": "Microsoft Learn",
+      "reference": "Escopos, políticas de execução, RemoteSigned e defesa em profundidade",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "One-liners and the pipeline - PowerShell 101",
+      "publisher": "Microsoft Learn",
+      "reference": "Objetos e propriedades na pipeline PowerShell",
+      "url": "https://learn.microsoft.com/en-us/powershell/scripting/learn/ps101/04-pipelines",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Python Tutorial",
+      "publisher": "Python Software Foundation",
+      "reference": "Fluxo de controle, funções e fundamentos de Python",
+      "url": "https://docs.python.org/3/tutorial/index.html",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "subprocess — Subprocess management",
+      "publisher": "Python Software Foundation",
+      "reference": "Execução de processos, subprocess.run e verificação de retorno",
+      "url": "https://docs.python.org/3/library/subprocess.html",
+      "accessedAt": "2026-10-30"
+    }
+  ]
+}

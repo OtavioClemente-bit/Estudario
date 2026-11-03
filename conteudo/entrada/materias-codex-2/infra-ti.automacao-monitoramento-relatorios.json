@@ -1,0 +1,836 @@
+{
+  "id": "infra-ti.automacao-monitoramento-relatorios",
+  "subject": "Infraestrutura de TI",
+  "title": "Automatização de rotinas de monitoração e geração de relatórios",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Automatização de rotinas de monitoração e geração de relatórios",
+    "Automação de rotinas de monitoramento de TI",
+    "Automatização de tarefas de monitoração",
+    "Geração automatizada de relatórios de TI",
+    "Relatórios automáticos de monitoramento",
+    "Agendamento de rotinas de monitoração",
+    "Monitoramento automatizado de infraestrutura",
+    "Rotinas periódicas de infraestrutura de TI",
+    "Prometheus regras de gravação e alertas",
+    "Grafana relatórios programados por e-mail"
+  ],
+  "scope": {
+    "covers": "Planejamento e automatização de rotinas periódicas de coleta, verificação e tratamento de resultados de monitoração; agendamento controlado por cron e Ansible; regras de gravação e alerta no Prometheus; encaminhamento, agrupamento e silenciamento de notificações com Alertmanager; elaboração e envio programado de relatórios de dashboards no Grafana, com período, fuso horário, formato e destinatários; confiabilidade, teste, rastreabilidade, tratamento de falhas e metamonitoramento dessas rotinas.",
+    "excludes": "Administração completa de sistemas operacionais, instalação detalhada de produtos, sintaxe integral de PromQL ou YAML, criação de infraestrutura como código em geral, análise estatística avançada, métricas específicas de negócio e recursos licenciados ou dependentes de versões não indicados nas fontes oficiais."
+  },
+  "theoryTitle": "Rotinas automatizadas: da coleta ao relatório útil",
+  "chapters": [
+    {
+      "title": "1. Desenhar uma rotina de monitoração automatizada",
+      "markdown": "### O problema que este assunto resolve\n\nUma equipe que verifica manualmente a disponibilidade de servidores, consulta painéis e envia planilhas depende de alguém lembrar de executar cada etapa. Atrasos, cópias inconsistentes e falhas silenciosas são previsíveis. Automatizar uma rotina significa definir **o que será observado**, **quando**, **como o resultado será tratado** e **quem precisa agir**. O ciclo típico coleta dados, valida sua atualidade, calcula indicadores, verifica condições e guarda ou distribui um resultado.\n\n> **Siglas e termos deste capítulo**\n> - **Métrica**: medida numérica identificada por nome e, em geral, por rótulos, como uso de CPU por instância.\n> - **Scrape**: consulta periódica que um coletor faz a um alvo de métricas.\n> - **Job em lote**: tarefa que começa, processa um conjunto de trabalho e termina, como consolidar dados noturnos.\n> - **SLO**: objetivo de nível de serviço mensurável, usado para definir se o serviço está dentro do desempenho esperado.\n> - **Idempotência**: propriedade de uma operação em que repeti-la não cria efeitos duplicados inesperados.\n> - **Metamonitoramento**: monitoramento da própria cadeia e infraestrutura de monitoração.\n\n### Da necessidade ao procedimento\n\nComece pela decisão operacional que a rotina deve apoiar. “Monitorar tudo” não é um objetivo verificável. “Avisar a equipe se a taxa de erros visível ao usuário permanecer acima do limite definido” descreve um sintoma e uma resposta possível. Para cada rotina, registre alvo, fonte de dados, indicador, frequência de coleta ou avaliação, limite, responsável, canal de saída e ação de recuperação. A frequência deve ser compatível com a urgência do problema e com a carga gerada pelas consultas; aumentar a frequência sem necessidade pode aumentar custo e ruído.\n\n| Etapa | Pergunta de projeto | Exemplo concreto |\n| --- | --- | --- |\n| Coleta | De onde vêm os dados? | Prometheus consulta o endpoint de métricas de um serviço |\n| Avaliação | Que condição importa? | Regra calcula taxa de falhas e compara com limite operacional |\n| Tratamento | O que fazer com o resultado? | Alertmanager agrupa alertas do mesmo serviço e encaminha ao plantão |\n| Registro | Como reconstruir o ocorrido? | Guardar execução, horário, resultado e erro da tarefa |\n| Comunicação | Quem precisa receber qual resumo? | Dashboard gera PDF semanal para operação e CSV para análise |\n\nA rotina deve distinguir **resultado vazio** de **falha**. Um relatório sem incidentes pode ser válido; ausência de dados por falha no coletor não prova que tudo está normal. Inclua validações de atualidade e completude, e faça a saída declarar o período coberto e lacunas conhecidas. Identificadores do ambiente, serviço e janela de tempo evitam que um número sem contexto seja interpretado incorretamente.\n\n### Agendamento repetível com cron e Ansible\n\nO `cron` tradicional agenda comandos em horários recorrentes. Em vez de alterar crontabs manualmente em muitos servidores, o módulo `ansible.builtin.cron` administra entradas nomeadas: adiciona uma linha de comentário `#Ansible: <name>` para que chamadas futuras localizem e atualizem aquela tarefa. O nome deve ser único; mudar o nome pode criar uma tarefa nova ou fazer uma tarefa diferente ser removida. O módulo também gerencia variáveis de ambiente e permite criar backup do crontab antes da modificação.\n\nUma tarefa agendada precisa de ambiente previsível: caminho de executável explícito, diretório de trabalho conhecido, credenciais armazenadas com controle apropriado e saída enviada a log ou mecanismo de observação. Uma tarefa que funciona no terminal interativo pode falhar no cron porque recebe ambiente mais restrito. Garanta exclusão mútua se execuções longas puderem se sobrepor; evite que duas consolidações escrevam simultaneamente o mesmo arquivo. O processo deve retornar código de saída útil e preservar evidências de sucesso ou falha.\n\n### Como cai na prova\n\n- Automatização não é apenas “marcar um horário”: exige fonte, validação, tratamento, registro e destino definidos.\n- O comentário `#Ansible: <name>` identifica a tarefa que o módulo cron administra; o nome não é decorativo e deve ser estável e único.\n- Uma rotina sem dados não deve ser automaticamente interpretada como serviço saudável: verifique a própria coleta e informe lacunas.\n- Agendar uma tarefa não torna seu processamento idempotente nem evita sobreposição por si só."
+    },
+    {
+      "title": "2. Regras periódicas e alertas no Prometheus",
+      "markdown": "### O problema que este assunto resolve\n\nConsultar repetidamente expressões caras em cada painel pode desperdiçar recursos; esperar que alguém abra um painel para notar indisponibilidade pode atrasar a resposta. O Prometheus oferece **recording rules**, que calculam expressões periodicamente e guardam o resultado como nova série temporal, e **alerting rules**, que identificam condições que requerem notificação. Ambas ficam em arquivos de regras YAML carregados pela configuração do Prometheus e são avaliadas em grupos, em intervalos regulares.\n\n> **Siglas e termos deste capítulo**\n> - **PromQL**: linguagem de consulta e expressão do Prometheus.\n> - **Recording rule**: regra que pré-calcula uma expressão e grava seu resultado como série temporal.\n> - **Alerting rule**: regra que transforma uma condição de expressão em alerta ativo.\n> - **Pending**: estado em que a condição do alerta está verdadeira, mas ainda não completou o período `for`.\n> - **Firing**: estado em que o alerta passou a disparar.\n> - **Label**: par chave-valor que identifica ou classifica uma série ou alerta.\n\n### Pré-calcular indicadores para painéis\n\nUma regra de gravação reduz trabalho repetido quando painéis consultam frequentemente a mesma expressão ou quando a expressão é computacionalmente custosa. O grupo define nome e intervalo de avaliação; a regra atribui um nome de métrica válido e uma expressão. Os resultados passam a existir a partir da criação da regra: eles não surgem retroativamente por padrão. A documentação recomenda nomes no padrão `nível:métrica:operações`, preservando o nome da métrica e indicando o nível de agregação e as operações realizadas.\n\nAo consolidar taxas ou razões, some numeradores e denominadores separadamente e só depois divida. A média de médias ou a média simples de razões pode produzir resultado estatisticamente incorreto quando os grupos têm tamanhos diferentes. Use agregação com rótulos conscientemente preservados: descartar `job`, por exemplo, pode misturar serviços que deveriam ser distinguidos. Uma série calculada rapidamente continua dependendo de instrumentação correta e de amostras presentes.\n\n### Alertar com contexto e tolerância\n\nUma regra de alerta associa um nome, uma expressão, rótulos e anotações. Se uma expressão retorna elementos, cada conjunto de rótulos correspondente representa uma instância de alerta ativa. O campo opcional `for` exige que a condição permaneça verdadeira durante o período indicado antes de o alerta passar de pending para firing; isso filtra oscilações breves, mas aumenta o tempo até a notificação. `keep_firing_for` pode manter o alerta disparando por um período após a condição deixar de ser verdadeira, reduzindo oscilações ou falsas resoluções. Rótulos classificam o alerta (por exemplo, severidade e serviço); anotações trazem texto mais longo, como descrição e link de runbook.\n\nA recomendação prática do projeto Prometheus é alertar sobre sintomas que correspondam a impacto para o usuário, reduzir notificações sem ação e oferecer painéis que ajudem a localizar a causa. Para tarefas em lote, importa se o trabalho concluiu com frequência suficiente para evitar impacto; o prazo de tolerância deve considerar duração e periodicidade das execuções, em vez de alertar por qualquer atraso mínimo.\n\n### Arquivos de regra e validação\n\nOs arquivos de regras usam YAML e são referenciados pela configuração do Prometheus em `rule_files`. `promtool check rules <arquivo>` verifica sintaxe sem iniciar o servidor. O Prometheus pode recarregar as regras em execução com `SIGHUP`; só aplica a mudança se todos os arquivos estiverem bem formatados. Logo, valide antes de publicar e acompanhe o resultado do reload. Uma regra sintaticamente correta ainda pode estar semanticamente errada: teste expressão, rótulos, janela, limites e comportamento com dados representativos.\n\n### Como cai na prova\n\n- Recording rule pré-calcula e grava séries; alerting rule detecta condição para gerar alerta.\n- `for` posterga a passagem a firing enquanto a condição não persistir; não é o intervalo de coleta.\n- `promtool check rules` verifica formato e sintaxe, não prova que o limiar seja operacionalmente adequado.\n- Prometheus avalia as regras; o Alertmanager assume agrupamento, silenciamento, inibição e distribuição de notificações."
+    },
+    {
+      "title": "3. Encaminhamento confiável e metamonitoramento",
+      "markdown": "### O problema que este assunto resolve\n\nUma regra pode identificar um sintoma e ainda assim a mensagem chegar duplicada, em excesso ou para a equipe errada. O Alertmanager é a camada que recebe alertas do Prometheus e gerencia agrupamento, silenciamento, inibição e envio de notificações por integrações como e-mail, sistemas de plantão e plataformas de conversa. Separar avaliação e entrega permite controlar a política de comunicação sem transformar cada regra em um canal independente.\n\n> **Siglas e termos deste capítulo**\n> - **Alertmanager**: componente que administra alertas recebidos e suas notificações.\n> - **Agrupamento (grouping)**: combinação de alertas relacionados em uma notificação.\n> - **Silenciamento (silence)**: supressão temporária de notificações que correspondem a seletores definidos.\n> - **Inibição (inhibition)**: regra que suprime alertas relacionados quando outro alerta de maior contexto está ativo.\n> - **Roteamento**: seleção do receptor de notificação segundo rótulos e configuração.\n> - **Black-box**: verificação externa do comportamento observável de um serviço, como fazer uma requisição de teste.\n\n### Reduzir ruído sem esconder incidentes\n\nAgrupar alertas semelhantes pode transformar dezenas de instâncias de uma falha em uma mensagem com contexto comum. O roteamento usa rótulos para direcionar notificações a receptores apropriados. Silenciar é útil durante manutenção ou investigação, mas deve ter seletor e duração deliberados e ser revisto; um silêncio amplo e indefinido pode esconder incidentes não relacionados. Inibição reduz sintomas secundários quando um alerta de causa abrangente já explica a falha, sem apagar a evidência de que as condições ocorreram.\n\nAs regras devem incluir anotações que ajudem a agir, como resumo, impacto observado e link para procedimento operacional. Evite alertas em cada causa hipotética quando o usuário ainda não sofre impacto: isso aumenta fadiga e pode levar a equipe a ignorar avisos importantes. Para alguns problemas de capacidade, a ação antecipada é legítima mesmo antes de impacto imediato, desde que a mensagem indique a tendência e a ação necessária.\n\n### Testar também o caminho de notificação\n\nA saúde do monitoramento não pode ser inferida só porque o painel abre. A cadeia pode falhar no alvo de coleta, avaliação, Prometheus, Alertmanager, integração de e-mail ou caixa postal. Crie verificações da infraestrutura de monitoração e testes ponta a ponta que comprovem que um alerta de teste percorre a cadeia até um canal observável. A documentação do Prometheus recomenda metamonitorar seus próprios servidores, Alertmanagers, PushGateways e outros componentes; uma prova black-box de chegada do alerta pode detectar falhas que verificações isoladas de cada peça não capturam.\n\nUma rotina de geração de relatório também deve ser monitorada: registre início e fim, duração, código de saída, quantidade de registros, período coberto e destino da entrega. Alerta quando falha uma execução que deveria produzir informação importante, considerando quantas execuções podem falhar antes de haver impacto. Se a própria emissão depende do serviço sob monitoração, mantenha um sinal alternativo para detectar ausência de dados ou de entrega.\n\n### Operação, evidência e recuperação\n\nDefina como reexecutar a tarefa com segurança e como evitar anexos ou notificações duplicados. Use nome de arquivo que identifique ambiente, assunto e período, e publique o arquivo final apenas depois de validar completude. Retenha logs suficientes para investigação, sem armazenar credenciais em texto aberto. Documente quem recebe cada classe de aviso e mantenha o runbook apontado pela regra em sincronia com o procedimento real.\n\n### Como cai na prova\n\n- O Alertmanager não substitui as regras que avaliam séries no Prometheus; ele gerencia alertas recebidos e notificações.\n- Silence suprime notificações correspondentes durante a janela configurada; não corrige a causa do alerta.\n- Metamonitoramento observa a própria cadeia e inclui teste de entrega, não apenas inspeção de dashboards.\n- Um alerta útil combina condição acionável e contexto; volume alto de mensagens não significa cobertura melhor."
+    },
+    {
+      "title": "4. Relatórios recorrentes no Grafana e ciclo de melhoria",
+      "markdown": "### O problema que este assunto resolve\n\nPainéis são úteis para exploração sob demanda; gestores e equipes operacionais também precisam receber um recorte repetível sem abrir a ferramenta. O recurso de Reporting do Grafana permite configurar envio automatizado e programado por e-mail a partir de dashboards, com saída em PDF e CSV. Alterações feitas no dashboard usado refletem nos próximos envios. A disponibilidade e os requisitos variam conforme a edição e o modo de hospedagem: a documentação atual descreve Reporting para Grafana Enterprise e Grafana Cloud, e informa requisitos específicos para ambientes self-managed.\n\n> **Siglas e termos deste capítulo**\n> - **Dashboard**: conjunto de painéis e consultas organizado para acompanhar um assunto.\n> - **PDF**: formato de documento adequado a leitura e distribuição visual.\n> - **CSV**: formato tabular de texto que pode ser analisado em planilhas e ferramentas de dados.\n> - **SMTP**: protocolo usado para envio de e-mail; precisa estar configurado para a entrega de relatórios.\n> - **Renderer**: serviço que captura e renderiza imagens dos dashboards para compor anexos.\n> - **RBAC**: controle de acesso baseado em papéis e permissões.\n\n### Configurar o conteúdo e a agenda\n\nO relatório pode ser criado a partir do dashboard (Dashboards, abrir o painel, Share, Schedule report) ou da página Dashboards > Reporting. Configure dashboard(s), janela temporal, variáveis, frequência, assunto e corpo do e-mail, destinatários e anexos. O agendamento pode ser imediato ou futuro; frequências documentadas incluem envio único, horário, diário, semanal, mensal ou intervalo personalizado. Um envio posterior exige data inicial, hora inicial e fuso. A data final é opcional; sem ela, o envio continua indefinidamente.\n\nEscolha uma janela temporal explícita e confirme o fuso. Os relatórios usam o fuso do dashboard. Se o dashboard estiver em Browser Time, o relatório usa o fuso do servidor Grafana, que pode divergir do fuso do destinatário. Em agenda mensal iniciada entre os dias 29 e 31, a opção de enviar no último dia do mês permite envio também em meses mais curtos. Para frequências horárias ou diárias há opção de restringir envios a dias úteis.\n\nÉ possível escolher PDF do dashboard, CSV dos dados de painéis de tabela e, conforme as capacidades disponíveis, anexos separados com dados de tabela. O CSV favorece análise posterior; PDF preserva uma apresentação visual. O time range do relatório pode substituir o intervalo salvo no dashboard. Variáveis de template também podem ser fixadas no relatório; se uma consulta de variável retornar novos valores, uma seleção antiga pode ficar desatualizada, ao passo que selecionar All ou conservar a seleção original mantém novos valores incluídos.\n\n### Entrega, controle e revisão\n\nNo Grafana Enterprise, o envio por e-mail requer SMTP configurado e serviço de renderização de imagem. Por padrão, anexos maiores que 10 MB não são enviados; o limite pode ser alterado na configuração de Reporting. Arquivos gerados são temporários na pasta de dados (`csv`, `pdf` ou `png`), e um processo em segundo plano os remove periodicamente; a retenção temporária pode ser configurada por `temp_data_lifetime`. Só administradores da organização podem criar relatórios por padrão, mas RBAC permite ajustar quem tem as permissões necessárias.\n\nUse Send preview para conferir destinatários, período, aparência e anexos antes de programar o envio. Save draft guarda uma configuração incompleta sem enviá-la na agenda. Um relatório programado pode ser editado, pausado e retomado na lista de Reporting; apagar é irreversível. Para investigar problemas de geração e envio, a documentação orienta ativar logs de depuração para filtros relacionados a rendering, scheduler, sender, serviço e API de relatórios.\n\n### Como cai na prova\n\n- SMTP é necessário para remessa de e-mail e o serviço de renderização é necessário no cenário Enterprise descrito na documentação.\n- Um dashboard em Browser Time pode produzir relatório no fuso do servidor, não no fuso local do destinatário.\n- Relatórios podem anexar PDF e CSV; drafts não são enviados na agenda até serem programados.\n- Pré-visualizar, conferir janela e destinatários e acompanhar falhas são etapas de controle da rotina automatizada."
+    }
+  ],
+  "summary": "Automatizar rotinas de monitoração exige escolher fonte, indicador, frequência, condição, responsável, canal e registro, além de validar dados ausentes e impedir sobreposição e duplicidade. O módulo Ansible `ansible.builtin.cron` administra entradas nomeadas de crontab e as identifica por comentário `#Ansible: <name>`. No Prometheus, recording rules pré-calculam expressões como novas séries temporais e alerting rules avaliam condições; regras YAML são carregadas via `rule_files`, verificadas com `promtool check rules` e podem ser recarregadas com SIGHUP se todos os arquivos forem válidos. O campo `for` mantém alertas em pending até a condição persistir. O Alertmanager agrupa, silencia, inibe, roteia e envia alertas; metamonitoramento deve verificar a cadeia de coleta e notificação, inclusive por teste black-box. O Grafana Reporting programa e-mails de dashboards com PDF ou CSV, agenda e fuso definidos; SMTP e renderização são requisitos do Enterprise. A rotina deve ter preview, destinatários conferidos, logs, verificação de completude, tratamento de falhas e procedimento de reexecução.",
+  "flashcards": [
+    { "front": "Quais decisões devem estar definidas antes de automatizar uma verificação de monitoração?", "back": "Alvo, fonte de dados, indicador, frequência, condição ou limite, responsável, saída e ação para sucesso e falha." },
+    { "front": "O que significa idempotência numa rotina agendada?", "back": "Reexecutar a operação não produz duplicidades ou efeitos acumulados inesperados." },
+    { "front": "Como o módulo ansible.builtin.cron identifica uma tarefa gerenciada?", "back": "Insere comentário `#Ansible: <name>` correspondente ao nome passado ao módulo; esse nome deve ser único e estável." },
+    { "front": "O que faz uma recording rule do Prometheus?", "back": "Pré-calcula uma expressão avaliada periodicamente e salva o resultado como nova série temporal." },
+    { "front": "O que faz uma alerting rule do Prometheus?", "back": "Avalia uma expressão e cria alertas ativos para os conjuntos de rótulos retornados." },
+    { "front": "Para que serve o campo for em uma regra de alerta?", "back": "Exige que a condição permaneça verdadeira pelo período indicado antes de o alerta passar a firing; antes disso, fica pending." },
+    { "front": "Que diferença há entre labels e annotations em um alerta?", "back": "Labels classificam e roteiam; annotations guardam informações mais longas, como descrição e link de runbook." },
+    { "front": "Que tarefa cabe ao Alertmanager?", "back": "Agrupar, silenciar, inibir, rotear e enviar notificações de alertas recebidos." },
+    { "front": "Como o promtool pode ser usado antes de carregar regras?", "back": "`promtool check rules <arquivo>` verifica a sintaxe do arquivo de regras sem iniciar o servidor." },
+    { "front": "O que uma recording rule não faz automaticamente ao ser criada?", "back": "Não cria dados históricos anteriores à criação da regra; as séries começam a ser gravadas a partir daí." },
+    { "front": "Por que a média de médias pode dar resultado errado?", "back": "Grupos podem ter quantidades diferentes de observações; agregue numeradores e denominadores e depois calcule a razão." },
+    { "front": "O que é metamonitoramento?", "back": "Monitorar os próprios componentes e o caminho de coleta e notificação do sistema de monitoração." },
+    { "front": "O que verifica um teste black-box de alertas ponta a ponta?", "back": "Se o alerta consegue percorrer componentes e chegar ao destino de notificação observável." },
+    { "front": "Que entregas podem compor um relatório programado no Grafana?", "back": "PDF do dashboard e CSV dos dados de painéis de tabela, conforme as opções disponíveis." },
+    { "front": "Qual componente precisa estar configurado para enviar e-mail no Reporting Enterprise?", "back": "SMTP; a documentação também exige o serviço Grafana image renderer para a geração dos relatórios." },
+    { "front": "Qual fuso o relatório usa se o dashboard estiver em Browser Time?", "back": "O fuso do servidor Grafana, que pode não coincidir com o fuso de quem cria ou recebe o relatório." },
+    { "front": "O que ocorre com um relatório salvo como draft?", "back": "A configuração fica guardada, mas não é enviada na agenda enquanto não for programada." },
+    { "front": "O que faz o silêncio no Alertmanager?", "back": "Suprime notificações que correspondam aos seletores configurados durante a vigência do silêncio; não resolve a causa." },
+    { "front": "Por que uma rotina deve validar atualidade e completude dos dados?", "back": "Para distinguir ausência real de eventos de falha de coleta ou de uma janela incompleta." },
+    { "front": "Que aspecto deve ser acompanhado numa rotina de relatório além do arquivo final?", "back": "Início e fim, duração, código de saída, quantidade de registros, período coberto e sucesso da entrega." }
+  ],
+  "tips": [
+    "Separe avaliação e entrega: Prometheus avalia regras; Alertmanager trata distribuição de alertas.",
+    "Lembre que pending é condição ativa aguardando o `for`; firing é a condição que já persistiu pelo período exigido.",
+    "Antes de atualizar regras, valide o YAML com `promtool check rules` e acompanhe o reload.",
+    "Para relatórios programados, confira período, fuso, destinatários, anexos e preview antes de agendar.",
+    "Trate ausência de dados como sinal a investigar, não como prova de que o sistema está saudável.",
+    "Acompanhe a própria cadeia de monitoração com teste externo de chegada do alerta e logs da rotina."
+  ],
+  "traps": [
+    "Confundir o intervalo de avaliação de regras com o campo `for`: o intervalo define quando avaliar; `for` define quanto a condição deve persistir.",
+    "Afirmar que o Alertmanager avalia PromQL: a avaliação das expressões é feita no Prometheus.",
+    "Tratar silêncio como correção: ele suspende notificações correspondentes, mas a condição pode continuar ativa.",
+    "Supor que cron garanta execução única ou evite sobreposição: isso exige controle próprio da rotina.",
+    "Assumir que Browser Time usa o horário local do destinatário: o relatório usa o fuso do servidor Grafana.",
+    "Achar que `promtool check rules` valida se um limite é adequado ao negócio: a ferramenta verifica sintaxe, não a política operacional."
+  ],
+  "activeRecall": [
+    { "question": "Descreva o fluxo de uma rotina automatizada desde a coleta até uma pessoa agir.", "answer": "Um coletor obtém dados, uma regra calcula indicador ou condição, o sistema registra o resultado, o Alertmanager agrupa e roteia o aviso, e a equipe segue o runbook associado." },
+    { "question": "Como prevenir que um relatório vazio esconda uma falha de coleta?", "answer": "Verificar atualidade e completude da fonte, apresentar o período e lacunas e monitorar a própria tarefa de coleta e geração." },
+    { "question": "Explique a diferença entre recording rule e alerting rule.", "answer": "A primeira grava o resultado de uma expressão como série temporal para consultas futuras; a segunda cria alertas quando a expressão retorna elementos." },
+    { "question": "O que muda para um alerta configurado com `for`?", "answer": "A condição precisa continuar ativa durante o intervalo configurado; enquanto aguarda, o alerta fica pending e depois pode passar a firing." },
+    { "question": "Que verificações fariam parte de um teste da cadeia de alertas?", "answer": "Produzir um evento controlado, confirmar avaliação no Prometheus, recepção e roteamento pelo Alertmanager e chegada no canal final." },
+    { "question": "Como diferenciar usos de PDF e CSV num relatório de operação?", "answer": "PDF preserva apresentação visual para leitura e distribuição; CSV expõe dados tabulares para análise posterior." },
+    { "question": "Que configuração pode explicar um relatório enviado numa hora inesperada?", "answer": "Fuso do dashboard: se estiver em Browser Time, o Reporting usa o fuso do servidor Grafana." },
+    { "question": "O que precisa ser registrado para investigar uma geração que falhou?", "answer": "Horários de início e fim, duração, código de saída, logs, registros processados, período coberto e resultado da entrega." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Agendamento confundido com confiabilidade", "summary": "Um horário recorrente não garante execução única, sem sobreposição ou sucesso; ambiente, bloqueio concorrente, log, código de saída e reexecução segura precisam ser definidos." },
+    { "key": "e2", "title": "Regras de gravação e alerta trocadas", "summary": "Recording rules gravam expressões pré-calculadas como séries temporais; alerting rules geram estados de alerta; Alertmanager distribui notificações." },
+    { "key": "e3", "title": "Condição do alerta sem estado temporal", "summary": "A expressão é avaliada periodicamente; `for` mantém o alerta pending até persistência e não substitui o intervalo de avaliação." },
+    { "key": "e4", "title": "Relatório sem contexto temporal", "summary": "Janela do dashboard, agenda e fuso determinam o período do resultado; Browser Time usa o fuso do servidor para relatórios." },
+    { "key": "e5", "title": "Saúde do monitoramento presumida", "summary": "Painéis e regras internas podem falhar junto com a infraestrutura; metamonitoramento e testes black-box verificam coleta, avaliação, roteamento e entrega." }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe quer automatizar a inspeção diária de um serviço. Qual especificação torna a rotina operacionalmente verificável?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Definir alvo, fonte, indicador, frequência, limite, responsável e canal de saída.", "correct": true },
+        { "key": "B", "text": "Executar consultas frequentes e guardar todos os resultados sem indicar responsáveis.", "correct": false },
+        { "key": "C", "text": "Enviar o mesmo painel a toda a empresa e deixar cada leitor decidir quando agir.", "correct": false },
+        { "key": "D", "text": "Reunir métricas disponíveis e escolher os limites depois de cada incidente relevante.", "correct": false },
+        { "key": "E", "text": "Agendar uma tarefa em cada host e considerar concluído o controle após criá-la.", "correct": false }
+      ],
+      "explanation": "Uma rotina verificável identifica o que observa, de onde vêm os dados, com que frequência avalia, qual condição importa e quem recebe o resultado. Apenas agendar ou coletar dados não define resposta operacional.",
+      "section": "1. Desenhar uma rotina de monitoração automatizada", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No módulo ansible.builtin.cron, qual é a finalidade da linha de comentário associada a uma tarefa nomeada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Desabilitar a tarefa fora do horário previsto sem removê-la do crontab.", "correct": false },
+        { "key": "B", "text": "Registrar o último código de saída da execução para consulta do Ansible.", "correct": false },
+        { "key": "C", "text": "Permitir que chamadas posteriores localizem e verifiquem a entrada pelo nome.", "correct": true },
+        { "key": "D", "text": "Definir o usuário do sistema que receberá a saída padrão do comando.", "correct": false },
+        { "key": "E", "text": "Impedir que o cron execute outra entrada com horário coincidente.", "correct": false }
+      ],
+      "explanation": "O módulo inclui um comentário `#Ansible: <name>` correspondente ao nome fornecido para que chamadas futuras possam encontrar e administrar a entrada. Isso não registra o resultado da execução nem evita concorrência.",
+      "section": "1. Desenhar uma rotina de monitoração automatizada", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina noturna pode levar mais tempo que o intervalo entre execuções e ambas escrevem o mesmo relatório. Qual controle trata diretamente esse risco?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Aumentar a verbosidade do painel para distinguir os dois arquivos gerados.", "correct": false },
+        { "key": "B", "text": "Adicionar bloqueio ou mecanismo de exclusão mútua à execução da rotina.", "correct": true },
+        { "key": "C", "text": "Reduzir o volume de logs para que o processo termine antes do próximo horário.", "correct": false },
+        { "key": "D", "text": "Marcar a tarefa como idempotente sem alterar o comportamento de escrita.", "correct": false },
+        { "key": "E", "text": "Mover a tarefa para outro host sem coordenar as execuções existentes.", "correct": false }
+      ],
+      "explanation": "Execuções sobrepostas podem competir pelo mesmo artefato. Um bloqueio ou controle equivalente garante que a segunda instância aguarde ou seja recusada; alterar logs ou apenas declarar idempotência não cria exclusão.",
+      "section": "1. Desenhar uma rotina de monitoração automatizada", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra de gravação do Prometheus é mais útil quando qual situação ocorre?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Um operador deseja transformar os alertas recebidos em mensagens de e-mail.", "correct": false },
+        { "key": "B", "text": "O serviço precisa alterar seus rótulos sempre que o dashboard é aberto.", "correct": false },
+        { "key": "C", "text": "Uma equipe quer pausar notificações durante uma janela de manutenção.", "correct": false },
+        { "key": "D", "text": "Um painel repete uma expressão custosa e pode consultar resultado pré-calculado.", "correct": true },
+        { "key": "E", "text": "Um administrador precisa criar cópia histórica retroativa sem processar dados passados.", "correct": false }
+      ],
+      "explanation": "Recording rules pré-calculam expressões usadas repetidamente ou com custo alto e salvam resultados como novas séries temporais. Não enviam e-mails nem criam automaticamente histórico anterior à regra.",
+      "section": "2. Regras periódicas e alertas no Prometheus", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência descreve corretamente a publicação de uma alteração em arquivo de regras do Prometheus?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Validar com promtool, carregar via rule_files e recarregar após confirmar arquivos bem formatados.", "correct": true },
+        { "key": "B", "text": "Enviar o YAML ao Alertmanager, que o compila e solicita o reinício do coletor.", "correct": false },
+        { "key": "C", "text": "Armazenar a regra no dashboard e esperar que cada painel a transforme em alerta.", "correct": false },
+        { "key": "D", "text": "Executar cada expressão manualmente e substituir o arquivo por uma série de resultados.", "correct": false },
+        { "key": "E", "text": "Recarregar primeiro o processo e usar o promtool apenas se a regra não disparar.", "correct": false }
+      ],
+      "explanation": "Os arquivos YAML são referenciados por `rule_files`; `promtool check rules` verifica a sintaxe antes da operação. O Prometheus aceita reload por SIGHUP somente se todos os arquivos de regra estiverem bem formatados.",
+      "section": "2. Regras periódicas e alertas no Prometheus", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra de alerta tem expressão verdadeira continuamente, mas contém `for: 8m`. Que comportamento corresponde a essa configuração?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A regra é avaliada somente uma vez a cada oito minutos e nunca mantém estado.", "correct": false },
+        { "key": "B", "text": "O alerta fica firing imediatamente e é removido ao completar oito minutos.", "correct": false },
+        { "key": "C", "text": "O Alertmanager aguarda oito minutos antes de consultar a expressão no Prometheus.", "correct": false },
+        { "key": "D", "text": "O resultado é gravado como série e convertido em alerta após outra consulta manual.", "correct": false },
+        { "key": "E", "text": "O alerta permanece pending enquanto a condição acumula persistência e depois passa a firing.", "correct": true }
+      ],
+      "explanation": "O campo `for` exige que o elemento da expressão continue ativo durante o período indicado antes de o alerta ser considerado firing. O intervalo de avaliação é uma configuração separada do grupo.",
+      "section": "2. Regras periódicas e alertas no Prometheus", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe observa que a mesma expressão de latência é consultada por muitos painéis. Qual desenho reduz a repetição do cálculo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Criar uma silence para cada painel e reutilizar os valores exibidos nas mensagens.", "correct": false },
+        { "key": "B", "text": "Criar uma recording rule e consultar sua série pré-calculada nos painéis.", "correct": true },
+        { "key": "C", "text": "Transformar todas as consultas em alerting rules e ocultar os alertas ativos.", "correct": false },
+        { "key": "D", "text": "Aumentar os intervalos dos painéis e manter a expressão integral em cada um.", "correct": false },
+        { "key": "E", "text": "Enviar o cálculo ao cron e remover o armazenamento de séries do Prometheus.", "correct": false }
+      ],
+      "explanation": "A recording rule calcula e armazena o resultado como série temporal, permitindo que diferentes painéis consultem a série já pronta. Silence controla notificações, não consultas; alerting rules têm finalidade distinta.",
+      "section": "2. Regras periódicas e alertas no Prometheus", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao consolidar a taxa de erros de dois serviços com volumes muito diferentes, qual cálculo evita a média simples de duas taxas?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Calcular a média não ponderada das taxas de cada serviço e manter ambos os denominadores.", "correct": false },
+        { "key": "B", "text": "Selecionar a maior taxa e tratá-la como a proporção conjunta dos serviços.", "correct": false },
+        { "key": "C", "text": "Somar os numeradores de falhas e os denominadores de requisições e então dividir.", "correct": true },
+        { "key": "D", "text": "Somar as taxas percentuais e dividir pelo total de instâncias monitoradas.", "correct": false },
+        { "key": "E", "text": "Tirar a média das médias por painel e descartar os volumes originais observados.", "correct": false }
+      ],
+      "explanation": "Para agregar uma razão, agregue numerador e denominador separadamente e só depois calcule a divisão. A média simples atribui peso igual a grupos que podem ter volumes de requisições muito diferentes.",
+      "section": "2. Regras periódicas e alertas no Prometheus", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A documentação do Prometheus recomenda alertar sobre sintomas relacionados ao impacto do usuário e reduzir alertas sem ação operacional.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Alertas mais simples, ligados a sintomas de impacto e acompanhados de consoles que ajudem a localizar a causa, reduzem ruído sem utilidade para a equipe.",
+      "section": "2. Regras periódicas e alertas no Prometheus", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Como a gravação de uma recording rule começa apenas quando ela passa a ser avaliada, não há séries históricas dessa regra antes de sua criação por padrão.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Os dados gravados existem desde o momento em que a regra foi criada e avaliada. Backfill é procedimento separado e depende de ferramenta e condições próprias.",
+      "section": "2. Regras periódicas e alertas no Prometheus", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O comando `promtool check rules` confirma que o limite definido pela equipe representa corretamente seu SLO e o impacto tolerado pelo usuário.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O promtool verifica sintaxe e validade estrutural do arquivo de regras. Adequação do limiar ao serviço, SLO, amostras e resposta operacional exige avaliação e teste da equipe.",
+      "section": "2. Regras periódicas e alertas no Prometheus", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Durante uma janela aprovada de manutenção, notificações de um alvo específico precisam ser temporariamente suprimidas. Qual recurso do Alertmanager atende a esse caso?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Recording rule que armazena o estado de manutenção em uma nova série temporal.", "correct": false },
+        { "key": "B", "text": "SIGHUP para interromper o envio de qualquer notificação do serviço.", "correct": false },
+        { "key": "C", "text": "Inibição permanente para apagar alertas que compartilhem um rótulo do alvo.", "correct": false },
+        { "key": "D", "text": "Silence com seletores e duração correspondentes aos alertas da manutenção.", "correct": true },
+        { "key": "E", "text": "CSV agendado para substituir o receptor configurado no Prometheus.", "correct": false }
+      ],
+      "explanation": "Silence suprime notificações de alertas que correspondem aos seletores configurados durante sua vigência. Ele não apaga a condição nem deve ser confundido com reconfiguração da avaliação.",
+      "section": "3. Encaminhamento confiável e metamonitoramento", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual componente recebe alertas do Prometheus e aplica políticas de agrupamento, inibição, silenciamento e envio?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Alertmanager, que administra alertas recebidos e despacha notificações aos receptores.", "correct": true },
+        { "key": "B", "text": "Grafana renderer, que executa PromQL e modifica o intervalo dos grupos de regra.", "correct": false },
+        { "key": "C", "text": "Ansible cron, que agrega rótulos e determina se uma expressão está firing.", "correct": false },
+        { "key": "D", "text": "Promtool, que encaminha mensagens ao e-mail configurado após validar o YAML.", "correct": false },
+        { "key": "E", "text": "SMTP, que consulta as séries e escolhe os alertas agrupados por serviço.", "correct": false }
+      ],
+      "explanation": "O Prometheus avalia regras e envia alertas ao Alertmanager, que assume agrupamento, silenciamento, inibição e encaminhamento para canais de notificação.",
+      "section": "3. Encaminhamento confiável e metamonitoramento", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um silêncio do Alertmanager corrige a expressão que mantém um alerta ativo e remove a causa técnica do problema.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O silence suprime notificações correspondentes; a regra e a condição podem continuar ativas. A causa precisa de investigação e correção próprias.",
+      "section": "3. Encaminhamento confiável e metamonitoramento", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma falha ampla, um alerta principal explica sintomas secundários do mesmo serviço. Qual recurso pode suprimir notificações secundárias relacionadas?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Agendamento cron, que adia os alertas secundários até o próximo ciclo de coleta.", "correct": false },
+        { "key": "B", "text": "Inibição, configurada para suprimir alertas que correspondam às relações definidas.", "correct": true },
+        { "key": "C", "text": "Recording rule, que substitui as notificações por valores consolidados no painel.", "correct": false },
+        { "key": "D", "text": "Renderer, que agrupa as mensagens e descarta todas as labels repetidas.", "correct": false },
+        { "key": "E", "text": "SMTP, que reconhece a causa principal e remove alertas correlatos do Prometheus.", "correct": false }
+      ],
+      "explanation": "Inibição é a política do Alertmanager que suprime alertas relacionados quando outro alerta definido como causa ou contexto está ativo. Agrupamento combina notificações; inibição controla alertas correlatos segundo rótulos.",
+      "section": "3. Encaminhamento confiável e metamonitoramento", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório mensal é enviado em PDF, mas a equipe também precisa recalcular indicadores fora do dashboard. Qual anexo é mais apropriado para análise tabular?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Um silence com os valores atuais anexados como comentários aos seletores.", "correct": false },
+        { "key": "B", "text": "Uma gravação de tela do dashboard, sem exportar dados das tabelas.", "correct": false },
+        { "key": "C", "text": "Um arquivo CSV dos dados de painéis de tabela incluídos no dashboard.", "correct": true },
+        { "key": "D", "text": "Uma anotação de alerta com os dados tabulares convertidos em rótulos curtos.", "correct": false },
+        { "key": "E", "text": "Um arquivo YAML com as regras de gravação que alimentam os painéis mostrados.", "correct": false }
+      ],
+      "explanation": "A documentação do Grafana permite anexar CSV dos dados de painéis de tabela, que podem ser abertos e analisados em ferramentas tabulares. PDF é voltado à apresentação do relatório.",
+      "section": "4. Relatórios recorrentes no Grafana e ciclo de melhoria", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No Grafana Enterprise, quais componentes são requisitos documentados para o envio de relatórios por e-mail?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "SMTP configurado e serviço Grafana image renderer disponível para renderização.", "correct": true },
+        { "key": "B", "text": "Alertmanager em cluster e PushGateway para cada dashboard programado.", "correct": false },
+        { "key": "C", "text": "Crontab local em cada destinatário e promtool instalado no servidor SMTP.", "correct": false },
+        { "key": "D", "text": "Um servidor Prometheus por arquivo PDF e um receptor por painel de tabela.", "correct": false },
+        { "key": "E", "text": "Um SLO publicado em cada painel e um silence ativo durante o envio.", "correct": false }
+      ],
+      "explanation": "A documentação de Reporting Enterprise lista SMTP para envio de mensagens e o serviço de renderização de imagem do Grafana para produzir os artefatos visuais.",
+      "section": "4. Relatórios recorrentes no Grafana e ciclo de melhoria", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe agenda relatórios com frequência diária e deseja receber envios somente de segunda a sexta-feira. Qual ajuste é compatível com a configuração documentada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Definir um silence do Alertmanager e reaproveitar seus horários como calendário de envio.", "correct": false },
+        { "key": "B", "text": "Selecionar a opção de envio apenas de segunda a sexta para frequência horária ou diária.", "correct": true },
+        { "key": "C", "text": "Configurar o renderer para apagar as mensagens geradas nos finais de semana.", "correct": false },
+        { "key": "D", "text": "Alterar o período do dashboard para excluir os dias que não terão destinatários.", "correct": false },
+        { "key": "E", "text": "Usar a data final no sábado para repetir os relatórios nos dias úteis seguintes.", "correct": false }
+      ],
+      "explanation": "O agendamento do Grafana oferece uma opção para envio somente de segunda a sexta quando a frequência é horária ou diária. O intervalo do dashboard altera os dados consultados, não o calendário de entrega.",
+      "section": "4. Relatórios recorrentes no Grafana e ciclo de melhoria", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um dashboard usa Browser Time. Por que o horário do relatório pode diferir do horário local de quem o recebe?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O agendamento usa sempre o fuso do usuário que criou o primeiro painel do dashboard.", "correct": false },
+        { "key": "B", "text": "O serviço SMTP converte horários segundo o domínio de cada destinatário cadastrado.", "correct": false },
+        { "key": "C", "text": "O renderer ignora o fuso e usa o deslocamento UTC do navegador do administrador.", "correct": false },
+        { "key": "D", "text": "O envio usa o fuso do servidor Grafana quando o dashboard está em Browser Time.", "correct": true },
+        { "key": "E", "text": "O relatório converte todos os envios para UTC antes de consultar o período do painel.", "correct": false }
+      ],
+      "explanation": "A documentação informa que Browser Time faz os relatórios usarem o fuso do servidor Grafana. Um dashboard com fuso fixo é a forma de controlar o fuso aplicado aos relatórios.",
+      "section": "4. Relatórios recorrentes no Grafana e ciclo de melhoria", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A documentação do Grafana informa que um relatório salvo como draft não é enviado conforme sua agenda enquanto permanecer como rascunho.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O draft permite guardar uma configuração ainda incompleta. Ele não dispara envios programados até que seja concluído e agendado.",
+      "section": "4. Relatórios recorrentes no Grafana e ciclo de melhoria", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Relatórios do Grafana usam o fuso do dashboard, e dashboards configurados como Browser Time usam o fuso do servidor Grafana na geração.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A documentação recomenda salvar o dashboard com fuso específico quando se deseja um fuso previsível, pois Browser Time pode não corresponder ao fuso de criadores ou destinatários.",
+      "section": "4. Relatórios recorrentes no Grafana e ciclo de melhoria", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma agenda mensal com data inicial no dia 31, a opção de enviar no último dia do mês pode manter a entrega também em meses mais curtos.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A opção de último dia do mês evita que a recorrência se limite aos meses que possuem o mesmo dia escolhido na data inicial.",
+      "section": "4. Relatórios recorrentes no Grafana e ciclo de melhoria", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Após criar um dashboard para um relatório, a equipe adiciona um painel e atualiza uma consulta. O que ocorre no próximo envio do relatório baseado nesse dashboard?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O relatório continua congelado na imagem que existia quando foi criado.", "correct": false },
+        { "key": "B", "text": "O Grafana envia somente o painel que já estava presente no primeiro agendamento.", "correct": false },
+        { "key": "C", "text": "As mudanças no dashboard usado refletem no próximo relatório enviado.", "correct": true },
+        { "key": "D", "text": "As consultas novas ficam fora do relatório até serem copiadas para o Alertmanager.", "correct": false },
+        { "key": "E", "text": "O renderer remove a consulta alterada e gera um aviso sem dados ao destinatário.", "correct": false }
+      ],
+      "explanation": "O Reporting usa o dashboard de origem e a documentação informa que alterações nele se refletem na próxima vez que o relatório é enviado. Por isso, revisar o dashboard também faz parte do controle do relatório.",
+      "section": "4. Relatórios recorrentes no Grafana e ciclo de melhoria", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Arquivos temporários de relatórios podem ser removidos por uma tarefa em segundo plano; a retenção pode ser ajustada por temp_data_lifetime.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Os arquivos gerados são temporários na pasta de dados do Grafana, e a configuração `temp_data_lifetime` controla por quanto tempo permanecem antes da remoção.",
+      "section": "4. Relatórios recorrentes no Grafana e ciclo de melhoria", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma configuração de Reporting Enterprise é salva e o relatório não chega. Logs detalhados devem focar em quais áreas para investigar a geração e o envio?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Avaliação de recording rules, backup de crontab e histórico de séries do Prometheus.", "correct": false },
+        { "key": "B", "text": "Inibição de alertas, retenção do CSV e configuração de consulta de cada destinatário.", "correct": false },
+        { "key": "C", "text": "Sincronização de labels, execução de SIGHUP e validação de expressões PromQL.", "correct": false },
+        { "key": "D", "text": "Roteamento de alertas, execução de silence e os logs de SMTP do servidor do destinatário.", "correct": false },
+        { "key": "E", "text": "Filtros de debug de rendering, scheduler, sender, serviço e API de relatórios.", "correct": true }
+      ],
+      "explanation": "A documentação de troubleshooting recomenda habilitar logs de depuração para filtros relacionados à renderização, API, scheduler, sender e serviço de Reporting, permitindo localizar em qual etapa a entrega falhou.",
+      "section": "4. Relatórios recorrentes no Grafana e ciclo de melhoria", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina semanal consulta dados e não encontra registros para um período. Qual interpretação operacional é mais segura?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Tratar como possível ausência de eventos ou falha de coleta e verificar atualidade e cobertura.", "correct": true },
+        { "key": "B", "text": "Considerar o serviço saudável, pois valores vazios indicam que nenhuma falha ocorreu.", "correct": false },
+        { "key": "C", "text": "Reenviar os dados da semana anterior sem destacar que pertencem a outro período.", "correct": false },
+        { "key": "D", "text": "Excluir a consulta vazia e manter a agenda sem registrar a mudança de conteúdo.", "correct": false },
+        { "key": "E", "text": "Aumentar a janela do próximo relatório e somar períodos sem informar a lacuna.", "correct": false }
+      ],
+      "explanation": "Ausência de registros pode significar que não houve eventos, mas também pode resultar de falha na coleta ou cobertura incompleta. A rotina deve validar atualidade e explicitar lacunas antes de classificar o serviço.",
+      "section": "1. Desenhar uma rotina de monitoração automatizada", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Alertas do Prometheus podem receber notificações por e-mail, mas o componente que agrupa, silencia e encaminha esses alertas é o Alertmanager.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O Prometheus determina condições em regras e envia alertas ao Alertmanager, que administra agrupamento, silenciamento, inibição e distribuição a canais como e-mail.",
+      "section": "3. Encaminhamento confiável e metamonitoramento", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um painel da equipe não apresenta alertas, mas o e-mail de notificação também deixou de chegar. Qual prática pode revelar uma falha comum na cadeia de monitoração?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Aumentar o intervalo das regras para permitir que o Alertmanager reconstrua mensagens perdidas.", "correct": false },
+        { "key": "B", "text": "Criar uma recording rule que escreva o status SMTP no dashboard afetado.", "correct": false },
+        { "key": "C", "text": "Aplicar silence aos alertas do próprio Prometheus e aguardar a próxima execução.", "correct": false },
+        { "key": "D", "text": "Executar uma verificação black-box externa que confirme a chegada do alerta de teste.", "correct": true },
+        { "key": "E", "text": "Gerar um CSV manual de séries e usá-lo para substituir a entrega automática.", "correct": false }
+      ],
+      "explanation": "Um teste ponta a ponta que verifica a chegada real da notificação pode detectar falhas em componentes ou integrações que os sinais internos não mostram, inclusive quando o próprio sistema de monitoração está indisponível.",
+      "section": "3. Encaminhamento confiável e metamonitoramento", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa cron pode funcionar no terminal interativo e falhar no agendamento por receber ambiente mais restrito, como PATH ou diretório de trabalho diferentes.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Processos agendados podem ter variáveis e contexto diferentes da sessão interativa; caminhos explícitos, ambiente definido e logs ajudam a tornar a execução previsível.",
+      "section": "1. Desenhar uma rotina de monitoração automatizada", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração de arquivo de regras contém erro de formatação. O que ocorre quando o Prometheus recebe um pedido de reload?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Somente a regra inválida é aplicada e as demais passam a usar valores padrão.", "correct": false },
+        { "key": "B", "text": "As alterações só são aplicadas se todos os arquivos de regras estiverem bem formatados.", "correct": true },
+        { "key": "C", "text": "O Alertmanager corrige o YAML e reinicia o Prometheus automaticamente.", "correct": false },
+        { "key": "D", "text": "O promtool envia notificações para os receptores enquanto valida o arquivo.", "correct": false },
+        { "key": "E", "text": "O Grafana converte o arquivo em consultas de painel e ignora as regras de alerta.", "correct": false }
+      ],
+      "explanation": "O Prometheus só aplica as alterações do reload quando todos os arquivos de regras estão bem formatados. Por isso a validação com promtool antes da publicação é útil, embora não substitua avaliação semântica.",
+      "section": "2. Regras periódicas e alertas no Prometheus", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma recording rule e uma alerting rule podem ser avaliadas em grupos configurados no Prometheus; seus propósitos, porém, são diferentes.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Ambas são regras avaliadas periodicamente, mas a recording rule grava resultado como série e a alerting rule representa uma condição que gera alerta.",
+      "section": "2. Regras periódicas e alertas no Prometheus", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No Grafana Reporting, que cuidado é necessário quando um relatório mensal deve sair também nos meses sem o dia escolhido na data inicial?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Usar envio no último dia do mês em vez de depender do dia 29, 30 ou 31.", "correct": true },
+        { "key": "B", "text": "Alterar a consulta do painel para retornar dados até o final do trimestre.", "correct": false },
+        { "key": "C", "text": "Configurar o e-mail para repetir mensagens rejeitadas no primeiro dia útil.", "correct": false },
+        { "key": "D", "text": "Salvar o relatório como draft para que a agenda ajuste o dia automaticamente.", "correct": false },
+        { "key": "E", "text": "Definir o dashboard em Browser Time para ampliar os meses de 28 dias.", "correct": false }
+      ],
+      "explanation": "Quando a agenda mensal começa em data entre 29 e 31, o Grafana permite escolher envio no último dia do mês para que a recorrência também ocorra em meses que não têm aquele número de dia.",
+      "section": "4. Relatórios recorrentes no Grafana e ciclo de melhoria", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório com anexo acima do limite padrão pode não ser enviado; a documentação informa que o limite padrão de anexos é 10 MB e pode ser ajustado.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O tamanho padrão máximo documentado para anexos é 10 MB. A configuração do Reporting permite aumentar ou reduzir o limite conforme a necessidade operacional.",
+      "section": "4. Relatórios recorrentes no Grafana e ciclo de melhoria", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de registros ajuda a distinguir falha de geração de uma falha de distribuição de relatórios?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Nome do dashboard, quantidade de painéis e número de pessoas com acesso administrativo.", "correct": false },
+        { "key": "B", "text": "Lista de rótulos das séries e número de regras de gravação carregadas no processo.", "correct": false },
+        { "key": "C", "text": "Número de silences existentes e quantidade de alertas agrupados por receptor.", "correct": false },
+        { "key": "D", "text": "Início, duração, código de saída, arquivo gerado, destinatário e resultado da entrega.", "correct": true },
+        { "key": "E", "text": "Frequência da agenda e assunto do e-mail sem guardar o estado da execução.", "correct": false }
+      ],
+      "explanation": "Registrar as etapas da tarefa e o estado de entrega permite localizar se a consulta, geração do arquivo ou envio falhou. Nome e frequência do agendamento isoladamente não evidenciam o resultado da execução.",
+      "section": "3. Encaminhamento confiável e metamonitoramento", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No Grafana, o time range definido no relatório pode substituir o intervalo salvo no dashboard usado como origem.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Se for especificado no relatório, o intervalo temporal personalizado tem precedência sobre o período salvo no dashboard; isso deve ser revisado para evitar comparar janelas diferentes.",
+      "section": "4. Relatórios recorrentes no Grafana e ciclo de melhoria", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer atualizar quem pode criar relatórios no Grafana após delegar a atividade a operadores. Qual mecanismo é indicado pela documentação?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Publicar os dashboards como snapshots e permitir que qualquer visitante programe envios.", "correct": false },
+        { "key": "B", "text": "Conceder permissões relevantes por RBAC para os papéis responsáveis.", "correct": true },
+        { "key": "C", "text": "Adicionar usuários ao arquivo de regras do Prometheus antes de cada agendamento.", "correct": false },
+        { "key": "D", "text": "Compartilhar a conta de administrador da organização com toda a equipe de operação.", "correct": false },
+        { "key": "E", "text": "Configurar o SMTP para autenticar usuários automaticamente na página Reporting.", "correct": false }
+      ],
+      "explanation": "Por padrão, administradores da organização podem criar relatórios; o controle RBAC permite ajustar quem pode criá-los e gerenciá-los por meio das permissões necessárias.",
+      "section": "4. Relatórios recorrentes no Grafana e ciclo de melhoria", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O módulo ansible.builtin.cron pode gerenciar entradas nomeadas, variáveis de ambiente e, quando solicitado, criar backup do crontab antes de modificá-lo.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A documentação do módulo descreve gerenciamento de entradas e variáveis de ambiente; a opção `backup` permite guardar o crontab anterior à modificação.",
+      "section": "1. Desenhar uma rotina de monitoração automatizada", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O recurso de agrupamento do Alertmanager combina alertas relacionados em notificações, enquanto roteamento usa critérios configurados para escolher seus destinos.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Agrupamento reduz repetição de notificações para incidentes correlatos; roteamento direciona alertas conforme a política e os rótulos configurados.",
+      "section": "3. Encaminhamento confiável e metamonitoramento", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática protege a interpretação de um relatório automatizado quando a coleta falhou durante parte do período?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Preencher a lacuna com o último valor conhecido e ocultar a origem desse valor.", "correct": false },
+        { "key": "B", "text": "Apresentar apenas o valor agregado, sem detalhar o intervalo consultado.", "correct": false },
+        { "key": "C", "text": "Rotular o documento como completo porque a tarefa de envio terminou sem erro.", "correct": false },
+        { "key": "D", "text": "Validar cobertura temporal e informar explicitamente a lacuna de dados no resultado.", "correct": true },
+        { "key": "E", "text": "Combinar a janela incompleta com o relatório seguinte sem registrar a alteração.", "correct": false }
+      ],
+      "explanation": "O período nominal do relatório não prova que houve coleta completa. Validar cobertura e sinalizar lacunas impede que a equipe interprete ausência de observações como ausência de falhas.",
+      "section": "1. Desenhar uma rotina de monitoração automatizada", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Para impedir que uma regra de alerta dispare por uma oscilação muito breve, qual configuração do Prometheus expressa persistência da condição?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Definir `for` para manter o alerta pending até a condição persistir pelo período escolhido.", "correct": true },
+        { "key": "B", "text": "Definir um silence sem prazo para impedir que a expressão retorne elementos ativos.", "correct": false },
+        { "key": "C", "text": "Definir uma annotation para que o Prometheus aguarde uma confirmação humana.", "correct": false },
+        { "key": "D", "text": "Definir o nome da recording rule para igualar o intervalo de avaliação ao limite.", "correct": false },
+        { "key": "E", "text": "Definir um receptor no Alertmanager para filtrar amostras fora do período.", "correct": false }
+      ],
+      "explanation": "O `for` determina quanto tempo a condição deve continuar verdadeira antes de o alerta passar a firing. Ele filtra breves oscilações sem alterar a expressão nem o intervalo de avaliação do grupo.",
+      "section": "2. Regras periódicas e alertas no Prometheus", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma opção de preview de relatório permite conferir o resultado antes de colocar uma agenda recorrente em operação.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O Grafana oferece envio de preview e pré-visualização de PDF, úteis para conferir aparência, conteúdo, janela e destinatários antes do agendamento.",
+      "section": "4. Relatórios recorrentes no Grafana e ciclo de melhoria", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O mesmo nome passado ao módulo cron pode ser alterado sem consequência, pois o Ansible identifica a tarefa apenas pelo horário e pelo comando.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O nome é usado para localizar e verificar o estado da entrada; mudá-lo pode criar nova tarefa ou fazer com que outra entrada seja removida. Por isso o nome deve ser único e mantido estável.",
+      "section": "1. Desenhar uma rotina de monitoração automatizada", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório deve ser enviado imediatamente após ser salvo, sem aguardar a próxima recorrência configurada. Qual escolha de agenda corresponde a esse objetivo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Send later, sem data inicial e sem especificar o fuso utilizado pelo dashboard.", "correct": false },
+        { "key": "B", "text": "Save draft, que inicia o primeiro envio e mantém os seguintes pausados.", "correct": false },
+        { "key": "C", "text": "Send now, que envia após salvar e permite definir data final se necessário.", "correct": true },
+        { "key": "D", "text": "Pause report, que envia uma cópia antes de interromper a agenda existente.", "correct": false },
+        { "key": "E", "text": "Download CSV, que dispara o envio do PDF aos destinatários cadastrados.", "correct": false }
+      ],
+      "explanation": "A opção Send now envia o relatório imediatamente após salvar. Pode-se definir uma data final para interromper envios futuros; Save draft não executa a agenda.",
+      "section": "4. Relatórios recorrentes no Grafana e ciclo de melhoria", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A avaliação de uma regra pode anexar labels ao alerta, enquanto annotations guardam descrição mais longa ou link de runbook.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Labels classificam a instância de alerta e podem apoiar roteamento. Annotations armazenam informação descritiva, inclusive resumo, detalhes e links úteis para resposta.",
+      "section": "2. Regras periódicas e alertas no Prometheus", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um CSV de relatório contém números sem unidade, período ou indicação de serviço. Qual medida aumenta a utilidade operacional dessa saída?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Remover rótulos adicionais para reduzir o tamanho e deixar a interpretação ao destinatário.", "correct": false },
+        { "key": "B", "text": "Acrescentar contexto de serviço, unidade, janela temporal e lacunas conhecidas.", "correct": true },
+        { "key": "C", "text": "Enviar o arquivo junto com toda a configuração interna do servidor de monitoração.", "correct": false },
+        { "key": "D", "text": "Trocar o arquivo por uma mensagem de alerta com o valor mais recente somente.", "correct": false },
+        { "key": "E", "text": "Preservar os valores sem contexto e adicionar uma tabela vazia para cada serviço.", "correct": false }
+      ],
+      "explanation": "Indicadores precisam ser interpretáveis. Identificar serviço, unidade, período e cobertura permite comparar corretamente o resultado e perceber quando a coleta foi incompleta.",
+      "section": "1. Desenhar uma rotina de monitoração automatizada", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa batch falhou uma vez, mas deve rodar novamente em breve e ainda não há impacto ao usuário. A política de alerta deve considerar periodicidade e tolerância antes de notificar o plantão.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Para processamento em lote, o critério deve refletir se o trabalho deixou de concluir recentemente o suficiente para causar impacto. Alertar por qualquer falha isolada pode gerar ruído quando uma nova execução pode recuperar a operação.",
+      "section": "3. Encaminhamento confiável e metamonitoramento", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual padrão de nomenclatura facilita reconhecer o resultado de uma recording rule do Prometheus?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Usar somente o nome do dashboard, seguido do horário em que a expressão foi executada.", "correct": false },
+        { "key": "B", "text": "Usar o identificador do alerta, o receptor de e-mail e a janela do relatório associado.", "correct": false },
+        { "key": "C", "text": "Usar apenas o nome do job e substituir a métrica por uma descrição livre do serviço.", "correct": false },
+        { "key": "D", "text": "Usar uma frase longa que descreva a tela em que o resultado será exibido.", "correct": false },
+        { "key": "E", "text": "Usar `nível:métrica:operações`, indicando agregação e cálculo no nome.", "correct": true }
+      ],
+      "explanation": "A convenção documentada é `level:metric:operations`: o nível descreve agregação e rótulos do resultado, a métrica preserva sua identidade e as operações indicam o cálculo aplicado.",
+      "section": "2. Regras periódicas e alertas no Prometheus", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um alerta já está firing e a equipe quer evitar que uma queda breve na condição o resolva imediatamente. Qual configuração atende a esse objetivo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Adicionar uma annotation que converta firing em pending durante a recuperação.", "correct": false },
+        { "key": "B", "text": "Configurar `keep_firing_for` para manter o alerta firing pelo período indicado.", "correct": true },
+        { "key": "C", "text": "Aumentar o intervalo de scrape para impedir amostras atualizadas da condição.", "correct": false },
+        { "key": "D", "text": "Criar uma recording rule com o mesmo nome para redefinir o alerta ativo.", "correct": false },
+        { "key": "E", "text": "Adicionar `for` depois da recuperação para reiniciar a contagem do alerta.", "correct": false }
+      ],
+      "explanation": "`keep_firing_for` mantém o alerta em firing por um período depois que a condição deixa de ser satisfeita. `for` atua antes da transição inicial para firing.",
+      "section": "2. Regras periódicas e alertas no Prometheus", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao habilitar backup no módulo ansible.builtin.cron, a cópia do crontab é criada depois da alteração e seu caminho não é informado.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O módulo pode criar o backup antes de modificar o crontab e devolver o caminho em `backup_file`; a frase inverte o momento e nega a informação do caminho.",
+      "section": "1. Desenhar uma rotina de monitoração automatizada", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual procedimento reduz o risco de enviar a destinatários um relatório com período ou conteúdo inesperado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Deixar o relatório como draft e presumir que a agenda validará os destinatários.", "correct": false },
+        { "key": "B", "text": "Enviar o relatório sem prévia, pois a agenda verifica conteúdo e destinatários automaticamente.", "correct": false },
+        { "key": "C", "text": "Enviar preview a todos os destinatários como definitivo e ativar automaticamente a agenda.", "correct": false },
+        { "key": "D", "text": "Testar uma prévia e conferir conteúdo, janela, destinatários e arquivos anexados.", "correct": true },
+        { "key": "E", "text": "Publicar o dashboard como snapshot e usar o link como relatório recorrente.", "correct": false }
+      ],
+      "explanation": "O preview permite revisar o resultado real antes de agendar a distribuição. Conferir janela, destinatários e anexos reduz falhas de conteúdo e entrega.",
+      "section": "4. Relatórios recorrentes no Grafana e ciclo de melhoria", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No módulo ansible.builtin.cron, o caractere `%` pode ser usado sem escape em qualquer entrada, pois nunca tem interpretação especial.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A documentação alerta que caracteres como `%` devem ser escapados corretamente; por isso não se deve presumir que sejam literais em qualquer entrada.",
+      "section": "1. Desenhar uma rotina de monitoração automatizada", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual requisito da tarefa ajuda a detectar que a execução terminou sem produzir os registros esperados?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Usar um nome de arquivo novo em cada execução, sem validar seu conteúdo.", "correct": false },
+        { "key": "B", "text": "Guardar somente o horário agendado e apagar os códigos de saída da tarefa.", "correct": false },
+        { "key": "C", "text": "Verificar quantidade e período dos dados, além do código de saída e dos logs.", "correct": true },
+        { "key": "D", "text": "Aumentar o tamanho dos anexos para que o relatório contenha mais painéis.", "correct": false },
+        { "key": "E", "text": "Tratar qualquer arquivo criado como completo, mesmo se a execução foi interrompida.", "correct": false }
+      ],
+      "explanation": "Um processo pode criar arquivo parcial antes de falhar. Conferir código de saída, logs, quantidade e cobertura temporal permite detectar uma execução incompleta antes da distribuição.",
+      "section": "1. Desenhar uma rotina de monitoração automatizada", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma alerting rule sem cláusula `for` precisa aguardar o Alertmanager confirmar o alerta antes de passar a firing.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Sem `for`, a regra torna-se ativa na primeira avaliação em que a expressão retorna elementos; o Alertmanager gerencia o alerta depois de recebê-lo.",
+      "section": "2. Regras periódicas e alertas no Prometheus", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra com `keep_firing_for` espera a condição ficar falsa durante o período configurado antes de permitir o primeiro disparo do alerta.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. `keep_firing_for` atua depois que a condição deixa de ser satisfeita, mantendo por mais tempo um alerta que já estava firing. A persistência antes do primeiro disparo é controlada por `for`.",
+      "section": "2. Regras periódicas e alertas no Prometheus", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No Grafana, os destinatários de relatórios programados precisam ser nomes de usuário internos, nunca endereços de e-mail.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A configuração recebe endereços de e-mail das pessoas ou equipes destinatárias, separados por vírgula ou ponto e vírgula; não exige nomes de usuário internos.",
+      "section": "4. Relatórios recorrentes no Grafana e ciclo de melhoria", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual efeito deve ser considerado quando a consulta de uma variável de dashboard passa a retornar novos hosts depois que o relatório foi configurado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O Alertmanager inclui os hosts na agenda mesmo sem alterar os valores selecionados.", "correct": false },
+        { "key": "B", "text": "O renderer converte automaticamente todos os valores fixados em seleção All.", "correct": false },
+        { "key": "C", "text": "O Grafana invalida o SMTP e remove os destinatários do relatório.", "correct": false },
+        { "key": "D", "text": "A lista salva pode ficar desatualizada; selecionar All ou atualizar valores mantém os novos hosts.", "correct": true },
+        { "key": "E", "text": "O Prometheus muda o time range e inclui qualquer série criada após o agendamento.", "correct": false }
+      ],
+      "explanation": "Valores de variáveis salvos no relatório podem ficar desatualizados se a consulta passar a retornar novos itens. Selecionar All ou manter a seleção original do dashboard permite que valores novos sejam incluídos.",
+      "section": "4. Relatórios recorrentes no Grafana e ciclo de melhoria", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo de regras YAML começa a ser avaliado pelo Prometheus apenas por estar gravado no disco, mesmo sem referência em sua configuração.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A configuração do Prometheus precisa carregar os arquivos de regra por meio de `rule_files`; guardar um arquivo não o registra automaticamente para avaliação.",
+      "section": "2. Regras periódicas e alertas no Prometheus", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual abordagem reduz mensagens repetidas quando um evento produz muitos alertas correlatos?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Enviar cada alerta em e-mail separado e adicionar os rótulos no assunto.", "correct": false },
+        { "key": "B", "text": "Descartar todos os alertas do serviço com um silence sem prazo de expiração.", "correct": false },
+        { "key": "C", "text": "Gravar alertas como séries e desativar qualquer receptor de notificação.", "correct": false },
+        { "key": "D", "text": "Exportar os eventos para CSV e aguardar que o operador agrupe os casos.", "correct": false },
+        { "key": "E", "text": "Agrupar alertas relacionados antes de emitir as notificações aos receptores.", "correct": true }
+      ],
+      "explanation": "O agrupamento do Alertmanager combina alertas relacionados em notificações com contexto comum. Um silêncio amplo esconderia avisos em vez de consolidar mensagens correlatas.",
+      "section": "3. Encaminhamento confiável e metamonitoramento", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório que usa Browser Time no dashboard é gerado no fuso local de cada destinatário, independentemente do servidor Grafana.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Com Browser Time, a geração usa o fuso do servidor Grafana, que pode divergir do fuso dos destinatários. Um fuso fixo no dashboard torna o relatório previsível.",
+      "section": "4. Relatórios recorrentes no Grafana e ciclo de melhoria", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A linha `#Ansible: <name>` é ignorada pelo módulo em execuções posteriores, que localiza a tarefa apenas pelo horário e pelo comando.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O comentário `#Ansible: <name>` é usado para encontrar e verificar o estado da tarefa em chamadas futuras; horário e comando não substituem esse identificador documentado.",
+      "section": "1. Desenhar uma rotina de monitoração automatizada", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O `keep_firing_for` pode manter o estado firing por um intervalo depois que a condição de alerta deixou de ser satisfeita.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A opção mantém o alerta firing pelo período configurado após a condição deixar de ser satisfeita, ajudando a evitar oscilações ou resoluções falsas.",
+      "section": "2. Regras periódicas e alertas no Prometheus", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A configuração de PDF do Grafana pode especificar orientação retrato ou paisagem para o documento gerado.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A configuração de PDF oferece orientação retrato ou paisagem, além de opções de layout e zoom para compor a apresentação.",
+      "section": "4. Relatórios recorrentes no Grafana e ciclo de melhoria", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Prometheus — Alerting rules",
+      "publisher": "Prometheus Authors",
+      "reference": "Expressões, campos for e keep_firing_for, estados pending e firing, labels e annotations",
+      "url": "https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Prometheus — Alerting",
+      "publisher": "Prometheus Authors",
+      "reference": "Alertas orientados a sintomas, jobs em lote, metamonitoramento e verificação black-box ponta a ponta",
+      "url": "https://prometheus.io/docs/practices/alerting/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Prometheus — Recording rules",
+      "publisher": "Prometheus Authors",
+      "reference": "Pré-cálculo e gravação de séries, avaliação em grupos, rule_files, reload e promtool check rules",
+      "url": "https://prometheus.io/docs/prometheus/2.55/configuration/recording_rules/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Grafana — Create and manage reports",
+      "publisher": "Grafana Labs",
+      "reference": "Agendamento, frequência, fuso, SMTP, renderer, PDF, CSV, RBAC, arquivos temporários e troubleshooting",
+      "url": "https://grafana.com/docs/grafana/latest/visualizations/dashboards/create-reports/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Ansible Core — ansible.builtin.cron module",
+      "publisher": "Ansible Community",
+      "reference": "Gerenciamento de entradas de crontab nomeadas, variáveis de ambiente e backup",
+      "url": "https://docs.ansible.com/projects/ansible-core/2.17/collections/ansible/builtin/cron_module.html",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

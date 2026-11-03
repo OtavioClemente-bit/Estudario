@@ -1,0 +1,2035 @@
+{
+  "id": "informatica.infraestrutura-para-servidores",
+  "subject": "Informática",
+  "title": "Infraestrutura para servidores, arquivos, automação e alta disponibilidade",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Infraestrutura para servidores",
+    "Servidor de arquivos em rede",
+    "Infraestrutura de TI para servidores",
+    "Gerenciamento de configuração de servidores",
+    "Aprovisionamento de infraestrutura de TI",
+    "Orquestração de infraestrutura de TI",
+    "Automação de infraestrutura de TI",
+    "Ferramentas de alta disponibilidade",
+    "Administração de servidores e serviços",
+    "Compartilhamento de arquivos com SMB e NFS",
+    "Infraestrutura como código e provisionamento",
+    "Clusters e continuidade de serviços de TI"
+  ],
+  "scope": {
+    "covers": "Componentes e operação de infraestrutura para servidores; armazenamento, rede, virtualização, monitoramento e segurança operacional; servidor de arquivos, SMB/NFS, permissões, namespaces, replicação e proteção; gerenciamento de configuração, aprovisionamento e infraestrutura como código; automação e orquestração com Ansible, Terraform e Kubernetes; alta disponibilidade, balanceamento, clustering, failover, quorum, fencing, redundância, RTO/RPO e limites de backup e replicação.",
+    "excludes": "Instalação detalhada de produtos em versões específicas, comandos completos de administração de cada sistema operacional, arquitetura de aplicações específica de fornecedor, dimensionamento comercial de hardware e normas legais de contratação de TI."
+  },
+  "theoryTitle": "Servidores, arquivos, automação e alta disponibilidade",
+  "chapters": [
+    {
+      "title": "1. Infraestrutura para servidores",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação depende de mais que um computador ligado. Ela precisa de processamento, memória, armazenamento persistente, rede, sistema operacional, identidade, proteção e observabilidade. A infraestrutura de servidores organiza essas dependências para que o serviço tenha capacidade adequada, seja administrável e possa ser recuperado quando algo falha.\n\n> **Siglas e termos deste capítulo**\n> - **CPU**: unidade de processamento que executa instruções.\n> - **RAM**: memória de trabalho, volátil; seu conteúdo desaparece quando falta energia.\n> - **I/O**: operações de entrada e saída, como leitura e gravação em disco ou comunicação de rede.\n> - **Hipervisor**: camada que executa máquinas virtuais sobre um host físico.\n> - **VM**: máquina virtual com sistema operacional e recursos virtuais próprios.\n> - **Observabilidade**: uso de métricas, logs e rastros para entender o comportamento do sistema.\n> - **RTO/RPO**: objetivos de tempo para restaurar serviço e de perda de dados tolerada, respectivamente.\n\n### Camadas que trabalham juntas\n\nUma visão prática vai do equipamento ao serviço: (1) instalações, energia e refrigeração; (2) servidores físicos ou recursos de nuvem; (3) hipervisor ou runtime de contêineres; (4) sistema operacional e rede; (5) armazenamento e identidade; (6) serviços e aplicações; (7) monitoramento, backup e segurança. Uma falha em camada inferior pode afetar várias aplicações. Por isso, diagnóstico começa pela delimitação do impacto: um host, uma rede, um volume, uma dependência compartilhada ou o próprio software.\n\n| Recurso | Pergunta operacional | Sinal de insuficiência |\n| --- | --- | --- |\n| CPU | Há capacidade de execução nos horários de pico? | Fila de processamento e latência sob carga |\n| Memória | Os processos cabem sem pressão excessiva? | Paginação, encerramentos por falta de memória |\n| Armazenamento | Há espaço, desempenho e redundância? | Volume cheio, latência de I/O, falhas de disco |\n| Rede | Há conectividade, largura de banda e rotas corretas? | Perda, retransmissões, timeout ou saturação |\n| Energia e refrigeração | A sala e os equipamentos permanecem dentro das condições operacionais? | Desligamentos e alertas ambientais |\n\n### Servidor físico, máquina virtual e contêiner\n\nUm servidor físico dedica seus componentes diretamente a um sistema operacional. Um hipervisor permite executar diversas VMs isoladas no mesmo host, com recursos virtuais e sistemas operacionais próprios. Contêineres isolam processos e dependências, mas compartilham o kernel do sistema hospedeiro; portanto, não equivalem a VMs com kernel independente. A consolidação aumenta o aproveitamento, mas concentra impacto: se o host ou o armazenamento comum falha, várias cargas podem parar. Alta disponibilidade exige redundância também nesses pontos compartilhados.\n\n### Operação mensurável\n\nA equipe acompanha disponibilidade, utilização, latência, erros e capacidade futura. Métrica é uma série numérica ao longo do tempo; log registra eventos; rastro correlaciona etapas de uma requisição entre serviços. Um alerta útil relaciona sintoma a impacto e aponta ação. Monitorar apenas se o processo está ativo não garante que a aplicação responde corretamente: uma verificação de saúde pode testar a porta, a dependência de banco ou uma operação representativa.\n\nBackup é uma cópia recuperável em outro ponto de armazenamento; snapshot é uma captura de estado, muitas vezes dependente do mesmo sistema de armazenamento; replicação mantém cópias sincronizadas ou quase sincronizadas. Nenhum desses termos, isoladamente, prova que os dados podem ser restaurados. Teste periódico de recuperação verifica integridade, credenciais, procedimento e tempo real de retorno.\n\n### Segurança operacional\n\nReduza a superfície exposta: mantenha serviços e sistemas atualizados, restrinja portas por origem e necessidade, use privilégios mínimos, autenticação forte, segregação de redes administrativas e registro de ações. Segredos não devem ficar embutidos em imagens, scripts ou repositórios. A automação deve obter credenciais por mecanismo protegido e ter permissões limitadas ao escopo que administra.\n\n### Como cai na prova\n\n- RAM é volátil; disco é armazenamento persistente.\n- Contêineres compartilham o kernel do host; uma VM virtualiza uma máquina com sistema operacional próprio.\n- Backup, snapshot e replicação resolvem problemas relacionados, mas não são sinônimos nem dispensam teste de restauração.\n- Disponibilidade do processo não significa saúde do serviço; a verificação precisa exercitar dependências relevantes."
+    },
+    {
+      "title": "2. Servidor de arquivos",
+      "markdown": "### O problema que este assunto resolve\n\nUm servidor de arquivos oferece um local administrado para que clientes autorizados armazenem e acessem documentos. Em vez de cada estação manter cópias independentes, o serviço centraliza compartilhamentos, controle de acesso, auditoria, capacidade e rotinas de proteção. A centralização melhora a governança, mas torna o servidor e sua rede dependências críticas.\n\n> **Siglas e termos deste capítulo**\n> - **SMB**: protocolo de compartilhamento de arquivos usado amplamente em redes Windows.\n> - **NFS**: protocolo de sistema de arquivos em rede comum em ambientes Unix e Linux.\n> - **ACL**: lista de controle de acesso que associa identidades a permissões.\n> - **DFS**: conjunto de recursos Windows para namespace distribuído e, em componente separado, replicação de pastas.\n> - **VSS**: serviço Windows de cópias de sombra de volumes.\n> - **Namespace**: caminho lógico apresentado aos usuários, que pode esconder a localização física do compartilhamento.\n> - **Least privilege**: conceder somente os acessos necessários ao trabalho.\n\n### Compartilhamento não é só criar uma pasta\n\nNo Windows, o servidor SMB hospeda o sistema de arquivos; o cliente SMB solicita acesso. O protocolo negocia uma versão compatível entre as pontas. SMB 3 inclui recursos como assinatura, criptografia, Multichannel e Direct (RDMA), conforme suporte e configuração. SMB 1 é legado e não deve ser habilitado sem necessidade justificada. Em sistemas Unix, NFS exporta diretórios para clientes; a identidade e a política de acesso precisam ser coerentes entre cliente e servidor.\n\nA permissão efetiva resulta das regras do compartilhamento, das permissões do sistema de arquivos e da identidade autenticada. Uma autorização ampla em qualquer camada pode permitir acesso além do pretendido. Grupos por função facilitam concessão e revogação: por exemplo, leitura para um grupo de consulta e alteração para um grupo de edição. A conta de serviço não deve ser usada como conta pessoal compartilhada.\n\n### Estrutura e nome lógico\n\nPastas departamentais devem ter responsáveis, classificação, política de retenção e limites de acesso. Um namespace lógico pode manter um caminho estável mesmo quando o destino físico muda. No Windows DFS, Namespaces organiza compartilhamentos e encaminha clientes para destinos; DFS Replication replica conteúdo entre servidores. São funções distintas: o namespace não replica os dados, e replicação não substitui permissões, backup ou plano de conflito.\n\n| Recurso | Para que serve | O que não garante sozinho |\n| --- | --- | --- |\n| Namespace DFS | Caminho lógico e referências a destinos | Cópia ou sincronização do conteúdo |\n| DFS Replication | Replica pastas entre servidores | Backup histórico imutável ou consistência de toda aplicação |\n| VSS/cópia de sombra | Captura estado de volume para acesso a versões anteriores | Cópia externa resistente à perda do volume |\n| Backup | Mantém cópia para restauração | Alta disponibilidade imediata do compartilhamento |\n\n### Disponibilidade e segurança do compartilhamento\n\nUm único servidor é ponto único de falha. Um cluster pode disponibilizar compartilhamentos em mais de um nó; Scale-Out File Server, por exemplo, oferece compartilhamentos continuamente disponíveis por vários nós para cargas compatíveis. SMB registra eventos de conexão, falha de autenticação e acesso, úteis para diagnóstico e auditoria. Firewall deve permitir o tráfego necessário apenas entre origens e destinos autorizados, e a organização deve identificar quem realmente precisa de SMB.\n\nEm ransomware ou exclusão acidental, uma cópia de sombra pode agilizar recuperação de versões recentes, mas, se permanecer acessível e gravável pelo mesmo domínio administrativo, pode ser apagada junto com os dados. Backups com cópia isolada ou protegida, retenção adequada e restauração testada complementam a disponibilidade. Replicação pode propagar exclusões e corrupção; logo, não é substituto de backup.\n\n### Como cai na prova\n\n- SMB é protocolo; o servidor hospeda o sistema de arquivos e o cliente solicita acesso.\n- DFS Namespaces organiza caminhos; DFS Replication copia conteúdo entre servidores.\n- Permissões precisam ser avaliadas no compartilhamento e no sistema de arquivos, considerando a identidade efetiva.\n- Alta disponibilidade, replicação e backup têm objetivos diferentes e podem precisar coexistir."
+    },
+    {
+      "title": "3. Configuração e aprovisionamento",
+      "markdown": "### O problema que este assunto resolve\n\nServidores configurados um a um acumulam diferenças invisíveis: pacote em versão distinta, regra de firewall esquecida, serviço habilitado em apenas um nó. Gerenciamento de configuração descreve e aplica a configuração desejada de sistemas existentes. Aprovisionamento cria recursos, como redes, máquinas virtuais, discos, instâncias ou endereços. Infraestrutura como código registra essas definições em arquivos revisáveis e reproduzíveis.\n\n> **Siglas e termos deste capítulo**\n> - **IaC**: Infrastructure as Code, infraestrutura declarada ou definida por código.\n> - **Provisionamento/aprovisionamento**: criação e preparação de recursos de infraestrutura.\n> - **Idempotência**: repetir uma operação leva ao mesmo estado final sem efeitos adicionais indevidos.\n> - **Playbook**: sequência declarativa de plays e tarefas do Ansible.\n> - **Provider**: integração do Terraform com uma plataforma ou API de recursos.\n> - **State**: registro do Terraform que associa recursos declarados aos objetos reais gerenciados.\n> - **Drift**: diferença entre a configuração declarada e o estado observado no ambiente.\n\n### Gerenciamento de configuração\n\nUma ferramenta de configuração instala pacotes, cria usuários, mantém arquivos, ajusta serviços e aplica políticas em vários servidores. Ansible organiza essas ações em playbooks YAML; conecta-se normalmente por SSH a hosts Unix/Linux e por WinRM a Windows, sem exigir agente residente em todos os nós. Inventários agrupam os alvos, variáveis adaptam valores por host ou ambiente, módulos representam operações e handlers podem reiniciar um serviço apenas quando uma tarefa relacionada altera sua configuração.\n\nMódulos idempotentes verificam o estado atual e só agem quando necessário. Assim, uma tarefa para garantir que um serviço esteja ativo pode ser executada repetidamente sem iniciar processos duplicados. Nem toda tarefa é idempotente: comandos imperativos que sempre criam uma conta ou acrescentam uma linha podem duplicar efeitos. Use módulos que expressem estado final, valide em ambiente de teste e examine o modo de verificação antes de aplicar mudanças amplas.\n\n### Aprovisionamento declarativo\n\nTerraform descreve recursos e dependências por configuração, consulta provedores e mantém state para relacionar declarações a recursos concretos. O fluxo básico é escrever, revisar o plano e aplicar. `plan` mostra mudanças pretendidas sem modificar os objetos gerenciados; `apply` executa o plano e pode solicitar confirmação; `destroy` remove os recursos que aquele diretório e workspace gerenciam. State pode conter dados sensíveis e deve ter acesso e armazenamento protegidos, bloqueio de concorrência quando aplicável e cópias recuperáveis.\n\nMudança manual feita fora da ferramenta pode gerar drift. Uma nova execução pode propor alterar ou substituir recursos para reconciliar o ambiente; por isso, plano deve ser revisado antes de aplicar. Um plano de infraestrutura pode destruir um recurso, interromper serviço ou afetar dados persistentes. Código versionado facilita revisão, mas não torna toda alteração automaticamente segura.\n\n### Configuração versus aprovisionamento\n\n| Atividade | Pergunta respondida | Exemplo de resultado |\n| --- | --- | --- |\n| Aprovisionamento | Quais recursos devem existir? | Rede, VM, disco e balanceador criados na nuvem |\n| Configuração | Como cada sistema deve operar? | Pacotes, usuários, serviço e política de firewall ajustados |\n| Orquestração | Em que ordem e com quais dependências executar as etapas? | Criar banco, aplicar esquema, iniciar aplicação e validar saúde |\n| Automação | Que tarefa repetitiva pode ser executada de modo controlado? | Aplicar atualização e coletar resultado em vários nós |\n\nAs fronteiras variam: uma mesma plataforma cobre mais de uma atividade. O ponto de prova é o papel conceitual e a sequência segura, não uma divisão comercial rígida. Frequentemente aprovisiona-se a VM com IaC, configura-se o sistema com ferramenta de gerenciamento, implanta-se o serviço e verifica-se o resultado.\n\n### Como cai na prova\n\n- `plan` antecipa mudanças; `apply` executa; state relaciona configuração a recursos reais.\n- Idempotência descreve repetição segura do estado desejado; não significa que toda automação seja infalível.\n- Aprovisionar cria recursos; configurar prepara o sistema; orquestrar coordena tarefas com dependências.\n- Proteja credenciais e state, revise plano e trate drift antes de mudanças de produção."
+    },
+    {
+      "title": "4. Orquestração e automação",
+      "markdown": "### O problema que este assunto resolve\n\nAutomatizar uma tarefa é executar uma operação sem depender de repetição manual. Orquestrar é coordenar várias operações e recursos, considerando ordem, dependências, condições, falhas e resultado desejado. A diferença aparece quando uma implantação precisa preparar infraestrutura, verificar banco, iniciar várias instâncias, encaminhar tráfego e observar saúde, com possibilidade de interromper ou reverter passos.\n\n> **Siglas e termos deste capítulo**\n> - **CI/CD**: integração contínua e entrega/implantação contínuas por esteira automatizada.\n> - **Container/contêiner**: empacotamento de processo e dependências que compartilha o kernel do host.\n> - **Pod**: menor objeto implantável do Kubernetes, podendo conter um ou mais contêineres cooperantes.\n> - **Deployment**: recurso Kubernetes que gerencia réplicas e atualizações de Pods.\n> - **Service**: abstração de rede estável que expõe um conjunto de Pods.\n> - **Desired state**: configuração declarada que a plataforma tenta manter.\n> - **Rollback**: retorno controlado a uma versão ou configuração anterior, quando suportado e seguro.\n\n### Orquestração de aplicações\n\nKubernetes administra cargas conteinerizadas em um cluster por meio de declarações de estado desejado. Um Deployment especifica características de uma aplicação e o número de réplicas; controladores comparam o estado observado ao desejado e criam ou encerram Pods para aproximá-los. Como Pods são efêmeros, não se deve depender do nome ou endereço de um Pod individual. Um Service oferece endpoint estável para um conjunto de Pods selecionados, mesmo que réplicas mudem.\n\nRecursos de saúde podem determinar se um contêiner deve ser reiniciado, se está pronto para receber tráfego ou se a inicialização terminou. São verificações distintas: prontidão remove temporariamente uma réplica do tráfego; vivacidade pode reiniciar processo que deixou de funcionar. Uma verificação mal configurada pode causar reinícios em cascata ou encaminhar requisições a uma aplicação ainda indisponível.\n\n### Automação em etapas e controles\n\nEsteiras confiáveis têm etapas explícitas: validar sintaxe e políticas, testar, aprovar a mudança, aplicar em ambiente controlado, verificar saúde e expandir implantação. Atualizações graduais mantêm parte das instâncias ativas enquanto outra parte recebe a versão nova. A estratégia blue/green mantém ambientes antigo e novo em paralelo e troca o tráfego após validação, ao custo de recursos adicionais. Canary entrega a versão nova a pequena parcela de tráfego antes de ampliar. Essas estratégias reduzem o raio de impacto, mas exigem compatibilidade entre versões, telemetria e caminho de retorno.\n\nSegredos devem vir de cofre ou mecanismo seguro de injeção e não de imagem de contêiner ou arquivo público. Imagens devem ser identificáveis e controladas, e permissões de automação devem ser mínimas. A configuração deve separar valores por ambiente sem duplicar arbitrariamente o processo. Mudanças irreversíveis em dados precisam de plano próprio; voltar a imagem anterior não desfaz automaticamente uma migração de banco.\n\n### Automação que pode falhar\n\nUm comando de automação pode atingir o grupo errado, executar em ordem incorreta ou repetir uma operação não idempotente. Antes de produção, revise inventário, escopo, diff/plano, dependências e credenciais; teste em poucos nós; defina limite de execução simultânea; preserve logs e monitore o resultado. Em intervenção de emergência, a mudança manual deve ser registrada e reconciliada com o código para não criar drift.\n\n### Como cai na prova\n\n- Kubernetes Deployment mantém réplicas de Pods; Service fornece acesso estável a Pods que podem nascer e desaparecer.\n- Automação executa passos; orquestração coordena ordem, dependências e resultado entre componentes.\n- Prontidão controla entrada no tráfego; vivacidade avalia necessidade de reinicialização.\n- Uma atualização de aplicação pode exigir compatibilidade de dados; rollback do contêiner não reverte automaticamente banco."
+    },
+    {
+      "title": "5. Alta disponibilidade",
+      "markdown": "### O problema que este assunto resolve\n\nAlta disponibilidade procura reduzir a duração e a frequência de indisponibilidade percebida. Ela não significa ausência de falhas: cria meios de detectar falhas e continuar o serviço, por redundância, failover ou capacidade distribuída. O desenho começa pelo serviço e pelos objetivos de negócio; duplicar servidores sem eliminar dependências comuns pode apenas duplicar máquinas sujeitas à mesma falha.\n\n> **Siglas e termos deste capítulo**\n> - **HA**: high availability, alta disponibilidade.\n> - **SPOF**: single point of failure, componente cuja falha interrompe o serviço sem alternativa.\n> - **Failover**: transferência de serviço ou carga para componente substituto.\n> - **Quorum**: mecanismo de maioria/participação que ajuda o cluster a decidir qual partição pode operar.\n> - **Fencing/STONITH**: isolamento ou desligamento comprovado de nó considerado problemático antes de recuperar recursos.\n> - **Load balancer**: distribui conexões ou requisições entre destinos.\n> - **RTO**: tempo máximo objetivo para restabelecer o serviço.\n> - **RPO**: ponto temporal máximo de dados que se aceita perder.\n\n### Ativo-passivo, ativo-ativo e redundância\n\nEm ativo-passivo, um nó atende e outro fica pronto para assumir; capacidade ociosa pode simplificar o failover, mas precisa ser suficiente quando acionada. Em ativo-ativo, múltiplos nós atendem simultaneamente e podem repartir carga; exige tratar sessão, consistência de dados e capacidade sob perda de um nó. N+1 significa que há capacidade adicional para tolerar a perda de um componente, mas a redundância precisa abranger fontes de energia, rede, armazenamento, autenticação, DNS e zonas físicas conforme o risco.\n\nUm balanceador pode detectar destinos não saudáveis e deixar de encaminhar novas solicitações a eles. Ele próprio precisa ser redundante e sua checagem deve refletir a saúde necessária. Balanceamento não replica dados nem corrige uma aplicação defeituosa. Replicação de armazenamento pode dar cópia atualizada a outro nó, mas replicar imediatamente exclusão ou corrupção também.\n\n### Cluster e proteção contra split-brain\n\nUm gerenciador de recursos de cluster monitora nós e serviços, inicia, para ou move recursos de acordo com regras. Pacemaker, por exemplo, modela serviços como recursos e permite definir ordenação, colocalização e restrições entre eles. Uma camada de associação e mensagens, como Corosync, informa membros e quorum. Se a comunicação entre nós se rompe, cada partição poderia acreditar que deve assumir o mesmo recurso, criando split-brain. Quorum e fencing evitam que dois lados escrevam simultaneamente em dados compartilhados. Fencing confirma que o nó suspeito não pode continuar executando o recurso antes de recuperá-lo noutro lugar.\n\nFailover depende de detecção, decisão, isolamento, início do recurso e reconexão de clientes; cada etapa contribui para a interrupção percebida. Testes controlados de falha verificam se a política real cumpre o RTO e o RPO. A automação de HA precisa lidar com falhas parciais, não apenas com desligamento limpo.\n\n### Disponibilidade não é recuperação de desastre\n\n| Mecanismo | Benefício principal | Limite importante |\n| --- | --- | --- |\n| Cluster local | Recupera serviço após falha de nó ou processo | Pode compartilhar energia, local e storage sujeitos ao mesmo desastre |\n| Balanceamento | Distribui carga e evita destinos sem saúde | Não mantém dados nem elimina falha do balanceador |\n| Replicação | Mantém cópia em outro nó/local | Pode propagar corrupção e exclusão |\n| Backup | Permite voltar a uma cópia anterior | Restauração leva tempo e precisa ser testada |\n| Site de contingência | Mantém capacidade em local separado | Requer dados, rede, identidade e procedimento preparados |\n\nRTO expressa o tempo de recuperação pretendido; RPO expressa a perda de dados máxima aceitável medida no tempo. Um RPO próximo de zero costuma exigir replicação frequente ou síncrona e infraestrutura adequada; não deve ser prometido sem considerar distância, latência e consistência. O plano de continuidade define prioridade, responsável, dependências, acesso e sequência de retorno.\n\n### Como cai na prova\n\n- Alta disponibilidade reduz impacto de falhas; não prova que nenhum componente falhará.\n- Quorum e fencing tratam o risco de partições concorrentes e split-brain.\n- Balanceador distribui tráfego, cluster gerencia recursos, replicação copia dados e backup permite recuperar versões.\n- RTO mede tempo para retorno; RPO mede perda de dados tolerada."
+    }
+  ],
+  "summary": "Infraestrutura de servidores reúne computação, memória, armazenamento, rede, sistema operacional, virtualização e operação. Servidores de arquivos entregam conteúdo por protocolos como SMB ou NFS, com identidade, permissões, auditoria, namespace e proteção. Gerenciamento de configuração aplica estado desejado; aprovisionamento cria recursos; IaC descreve infraestrutura em arquivos revisáveis; Ansible automatiza configuração e Terraform planeja/aplica recursos mantendo state. Orquestração coordena dependências e réplicas; Kubernetes usa Pods, Deployments e Services para cargas conteinerizadas. Alta disponibilidade usa redundância, monitoramento, balanceamento e failover; quorum e fencing ajudam a evitar split-brain. Cluster, replicação e backup têm funções distintas. RTO representa tempo objetivo de recuperação e RPO a perda de dados tolerada. Planos, credenciais protegidas, revisão de mudanças e testes reais de restauração e failover são necessários para que a infraestrutura funcione sob falha.",
+  "flashcards": [
+    {
+      "front": "Quais recursos básicos formam a infraestrutura de um servidor?",
+      "back": "Processamento, memória, armazenamento, rede, sistema operacional, segurança, energia/refrigeração e mecanismos de operação e monitoramento."
+    },
+    {
+      "front": "Qual é a diferença entre RAM e armazenamento persistente?",
+      "back": "RAM é memória volátil usada durante a execução; armazenamento persistente conserva dados após desligamento, conforme o dispositivo e a proteção adotada."
+    },
+    {
+      "front": "O que diferencia VM de contêiner?",
+      "back": "VM virtualiza uma máquina com sistema operacional próprio; contêiner isola processos e dependências, compartilhando o kernel do host."
+    },
+    {
+      "front": "O que são métricas, logs e rastros?",
+      "back": "Métricas são séries numéricas; logs registram eventos; rastros correlacionam etapas de uma solicitação entre componentes."
+    },
+    {
+      "front": "O que mede RTO?",
+      "back": "O tempo objetivo para restabelecer um serviço após interrupção."
+    },
+    {
+      "front": "O que mede RPO?",
+      "back": "A perda de dados máxima tolerada, expressa pelo ponto no tempo até o qual os dados precisam ser recuperados."
+    },
+    {
+      "front": "Para que serve SMB?",
+      "back": "Protocolo de rede utilizado para acesso compartilhado a arquivos; o servidor hospeda o sistema de arquivos e o cliente solicita acesso."
+    },
+    {
+      "front": "Para que serve NFS?",
+      "back": "Compartilhar diretórios de rede com clientes, sendo comum em ambientes Unix e Linux."
+    },
+    {
+      "front": "O que são permissões efetivas em compartilhamento?",
+      "back": "O acesso resultante da identidade autenticada e das regras aplicáveis no compartilhamento e no sistema de arquivos."
+    },
+    {
+      "front": "DFS Namespaces e DFS Replication fazem a mesma coisa?",
+      "back": "Não. Namespaces fornece caminhos lógicos e referências; Replication copia conteúdo de pastas entre servidores."
+    },
+    {
+      "front": "Uma cópia de sombra substitui backup externo?",
+      "back": "Não. Pode facilitar acesso a versões de volume, mas pode compartilhar o mesmo risco do armazenamento de origem."
+    },
+    {
+      "front": "O que é gerenciamento de configuração?",
+      "back": "Manter sistemas no estado operacional desejado, como pacotes, arquivos, usuários, serviços e políticas."
+    },
+    {
+      "front": "O que significa idempotência numa automação?",
+      "back": "Repetir a operação preserva o estado desejado sem produzir efeitos adicionais indevidos."
+    },
+    {
+      "front": "Para que servem playbooks Ansible?",
+      "back": "Declarar e coordenar tarefas repetíveis de configuração e implantação em um ou mais hosts."
+    },
+    {
+      "front": "Qual é a função de terraform plan?",
+      "back": "Comparar configuração, state e infraestrutura observada e apresentar as mudanças previstas sem aplicá-las."
+    },
+    {
+      "front": "Qual é a função de terraform apply?",
+      "back": "Executar mudanças planejadas sobre recursos gerenciados, normalmente após revisão/confirmacão."
+    },
+    {
+      "front": "O que é drift?",
+      "back": "Diferença entre a infraestrutura real e o estado declarado ou registrado pela ferramenta."
+    },
+    {
+      "front": "O que é aprovisionamento?",
+      "back": "Criar recursos de infraestrutura, como redes, máquinas, discos e balanceadores."
+    },
+    {
+      "front": "O que é orquestração?",
+      "back": "Coordenar tarefas e componentes segundo dependências, ordem, condições e resultado esperado."
+    },
+    {
+      "front": "Qual é a função de um Deployment no Kubernetes?",
+      "back": "Declarar e manter réplicas de Pods e controlar atualizações da carga de trabalho."
+    },
+    {
+      "front": "Qual é a função de um Service no Kubernetes?",
+      "back": "Expor conjunto de Pods por um endpoint estável, apesar de os Pods mudarem."
+    },
+    {
+      "front": "O que é failover?",
+      "back": "Transferir serviço ou carga para componente substituto após falha ou condição definida."
+    },
+    {
+      "front": "O que é quorum em cluster?",
+      "back": "Critério de participação/maioria que permite ao cluster decidir qual parte pode administrar recursos."
+    },
+    {
+      "front": "O que é fencing ou STONITH?",
+      "back": "Isolar ou desligar de forma comprovada um nó problemático para impedir que continue usando recursos antes da recuperação."
+    },
+    {
+      "front": "Alta disponibilidade é o mesmo que backup?",
+      "back": "Não. HA reduz interrupção por redundância e failover; backup permite restaurar dados de cópia preservada."
+    }
+  ],
+  "tips": [
+    "Separe quatro verbos: aprovisionar cria recursos, configurar prepara sistemas, automatizar executa tarefas e orquestrar coordena dependências.",
+    "Para questão sobre arquivos, identifique protocolo, servidor, cliente, identidade e as duas camadas de permissão.",
+    "Diante de Terraform, lembre a sequência: declarar, revisar `plan`, aplicar e proteger state.",
+    "Em Kubernetes, associe Deployment a réplicas, Pod à unidade implantável e Service ao endpoint estável.",
+    "Em questão de cluster, procure risco de split-brain e papel de quorum/fencing antes de mover recursos.",
+    "Quando aparecem RTO e RPO, diferencie tempo de retorno de quantidade/idade dos dados recuperáveis."
+  ],
+  "traps": [
+    "Chamar replicação de backup: uma exclusão ou corrupção pode ser replicada para a cópia.",
+    "Confundir DFS Namespaces, que organiza referências, com DFS Replication, que replica pastas.",
+    "Supor que uma automação é idempotente só porque roda sem intervenção humana; comandos imperativos podem repetir efeitos.",
+    "Afirmar que `terraform plan` já cria ou altera recursos; ele apresenta mudanças previstas.",
+    "Tratar Service como endereço fixo de um Pod específico; ele expõe um conjunto de réplicas efêmeras.",
+    "Supor que dois nós sem fencing podem assumir com segurança o mesmo armazenamento após uma partição de rede."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique o caminho desde o hardware até o serviço de aplicação.",
+      "answer": "Energia e equipamento sustentam servidor físico; hipervisor/runtime oferece execução; sistema operacional, rede e armazenamento suportam serviços; aplicação depende ainda de identidade, segurança, monitoramento e proteção."
+    },
+    {
+      "question": "Diferencie backup, snapshot e replicação.",
+      "answer": "Backup conserva cópia recuperável; snapshot captura estado de volume; replicação mantém cópia em outro destino. É necessário avaliar independência, retenção, corrupção propagada e testar restauração."
+    },
+    {
+      "question": "Como avaliar acesso a uma pasta SMB?",
+      "answer": "Verificar identidade autenticada, grupo, permissão do compartilhamento, ACL do sistema de arquivos, origem de rede, auditoria e necessidade real de acesso."
+    },
+    {
+      "question": "Descreva o fluxo típico Terraform.",
+      "answer": "Escrever configuração declarativa, inicializar provedores, revisar plano de diferenças e só então aplicar; proteger state e rever drift e impacto destrutivo."
+    },
+    {
+      "question": "Como Ansible ajuda a manter configuração uniforme?",
+      "answer": "Inventário identifica hosts; playbooks descrevem estado e tarefas; módulos idempotentes verificam diferença e alteram apenas o necessário; teste e modo check reduzem risco."
+    },
+    {
+      "question": "Por que um Pod não deve ser tratado como servidor permanente?",
+      "answer": "Pods podem ser recriados e mudar de identidade/endereço; Deployment mantém réplicas e Service provê acesso estável ao conjunto."
+    },
+    {
+      "question": "Como reduzir risco de implantação gradual?",
+      "answer": "Testar, validar saúde, enviar tráfego a uma parcela, observar métricas/erros, expandir se estável e manter retorno compatível com mudanças de dados."
+    },
+    {
+      "question": "Como quorum e fencing reduzem split-brain?",
+      "answer": "Quorum limita qual partição decide operar; fencing comprova que nó suspeito foi isolado antes que seus recursos sejam recuperados por outro nó."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Camadas e tipos de cópia confundidos",
+      "summary": "VM e contêiner diferem pelo kernel; snapshot, replicação e backup têm propriedades distintas. Disponibilidade de processo não prova saúde funcional."
+    },
+    {
+      "key": "e2",
+      "title": "Serviço de arquivos sem controle de acesso",
+      "summary": "SMB/NFS transporta acesso, mas identidade, permissões, firewall, auditoria e proteção do conteúdo precisam ser configurados e avaliados."
+    },
+    {
+      "key": "e3",
+      "title": "Configuração, aprovisionamento e orquestração trocados",
+      "summary": "Aprovisionamento cria recursos; gerenciamento de configuração mantém sistemas; orquestração encadeia etapas. IaC não dispensa revisão, controle de state e proteção de segredos."
+    },
+    {
+      "key": "e4",
+      "title": "Objetos Kubernetes e automação interpretados incorretamente",
+      "summary": "Deployment mantém réplicas, Pod é efêmero e Service expõe endpoint estável. Readiness e liveness têm efeitos diferentes; atualização exige compatibilidade."
+    },
+    {
+      "key": "e5",
+      "title": "Alta disponibilidade confundida com continuidade e recuperação",
+      "summary": "Balanceador, cluster, quorum, fencing, replicação e backup resolvem riscos diferentes. RTO é tempo de retorno e RPO é perda de dados tolerada."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma VM normalmente executa um sistema operacional convidado próprio, enquanto contêineres compartilham o kernel do host.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A VM apresenta hardware virtual a um sistema operacional convidado; contêineres isolam processos e dependências sobre o kernel compartilhado do host.",
+      "section": "1. Infraestrutura para servidores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A memória RAM é o componente usado para manter dados persistentes mesmo depois do servidor ser desligado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. RAM é volátil e serve como memória de trabalho; dados persistentes dependem de armazenamento não volátil e de proteção adequada.",
+      "section": "1. Infraestrutura para servidores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Métricas, logs e rastros são sinais distintos que podem ser combinados para investigar uma falha distribuída.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Métricas mostram séries numéricas, logs registram eventos e rastros acompanham etapas de uma solicitação entre componentes.",
+      "section": "1. Infraestrutura para servidores",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um snapshot de volume armazenado no mesmo sistema de storage garante recuperação mesmo se esse sistema inteiro falhar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O snapshot pode compartilhar domínio de falha com o volume original. Uma cópia independente, protegida e testada é necessária para cobrir a perda do armazenamento.",
+      "section": "1. Infraestrutura para servidores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um alerta que só verifica se o processo está ativo garante que o serviço atende corretamente seus usuários.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O processo pode estar ativo e ainda assim falhar ao consultar banco, autenticar usuários ou responder a uma operação real; a checagem deve refletir a saúde necessária.",
+      "section": "1. Infraestrutura para servidores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de virtualização pode concentrar várias cargas num host, tornando o host e seus componentes compartilhados riscos de impacto comum.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A consolidação melhora aproveitamento, mas a falha do host, rede ou storage compartilhado pode interromper simultaneamente várias máquinas virtuais.",
+      "section": "1. Infraestrutura para servidores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A aplicação de patches e o princípio do menor privilégio fazem parte da operação segura de servidores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Atualizações corrigem problemas conhecidos; privilégios mínimos limitam o alcance de erro ou comprometimento de uma conta.",
+      "section": "1. Infraestrutura para servidores",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma equipe dispõe de replicação entre dois volumes, backups e teste de restauração deixam de ser necessários.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Replicação pode propagar exclusão ou corrupção. Backup com retenção e restauração testada permite recuperar estado anterior e validar o procedimento.",
+      "section": "1. Infraestrutura para servidores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em SMB, o servidor é o sistema que hospeda o sistema de arquivos e o cliente é quem tenta acessá-lo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Os papéis são definidos pela função na comunicação: o servidor hospeda o conteúdo e o cliente solicita acesso ao compartilhamento.",
+      "section": "2. Servidor de arquivos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "SMB e NFS são sistemas de backup que mantêm cópias históricas imutáveis dos documentos compartilhados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. SMB e NFS são protocolos de acesso a arquivos em rede. Retenção de cópias recuperáveis depende de solução e política de backup ou proteção específica.",
+      "section": "2. Servidor de arquivos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "DFS Namespaces pode apresentar um caminho lógico enquanto os arquivos permanecem em destinos físicos diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Namespaces organiza caminhos e referências para destinos, desacoplando o caminho percebido pelo usuário da localização física do compartilhamento.",
+      "section": "2. Servidor de arquivos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "DFS Namespaces replica o conteúdo dos arquivos automaticamente entre todos os destinos referenciados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Namespaces organiza o caminho e as referências, encaminhando clientes a destinos; a replicação de pastas é função distinta do DFS Replication, que precisa ser configurado para copiar conteúdo entre servidores.",
+      "section": "2. Servidor de arquivos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As permissões efetivas de uma pasta compartilhada podem depender tanto das regras do compartilhamento quanto das ACLs do sistema de arquivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O acesso resulta das regras que se aplicam à identidade autenticada nas camadas de compartilhamento e do sistema de arquivos; uma concessão ampla pode expor dados.",
+      "section": "2. Servidor de arquivos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cópia de sombra de volume assegura por si só que os dados estarão disponíveis após a perda física do volume de origem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Cópia de sombra captura estado do volume e pode compartilhar o mesmo dispositivo ou domínio de falha. Não equivale necessariamente a uma cópia independente de backup.",
+      "section": "2. Servidor de arquivos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "SMB 3 pode oferecer recursos como criptografia, assinatura, Multichannel e Direct, quando suportados e configurados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação oficial lista esses recursos do SMB; disponibilidade depende das versões, capacidades e configurações das pontas e da infraestrutura.",
+      "section": "2. Servidor de arquivos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa idempotente pode ser repetida e ainda deixar o sistema no mesmo estado final desejado, sem efeitos adicionais indevidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Idempotência é a propriedade de repetir a operação sem alterar novamente um estado que já está conforme, característica de muitos módulos de configuração.",
+      "section": "3. Configuração e aprovisionamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Terraform plan aplica imediatamente no provedor as mudanças descritas nos arquivos de configuração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Plan avalia configuração, state e recursos observados e apresenta as ações previstas sem executá-las; apply é o comando que realiza as mudanças planejadas, portanto o plano pode ser revisado antes de afetar o ambiente.",
+      "section": "3. Configuração e aprovisionamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O state do Terraform ajuda a associar recursos declarados aos objetos reais que a ferramenta gerencia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Terraform usa state para relacionar declarações e recursos concretos. O arquivo pode conter informação sensível e requer proteção de acesso e armazenamento.",
+      "section": "3. Configuração e aprovisionamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mudança manual em recurso administrado por IaC pode criar drift entre o ambiente real e a configuração declarada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A ferramenta pode detectar diferenças entre state/configuração e objetos reais. O plano resultante deve ser revisado para entender alterações ou substituições propostas.",
+      "section": "3. Configuração e aprovisionamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aprovisionar uma VM e configurar os pacotes e serviços dentro do sistema operacional são conceitos necessariamente idênticos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Aprovisionamento cria recursos, como a VM; gerenciamento de configuração prepara o sistema operacional e os serviços. Plataformas podem reunir essas funções, mas os conceitos são distintos.",
+      "section": "3. Configuração e aprovisionamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um plano de infraestrutura deve ser revisto porque pode propor substituição ou destruição de recursos gerenciados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Planos podem incluir ações destrutivas ou disruptivas. Revisar a diferença, o state mais recente e o impacto reduz risco antes de aplicar.",
+      "section": "3. Configuração e aprovisionamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Kubernetes, Pods podem ser recriados e ter identidades diferentes, enquanto um Service oferece acesso estável ao conjunto selecionado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Pods são recursos efêmeros e podem ser criados ou destruídos pelo controlador; clientes não devem depender do endereço de um Pod individual. Um Service seleciona o conjunto de Pods e oferece um ponto de acesso estável à aplicação.",
+      "section": "4. Orquestração e automação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Deployment do Kubernetes mantém o número declarado de réplicas de Pods por meio de reconciliação do estado observado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Controladores comparam estado observado ao desejado e criam ou encerram Pods para manter as réplicas previstas pelo Deployment.",
+      "section": "4. Orquestração e automação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma verificação de prontidão e uma verificação de vivacidade têm sempre o mesmo efeito operacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Prontidão determina se a instância deve receber tráfego; vivacidade pode indicar que o processo deve ser reiniciado. Confundi-las pode causar tráfego prematuro ou reinícios desnecessários.",
+      "section": "4. Orquestração e automação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Reverter a imagem de uma aplicação reverte automaticamente qualquer mudança já feita no banco de dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Código e dados têm ciclos de mudança diferentes. Migração pode ser irreversível ou incompatível; implantação precisa planejar compatibilidade e recuperação do banco separadamente.",
+      "section": "4. Orquestração e automação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Implantação canary pode expor a versão nova a uma parcela limitada antes de ampliar o tráfego, se houver monitoramento e retorno definidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A expansão gradual limita o raio de impacto, desde que sinais de saúde, compatibilidade e caminho de retorno sejam acompanhados.",
+      "section": "4. Orquestração e automação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O quorum ajuda um cluster particionado a decidir que parte pode administrar recursos compartilhados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O quorum é um critério de participação/maioria para a decisão do cluster, reduzindo risco de lados concorrentes após perda de comunicação.",
+      "section": "5. Alta disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Fencing confirma o isolamento de um nó suspeito antes de recuperar seus recursos em outro nó.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Fencing impede que o nó problemático continue executando o serviço ou acessando o recurso, protegendo dados contra escritores concorrentes.",
+      "section": "5. Alta disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um balanceador de carga substitui o backup porque pode enviar requisições a outro servidor se um destino falhar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Balanceador distribui tráfego entre destinos saudáveis; não mantém cópias históricas nem restaura dados apagados ou corrompidos.",
+      "section": "5. Alta disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "RTO representa o tempo objetivo de recuperação e RPO representa o ponto de perda de dados tolerável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. RTO descreve quanto tempo se aceita até o restabelecimento; RPO descreve quanto dado, medido pelo ponto temporal recuperável, se aceita perder.",
+      "section": "5. Alta disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma configuração ativo-ativo elimina a necessidade de dimensionar capacidade para o caso de perda de um nó.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Se um nó falha, os restantes precisam suportar a carga transferida. Capacidade e comportamento sob falha fazem parte do desenho de disponibilidade.",
+      "section": "5. Alta disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cluster no mesmo edifício pode proteger de falha de nó, mas ainda compartilhar risco de falta de energia ou desastre local.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Redundância de nós não elimina domínio de falha comum, como energia, rede física, inundação ou indisponibilidade do local.",
+      "section": "5. Alta disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um par de servidores redundantes oferece alta disponibilidade mesmo que ambos dependam de um único armazenamento sem redundância.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O armazenamento compartilhado pode ser ponto único de falha; o desenho deve identificar e cobrir dependências comuns, não somente duplicar servidores.",
+      "section": "5. Alta disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Testar um procedimento de restauração ajuda a verificar se cópias, credenciais e instruções permitem atingir o objetivo de recuperação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A existência de arquivos de backup não comprova que estão íntegros ou que a equipe consegue restaurar o serviço no tempo requerido.",
+      "section": "5. Alta disponibilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+
+    {
+      "statement": "Um servidor apresenta alta utilização de CPU, mas também há latência elevada de disco e falhas de rede. Qual abordagem de diagnóstico é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar imediatamente a memória RAM e considerar o problema resolvido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Correlacionar métricas, logs e rastros para localizar a camada afetada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar o monitoramento para reduzir a carga da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reiniciar todos os servidores sem preservar eventos ou evidências.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mover os arquivos para uma pasta local sem verificar a rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sinais em CPU, disco e rede podem estar relacionados ou representar falhas diferentes. Correlacionar métricas, eventos e rastros orienta a investigação por camada; reiniciar ou alterar recursos sem diagnóstico pode apagar evidências e não corrigir a causa.",
+      "section": "1. Infraestrutura para servidores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação é executada em vários sistemas operacionais convidados sobre dois hosts físicos. Qual afirmação descreve corretamente essa organização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada VM oferece sistema convidado; falha do host pode afetar várias VMs nele.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cada VM é apenas uma pasta que compartilha o kernel do primeiro convidado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As VMs eliminam a dependência de energia, rede e armazenamento físicos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um hipervisor transforma qualquer snapshot em backup fora do host.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma VM não pode ser monitorada separadamente do host físico.",
+          "correct": false
+        }
+      ],
+      "explanation": "VMs têm sistemas convidados próprios, mas ainda dependem do host, hipervisor, rede e armazenamento físico. A virtualização não remove esses domínios de falha nem transforma automaticamente snapshots em cópias independentes.",
+      "section": "1. Infraestrutura para servidores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após exclusão acidental de arquivos, a equipe precisa recuperar uma versão anterior mesmo se o volume principal for perdido. Qual desenho atende melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter apenas uma cópia de sombra no volume original e nenhum procedimento documentado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Habilitar mais métricas no servidor e confiar que elas reconstruirão os dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter backups protegidos em destino independente e testar a restauração.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Replicar imediatamente todas as alterações para o mesmo volume de origem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Distribuir os arquivos entre contêineres sem armazenamento persistente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Backup em destino independente cobre a perda do volume de origem e pode preservar cópias anteriores. Teste confirma integridade e viabilidade da recuperação; replicação instantânea pode propagar a exclusão e snapshot local compartilha risco.",
+      "section": "1. Infraestrutura para servidores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo de configuração com senha administrativa foi incluído em repositório acessível a toda a equipe. Qual controle reduz diretamente o risco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Renomear o arquivo mantendo a senha e o mesmo acesso amplo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Armazenar o segredo em mecanismo protegido e limitar identidades autorizadas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Compactar o repositório para dificultar a leitura casual do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Copiar o segredo para cada servidor em arquivo sem controle de acesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar os logs para evitar o registro de consultas ao repositório.",
+          "correct": false
+        }
+      ],
+      "explanation": "Segredos devem ficar fora do código acessível e ser fornecidos por cofre ou mecanismo seguro com acesso mínimo. Renomear ou compactar não protege credenciais comprometidas.",
+      "section": "1. Infraestrutura para servidores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa quer acesso a um compartilhamento Windows por SMB, mas precisa limitar alterações aos editores autorizados. O que deve verificar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o nome do compartilhamento, pois ele concede as permissões finais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A conta que iniciou o servidor, sem avaliar a identidade do cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas regras de firewall, porque elas definem leitura e gravação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Identidade e grupos, permissões do compartilhamento e ACL do sistema de arquivos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Apenas o espaço livre no volume que armazena os documentos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A autorização depende da identidade autenticada e das regras que se aplicam na camada do compartilhamento e do sistema de arquivos. Firewall limita conectividade, mas não substitui autorização de leitura e escrita.",
+      "section": "2. Servidor de arquivos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após mudança física do compartilhamento, os usuários devem continuar usando o mesmo caminho lógico. Qual recurso é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DFS Namespace, que pode apresentar caminho lógico para destinos de pasta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "DFS Replication, que renomeia a rede e autentica os clientes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "VSS, que cria automaticamente DNS para qualquer servidor novo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ACL, que replica os bytes dos arquivos entre filiais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SMB Multichannel, que substitui os caminhos por cópias históricas.",
+          "correct": false
+        }
+      ],
+      "explanation": "DFS Namespaces fornece uma estrutura de namespace lógico com referências a destinos. Replicação é função separada e não corresponde ao mecanismo de nome estável para o usuário.",
+      "section": "2. Servidor de arquivos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Filiais precisam manter cópias de pastas entre servidores para disponibilidade local dos arquivos. Que função corresponde a esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "DFS Namespaces, que replica blocos de cada arquivo continuamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DFS Replication replica pastas entre servidores quando esse recurso é configurado para os grupos e destinos necessários.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "VSS, que cria um endpoint lógico para todos os destinos da empresa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma ACL define permissões de acesso; não sincroniza nem transporta conteúdo entre servidores de filiais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma regra de firewall controla conexões de rede; não mantém versões históricas nem replica pastas entre locais.",
+          "correct": false
+        }
+      ],
+      "explanation": "DFS Replication replica conteúdo de pastas entre servidores. Namespaces organiza o caminho e os destinos; backup e controles de acesso continuam necessários para outras finalidades.",
+      "section": "2. Servidor de arquivos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma área pública da rede não deve acessar SMB de estações sem necessidade. Qual medida combina com defesa em profundidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir conexões SMB irrestritas e depender somente de nomes de pastas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Habilitar SMB1 em todas as máquinas para padronizar compatibilidade, mesmo quando há versões seguras disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Restringir conexões no firewall às origens necessárias e desativar SMB nos hosts que não precisam do serviço.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Dar acesso de gravação a todos os usuários para evitar chamados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eliminar auditoria para reduzir registros de acesso a arquivos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Restringir conectividade ao mínimo necessário e desligar o serviço onde não é requerido reduzem superfície de ataque. SMB1 é legado; acessos e eventos devem ser monitorados para diagnóstico e segurança.",
+      "section": "2. Servidor de arquivos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual consequência operacional pode decorrer de usar replicação como único mecanismo contra ransomware?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A replicação bloqueia toda alteração e impede arquivos criptografados de se propagar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A replicação pode copiar alterações maliciosas e exclusões para os destinos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A replicação transforma automaticamente cada destino em cópia imutável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A replicação sempre mantém o histórico completo de todas as versões apagadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A replicação substitui autenticação, controle de acesso e auditoria.",
+          "correct": false
+        }
+      ],
+      "explanation": "Replicação mantém conteúdo correspondente, podendo propagar criptografia ou exclusão. Retenção independente, proteção contra alteração, controle de acesso e teste de restauração fazem parte de uma estratégia de backup.",
+      "section": "2. Servidor de arquivos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer manter pacotes e serviços uniformes em servidores Linux, com tarefas repetíveis e alvos agrupados. Qual ferramenta e artefato se ajustam?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ansible e playbooks direcionados a hosts agrupados no inventário para instalar pacotes e manter serviços uniformes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Terraform e um state local para registrar tarefas e instalar pacotes em grupos de hosts Linux.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Kubernetes Service expõe aplicações em Pods; não instala pacotes nem configura serviços nos hosts Linux.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SMB e uma ACL para instalar pacotes em todo servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pacemaker e uma cópia de sombra para alterar serviços em lote.",
+          "correct": false
+        }
+      ],
+      "explanation": "Playbooks Ansible descrevem tarefas e podem ser versionados e executados sobre hosts definidos no inventário. Terraform tem foco em recursos de infraestrutura declarados e não substitui esse exemplo de gerenciamento de configuração de sistemas.",
+      "section": "3. Configuração e aprovisionamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa precisa garantir que o serviço web esteja ativo sem iniciar instâncias duplicadas a cada execução. Que propriedade é desejável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aleatoriedade, para alternar processos em cada execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Idempotência, para convergir ao estado ativo sem efeitos repetidos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Replicação, para copiar o arquivo de serviço a um backup.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quorum, para decidir qual pacote instalar em cada host.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fencing, para reiniciar o serviço em todos os servidores simultaneamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma tarefa idempotente verifica se o estado já foi alcançado e evita ações adicionais quando nada precisa mudar. Um comando imperativo repetido sem verificação pode causar efeitos duplicados.",
+      "section": "3. Configuração e aprovisionamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma configuração Terraform foi revisada e a equipe precisa conhecer possíveis alterações antes de modificar a nuvem. Qual sequência é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar `destroy` e depois ler a saída para identificar recursos removidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar `plan`, revisar as ações e aplicar apenas após validação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Editar diretamente o state para criar recursos sem chamar provedores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar `apply` sem plano e considerar a saída de sintaxe suficiente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apagar o workspace para que a configuração seja aplicada com segurança.",
+          "correct": false
+        }
+      ],
+      "explanation": "Plan apresenta as mudanças previstas sem alterá-las, permitindo revisão de ações destrutivas ou disruptivas. Depois de compreender e aprovar o plano, apply executa as mudanças.",
+      "section": "3. Configuração e aprovisionamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VM foi criada na nuvem, mas ainda falta instalar pacotes, criar contas e configurar o serviço. Como classificar o trabalho restante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gerenciamento de configuração do sistema provisionado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apenas balanceamento de carga, pois a VM já existe.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Replicação de dados entre centros de recuperação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fencing de nó, mesmo sem cluster ou falha detectada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Destruição de infraestrutura por meio de um plano de execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "A criação da VM é aprovisionamento de recurso; preparar usuários, pacotes, arquivos e serviços é gerenciamento de configuração. As atividades podem ser encadeadas, mas são papéis conceituais distintos.",
+      "section": "3. Configuração e aprovisionamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O state do Terraform está armazenado em arquivo local acessível a muitas pessoas e pode conter valores sensíveis. Qual controle é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publicar o arquivo em repositório aberto para facilitar comparação de mudanças.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Proteger armazenamento e acesso, controlar concorrência e planejar cópias recuperáveis.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Excluir state a cada execução sem considerar recursos já criados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Inserir todas as credenciais em texto no arquivo de state manualmente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Compartilhar uma conta administrativa para reduzir a quantidade de arquivos.",
+          "correct": false
+        }
+      ],
+      "explanation": "State pode incluir informação sensível e é essencial à associação entre recursos e configuração. Armazenamento controlado, acesso mínimo, concorrência segura e recuperação protegem confidencialidade e consistência.",
+      "section": "3. Configuração e aprovisionamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração manual feita por um operador não consta do código de IaC e o próximo plano propõe modificar o recurso. Qual hipótese deve ser investigada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Drift entre o estado real e a configuração/state acompanhado pela ferramenta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Quorum insuficiente no servidor de arquivos SMB.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Falta de namespace DFS para todos os recursos da nuvem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Prontidão de Pod declarada por um balanceador de carga.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A replicação converteu automaticamente a mudança manual em backup.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mudança fora do fluxo declarativo pode produzir drift. A equipe deve comparar a configuração, o state e o ambiente observado e revisar o plano antes de reconciliar recursos.",
+      "section": "3. Configuração e aprovisionamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um playbook deve ser repetido com segurança, mas contém um comando que acrescenta a mesma linha a um arquivo em todas as execuções. Qual problema existe?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A idempotência exige reiniciar o host antes de cada execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A execução está usando state remoto de Terraform em modo plan.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O inventário necessariamente impede a conexão SSH com os hosts.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O playbook é orquestração porque contém mais de uma tarefa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tarefa repetida pode duplicar a linha.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um comando que acrescenta texto sem verificar o estado pode produzir duplicatas a cada repetição. Um módulo que assegure a presença da linha é mais apropriado para convergir ao estado final.",
+      "section": "3. Configuração e aprovisionamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação conteinerizada precisa manter réplicas declaradas mesmo após a falha de um Pod. Qual recurso gerencia esse estado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma verificação de readiness que cria armazenamento de backup.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um Service que instala o kernel dentro de cada Pod.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma ACL que cria novas máquinas virtuais automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um snapshot que reinicia processos quando a aplicação cai.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Deployment mantém as réplicas desejadas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Deployment gerencia réplicas de Pods e atualizações. Service expõe os Pods; snapshot e ACL não são controladores de carga do Kubernetes.",
+      "section": "4. Orquestração e automação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Pods de uma aplicação podem ser recriados com novos endereços, e clientes precisam de um ponto de acesso estável. Qual objeto oferece esse ponto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Service que expõe um conjunto de Pods por endpoint estável.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Pod que mantém seu endereço físico permanente durante toda a vida do cluster.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Deployment que substitui o DNS pelo endereço de cada contêiner.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "State que cria automaticamente réplicas de armazenamento durável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Playbook que desativa os controladores do cluster após cada reinício.",
+          "correct": false
+        }
+      ],
+      "explanation": "Service oferece uma abstração estável para acessar aplicações que podem estar em Pods criados ou destruídos dinamicamente. Não se deve depender da identidade de um Pod individual.",
+      "section": "4. Orquestração e automação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma esteira deve atualizar a aplicação sem retirar todas as instâncias ao mesmo tempo. Qual estratégia melhor descreve essa abordagem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Modo de verificação que aplica mudanças e desliga os serviços ativos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Destruição de todas as instâncias e implantação posterior sem verificação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Replicação de arquivos para um destino sem iniciar a nova versão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fencing de todos os servidores antes de atualizar a imagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atualização gradual substitui instâncias em etapas, mantendo parte da capacidade disponível durante a implantação.",
+          "correct": true
+        }
+      ],
+      "explanation": "Atualização gradual troca instâncias em etapas para manter parte da capacidade atendendo. Verificações de saúde, limites de simultaneidade e retorno controlado evitam expandir uma falha.",
+      "section": "4. Orquestração e automação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A versão nova passa por testes em ambiente paralelo antes de o tráfego ser direcionado para ela. Que estratégia é essa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aprovisionamento, que remove o ambiente anterior antes de validar o novo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Blue/green mantém ambientes antigo e novo em paralelo e direciona tráfego após validar a versão nova.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Quorum, que seleciona qual versão do banco deve responder.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fencing, que mantém uma cópia da aplicação para auditoria histórica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "DFS Replication replica pastas de servidores de arquivos, sem criar ambientes paralelos de aplicação para troca do tráfego.",
+          "correct": false
+        }
+      ],
+      "explanation": "Blue/green mantém ambientes antigo e novo em paralelo e transfere tráfego após validação. A estratégia consome recursos extras e depende de compatibilidade e caminho de retorno.",
+      "section": "4. Orquestração e automação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mudança de aplicação exige alteração de esquema que pode ser incompatível com a versão anterior. O que a equipe deve planejar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ocultar o plano para evitar que a alteração seja revisada antes da execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Rollback do contêiner, que não desfaz automaticamente alterações incompatíveis já persistidas no banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover prontidão para que todas as versões recebam tráfego durante a migração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o número de Pods para tornar reversível uma remoção de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Planejar migrações compatíveis, backup e um procedimento testado para recuperar os dados persistidos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Mudanças em dados persistentes não são automaticamente desfeitas pelo retorno da imagem. Migrações compatíveis e graduais, backup, teste e procedimento de recuperação devem ser considerados junto à implantação.",
+      "section": "4. Orquestração e automação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cluster Linux deve iniciar recursos em ordem, monitorá-los e transferi-los após falha. Qual componente tem esse papel de gerenciamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "DFS Namespace, monitor de processos e recursos de cluster Linux.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Terraform plan, serviço de balanceamento de arquivos de usuários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pacemaker gerencia recursos de alta disponibilidade, monitora falhas e aplica regras de ordem e colocação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Kubernetes Service, agente de energia que desliga hosts físicos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SMB Client acessa compartilhamentos de arquivos; não gerencia recursos de cluster Linux nem transfere serviços após falhas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pacemaker gerencia recursos de alta disponibilidade, monitora eventos e aplica regras como ordenação e colocação. Camada de mensagens e quorum pode ser fornecida por componente associado, como Corosync.",
+      "section": "5. Alta disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma partição de rede, dois nós poderiam gravar no mesmo recurso compartilhado. Qual controle ajuda a impedir a operação concorrente insegura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fencing do nó que perdeu controle antes de recuperar o recurso no outro.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar a contagem de réplicas de aplicação sem verificar a partição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar os logs para remover a evidência de eleição entre nós.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar o quorum para que todas as partições permaneçam ativas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar somente balanceamento DNS para impedir escrita simultânea no disco.",
+          "correct": false
+        }
+      ],
+      "explanation": "Fencing isola ou desliga o nó suspeito de forma comprovada antes que o recurso seja recuperado. Sem fencing, o nó antigo poderia continuar escrevendo e corromper dados compartilhados.",
+      "section": "5. Alta disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço HTTP tem várias instâncias e deve deixar de enviar novas requisições a destinos que falham na checagem de saúde. Qual componente atende?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Snapshot que decide qual instância HTTP recebe cada conexão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Backup que transfere pacotes de rede para cópias históricas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quorum que comprime respostas e substitui a aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ACL de arquivos que inicia servidores automaticamente após timeout.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Balanceador retira destinos não saudáveis do tráfego.",
+          "correct": true
+        }
+      ],
+      "explanation": "O balanceador encaminha tráfego entre destinos e pode retirar aqueles que falham nas verificações. Ele mesmo e suas dependências precisam ser redundantes; não é mecanismo de backup.",
+      "section": "5. Alta disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço pode permanecer indisponível por até meia hora, mas deve recuperar dados com no máximo alguns minutos de defasagem. Quais objetivos estão sendo descritos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SLA é o endereço estável que seleciona cópias de dados recuperáveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RPO descreve a janela de retorno; RTO descreve a defasagem de dados tolerada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quorum descreve os dois tempos e substitui teste de recuperação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fencing define o tempo de backup e o número de arquivos replicados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RTO mede retorno; RPO mede perda de dados tolerada.",
+          "correct": true
+        }
+      ],
+      "explanation": "RTO é o tempo objetivo para restabelecer o serviço; RPO expressa o ponto até o qual dados precisam ser recuperáveis, isto é, a perda tolerada. Eles orientam arquitetura e testes distintos.",
+      "section": "5. Alta disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma implantação ativa-ativa deve continuar atendendo após a perda de uma instância. Qual análise é essencial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar o mesmo endereço de Pod permanentemente em todas as réplicas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Assumir que balanceamento garante capacidade ilimitada após qualquer falha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover armazenamento persistente para impedir concorrência entre instâncias.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desligar monitoramento pois várias instâncias ocultam qualquer erro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Avaliar capacidade restante e concorrência dos dados.",
+          "correct": true
+        }
+      ],
+      "explanation": "Ativo-ativo distribui carga, mas precisa de capacidade residual para a falha e de tratamento coerente de sessão, estado e dados compartilhados. Balanceamento não aumenta por si só a capacidade remanescente.",
+      "section": "5. Alta disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um escritório quer tolerar incêndio no prédio principal, além de falha de servidor. Qual arquitetura é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um cluster no mesmo rack com armazenamento compartilhado e sem cópia externa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um local alternativo com dados, rede, identidade e procedimento preparados e testados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Mais duas VMs na mesma máquina física e na mesma sala.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente um balanceador adicional no mesmo prédio e na mesma energia.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um namespace lógico sem replicação, backup ou capacidade no local alternativo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um desastre local exige remover dependências do mesmo domínio físico e preparar local alternativo, dados, conectividade, identidade e procedimento. Cluster local cobre certos defeitos, não a perda do prédio.",
+      "section": "5. Alta disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe observa que o balanceador é redundante, mas todas as instâncias dependem de um único banco sem réplica ou recuperação testada. Qual conclusão é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O banco continua sendo possível ponto único de falha e deve entrar na análise de HA.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O balanceador garante consistência e restauração de dados do banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A quantidade de servidores web prova que o serviço completo está redundante.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma ACL em cada instância resolve falha física do banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A replicação de DNS recupera automaticamente transações perdidas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Alta disponibilidade é fim a fim: banco e demais dependências também precisam de estratégia apropriada. Balanceador protege seleção de destinos web, mas não elimina falha nem recupera dados do banco.",
+      "section": "5. Alta disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante um teste, o failover completa rapidamente, mas os dados recuperados estão além do limite de perda aceito. Qual objetivo não foi cumprido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RPO, pois a defasagem dos dados recuperados ultrapassou a tolerada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "RTO, pois a velocidade do restabelecimento foi necessariamente insuficiente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quorum, pois toda restauração lenta indica falta de maioria.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fencing, pois todo dado antigo prova que o nó não foi isolado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Readiness, pois o controlador reiniciou o processo de aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A perda temporal de dados é avaliada pelo RPO. O failover rápido pode cumprir o RTO e ainda assim recuperar uma cópia antiga demais para o objetivo de dados.",
+      "section": "5. Alta disponibilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "What is SMB File Sharing for Windows and Windows Server?",
+      "publisher": "Microsoft Learn",
+      "reference": "Dialetos SMB, SMB 3, recursos de compartilhamento, Scale-Out File Server, DFS Namespaces, DFS Replication, auditoria e segurança",
+      "url": "https://learn.microsoft.com/en-us/windows-server/storage/file-server/file-server-smb-overview",
+      "accessedAt": "2026-10-29"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Secure SMB Traffic in Windows Server",
+      "publisher": "Microsoft Learn",
+      "reference": "Inventário de SMB, firewall, redução de tráfego e implantação gradual de política",
+      "url": "https://learn.microsoft.com/en-us/windows-server/storage/file-server/smb-secure-traffic",
+      "accessedAt": "2026-10-29"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Ansible playbooks",
+      "publisher": "Ansible Core Documentation",
+      "reference": "Playbooks, configuração declarativa, orquestração de tarefas, check mode e verificação",
+      "url": "https://docs.ansible.com/projects/ansible-core/devel/playbook_guide/playbooks_intro.html",
+      "accessedAt": "2026-10-29"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Overview of the core Terraform workflow",
+      "publisher": "HashiCorp Developer",
+      "reference": "Fluxo de escrita, revisão de plano e aplicação; estado e revisão colaborativa",
+      "url": "https://developer.hashicorp.com/terraform/intro/core-workflow",
+      "accessedAt": "2026-10-29"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Terraform workflow for provisioning infrastructure",
+      "publisher": "HashiCorp Developer",
+      "reference": "Comandos plan, apply e destroy e comparação entre configuração e recursos gerenciados",
+      "url": "https://developer.hashicorp.com/terraform/cli/run",
+      "accessedAt": "2026-10-29"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Concepts",
+      "publisher": "Kubernetes Documentation",
+      "reference": "Arquitetura, workloads, redes, armazenamento e configuração de clusters",
+      "url": "https://kubernetes.io/docs/concepts/",
+      "accessedAt": "2026-10-29"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Service",
+      "publisher": "Kubernetes Documentation",
+      "reference": "Endpoint de rede estável para aplicação executada por um ou mais Pods; efemeridade dos Pods",
+      "url": "https://kubernetes.io/docs/concepts/services-networking/service/",
+      "accessedAt": "2026-10-29"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Pacemaker Explained, Release 2.1.9",
+      "publisher": "ClusterLabs",
+      "reference": "Gerenciamento de recursos, detecção de falhas, fencing, quorum, configurações ativo-passivo e regras de recursos",
+      "url": "https://clusterlabs.org/projects/pacemaker/doc/2.1/Pacemaker_Explained/pdf/Pacemaker_Explained.pdf",
+      "accessedAt": "2026-10-29"
+    }
+  ]
+}

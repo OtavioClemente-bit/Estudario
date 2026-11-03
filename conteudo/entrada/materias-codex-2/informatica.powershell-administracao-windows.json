@@ -1,0 +1,1870 @@
+{
+  "id": "informatica.powershell-administracao-windows",
+  "subject": "Informática",
+  "title": "PowerShell para administração do Windows",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Microsoft Windows (Windows 10, Windows 11, Windows Server 2019 e Windows Server 2022): PowerShell",
+    "PowerShell para administrar Windows",
+    "Administração do Windows com PowerShell",
+    "Windows PowerShell 5.1 e PowerShell 7",
+    "Shell de automação do Windows",
+    "Cmdlets do PowerShell no Windows",
+    "Scripts PowerShell para Windows",
+    "Pipeline e objetos no PowerShell",
+    "Administração remota com PowerShell",
+    "Serviços e processos no PowerShell",
+    "Módulos administrativos do PowerShell",
+    "PowerShell em Windows Server 2019 e 2022"
+  ],
+  "scope": {
+    "covers": "Uso do PowerShell para administração local e remota no Windows 10, Windows 11, Windows Server 2019 e Windows Server 2022: Windows PowerShell 5.1 e PowerShell 7; cmdlets e verbos; ajuda e descoberta; objetos, propriedades, pipeline, filtros e formatação; variáveis, scripts, parâmetros e erros; administração de serviços, processos, arquivos, eventos e rede; módulos, recursos administrativos e remoting; política de execução e permissões.",
+    "excludes": "Programação avançada em .NET, desenvolvimento de módulos complexos, administração detalhada de Active Directory, Hyper-V, IIS e SQL Server, e comandos específicos de produtos que não sejam necessários para compreender a administração geral do Windows."
+  },
+  "theoryTitle": "PowerShell como ferramenta de administração do Windows",
+  "chapters": [
+    {
+      "title": "1. Shell, cmdlets e descoberta de comandos",
+      "markdown": "### O problema que este assunto resolve\n\nAdministrar um computador Windows envolve consultar configurações e executar tarefas repetidas: identificar processos, conferir serviços, localizar arquivos ou coletar informações de várias máquinas. O PowerShell reúne uma shell de linha de comando e uma linguagem de scripts. Seus comandos podem ser usados interativamente ou organizados em arquivos para repetir uma rotina de forma controlada.\n\n> **Siglas e termos deste capítulo**\n> - **Shell**: ambiente que recebe comandos e os executa.\n> - **Cmdlet**: comando nativo do PowerShell, em geral escrito em .NET e nomeado como Verbo-Substantivo.\n> - **Módulo**: pacote que agrupa cmdlets, funções, provedores e outros recursos.\n> - **Alias**: nome curto que aponta para outro comando, como `gci` para `Get-ChildItem`.\n> - **Windows PowerShell**: produto baseado no .NET Framework, cuja versão 5.1 acompanha as versões de Windows deste escopo.\n> - **PowerShell 7**: produto mais recente, multiplataforma, instalado lado a lado com Windows PowerShell.\n\n### A forma dos comandos\n\nCmdlets seguem normalmente o padrão `Verbo-Substantivo`: `Get-Process` consulta processos, `Stop-Service` interrompe um serviço e `Set-Location` muda a localização atual. Parâmetros começam com hífen e alteram a operação, como `Get-Service -Name Spooler`. Os nomes dos comandos não diferenciam maiúsculas de minúsculas. O padrão facilita procurar comandos por verbo: `Get-Command -Verb Get` lista comandos de consulta disponíveis.\n\n`Get-Help Get-Service` apresenta a ajuda de um comando; `Get-Help Get-Service -Examples` destaca exemplos. `Get-Command *Service*` procura comandos cujo nome contenha Service. `Get-Member` revela os membros (propriedades e métodos) dos objetos recebidos: por exemplo, `Get-Process | Get-Member`. A ajuda local pode ser atualizada em instalações compatíveis com `Update-Help`, com os privilégios e acesso necessários.\n\n### Windows PowerShell 5.1 e PowerShell 7\n\nNo Windows 10, Windows 11 e Windows Server 2019/2022, Windows PowerShell 5.1 é o ambiente clássico fornecido pelo sistema. PowerShell 7 é uma instalação separada; os dois podem coexistir e usam executáveis distintos (`powershell.exe` e `pwsh.exe`). Um script pode depender de módulos ou APIs disponíveis apenas no ambiente clássico; portanto, a compatibilidade deve ser verificada antes de trocar o host. Cmdlets básicos de administração são familiares, mas nem todo módulo legado funciona da mesma maneira nas duas edições.\n\n### Como cai na prova\n\n- `Get-Help`, `Get-Command` e `Get-Member` respondem, respectivamente, a dúvidas sobre uso, descoberta de comandos e estrutura de objetos.\n- O padrão mais comum é Verbo-Substantivo; alias é apenas um nome alternativo.\n- PowerShell não é apenas um interpretador de texto: os comandos trabalham principalmente com objetos.\n- Windows PowerShell 5.1 e PowerShell 7 são produtos distintos e podem coexistir."
+    },
+    {
+      "title": "2. Objetos, pipeline e seleção de resultados",
+      "markdown": "### O problema que este assunto resolve\n\nUma saída de comando costuma conter muitas propriedades. Para localizar somente serviços parados ou processos que consomem determinado recurso, é preciso filtrar objetos por seus dados e encaminhar os resultados ao próximo comando. O pipeline (`|`) faz essa ligação.\n\n> **Siglas e termos deste capítulo**\n> - **Objeto**: valor estruturado com propriedades e métodos, não apenas uma linha de texto.\n> - **Pipeline**: fluxo que passa a saída de um comando como entrada do seguinte.\n> - **Propriedade**: dado de um objeto, como `Name`, `Status` ou `Id`.\n> - **Script block**: trecho de código entre chaves, como `{ $_.Status -eq 'Running' }`.\n> - **`$_`**: referência ao objeto atual em operações como `Where-Object` e `ForEach-Object`.\n> - **Provedor**: interface que apresenta uma fonte de dados como se fosse uma unidade navegável, por exemplo o Registro.\n\n### O pipeline transporta objetos\n\nEm `Get-Service | Where-Object { $_.Status -eq 'Running' }`, o primeiro comando produz objetos de serviço. `Where-Object` examina cada objeto e mantém os que satisfazem a condição. A propriedade `Status` é comparada com `-eq`, operador de igualdade. Outros operadores de comparação incluem `-ne`, `-gt`, `-lt`, `-like` (padrões com curingas) e `-match` (expressões regulares).\n\n`Select-Object Name, Status` escolhe propriedades para exibição ou saída; `Sort-Object Name` ordena; `Measure-Object` calcula medidas; `Group-Object Status` agrupa por propriedade; `ForEach-Object` executa uma ação para cada objeto. Evite confundir `Format-Table` e `Format-List` com seleção de dados: cmdlets `Format-*` produzem instruções de formatação destinadas à apresentação, normalmente no fim do pipeline, e não devem alimentar operações de processamento.\n\nO PowerShell também converte texto quando necessário, mas um pipeline PowerShell normal passa objetos. `Out-File` grava uma representação textual em arquivo; `Export-Csv` serializa propriedades em CSV; `ConvertTo-Json` transforma dados em JSON. A saída formatada na tela não equivale necessariamente a todos os dados existentes no objeto.\n\n### Variáveis, caminhos e provedores\n\nVariáveis começam com `$`, como `$nome` e `$servicos`. A atribuição usa `=`; arrays podem conter vários valores. `Get-ChildItem` lista itens e funciona com caminhos de sistema de arquivos, Registro e outros provedores disponíveis. `Set-Location` navega; `Get-Location` informa a localização. O caminho `HKLM:\\` representa uma unidade do provedor de Registro, não uma pasta comum. Use `-LiteralPath` quando caracteres como colchetes devam ser tratados literalmente em vez de curingas.\n\n### Como cai na prova\n\n- A ordem de leitura é da esquerda para a direita: cada cmdlet recebe objetos do anterior.\n- `Where-Object` filtra; `Select-Object` projeta propriedades; `Sort-Object` ordena.\n- `Format-Table` é apresentação, não uma etapa adequada para continuar cálculos ou exportações estruturadas.\n- Em um script block de filtro, `$_` representa o objeto examinado naquela passagem."
+    },
+    {
+      "title": "3. Scripts, segurança e tratamento de erros",
+      "markdown": "### O problema que este assunto resolve\n\nComandos isolados ajudam em tarefas pontuais; um script `.ps1` registra passos e parâmetros para repetir uma atividade. Para que a automação seja previsível, é necessário entender escopo, execução, erros e permissões.\n\n> **Siglas e termos deste capítulo**\n> - **Script `.ps1`**: arquivo de comandos PowerShell.\n> - **Parâmetro**: entrada nomeada ou posicional recebida por comando ou script.\n> - **Execution Policy**: configuração que controla condições de execução de scripts; não é uma fronteira de segurança.\n> - **Erro terminante**: erro que interrompe o fluxo corrente, a menos que seja tratado.\n> - **`try` / `catch` / `finally`**: estrutura para executar, tratar falhas e realizar finalização.\n> - **Elevação**: execução com privilégios administrativos quando a tarefa exige.\n\n### Execução de scripts e política\n\nA política de execução pode ser consultada com `Get-ExecutionPolicy` e detalhada por escopo com `Get-ExecutionPolicy -List`. Escopos incluem processo, usuário atual e computador local; políticas definidas por Group Policy podem prevalecer. `Restricted`, `RemoteSigned` e `AllSigned` representam configurações diferentes para scripts. `RemoteSigned` exige assinatura de scripts obtidos da Internet, enquanto scripts locais podem ser executados segundo as demais condições aplicáveis. A política ajuda a evitar execução acidental, mas a Microsoft esclarece que não é uma barreira contra um usuário determinado. Ela não impede a execução interativa de cmdlets.\n\nA execução pode ainda ser bloqueada por permissões, políticas organizacionais, marca de arquivo baixado ou controles de segurança. Não se deve recomendar relaxar a política sem entender a origem do script e os requisitos da organização. Para testar um comando que ofereça suporte, `-WhatIf` simula a ação e `-Confirm` pode solicitar confirmação; esses parâmetros comuns não existem ou não têm efeito em todo comando.\n\n### Parâmetros e erros\n\nUm script pode declarar entradas nomeadas em `param(...)`, validar valores e usar variáveis para evitar repetir dados. `-ErrorAction Stop` pode converter certos erros não terminantes em erros terminantes para que `catch` os capture. `try` contém a operação, `catch` trata a falha e `finally` executa limpeza. `-ErrorAction SilentlyContinue` suprime a exibição de alguns erros, mas não corrige a causa; ocultar mensagens pode tornar uma rotina perigosa. Consulte `$Error` para erros recentes da sessão.\n\nA identidade da sessão define o que o usuário pode fazer. Consultar processos próprios pode funcionar sem elevação; encerrar processos alheios, alterar arquivos protegidos ou controlar serviços pode exigir direitos administrativos. Elevar PowerShell concede mais capacidade e também amplia o impacto de um comando incorreto.\n\n### Como cai na prova\n\n- Execution Policy não é antivírus, controle de acesso nem barreira inviolável.\n- `Get-ExecutionPolicy -List` mostra valores por escopo; políticas corporativas podem sobrepor escolhas locais.\n- `try/catch` exige que a falha seja terminante ou seja promovida a terminante para entrar no tratamento.\n- Permissão insuficiente e política de execução são causas diferentes de falha."
+    },
+    {
+      "title": "4. Administração local e remota do Windows",
+      "markdown": "### O problema que este assunto resolve\n\nO PowerShell permite consultar e administrar componentes do Windows por cmdlets consistentes. Em estações Windows 10/11 e servidores Windows Server 2019/2022, tarefas comuns incluem examinar processos e serviços, pesquisar eventos, operar arquivos e obter informações de rede. Em escala, os mesmos comandos podem ser direcionados a computadores remotos com os mecanismos corretos.\n\n> **Siglas e termos deste capítulo**\n> - **PID**: identificador numérico de processo.\n> - **WinRM**: Windows Remote Management, transporte usado por sessões remotas PowerShell tradicionais.\n> - **PSSession**: sessão persistente de PowerShell com um computador remoto.\n> - **Remoting**: execução de comandos ou sessão PowerShell em outra máquina.\n> - **RSAT**: Remote Server Administration Tools, ferramentas para administrar recursos de servidor a partir de cliente compatível.\n> - **CIM**: modelo de informação usado para consultar e administrar dados de sistema.\n\n### Cmdlets de administração usuais\n\n`Get-Process` consulta processos e suas propriedades, como nome e ID; `Stop-Process -Id ...` tenta encerrá-los, sujeito a direitos e dependências. `Get-Service` retorna objetos de serviço em execução ou parados. `Start-Service`, `Stop-Service` e `Restart-Service` alteram o estado; selecionar o nome correto importa, pois nome de serviço e nome de exibição podem ser diferentes. `Set-Service` altera propriedades suportadas, não substitui todas as ferramentas de configuração.\n\n`Get-ChildItem`, `Copy-Item`, `Move-Item`, `Remove-Item` e `New-Item` operam em itens de provedores. A remoção de um arquivo ou chave pode ser irreversível; confira o caminho e use `-WhatIf` se o cmdlet suportar. `Get-WinEvent` consulta logs do Windows, podendo filtrar por log e critérios. `Get-ComputerInfo` obtém dados do sistema; `Get-NetIPConfiguration` consulta configuração IP em versões que incluem o módulo correspondente. Cmdlets e módulos disponíveis podem variar entre edições e instalações.\n\n### Remoting com WinRM\n\n`Invoke-Command -ComputerName servidor -ScriptBlock { Get-Service }` executa um bloco no computador remoto usando PowerShell remoting. `Enter-PSSession -ComputerName servidor` abre uma sessão interativa; `Exit-PSSession` encerra essa interação. `New-PSSession` cria uma sessão persistente, que pode ser reutilizada por `Invoke-Command -Session` e fechada com `Remove-PSSession`. O remoting depende de configuração, conectividade, autenticação e autorização. `Enable-PSRemoting` configura o computador para receber conexões em cenários compatíveis, mas não elimina requisitos de firewall, rede, domínio ou credenciais.\n\nA saída remota é serializada para transporte: o objeto recebido pode não manter todos os métodos do objeto local original. No PowerShell 7, a conexão com Windows PowerShell 5.1 pode usar uma sessão de compatibilidade, pois as edições têm runtimes e módulos diferentes. Para administrar funções de servidor a partir de cliente, RSAT instala ferramentas e módulos adequados à função; não significa que todo módulo venha instalado por padrão.\n\n### Como cai na prova\n\n- `Get-Service` consulta e retorna objetos; `Restart-Service` altera o serviço e requer autorização adequada.\n- `Invoke-Command` executa um bloco remoto; `Enter-PSSession` permite interação remota.\n- Remoting exige configuração e permissões; conhecer o nome do computador não basta.\n- Verifique versão, módulo, disponibilidade do cmdlet e privilégios antes de automatizar em máquinas diferentes."
+    }
+  ],
+  "summary": "PowerShell é uma shell e linguagem de automação para administrar Windows local ou remotamente. Cmdlets costumam usar Verbo-Substantivo e podem ser descobertos com Get-Command e estudados com Get-Help. O pipeline encaminha objetos; Where-Object filtra, Select-Object escolhe propriedades e Sort-Object ordena. Scripts .ps1 podem aceitar parâmetros e tratar falhas com try/catch. Execution Policy controla condições para scripts, mas não é uma fronteira de segurança. Get-Process e Get-Service consultam processos e serviços; cmdlets como Stop-Process e Restart-Service fazem alterações e podem exigir elevação. Invoke-Command, Enter-PSSession e PSSession permitem remoting quando WinRM, rede e autorização estão configurados. Windows PowerShell 5.1 e PowerShell 7 podem coexistir, mas módulos e compatibilidade devem ser conferidos.",
+  "flashcards": [
+    {
+      "front": "Qual é o padrão de nome mais comum de um cmdlet?",
+      "back": "Verbo-Substantivo, como Get-Service ou Set-Location."
+    },
+    {
+      "front": "Qual a função de Get-Command?",
+      "back": "Descobrir comandos disponíveis e localizar comandos por nome, verbo, módulo ou parâmetros."
+    },
+    {
+      "front": "Como consultar exemplos de um cmdlet?",
+      "back": "Use Get-Help Nome-Do-Cmdlet -Examples; a disponibilidade de ajuda local depende de instalação e atualização."
+    },
+    {
+      "front": "O que Get-Member revela?",
+      "back": "Propriedades e métodos dos objetos recebidos pelo pipeline."
+    },
+    {
+      "front": "O que é alias no PowerShell?",
+      "back": "Um nome alternativo que referencia um comando, como gci para Get-ChildItem."
+    },
+    {
+      "front": "O pipeline passa somente texto?",
+      "back": "Não. O pipeline PowerShell encaminha principalmente objetos com propriedades e métodos."
+    },
+    {
+      "front": "Para que serve Where-Object?",
+      "back": "Filtrar objetos conforme uma condição, frequentemente usando $_ para o objeto atual."
+    },
+    {
+      "front": "Para que serve Select-Object?",
+      "back": "Selecionar objetos ou propriedades para a saída, como Name e Status."
+    },
+    {
+      "front": "Qual a diferença entre Sort-Object e Group-Object?",
+      "back": "Sort-Object ordena objetos; Group-Object reúne objetos com valores iguais numa propriedade."
+    },
+    {
+      "front": "Por que Format-Table costuma ficar no final do pipeline?",
+      "back": "Porque é destinado à apresentação; sua saída de formatação não é a representação apropriada para processamento posterior."
+    },
+    {
+      "front": "Como ver a política de execução efetiva?",
+      "back": "Get-ExecutionPolicy; para consultar escopos, use Get-ExecutionPolicy -List."
+    },
+    {
+      "front": "Execution Policy é uma fronteira de segurança?",
+      "back": "Não. É uma medida contra execução acidental e não impede um usuário determinado de executar comandos."
+    },
+    {
+      "front": "O que significa RemoteSigned?",
+      "back": "Em termos gerais, exige assinatura para scripts baixados da Internet; scripts locais seguem as demais condições aplicáveis."
+    },
+    {
+      "front": "Qual cmdlet consulta serviços locais?",
+      "back": "Get-Service retorna objetos dos serviços, inclusive em execução e parados."
+    },
+    {
+      "front": "Qual a diferença entre nome e DisplayName de serviço?",
+      "back": "Name é o identificador interno usado em parâmetros como -Name; DisplayName é o nome amigável mostrado ao usuário."
+    },
+    {
+      "front": "O que Restart-Service faz?",
+      "back": "Envia solicitação para parar e depois iniciar o serviço especificado, se as permissões permitirem."
+    },
+    {
+      "front": "Como consultar processos?",
+      "back": "Get-Process retorna objetos de processo; pode-se selecionar por nome ou identificador PID."
+    },
+    {
+      "front": "O que faz Get-WinEvent?",
+      "back": "Consulta eventos armazenados nos logs do Windows e permite filtrá-los."
+    },
+    {
+      "front": "O que é um PSSession?",
+      "back": "Uma sessão PowerShell persistente com um computador remoto, reutilizável por comandos remotos."
+    },
+    {
+      "front": "Diferença entre Invoke-Command e Enter-PSSession?",
+      "back": "Invoke-Command executa um bloco remoto; Enter-PSSession abre uma interação remota no terminal."
+    },
+    {
+      "front": "O que é RSAT?",
+      "back": "Ferramentas de administração remota de servidor instaláveis em cliente compatível para gerir funções específicas."
+    },
+    {
+      "front": "Como tratar uma falha com try/catch?",
+      "back": "Coloque a operação em try e o tratamento em catch; erros não terminantes podem precisar ser promovidos, por exemplo com -ErrorAction Stop."
+    },
+    {
+      "front": "Para que serve -WhatIf?",
+      "back": "Em cmdlets que o implementam, mostra a ação que seria feita sem executá-la."
+    },
+    {
+      "front": "Quais executáveis iniciam os produtos Windows PowerShell e PowerShell 7?",
+      "back": "powershell.exe inicia Windows PowerShell; pwsh.exe inicia PowerShell 7."
+    }
+  ],
+  "tips": [
+    "Reconheça o padrão Verbo-Substantivo e use Get-Command para descobrir o cmdlet adequado.",
+    "Use Get-Member para descobrir o nome exato da propriedade antes de montar um filtro.",
+    "Lembre que a tubulação encadeia objetos; filtre antes de formatar a saída para leitura humana.",
+    "Antes de alterar um serviço ou remover um arquivo, confira o alvo, os privilégios e o suporte a -WhatIf.",
+    "Consulte Get-ExecutionPolicy -List e não trate a política como substituta de controle de acesso ou avaliação de scripts.",
+    "Em execução remota, confira host, conectividade, autenticação, autorização, versão e módulos disponíveis."
+  ],
+  "traps": [
+    "Confundir um alias com um cmdlet independente: o alias apenas referencia outro nome de comando.",
+    "Afirmar que o pipeline PowerShell transmite somente texto: normalmente ele transmite objetos estruturados.",
+    "Usar Format-Table no meio do pipeline e supor que os objetos originais seguem intactos para exportação.",
+    "Tratar Execution Policy como barreira inviolável contra código malicioso.",
+    "Supor que Get-Service altera um serviço: ele consulta; Start-Service, Stop-Service e Restart-Service fazem alterações.",
+    "Supor que remoting funciona sem configuração, conectividade e autorização, ou que todos os módulos funcionam igual no 5.1 e no 7."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como descobrir comandos disponíveis, exemplos e propriedades de saída?",
+      "answer": "Use Get-Command para descobrir, Get-Help Nome -Examples para exemplos e Get-Member sobre a saída para examinar propriedades e métodos."
+    },
+    {
+      "question": "Explique o que ocorre em Get-Service | Where-Object { $_.Status -eq 'Running' }.",
+      "answer": "Get-Service produz objetos; Where-Object testa a propriedade Status de cada objeto e mantém os que têm valor Running. $_ é o objeto atual."
+    },
+    {
+      "question": "Por que Format-Table deve normalmente aparecer no fim?",
+      "answer": "Ele converte a saída em instruções de apresentação, inadequadas para etapas de processamento estruturado como filtragem e exportação de propriedades."
+    },
+    {
+      "question": "O que a política RemoteSigned controla e o que ela não garante?",
+      "answer": "Ela condiciona a execução de scripts, incluindo exigência de assinatura para scripts baixados da Internet, conforme escopo e outras regras; não é uma fronteira inviolável nem bloqueia comandos interativos."
+    },
+    {
+      "question": "Quais cuidados tomar antes de reiniciar um serviço?",
+      "answer": "Identificar corretamente Name ou DisplayName, verificar impacto e dependências, confirmar privilégios e, se suportado, simular com -WhatIf antes da alteração."
+    },
+    {
+      "question": "Compare Invoke-Command e Enter-PSSession.",
+      "answer": "Invoke-Command executa comandos em alvo remoto e retorna resultados; Enter-PSSession abre um terminal interativo remoto até a sessão ser encerrada."
+    },
+    {
+      "question": "Por que um script pode funcionar no Windows PowerShell 5.1 e falhar no PowerShell 7?",
+      "answer": "Os produtos usam runtimes diferentes e módulos ou APIs legados podem não estar instalados ou ser compatíveis no PowerShell 7; verifique dependências e use sessão de compatibilidade se apropriado."
+    },
+    {
+      "question": "Quando um catch pode não receber um erro de cmdlet?",
+      "answer": "Quando o erro é não terminante e o fluxo continua; pode ser necessário usar -ErrorAction Stop, se o cmdlet aceitar esse parâmetro."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Comandos e nomes confundidos",
+      "summary": "Cmdlets seguem Verbo-Substantivo; alias é nome alternativo. Get-Command descobre comandos, Get-Help explica uso e Get-Member inspeciona objetos."
+    },
+    {
+      "key": "e2",
+      "title": "Texto e objeto misturados",
+      "summary": "O pipeline PowerShell encaminha objetos. Where-Object filtra, Select-Object seleciona propriedades, Sort-Object ordena e Format-* serve para apresentação."
+    },
+    {
+      "key": "e3",
+      "title": "Consulta confundida com alteração",
+      "summary": "Get-Service e Get-Process consultam. Start/Stop/Restart-Service e Stop-Process mudam estado e dependem de permissões e seleção cuidadosa."
+    },
+    {
+      "key": "e4",
+      "title": "Política de execução tratada como segurança completa",
+      "summary": "Execution Policy condiciona execução de scripts por escopo, pode ser gerida por política corporativa e não é uma fronteira de segurança."
+    },
+    {
+      "key": "e5",
+      "title": "Versões e remoting presumidos compatíveis",
+      "summary": "Windows PowerShell 5.1 e PowerShell 7 coexistem, mas módulos podem divergir. Remoting requer configuração, rede, autenticação e autorização."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma administradora precisa identificar qual comando nativo consulta serviços e aprender seus parâmetros. Que combinação atende às duas tarefas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Get-Command lista serviços em execução e Get-Member reinicia o serviço escolhido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Get-Service consulta serviços e Get-Help Get-Service explica seu uso.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Set-Service consulta serviços e Get-Process apresenta os parâmetros de serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Get-Help altera serviços e Get-Command apresenta a ajuda detalhada de cada um.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Where-Object descobre cmdlets e Update-Help executa os serviços selecionados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Get-Service retorna objetos que representam serviços; Get-Help consulta a documentação de uso do cmdlet. Get-Command descobre comandos, mas não consulta serviços; Get-Member inspeciona membros dos objetos recebidos.",
+      "section": "1. Shell, cmdlets e descoberta de comandos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando Get-Process | Where-Object { $_.Id -gt 1000 } examina a propriedade Id de cada objeto e conserva os processos que satisfazem a comparação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Get-Process envia objetos de processo pelo pipeline; Where-Object avalia cada um, com $_ representando o objeto atual, e mantém os que têm Id maior que 1000.",
+      "section": "2. Objetos, pipeline e seleção de resultados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comando revela propriedades e métodos dos objetos de processo produzidos por Get-Process?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Get-Member, recebendo os objetos pelo pipeline para inspecionar membros.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Get-Help, que documenta sintaxe e exemplos de comandos conhecidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Format-Table, que organiza colunas para exibição e não lista métodos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Set-Location, que altera a localização corrente do provedor na sessão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Out-File, que grava a representação textual recebida em arquivo de saída.",
+          "correct": false
+        }
+      ],
+      "explanation": "Get-Member examina os membros dos objetos recebidos, mostrando propriedades e métodos. Get-Help documenta comandos; Format-Table controla apresentação e Out-File grava uma representação textual.",
+      "section": "1. Shell, cmdlets e descoberta de comandos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PowerShell, o caractere de pipe envia normalmente os objetos produzidos por um comando à entrada do próximo comando.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Um pipeline PowerShell encaminha dados estruturados como objetos; isso permite ao próximo cmdlet acessar propriedades sem primeiro interpretar uma tabela de texto exibida na tela.",
+      "section": "2. Objetos, pipeline e seleção de resultados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comando filtra os serviços para manter somente os que estão com Status igual a Running?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Get-Service | Sort-Object { $_.Status -eq 'Running' }",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Get-Service | Select-Object { $_.Status -eq 'Running' }",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Get-Service | Where-Object { $_.Status -eq 'Running' }",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Get-Service | Format-Table { $_.Status -eq 'Running' }",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Get-Service | Get-Help { $_.Status -eq 'Running' }",
+          "correct": false
+        }
+      ],
+      "explanation": "Where-Object testa uma condição em cada objeto do pipeline e descarta os que não a satisfazem. Sort-Object ordena; Select-Object escolhe propriedades ou objetos, mas não substitui esse filtro.",
+      "section": "2. Objetos, pipeline e seleção de resultados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Windows PowerShell 5.1 e PowerShell 7 são nomes diferentes para um único executável atualizado automaticamente em todos esses sistemas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. São produtos distintos e podem coexistir; powershell.exe inicia Windows PowerShell e pwsh.exe inicia PowerShell 7. Módulos e compatibilidade devem ser verificados.",
+      "section": "1. Shell, cmdlets e descoberta de comandos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe quer escolher apenas as propriedades Name e Status dos serviços antes de exportar os dados. Qual cmdlet faz essa projeção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Where-Object Name, Status", "correct": false },
+        { "key": "B", "text": "Format-Table Name, Status", "correct": false },
+        { "key": "C", "text": "Sort-Object Name, Status", "correct": false },
+        { "key": "D", "text": "Select-Object Name, Status", "correct": true },
+        { "key": "E", "text": "Get-Member Name, Status", "correct": false }
+      ],
+      "explanation": "Select-Object permite selecionar propriedades específicas dos objetos, como Name e Status. Format-Table é voltado à apresentação, Sort-Object ordena e Where-Object filtra por condição.",
+      "section": "2. Objetos, pipeline e seleção de resultados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em `Get-Service | Where-Object { $_.Status -eq 'Stopped' }`, a variável automática `$_` representa o objeto de serviço avaliado naquele momento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Em um script block usado pelo Where-Object, $_ referencia cada objeto que chega pelo pipeline, permitindo consultar suas propriedades como Status.",
+      "section": "2. Objetos, pipeline e seleção de resultados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um comando de formatação foi colocado antes de Export-Csv e os dados perderam propriedades úteis. Qual ajuste conceitual é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar Export-Csv antes de Format-Table, pois este produz os dados estruturados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Retirar Format-Table do processamento e exportar os objetos com suas propriedades.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Converter a tabela formatada em objetos com Get-Help antes de exportar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar Export-Csv por Get-Member, que grava propriedades em formato tabular.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar Sort-Object depois de Format-Table para recuperar as propriedades descartadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Format-Table gera instruções destinadas à apresentação, por isso deve normalmente ficar no fim de uma cadeia de exibição. Para exportação estruturada, encaminhe os objetos e propriedades diretamente a Export-Csv.",
+      "section": "2. Objetos, pipeline e seleção de resultados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Get-ExecutionPolicy -List permite consultar as políticas de execução configuradas em diferentes escopos da sessão e do computador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O parâmetro -List apresenta os valores associados aos escopos, como Process, CurrentUser e LocalMachine; políticas de grupo também podem influenciar o resultado efetivo.",
+      "section": "3. Scripts, segurança e tratamento de erros",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual operador de comparação testa igualdade em uma condição comum do PowerShell?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "-gt, que verifica se o valor à esquerda é maior que o da direita.", "correct": false },
+        { "key": "B", "text": "-eq, que compara os operandos para determinar se têm valores iguais.", "correct": true },
+        { "key": "C", "text": "-like, que compara texto com um padrão que pode conter curingas.", "correct": false },
+        { "key": "D", "text": "-match, que testa texto usando uma expressão regular como padrão.", "correct": false },
+        { "key": "E", "text": "-ne, que verifica se os valores comparados são diferentes entre si.", "correct": false }
+      ],
+      "explanation": "O operador -eq testa igualdade entre os operandos. Já -ne testa desigualdade, -gt verifica se o valor à esquerda é maior, -like compara com padrões de curingas e -match usa expressões regulares, por isso esses operadores respondem a condições diferentes.",
+      "section": "2. Objetos, pipeline e seleção de resultados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A Execution Policy do PowerShell impede, por si só, que um usuário determinado execute código malicioso e substitui as permissões do Windows.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A política de execução ajuda a evitar execução não intencional de scripts, mas não é uma fronteira de segurança inviolável e não substitui permissões, controles de acesso ou outras proteções.",
+      "section": "3. Scripts, segurança e tratamento de erros",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador deseja encerrar um processo identificado pelo PID. Qual cmdlet executa essa ação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Get-Process -Id, que encerra o processo localizado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Stop-Process -Id, que tenta encerrar o processo selecionado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Get-Service -Id, que finaliza o processo correspondente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remove-Item -Id, que fecha o processo sem alterar arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Stop-Service -Id, que encerra qualquer processo pelo identificador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Stop-Process tenta terminar processos e pode selecioná-los por identificador, sujeito a privilégios e ao alvo escolhido. Get-Process consulta; Stop-Service controla serviços, não processos arbitrários.",
+      "section": "4. Administração local e remota do Windows",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Get-Service consulta objetos de serviço, enquanto Restart-Service solicita parar e iniciar o serviço selecionado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Get-Service é de consulta. Restart-Service muda o estado do serviço e sua operação depende das permissões necessárias; a seleção do nome correto é essencial.",
+      "section": "4. Administração local e remota do Windows",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cmdlet abre um terminal interativo associado a uma sessão remota do PowerShell?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Invoke-Command, que mantém sempre o terminal local conectado interativamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "New-Item, que abre uma sessão remota persistente de comandos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Enter-PSSession, que inicia uma interação com o computador remoto.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Get-PSSession, que conecta ao servidor e executa comandos interativos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Get-Service, que troca o terminal para o computador selecionado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Enter-PSSession inicia uma sessão interativa com o alvo remoto; Exit-PSSession retorna à sessão local. Invoke-Command executa blocos remotos sem transformar necessariamente o terminal numa interação contínua.",
+      "section": "4. Administração local e remota do Windows",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A opção -WhatIf em um cmdlet compatível permite examinar a ação que seria realizada sem executar essa alteração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Muitos cmdlets com suporte a ShouldProcess implementam -WhatIf para simular a ação e informar o que ocorreria. É necessário confirmar se o comando utilizado oferece esse parâmetro.",
+      "section": "3. Scripts, segurança e tratamento de erros",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a finalidade do Remote Server Administration Tools em um computador cliente compatível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir o Windows Server e hospedar todas as funções no próprio computador cliente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter qualquer script de Windows PowerShell em módulo multiplataforma, sem ajustes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Instalar ferramentas e módulos para administrar funções de servidor remotamente, em cliente compatível.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desativar as permissões remotas e dispensar autenticação em operações administrativas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sincronizar automaticamente os módulos de todas as versões distintas do PowerShell.",
+          "correct": false
+        }
+      ],
+      "explanation": "RSAT fornece ferramentas administrativas para gerir funções e recursos de servidor a partir de versões de cliente compatíveis. A instalação é ligada aos recursos pretendidos e não elimina autenticação nem permissões.",
+      "section": "4. Administração local e remota do Windows",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No padrão Verbo-Substantivo, qual exemplo nomeia de forma típica um cmdlet que altera a localização atual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Location-Set", "correct": false },
+        { "key": "B", "text": "Set-Location", "correct": true },
+        { "key": "C", "text": "Location-Current", "correct": false },
+        { "key": "D", "text": "Change-Directory-Now", "correct": false },
+        { "key": "E", "text": "Current-Path", "correct": false }
+      ],
+      "explanation": "Set-Location segue o padrão Verbo-Substantivo e altera a localização atual da sessão. Os demais nomes não correspondem ao nome habitual desse cmdlet.",
+      "section": "1. Shell, cmdlets e descoberta de comandos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A variável automática `$_` pode referenciar o objeto atual processado por Where-Object dentro do pipeline.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O script block executado pelo Where-Object pode consultar as propriedades do objeto que está sendo examinado usando $_.",
+      "section": "2. Objetos, pipeline e seleção de resultados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script deve processar um arquivo e tratar uma falha como exceção. Qual abordagem captura de modo mais previsível certos erros não terminantes do cmdlet?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar Format-List, pois esse cmdlet transforma automaticamente qualquer erro em exceção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Colocar o comando em catch e deixar try sem instruções para ativar o tratamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar -ErrorAction SilentlyContinue para garantir que catch receba o erro suprimido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar o comando em try com -ErrorAction Stop, se o cmdlet aceitar o parâmetro.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Ler somente a variável $Error depois e presumir que ela interrompeu o fluxo.",
+          "correct": false
+        }
+      ],
+      "explanation": "catch trata erros terminantes. Para que erros não terminantes compatíveis sejam tratados, -ErrorAction Stop pode promovê-los a terminantes. SilentlyContinue suprime mensagens sem provocar esse comportamento.",
+      "section": "3. Scripts, segurança e tratamento de erros",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O cmdlet Get-WinEvent é usado para consultar registros de eventos do Windows, podendo receber filtros para restringir a pesquisa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Get-WinEvent consulta logs de eventos do Windows e permite restringir a consulta por critérios, evitando depender apenas da inspeção visual no Event Viewer.",
+      "section": "4. Administração local e remota do Windows",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador quer executar Get-Service em um servidor remoto sem abrir um prompt interativo. Qual comando corresponde ao cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Get-Service -ComputerName srv01, opção aceita em qualquer edição atual do cmdlet.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Set-Location srv01 e depois Get-Service na sessão local",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Get-PSSession srv01, que executa o bloco remoto ao localizar a máquina",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Invoke-Command -ComputerName srv01 -ScriptBlock { Get-Service }, executando o bloco remotamente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Format-Table srv01, que encaminha os serviços para o computador informado",
+          "correct": false
+        }
+      ],
+      "explanation": "Invoke-Command direciona um script block ao computador remoto usando PowerShell remoting. O parâmetro ComputerName não existe em todas as edições atuais de Get-Service; uma sessão precisa estar configurada e autorizada.",
+      "section": "4. Administração local e remota do Windows",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O caminho `HKLM:\\` é uma unidade apresentada pelo provedor de Registro do PowerShell, não uma pasta ordinária do sistema de arquivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Provedores expõem fontes de dados por uma interface semelhante a unidades navegáveis. HKLM: representa a raiz HKEY_LOCAL_MACHINE do Registro, e operações ali alteram configurações do sistema.",
+      "section": "2. Objetos, pipeline e seleção de resultados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cmdlet pode agrupar objetos de serviço por valor de Status?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sort-Object Status, que reúne os grupos como objetos agrupados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Group-Object Status, que agrupa elementos conforme essa propriedade.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Select-Object Status, que cria grupos sem inspecionar os valores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Where-Object Status, que conta cada categoria encontrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Get-Member Status, que separa os serviços em grupos de execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Group-Object agrupa elementos por uma propriedade especificada. Sort-Object apenas ordena; Select-Object escolhe propriedades e Where-Object filtra objetos.",
+      "section": "2. Objetos, pipeline e seleção de resultados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma operação administrativa falha por falta de privilégio, elevar a sessão concede automaticamente conectividade de rede e configura o WinRM remoto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Elevação trata de privilégios locais associados à identidade. Conectividade, configuração do WinRM, firewall, autenticação e autorização remota são requisitos distintos que precisam ser verificados.",
+      "section": "4. Administração local e remota do Windows",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção descreve corretamente o tratamento de erro usando try, catch e finally?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "try contém a tentativa, catch trata falha capturada e finally permite executar finalização.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "catch executa primeiro a operação e finally escolhe se o comando será descoberto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "finally captura somente erros de sintaxe e substitui os dados da variável $Error.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "try transforma qualquer erro não terminante em erro tratável sem configuração adicional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "catch é usado apenas para filtrar objetos que passam pelo operador de pipeline.",
+          "correct": false
+        }
+      ],
+      "explanation": "try contém a operação, catch recebe erros terminantes capturados e finally pode realizar limpeza ou finalização. Erros não terminantes nem sempre entram em catch sem promoção, por exemplo com -ErrorAction Stop.",
+      "section": "3. Scripts, segurança e tratamento de erros",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço pode ter um Name interno diferente do DisplayName apresentado de forma amigável na listagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Get-Service exibe campos distintos para nome interno e nome de exibição. Um comando administrativo deve usar e confirmar o identificador adequado, em vez de presumir que os dois textos coincidem.",
+      "section": "4. Administração local e remota do Windows",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina deve deixar uma sessão remota persistente disponível para vários comandos. Que fluxo é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar Get-Process -SessionName, que cria e mantém automaticamente a sessão remota.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar uma sessão com New-PSSession, reutilizá-la e removê-la ao concluir.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar Format-Table -ComputerName e aguardar que o host abra a conexão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar Enter-PSSession para cada comando e manter todas as sessões sem encerrá-las.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar Set-ExecutionPolicy, que abre uma conexão remota persistente por escopo.",
+          "correct": false
+        }
+      ],
+      "explanation": "New-PSSession cria uma sessão reutilizável; comandos podem usar essa sessão e Remove-PSSession encerra a conexão quando não for mais necessária. Execution Policy não configura sessões remotas.",
+      "section": "4. Administração local e remota do Windows",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política de execução definida por Group Policy pode prevalecer sobre uma escolha feita em escopo local inferior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A política pode ser administrada centralmente por Group Policy e influenciar o valor efetivo. Por isso a consulta dos escopos e das políticas organizacionais é necessária ao investigar bloqueios.",
+      "section": "3. Scripts, segurança e tratamento de erros",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa gravar dados de objetos em arquivo CSV preservando colunas para uso posterior. Que cmdlet é destinado a essa exportação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Format-List, que escreve a estrutura CSV binária com todos os métodos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Out-File, que serializa automaticamente objetos no formato tabular CSV.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Export-Csv, que serializa propriedades selecionadas em formato CSV.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Get-Member, que exporta propriedades sem receber objetos pelo pipeline.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Write-Output, que grava diretamente colunas CSV em um arquivo indicado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Export-Csv serializa propriedades de objetos como campos CSV. Out-File grava representação textual da saída; para dados estruturados que serão reutilizados como CSV, use o cmdlet de exportação apropriado.",
+      "section": "2. Objetos, pipeline e seleção de resultados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PowerShell, `$ErrorActionPreference` e `-ErrorAction` dizem respeito a como erros de comandos são apresentados ou tratados na sessão e na chamada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Esses mecanismos influenciam o comportamento diante de erros, embora seus efeitos variem por comando e contexto. Eles não corrigem a causa do erro e opções que suprimem mensagens podem dificultar diagnóstico.",
+      "section": "3. Scripts, segurança e tratamento de erros",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cmdlet obtém itens de um diretório e também pode navegar por provedores PowerShell disponíveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Get-WinEvent, que consulta registros de eventos em vez de enumerar diretórios.", "correct": false },
+        { "key": "B", "text": "Get-ExecutionPolicy, que consulta regras aplicáveis à execução de scripts.", "correct": false },
+        { "key": "C", "text": "Get-Process, que consulta processos em execução e suas propriedades.", "correct": false },
+        { "key": "D", "text": "Get-Command, que localiza comandos disponíveis sem listar itens do provedor.", "correct": false },
+        { "key": "E", "text": "Get-ChildItem, que enumera itens no caminho e em provedores compatíveis.", "correct": true }
+      ],
+      "explanation": "Get-ChildItem lista itens e funciona com provedores, incluindo sistema de arquivos e Registro. Os demais comandos consultam políticas, processos, comandos ou eventos.",
+      "section": "2. Objetos, pipeline e seleção de resultados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os objetos recebidos por remoting mantêm necessariamente todos os métodos locais do objeto original, pois o transporte remoto não serializa dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Resultados remotos são serializados para transporte e podem não conservar todos os métodos do objeto local original. Isso importa ao tentar invocar métodos sobre objetos recebidos de outra máquina.",
+      "section": "4. Administração local e remota do Windows",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script chamado limpeza.ps1 não inicia quando executado, embora os cmdlets individuais funcionem no console. Qual explicação é compatível com a função da Execution Policy?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A política pode condicionar a execução de scripts sem bloquear comandos interativos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A política bloqueia todo cmdlet local e permite apenas a execução de arquivos .ps1.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A política controla somente a cor do prompt e não influencia scripts.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A política transforma qualquer script .ps1 em serviço do Windows automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A política é determinada pelo nome do arquivo e não pode ter escopos configuráveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "A Execution Policy afeta as condições para executar scripts, enquanto comandos podem continuar sendo executados interativamente. Verifique o escopo efetivo e as regras organizacionais antes de alterar configurações.",
+      "section": "3. Scripts, segurança e tratamento de erros",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "PowerShell 7 pode usar uma sessão de compatibilidade para interagir com módulos legados de Windows PowerShell em cenários suportados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Como os produtos têm runtimes diferentes e alguns módulos legados dependem do ambiente clássico, recursos de compatibilidade podem executar módulos em processo separado ou sessão apropriada, quando suportados.",
+      "section": "1. Shell, cmdlets e descoberta de comandos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cmdlet consulta uma configuração IP de rede em Windows quando o módulo correspondente está disponível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Get-NetIPConfiguration, que consulta parâmetros IP das interfaces de rede.", "correct": true },
+        { "key": "B", "text": "Get-ExecutionPolicy, que informa regras de execução de scripts na sessão.", "correct": false },
+        { "key": "C", "text": "Get-ChildItem, que lista itens de um caminho ou provedor disponível.", "correct": false },
+        { "key": "D", "text": "Get-PSSession, que consulta sessões remotas persistentes já abertas.", "correct": false },
+        { "key": "E", "text": "Get-Member, que examina propriedades e métodos de objetos recebidos.", "correct": false }
+      ],
+      "explanation": "Get-NetIPConfiguration consulta configuração de interfaces e endereçamento IP no Windows. A disponibilidade depende dos módulos e da versão; os outros cmdlets têm finalidades diferentes.",
+      "section": "4. Administração local e remota do Windows",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`Remove-PSSession` pode ser usado para encerrar sessões remotas persistentes que não serão mais reutilizadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Uma sessão criada com New-PSSession deve ser encerrada quando terminar o uso, por exemplo com Remove-PSSession, para liberar recursos e fechar a conexão persistente.",
+      "section": "4. Administração local e remota do Windows",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comando mostra a localização atual da sessão PowerShell?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Set-Location, que informa a localização sem alterá-la.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Get-Location, que retorna a localização corrente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Get-ChildItem, que sempre informa a localização sem listar conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Get-Command, que retorna o caminho atual do provedor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Get-Member, que identifica a pasta de trabalho do computador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Get-Location informa a localização atual; Set-Location altera a localização. Get-ChildItem lista itens no caminho corrente ou em outro caminho especificado.",
+      "section": "2. Objetos, pipeline e seleção de resultados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O parâmetro `-LiteralPath` pode ser útil quando caracteres do caminho devem ser tratados literalmente, sem interpretação como curingas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Muitos cmdlets de caminho oferecem -LiteralPath para evitar que caracteres especiais sejam interpretados como padrões. Isso ajuda a direcionar a operação ao item cujo nome contém tais caracteres.",
+      "section": "2. Objetos, pipeline e seleção de resultados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um operador quer comparar processos e manter somente aqueles cujo nome começa por `svchost`. Qual cmdlet e operador formam uma solução plausível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Where-Object com Name -like 'svchost*'",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Format-Table com Name -eq 'svchost*'",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Group-Object com Id -match 'svchost*'",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Select-Object com Name -gt 'svchost*'",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sort-Object com Name -ne 'svchost*'",
+          "correct": false
+        }
+      ],
+      "explanation": "Where-Object aplica a condição a cada processo, e -like interpreta o asterisco como curinga. Os demais cmdlets não filtram dessa forma, e Id não é o nome do processo.",
+      "section": "2. Objetos, pipeline e seleção de resultados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A execução de Restart-Service depende de a identidade atual possuir permissão para controlar o serviço escolhido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Cmdlets de controle de serviço não ignoram o modelo de permissões do Windows. A operação pode falhar sem direitos suficientes, mesmo quando a consulta Get-Service funciona.",
+      "section": "4. Administração local e remota do Windows",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação diferencia corretamente saída textual em arquivo e exportação de objetos estruturados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Out-File grava texto; Export-Csv serializa propriedades em colunas CSV.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Out-File cria objetos interativos e Export-Csv grava métodos do objeto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Format-List grava CSV e Export-Csv formata a tela sem gerar arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Get-Member exporta texto e Out-File seleciona propriedades para JSON.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sort-Object grava texto e Export-Csv converte os dados em comandos executáveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Out-File direciona uma representação textual para arquivo; Export-Csv registra propriedades como campos CSV. Escolher depende de o objetivo ser leitura textual ou reutilização estruturada dos dados.",
+      "section": "2. Objetos, pipeline e seleção de resultados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Windows Server Core, recursos que exigem interface gráfica, como ISE e Out-GridView, podem não estar disponíveis mesmo que a shell PowerShell esteja presente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Windows PowerShell pode ser usado no Server Core, mas ferramentas que dependem de interface gráfica, como ISE, Out-GridView e Show-Command, não são adequadas a essa instalação sem GUI.",
+      "section": "1. Shell, cmdlets e descoberta de comandos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe administra vários servidores com um bloco de comandos idêntico e deseja receber os resultados sem alternar manualmente para cada console. Qual recurso é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Invoke-Command direcionado aos computadores remotos com o script block necessário.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Set-Location com o nome de cada servidor e execução local do mesmo bloco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Get-Help apontado a cada servidor, pois a ajuda executa comandos em lote.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Format-Table com nomes de host, que distribui o bloco automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Update-Help em cada máquina, que encaminha quaisquer comandos do console.",
+          "correct": false
+        }
+      ],
+      "explanation": "Invoke-Command executa script blocks em computadores remotos e retorna resultados, desde que remoting, conectividade e autorização estejam configurados. Os demais comandos não distribuem tarefas administrativas.",
+      "section": "4. Administração local e remota do Windows",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em servidores Windows 2019/2022, um módulo disponível no Windows PowerShell 5.1 estará necessariamente instalado e funcional no PowerShell 7 sem ajuste algum.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. PowerShell 7 e Windows PowerShell 5.1 são ambientes separados. Módulos podem depender do .NET Framework ou de componentes específicos e sua disponibilidade ou compatibilidade deve ser confirmada.",
+      "section": "1. Shell, cmdlets e descoberta de comandos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação consulta um serviço e envia apenas o objeto escolhido a um comando de reinicialização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Get-Service -Name Spooler | Restart-Service",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Get-Help Spooler | Get-Service",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Get-Service | Format-Table | Restart-Service",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Get-Member Spooler | Stop-Process",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Get-ExecutionPolicy Spooler | Restart-Service",
+          "correct": false
+        }
+      ],
+      "explanation": "Get-Service pode produzir um objeto de serviço e encaminhá-lo pelo pipeline ao Restart-Service, que aceita objetos de serviço. A formatação deve ser evitada no meio do pipeline de processamento.",
+      "section": "4. Administração local e remota do Windows",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O PowerShell pode usar provedores para acessar fontes de dados como Registro por uma interface de caminhos e unidades navegáveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Provedores adaptam fontes de dados a uma interface comum de navegação e operação. Assim, comandos como Get-ChildItem podem funcionar em unidades de Registro, observadas as permissões e diferenças do provedor.",
+      "section": "2. Objetos, pipeline e seleção de resultados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador quer iniciar um serviço que está parado. Qual cmdlet corresponde diretamente à alteração desejada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Start-Service, apontado ao nome do serviço correto e com direitos suficientes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Get-Service, que inicia automaticamente os serviços parados durante a consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Get-Process, que muda o estado do serviço pelo nome de exibição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Get-WinEvent, que executa o serviço após ler eventos recentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Get-Member, que chama o método de início de qualquer serviço encontrado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Start-Service inicia o serviço selecionado quando a identidade tem autorização. Get-Service apenas consulta; consultar o estado não inicia por si só um serviço parado.",
+      "section": "4. Administração local e remota do Windows",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma variável de PowerShell normalmente é referenciada com `$` e pode armazenar valores ou coleções usadas em comandos subsequentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Nomes de variáveis são referenciados com prefixo `$`, como $nome ou $servicos, e podem guardar valores para reutilização, inclusive arrays com vários elementos.",
+      "section": "2. Objetos, pipeline e seleção de resultados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sessão está em PowerShell 7 e precisa executar um módulo dependente do Windows PowerShell clássico. Qual é a conduta mais segura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar compatibilidade e disponibilidade, usando sessão de compatibilidade se o módulo suportar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Renomear o executável pwsh.exe para powershell.exe e repetir a importação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar Format-Table ao módulo, convertendo automaticamente suas APIs para .NET Framework.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar a Execution Policy, que instala dependências antigas durante a importação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar um alias com o nome do módulo, garantindo que todos os cmdlets funcionem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Compatibilidade deve ser verificada por módulo e por comando. Alguns módulos legados podem usar sessão de compatibilidade, mas alterar nome de executável, formatação ou política de execução não instala dependências nem garante compatibilidade.",
+      "section": "1. Shell, cmdlets e descoberta de comandos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de `-Confirm` em cmdlets compatíveis pode solicitar confirmação antes de uma operação que modifica o sistema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Cmdlets com suporte a ShouldProcess podem usar -Confirm para solicitar confirmação. Esse recurso deve ser entendido por comando e não substitui revisão dos alvos e impactos.",
+      "section": "3. Scripts, segurança e tratamento de erros",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa relaciona corretamente os executáveis às respectivas linhas PowerShell no Windows?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "powershell.exe para Windows PowerShell; pwsh.exe para PowerShell 7.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "powershell.exe para PowerShell 7; pwsh.exe para Windows PowerShell 5.1.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "powershell.exe para remoting; pwsh.exe somente para scripts assinados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "powershell.exe para módulos; pwsh.exe somente para cmdlets nativos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "powershell.exe para modo gráfico; pwsh.exe para modo Server Core.",
+          "correct": false
+        }
+      ],
+      "explanation": "Windows PowerShell clássico é iniciado por powershell.exe; PowerShell 7 usa pwsh.exe. Os produtos podem coexistir e a escolha do host afeta compatibilidade de scripts e módulos.",
+      "section": "1. Shell, cmdlets e descoberta de comandos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Get-Process pode consultar processos locais e Stop-Process pode tentar encerrá-los, mas a autorização e o impacto devem ser considerados antes da ação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Os cmdlets têm finalidades diferentes: Get-Process consulta objetos; Stop-Process tenta terminar o processo. Encerrar processo pode exigir elevação e afetar aplicações ou serviços.",
+      "section": "4. Administração local e remota do Windows",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cmdlet ordena objetos por nome antes da apresentação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Group-Object Name, que reúne objetos em grupos conforme valores da propriedade.", "correct": false },
+        { "key": "B", "text": "Sort-Object Name, que ordena objetos pelo valor da propriedade Name.", "correct": true },
+        { "key": "C", "text": "Where-Object Name, que filtra objetos por condição em vez de ordená-los.", "correct": false },
+        { "key": "D", "text": "Get-Member Name, que inspeciona membros e não altera a ordem dos objetos.", "correct": false },
+        { "key": "E", "text": "Format-List Name, que controla a exibição em lista sem classificar objetos.", "correct": false }
+      ],
+      "explanation": "Sort-Object ordena os objetos pela propriedade indicada. Group-Object agrupa, Where-Object filtra e Format-List controla a apresentação.",
+      "section": "2. Objetos, pipeline e seleção de resultados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para que um computador aceite conexões tradicionais de PowerShell remoting, a configuração do WinRM e as regras de rede podem precisar ser ajustadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Remoting depende de configuração do serviço e dos endpoints, conectividade e regras de firewall, além de autenticação e autorização. Habilitar um recurso não garante que todos os demais requisitos estejam atendidos.",
+      "section": "4. Administração local e remota do Windows",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador busca informações gerais do Windows, como dados de hardware e sistema, com um cmdlet de inventário. Qual opção é adequada quando disponível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Enter-PSSession, que abre interação remota e não coleta inventário local.", "correct": false },
+        { "key": "B", "text": "Set-Location, que muda o caminho corrente sem consultar dados de hardware.", "correct": false },
+        { "key": "C", "text": "Get-ComputerInfo, que consulta informações gerais do computador e do Windows.", "correct": true },
+        { "key": "D", "text": "Restart-Service, que solicita reinicialização do serviço selecionado.", "correct": false },
+        { "key": "E", "text": "Export-Csv, que grava objetos em formato tabular sem inventariar o sistema.", "correct": false }
+      ],
+      "explanation": "Get-ComputerInfo consulta informações do sistema e do computador. Os outros comandos alteram localização, serviço, exportam dados ou abrem sessão remota.",
+      "section": "4. Administração local e remota do Windows",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`Get-ExecutionPolicy` informa a configuração efetiva consultada, mas não prova que um script específico seja seguro para executar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O cmdlet informa a política aplicável; segurança do script depende de origem, conteúdo, integridade, permissões e controles adicionais. A política de execução não substitui auditoria do código.",
+      "section": "3. Scripts, segurança e tratamento de erros",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cmdlet cria uma nova sessão persistente, que pode ser usada em execuções posteriores e removida quando não for mais necessária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Update-Help, que atualiza arquivos de ajuda e não abre sessões remotas.", "correct": false },
+        { "key": "B", "text": "Enter-PSSession, que inicia interação remota no prompt corrente.", "correct": false },
+        { "key": "C", "text": "Get-Command, que localiza comandos sem criar conexão persistente.", "correct": false },
+        { "key": "D", "text": "New-PSSession, que cria uma sessão remota persistente reutilizável.", "correct": true },
+        { "key": "E", "text": "Get-Service, que consulta objetos de serviço no contexto da sessão.", "correct": false }
+      ],
+      "explanation": "New-PSSession cria uma sessão remota persistente. Enter-PSSession conecta interativamente; Get-Command descobre comandos e os demais têm funções não relacionadas à criação de uma PSSession.",
+      "section": "4. Administração local e remota do Windows",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Cmdlets como Remove-Item podem alterar ou excluir dados, portanto deve-se conferir o caminho e avaliar o uso de simulação quando houver suporte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Remove-Item pode apagar arquivos, diretórios ou elementos de outros provedores. Revisar o alvo e usar -WhatIf em operações compatíveis reduz erros operacionais, sem substituir a validação do comando.",
+      "section": "4. Administração local e remota do Windows",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma administradora quer listar os serviços cujo nome interno começa por `Win`, mas excluir WinRM. Qual abordagem expressa esses dois critérios?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Get-Service -Name 'Win*' -Exclude 'WinRM'",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Get-Service -DisplayName 'WinRM' -Include 'Win*'",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Get-Process -Name 'Win*' -Exclude 'WinRM'",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Where-Object -Name 'Win*' -Exclude 'WinRM'",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Restart-Service -Name 'Win*' -Exclude 'WinRM'",
+          "correct": false
+        }
+      ],
+      "explanation": "Get-Service aceita filtro por nome e exclusão por -Exclude, permitindo consultar os serviços correspondentes sem alterar seu estado. Restart-Service teria efeito de alteração e não é necessário para listar resultados.",
+      "section": "4. Administração local e remota do Windows",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A documentação oficial de PowerShell inclui referências de módulos que ajudam a identificar cmdlets disponíveis para administrar Windows Server 2022 e Windows 11.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A Microsoft publica uma referência dos módulos PowerShell incluídos nessas versões, com links para os cmdlets e informações de ajuda correspondentes.",
+      "section": "1. Shell, cmdlets e descoberta de comandos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "PowerShell",
+      "publisher": "Microsoft Learn",
+      "reference": "Descrição do Windows PowerShell e uso de powershell.exe; versões Windows aplicáveis incluindo Windows 10/11 e Server 2019/2022.",
+      "url": "https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/powershell",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Windows Server 2022 and Windows 11 PowerShell modules",
+      "publisher": "Microsoft Learn",
+      "reference": "Módulos incluídos e referências para administração nas versões indicadas.",
+      "url": "https://learn.microsoft.com/en-us/powershell/windows/get-started?view=windowsserver2022-ps",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Getting Started with PowerShell - PowerShell 101",
+      "publisher": "Microsoft Learn",
+      "reference": "Diferenças entre Windows PowerShell 5.1 e PowerShell 7; política de execução e escopos.",
+      "url": "https://learn.microsoft.com/en-us/powershell/scripting/learn/ps101/01-getting-started?view=powershell-7.6",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Get-Service",
+      "publisher": "Microsoft Learn",
+      "reference": "Consulta de serviços, objetos retornados, filtragem, permissões e uso remoto.",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/get-service?view=powershell-5.1",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Restart-Service",
+      "publisher": "Microsoft Learn",
+      "reference": "Reinicialização de serviços, parâmetros, pipeline e permissões.",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/restart-service?view=powershell-5.1",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Windows Server Management documentation",
+      "publisher": "Microsoft Learn",
+      "reference": "Administração de Windows Server, linha de comando e ferramentas de gerenciamento remoto.",
+      "url": "https://learn.microsoft.com/en-us/windows-server/administration/manage-windows-server",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Install and Manage Remote Server Administration Tools in Windows",
+      "publisher": "Microsoft Learn",
+      "reference": "Instalação e uso de RSAT em clientes Windows compatíveis.",
+      "url": "https://learn.microsoft.com/en-us/windows-server/administration/install-remote-server-administration-tools",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

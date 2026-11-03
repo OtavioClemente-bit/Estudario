@@ -1,0 +1,1561 @@
+{
+  "id": "informatica.programacao-shell-script",
+  "subject": "Informática",
+  "title": "Programação em Shell Script",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Linguagens de Programação: Shell Script",
+    "Programação com Shell Script",
+    "Scripts de shell em sistemas Unix",
+    "Shell scripting com Bash",
+    "Linguagem de comandos Bash",
+    "Automação de tarefas com shell",
+    "Variáveis e parâmetros no Bash",
+    "Estruturas condicionais em shell",
+    "Laços de repetição em Bash",
+    "Funções e argumentos de shell script",
+    "Redirecionamentos e pipelines Bash",
+    "Expansão e aspas em shell script"
+  ],
+  "scope": {
+    "covers": "Fundamentos de scripts de shell com foco em Bash: execução de scripts e shebang; comandos, variáveis, parâmetros posicionais e códigos de saída; aspas, expansões e substituição de comandos; testes, condicionais e laços; funções, arrays e leitura de argumentos; redirecionamentos, descritores, pipelines, here-documents; sinais, traps e práticas de segurança e portabilidade.",
+    "excludes": "Administração avançada de sistemas, programação de utilitários externos, sintaxe detalhada de outras shells, configuração de servidores e uso interativo do terminal sem relação com scripts."
+  },
+  "theoryTitle": "Automação com scripts de shell",
+  "chapters": [
+    {
+      "title": "1. O script e seu fluxo de execução",
+      "markdown": "### O problema que este assunto resolve\n\nUm shell script transforma uma sequência repetida de comandos em um arquivo executável e reproduzível. Pode validar arquivos, organizar cópias de segurança, encadear ferramentas e interromper uma rotina quando uma etapa falha. O shell interpreta a linha, expande parâmetros, prepara redirecionamentos e executa comandos; portanto, caracteres como espaço, aspas, cifrão e asterisco podem mudar o sentido do programa.\n\n> **Siglas e termos deste capítulo**\n> - **Shell**: interpretador de comandos e linguagem para combiná-los.\n> - **Bash**: Bourne-Again Shell, uma shell com recursos próprios além da sintaxe básica POSIX.\n> - **Shebang**: primeira linha `#!` que indica o interpretador esperado pelo sistema ao executar o arquivo diretamente.\n> - **PATH**: lista de diretórios pesquisados para localizar executáveis.\n> - **Status de saída**: inteiro retornado por um comando; zero normalmente indica sucesso e valor diferente de zero indica falha.\n\n### Criar e executar\n\nUm script é texto com comandos. Um exemplo Bash começa com `#!/usr/bin/env bash`, seguido por comandos, e pode receber permissão de execução com `chmod +x rotina.sh`. Executá-lo como `./rotina.sh` usa o interpretador indicado na primeira linha. Já `bash rotina.sh` pede explicitamente ao Bash que leia o arquivo; nesse modo, a permissão de execução não é necessária. A localização de `bash` por `env` depende do `PATH`, enquanto um caminho absoluto fixa a localização do executável.\n\nOs argumentos após o nome do arquivo tornam-se parâmetros posicionais: `$0` contém o nome usado para invocar o script, `$1` é o primeiro argumento, e assim por diante. `$#` conta os argumentos. `\"$@\"` representa cada argumento separadamente e preserva espaços quando citado; `\"$*\"` dentro de aspas duplas junta os parâmetros numa única palavra, separados pelo primeiro caractere de `IFS`.\n\n### Status e encadeamento\n\nO status do último comando fica em `$?`. Em `A && B`, B só roda se A terminar com status zero; em `A || B`, B só roda se A falhar. Um `if` testa o status do comando que o segue, não uma noção abstrata de verdadeiro e falso. `exit N` encerra o script e devolve N ao processo chamador; `return N` encerra uma função ou, em certos usos, um arquivo incluído.\n\n| Elemento | Uso |\n| --- | --- |\n| `#!/usr/bin/env bash` | Escolhe Bash usando a busca do ambiente |\n| `bash arquivo.sh` | Executa o arquivo com Bash explicitamente |\n| `chmod +x arquivo.sh` | Marca o arquivo como executável |\n| `$?` | Consulta o último status de saída |\n| `exit 1` | Termina o script informando falha |\n\n### Como cai na prova\n\nA banca costuma confundir execução direta com `bash arquivo`, misturar `$0` e `$1`, ou afirmar que status zero significa erro. Também cobra que o shebang só orienta a execução direta e que o script precisa estar legível para o interpretador."
+    },
+    {
+      "title": "2. Variáveis, aspas e expansões",
+      "markdown": "### O problema que este assunto resolve\n\nUm script precisa combinar dados com comandos sem que um nome de arquivo com espaços seja dividido, que um asterisco vire uma lista inesperada ou que texto seja interpretado como código. A maior parte dos erros iniciais nasce da ordem de expansão e da falta de aspas.\n\n> **Siglas e termos deste capítulo**\n> - **Expansão**: substituição de uma expressão do shell por valores, palavras ou nomes de arquivos.\n> - **Word splitting**: divisão do resultado de expansão não protegido por aspas segundo caracteres de `IFS`.\n> - **Globbing**: expansão de padrões como `*.log` para nomes de arquivos correspondentes.\n> - **Substituição de comando**: uso da saída padrão de um comando como parte de outra palavra, por exemplo `$(pwd)`.\n> - **IFS**: variável que define caracteres usados na divisão de palavras.\n\n### Atribuição e leitura de variável\n\nAtribui-se com `nome=valor`, sem espaços ao redor do sinal de igual. Usa-se o valor com `$nome` ou `${nome}`. Uma variável criada no shell não é automaticamente exportada para os processos filhos; `export nome` inclui-a no ambiente de comandos executados. `local nome` limita a variável à função corrente no Bash. Para entrada interativa ou dados não confiáveis, `read -r nome` evita que barras invertidas sejam consumidas como escapes.\n\nAspas simples preservam literalmente tudo entre elas; não permitem nem mesmo uma aspa simples interna sem fechar e reabrir a sequência. Aspas duplas preservam a maioria dos caracteres, mas ainda permitem expansão de `$variavel`, `$(comando)` e `$((expressão))`. A barra invertida fora de aspas protege o próximo caractere. Em geral, cite expansões como `\"$nome\"` e `\"$@\"`: isso impede divisão por espaços e expansão de curingas.\n\n### Expansões que aparecem em prova\n\n`$(comando)` executa o comando e substitui a expressão pela saída padrão, removendo quebras de linha finais. Crases são a forma antiga e mais difícil de aninhar. `${variavel:-padrão}` fornece o padrão se a variável estiver ausente ou vazia; `${variavel:=padrão}` também atribui esse padrão. `$((...))` faz aritmética inteira. A expansão de nomes de arquivo, como `*.txt`, ocorre depois da divisão de palavras quando o padrão não está citado.\n\n| Forma | Efeito principal |\n| --- | --- |\n| `\"$arquivo\"` | Uma palavra, mesmo se o nome tiver espaços |\n| `'$arquivo'` | Texto literal `$arquivo` |\n| `$(date)` | Saída padrão do comando `date` |\n| `${x:-padrão}` | Valor de x ou padrão se ausente/vazia |\n| `$((n + 1))` | Resultado da aritmética inteira |\n\n### Como cai na prova\n\nSe um enunciado menciona nome de arquivo com espaços, a resposta segura é citar a expansão. Aspas simples não expandem variáveis; aspas duplas expandem parâmetros, mas preservam a palavra como unidade. `eval` reinterpreta texto como código e não é substituto seguro para aspas."
+    },
+    {
+      "title": "3. Testes, decisões e repetição",
+      "markdown": "### O problema que este assunto resolve\n\nAutomação precisa escolher caminhos com base em estados concretos: arquivo existe, processo terminou, texto está vazio, contagem atingiu um limite. Bash oferece comandos de teste e estruturas de controle, mas cada teste comunica seu resultado por status de saída.\n\n> **Siglas e termos deste capítulo**\n> - **`test` / `[ ... ]`**: comando tradicional de teste; os espaços internos são sintaxe obrigatória.\n> - **`[[ ... ]]`**: construção condicional do Bash, com regras próprias e recursos adicionais.\n> - **`(( ... ))`**: avaliação aritmética do Bash.\n> - **Status**: resultado usado por `if`, `while`, `&&` e `||`.\n> - **Padrão**: expressão de correspondência de nomes/textos; não é necessariamente uma expressão regular.\n\n### Condicionais e testes\n\n`if comando; then ...; elif outro_comando; then ...; else ...; fi` executa o bloco cujo teste termina com sucesso. Para arquivos, `[ -f \"$p\" ]` verifica arquivo regular; `[ -d \"$p\" ]` verifica diretório; `[ -e \"$p\" ]` verifica existência; `[ -r \"$p\" ]` verifica legibilidade. Para texto, `-n` testa não vazio e `-z` vazio. Comparações textuais usam `=` em `[`; comparação numérica tradicional usa `-eq`, `-lt` e operadores semelhantes.\n\nNo Bash, `[[ ... ]]` evita divisão de palavras e globbing dos operandos, e permite correspondência por padrão à direita de `==`. Dentro de `[[ ... ]]`, `&&` e `||` combinam condições. O construto `[ ... ]` é um comando e requer espaços: `[ \"$n\" -gt 2 ]`. Para aritmética, `(( n > 2 ))` é adequado; o status é zero quando a expressão aritmética é diferente de zero.\n\n### Laços e seleção\n\n`for item in lista; do ...; done` percorre palavras da lista. `for ((i=0; i<5; i++)); do ...; done` é a forma aritmética do Bash. `while condição; do ...; done` repete enquanto o comando de condição termina com sucesso; `until condição` repete enquanto falha. `break` sai do laço corrente e `continue` passa à próxima iteração. `case \"$valor\" in padrão) ... ;; esac` seleciona um ramo por padrão de shell.\n\n| Construção | Critério de continuidade |\n| --- | --- |\n| `while comando` | enquanto status for zero |\n| `until comando` | enquanto status for diferente de zero |\n| `for x in ...` | para cada palavra da lista |\n| `case x in p)` | padrão de shell correspondente |\n\n### Como cai na prova\n\nUma pegadinha recorrente é tratar `while` como repetição enquanto a expressão textual for verdadeira, ignorando status. Outra é trocar `-eq` por `=` em teste numérico tradicional ou esquecer espaços que separam os argumentos de `[`."
+    },
+    {
+      "title": "4. Funções, argumentos e entrada de dados",
+      "markdown": "### O problema que este assunto resolve\n\nUma rotina que se repete deve ficar em uma função, com nome e parâmetros claros. Separar validação, processamento e saída facilita reuso e permite devolver falhas ao chamador sem encerrar toda a sessão por engano.\n\n> **Siglas e termos deste capítulo**\n> - **Função**: bloco nomeado de comandos chamado pelo script.\n> - **Parâmetros posicionais**: valores `$1`, `$2` e seguintes disponíveis no script ou função.\n> - **`shift`**: remove o primeiro parâmetro posicional e move os seguintes uma posição.\n> - **`stdin`**: entrada padrão, normalmente descritor 0.\n> - **`stdout` / `stderr`**: saída padrão e saída de erro, descritores 1 e 2.\n\n### Funções e escopo\n\nUma função Bash pode ser declarada como `processar() { comandos; }` e chamada pelo nome. Dentro dela, `$1`, `$2` e `\"$@\"` referem-se aos argumentos da função durante sua execução. `local resultado` cria uma variável local à função. `return N` devolve um status, não uma string arbitrária; para produzir texto, a função escreve em sua saída padrão e o chamador pode capturá-lo com `valor=$(funcao)`.\n\n`shift` descarta `$1`, renumera os parâmetros restantes e reduz `$#`. É útil para percorrer opções, mas deve-se verificar que há argumento antes de usá-lo. O builtin `getopts` processa opções curtas, mantém a opção lida em uma variável e pode expor seu argumento em `OPTARG`. A variável `OPTIND` acompanha a próxima posição a processar.\n\n### Arrays Bash\n\nArrays indexados começam no índice zero e podem ser declarados como `itens=(\"um\" \"dois\")`. `${itens[0]}` acessa um elemento; `\"${itens[@]}\"` expande cada elemento como palavra separada. `${#itens[@]}` informa quantos elementos existem. Arrays associativos, declarados com `declare -A mapa`, usam chaves textuais. Arrays e `[[ ... ]]` são recursos de Bash; scripts que precisam funcionar em `/bin/sh` não devem depender deles.\n\n### Como cai na prova\n\nNão confunda `return` com impressão de resultado: o primeiro informa status, a segunda produz dados. Em listas de argumentos, `\"$@\"` preserva a separação original. Citar `\"${array[@]}\"` também mantém cada elemento separado, ao passo que `\"${array[*]}\"` produz uma única palavra."
+    },
+    {
+      "title": "5. Entrada/saída, pipes e robustez",
+      "markdown": "### O problema que este assunto resolve\n\nScripts ligam comandos por fluxos de dados. Redirecionamentos permitem salvar resultados, registrar erros e fornecer arquivos como entrada; pipes encaminham a saída de um processo para a entrada de outro. A ordem dos operadores e o tratamento do status determinam se a automação é observável e confiável.\n\n> **Siglas e termos deste capítulo**\n> - **Descritor de arquivo**: número associado a um fluxo aberto; 0 é entrada, 1 saída e 2 erro por convenção.\n> - **Pipe (`|`)**: conecta stdout de um comando ao stdin do seguinte.\n> - **Here-document**: bloco de texto usado como entrada de um comando.\n> - **Trap**: ação executada quando o shell recebe determinado sinal ou evento.\n> - **`pipefail`**: opção Bash que faz um pipeline falhar se algum componente falhar.\n\n### Redirecionamentos\n\n`comando < entrada.txt` lê do arquivo. `>` cria ou trunca o arquivo de saída; `>>` acrescenta ao fim. `2> erros.log` redireciona somente stderr. `> tudo.log 2>&1` direciona stdout ao arquivo e depois copia stderr para o destino atual de stdout. A ordem importa: `2>&1 > tudo.log` duplica stderr para o destino original de stdout antes de redirecionar stdout ao arquivo.\n\n`comando1 | comando2` conecta os fluxos padrão; por padrão, o status de um pipeline Bash é o status do último comando. `set -o pipefail` altera essa regra para refletir uma falha em qualquer comando do pipeline. `set -u` faz referências a variáveis não definidas serem tratadas como erro. `set -e` tenta encerrar em falhas não tratadas, mas tem exceções contextuais; não substitui tratamento explícito com `if` e `||`.\n\nUm here-document `cat <<'FIM' ... FIM` fornece linhas até o delimitador. Se o delimitador é citado, o conteúdo não sofre expansão de parâmetros e comandos. `trap 'limpar' EXIT` agenda limpeza ao sair; traps para sinais devem preservar o comportamento desejado e não ocultar a falha original.\n\n### Segurança e portabilidade\n\nNunca construa uma linha de comando a partir de texto não confiável e passe-a a `eval`. Cite expansões, use caminhos controlados, valide argumentos e considere `--` antes de argumentos que possam começar com hífen quando o comando aceitar esse separador. Não suponha que Bash e `/bin/sh` sejam a mesma linguagem: arrays, `[[ ]]`, `(( ))`, `source` e várias expansões são extensões de Bash. Uma rotina portátil deve usar construções da especificação POSIX.\n\n### Como cai na prova\n\nA banca troca `>` e `>>`, atribui a stderr a `2>&1`, ou afirma que pipefail é o comportamento padrão. Também pode testar a ordem dos redirecionamentos e se here-document com delimitador citado expande variáveis."
+    }
+  ],
+  "summary": "Shell script é um arquivo de comandos interpretado por uma shell, usado para automatizar tarefas. Em Bash, argumentos posicionais, status de saída, expansões, estruturas de controle, funções e redirecionamentos permitem compor rotinas. A citação correta das expansões preserva argumentos com espaços e reduz erros; testes e tratamento explícito de falhas tornam o fluxo previsível. Bash tem recursos próprios que não são portáveis automaticamente para /bin/sh.",
+  "flashcards": [
+    {
+      "front": "O que é um shell script?",
+      "back": "Arquivo de texto com comandos que uma shell lê e executa, normalmente para automatizar uma sequência de tarefas."
+    },
+    {
+      "front": "Para que serve o shebang?",
+      "back": "Indica o interpretador esperado quando o script é executado diretamente como arquivo."
+    },
+    {
+      "front": "O que contém `$0`?",
+      "back": "O nome usado para invocar o script ou, dentro da função, o nome do script em execução."
+    },
+    {
+      "front": "O que representa `$1`?",
+      "back": "O primeiro argumento posicional do script ou da função corrente."
+    },
+    {
+      "front": "O que informa `$#`?",
+      "back": "A quantidade de argumentos posicionais disponíveis."
+    },
+    {
+      "front": "Qual diferença entre `\"$@\"` e `\"$*\"`?",
+      "back": "`\"$@\"` preserva cada argumento como palavra separada; `\"$*\"` os junta em uma palavra."
+    },
+    {
+      "front": "O que informa `$?`?",
+      "back": "O status de saída do comando executado mais recentemente."
+    },
+    {
+      "front": "Qual convenção usual para status zero?",
+      "back": "Zero indica sucesso; valores diferentes de zero indicam alguma condição de falha ou resultado especial."
+    },
+    {
+      "front": "O que fazem aspas simples em Bash?",
+      "back": "Preservam literalmente os caracteres internos e impedem expansão de variáveis e comandos."
+    },
+    {
+      "front": "O que fazem aspas duplas com `$variavel`?",
+      "back": "Permitem a expansão, mas preservam o resultado como uma palavra, evitando divisão e globbing."
+    },
+    {
+      "front": "O que executa `$(comando)`?",
+      "back": "Executa o comando e substitui a expressão por sua saída padrão, removendo quebras de linha finais."
+    },
+    {
+      "front": "O que faz `${x:-padrão}`?",
+      "back": "Usa o valor de x se definido e não vazio; caso contrário, produz o padrão sem atribuí-lo a x."
+    },
+    {
+      "front": "Qual teste verifica se caminho é diretório?",
+      "back": "`[ -d \"$caminho\" ]` verifica se o caminho existente é diretório."
+    },
+    {
+      "front": "Como testar texto vazio?",
+      "back": "`[ -z \"$texto\" ]` tem status zero quando o texto está vazio."
+    },
+    {
+      "front": "Quando o corpo de `while` se repete?",
+      "back": "Enquanto o comando de condição terminar com status zero."
+    },
+    {
+      "front": "O que faz `case`?",
+      "back": "Escolhe um bloco conforme o valor combina com um padrão de shell."
+    },
+    {
+      "front": "O que devolve `return` em uma função?",
+      "back": "Um status de saída; não devolve uma string como valor de retorno."
+    },
+    {
+      "front": "Como capturar texto produzido por função?",
+      "back": "A função escreve em stdout e o chamador pode capturar com `variavel=$(funcao)`."
+    },
+    {
+      "front": "O que faz `shift`?",
+      "back": "Descarta o primeiro parâmetro posicional e desloca os demais para índices menores."
+    },
+    {
+      "front": "Qual é o descritor padrão de stderr?",
+      "back": "O descritor 2."
+    },
+    {
+      "front": "Diferença entre `>` e `>>`?",
+      "back": "`>` trunca ou cria o arquivo; `>>` acrescenta ao fim."
+    },
+    {
+      "front": "O que conecta `A | B`?",
+      "back": "A saída padrão de A à entrada padrão de B."
+    },
+    {
+      "front": "Qual status um pipeline Bash usa por padrão?",
+      "back": "O status do último comando do pipeline."
+    },
+    {
+      "front": "O que muda `set -o pipefail`?",
+      "back": "Um pipeline passa a falhar se algum comando falhar, conforme a regra de status do Bash."
+    },
+    {
+      "front": "O que faz `trap ... EXIT`?",
+      "back": "Agenda a ação indicada para a saída do shell."
+    }
+  ],
+  "tips": [
+    "Cite expansões de variáveis e argumentos para preservar nomes com espaços e evitar globbing acidental.",
+    "Use `\"$@\"` ao encaminhar todos os argumentos recebidos para outro comando ou função.",
+    "Teste explicitamente status de comandos críticos com `if` quando a recuperação precisar ser controlada.",
+    "Use `[[ ... ]]` e arrays apenas quando Bash for o interpretador declarado e disponível.",
+    "Separe stdout e stderr quando registros de execução precisarem distinguir resultado e diagnóstico.",
+    "Valide quantidade e forma dos argumentos antes de usar `$1` ou acessar arquivos informados pelo usuário."
+  ],
+  "traps": [
+    "Aspas simples não expandem `$variavel`; aspas duplas expandem, mas protegem o resultado contra divisão de palavras.",
+    "`$?` precisa ser consultado antes de outro comando substituir o status que se quer examinar.",
+    "`2>&1` copia o destino atual de stdout para stderr; a ordem relativa a `>` altera o resultado.",
+    "`while` repete com status zero; `until` repete enquanto o comando falha.",
+    "`return` informa status de função; para retornar texto, a função escreve em stdout.",
+    "`set -e` tem exceções conforme o contexto e não torna dispensável tratar falhas deliberadamente."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva como executar diretamente um script Bash e o papel da primeira linha.",
+      "answer": "A primeira linha pode indicar o interpretador, por exemplo `#!/usr/bin/env bash`; com permissão de execução, invoca-se o arquivo pelo caminho. Também é possível chamar `bash arquivo`, que escolhe Bash explicitamente."
+    },
+    {
+      "question": "Explique como o shell preserva um argumento cujo nome contém espaços.",
+      "answer": "Use aspas duplas na expansão, como `\"$arquivo\"` ou `\"$@\"`, para evitar que o resultado seja dividido em várias palavras ou interpretado como padrão de arquivos."
+    },
+    {
+      "question": "Compare `$0`, `$1`, `$#` e `$?`.",
+      "answer": "`$0` é o nome de invocação; `$1` é o primeiro argumento; `$#` conta os argumentos; `$?` é o status do último comando."
+    },
+    {
+      "question": "Como diferem aspas simples e duplas em Bash?",
+      "answer": "Aspas simples preservam o conteúdo literal. Aspas duplas permitem expansões de parâmetros e comandos, mas mantêm o resultado de cada expansão como palavra protegida."
+    },
+    {
+      "question": "Como `if` decide qual bloco executar?",
+      "answer": "Avalia o status de saída do comando que aparece como condição; status zero seleciona o ramo de sucesso."
+    },
+    {
+      "question": "Explique a diferença de continuidade entre `while` e `until`.",
+      "answer": "`while` repete enquanto o teste retorna sucesso; `until` repete enquanto o teste retorna falha."
+    },
+    {
+      "question": "Como uma função Bash comunica status e texto?",
+      "answer": "Usa `return` para devolver status de saída e escreve texto em stdout, que pode ser capturado por substituição de comando."
+    },
+    {
+      "question": "Descreva a diferença entre stdout, stderr e um pipe.",
+      "answer": "stdout é o fluxo padrão de resultado, stderr é o de diagnóstico; o pipe liga stdout de um comando ao stdin do próximo."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Aspas e divisão de argumentos",
+      "summary": "Expansões não citadas podem sofrer word splitting e globbing. Aspas simples impedem toda expansão; aspas duplas permitem expansão mantendo o resultado como unidade. `\"$@\"` preserva argumentos separados."
+    },
+    {
+      "key": "e2",
+      "title": "Status de saída confundido com valor textual",
+      "summary": "Status zero indica sucesso por convenção. `$?` é substituído pelo status do comando anterior; `return` devolve status, enquanto texto de função passa por stdout."
+    },
+    {
+      "key": "e3",
+      "title": "Testes e laços interpretados como booleanos comuns",
+      "summary": "Comandos de teste comunicam resultado por status. `while` continua no sucesso, `until` continua na falha, e a sintaxe de `[` exige espaços entre colchetes e expressões."
+    },
+    {
+      "key": "e4",
+      "title": "Redirecionamentos e descritores trocados",
+      "summary": "Descritores 0, 1 e 2 são stdin, stdout e stderr. `>` trunca, `>>` acrescenta, e `2>&1` duplica o destino atual de stdout; a ordem dos operadores importa."
+    },
+    {
+      "key": "e5",
+      "title": "Bash confundido com shell POSIX",
+      "summary": "Arrays, `[[ ]]`, `(( ))` e outras construções são recursos Bash. Um script que declara `/bin/sh` deve evitar essas extensões se precisar ser portátil."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um script Bash pode receber argumentos posicionais na invocação, e o primeiro deles fica disponível em `$1`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O nome de invocação fica em `$0`; os argumentos seguintes são numerados a partir de `$1`, e `$#` informa quantos argumentos foram fornecidos.",
+      "section": "1. O script e seu fluxo de execução",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao executar `bash rotina.sh`, o sistema exige que rotina.sh tenha permissão de execução, pois o interpretador só aceita arquivos executáveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Nessa forma, Bash abre e lê o arquivo, bastando que o usuário tenha acesso de leitura. A permissão de execução é necessária para invocá-lo diretamente como `./rotina.sh`.",
+      "section": "1. O script e seu fluxo de execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por convenção, um comando que termina com status zero é considerado bem-sucedido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O status zero representa sucesso na convenção de shells Unix; valores não zero podem indicar falha ou outro resultado definido pelo comando.",
+      "section": "1. O script e seu fluxo de execução",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A linha `#!/usr/bin/env bash` é interpretada como comando executado depois que todos os comandos do arquivo já terminaram.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A linha inicial é um shebang que orienta a escolha do interpretador na execução direta do arquivo; não é uma etapa posterior ao script.",
+      "section": "1. O script e seu fluxo de execução",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`A && B` executa B apenas quando A termina com status zero.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O operador `&&` avalia o primeiro comando e só chama o segundo se o status do primeiro for zero. Se A falha, o curto-circuito evita B; isso permite encadear uma etapa dependente sem executá-la após erro.",
+      "section": "1. O script e seu fluxo de execução",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`$?` continua guardando o status do comando que se quer examinar mesmo depois de executar outros comandos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. `$?` reflete o status do comando mais recentemente executado; uma atribuição ou outro comando pode substituí-lo, por isso deve ser consultado imediatamente.",
+      "section": "1. O script e seu fluxo de execução",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de `export VAR` disponibiliza VAR no ambiente dos processos filhos iniciados pelo shell.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Variáveis do shell não são automaticamente variáveis de ambiente; exportá-las marca-as para inclusão no ambiente de comandos filhos.",
+      "section": "2. Variáveis, aspas e expansões",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aspas simples em Bash permitem que `$HOME` seja expandido, mas impedem a expansão de curingas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Aspas simples preservam literalmente cada caractere que está dentro delas. Assim, `$HOME` permanece escrito como texto e não é expandido; aspas duplas, por sua vez, permitiriam a expansão do parâmetro, embora protegessem o resultado contra divisão de palavras.",
+      "section": "2. Variáveis, aspas e expansões",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dentro de aspas duplas, a expansão de `$arquivo` pode ocorrer, preservando o resultado como uma única palavra.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Aspas duplas não impedem a expansão de parâmetro, mas protegem seu resultado contra divisão de palavras e expansão de nomes de arquivo.",
+      "section": "2. Variáveis, aspas e expansões",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A forma moderna `$(comando)` captura a saída padrão do comando e remove as quebras de linha finais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A substituição de comando executa o comando em ambiente de subshell e substitui a expressão por sua saída padrão sem as quebras finais.",
+      "section": "2. Variáveis, aspas e expansões",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, `for x in ...` percorre cada linha impressa pelos comandos incluídos na lista, ainda que os elementos contenham espaços.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A forma percorre palavras após as expansões e pode dividir conteúdo por IFS e expandir curingas. Para preservar linhas ou itens com espaços, é necessário projetar uma leitura apropriada, como `while IFS= read -r` ou usar arrays.",
+      "section": "2. Variáveis, aspas e expansões",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A expressão `${x:-padrão}` fornece o padrão quando x está ausente ou vazia, sem por si só atribuir esse texto à variável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O operador `:-` escolhe o valor alternativo para a expansão. A forma com `:=` também atribui o padrão à variável quando ela está ausente ou vazia.",
+      "section": "2. Variáveis, aspas e expansões",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`read -r linha` evita que barras invertidas da entrada sejam interpretadas como caracteres de escape por read.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A opção `-r` impede a interpretação de barra invertida como escape e é apropriada para ler conteúdo literal de linhas.",
+      "section": "2. Variáveis, aspas e expansões",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um teste `[ -f \"$p\" ]`, o operador `-f` verifica se p aponta para um diretório.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. `-f` testa arquivo regular; `-d` testa diretório. A expansão citada também evita problemas com espaços no caminho.",
+      "section": "3. Testes, decisões e repetição",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O corpo de `while comando; do ...; done` se repete enquanto o comando de teste termina com status zero.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A condição é um comando; sucesso, representado por status zero, mantém o laço em execução. `until` usa a condição inversa.",
+      "section": "3. Testes, decisões e repetição",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na sintaxe `[ \"$n\" -gt 2 ]`, os espaços ao redor dos colchetes são dispensáveis porque os colchetes fazem parte do operador numérico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. `[` é um comando, e os colchetes e operandos precisam ser separados por espaços; o espaço antes do colchete de fechamento também é obrigatório.",
+      "section": "3. Testes, decisões e repetição",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Bash, `[[ \"$nome\" == a* ]]` pode testar se o valor corresponde a um padrão de shell que começa por a.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Em `[[ ... ]]`, o operando à direita de `==` pode ser um padrão de shell; a expansão à esquerda não sofre word splitting nem globbing como ocorreria fora desse construto.",
+      "section": "3. Testes, decisões e repetição",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`until teste; do ...; done` executa o corpo enquanto teste retorna sucesso e para na primeira falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. `until` continua repetindo enquanto o comando de teste termina com status diferente de zero e para quando o teste tem sucesso.",
+      "section": "3. Testes, decisões e repetição",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma função Bash, `$1` passa a representar o primeiro argumento da função enquanto ela está sendo executada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Parâmetros posicionais são definidos para a chamada da função e, dentro dela, `$1` e os demais se referem aos argumentos recebidos pela função.",
+      "section": "4. Funções, argumentos e entrada de dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`return 'concluído'` é a forma normal de devolver uma string arbitrária ao chamador de uma função Bash.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. `return` comunica status de saída. Para produzir texto, a função escreve em stdout e o chamador pode capturar essa saída com `$(funcao)`.",
+      "section": "4. Funções, argumentos e entrada de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando `shift` remove o primeiro parâmetro posicional e renumera os restantes a partir de `$1`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Sem um número explícito, `shift` descarta o argumento posicional atual `$1`; o valor que era `$2` passa a ser `$1`, e assim por diante. A contagem indicada por `$#` diminui em um, o que permite percorrer opções progressivamente.",
+      "section": "4. Funções, argumentos e entrada de dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Arrays indexados do Bash são baseados em um e não podem conter posições sem atribuição entre elementos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Arrays indexados Bash começam em zero e não precisam ter índices atribuídos de forma contígua; arrays associativos usam chaves textuais.",
+      "section": "4. Funções, argumentos e entrada de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A construção `\"${lista[@]}\"` preserva cada elemento de um array Bash como argumento separado, inclusive se tiver espaços.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Com aspas duplas, a expansão `@` produz uma palavra por elemento do array, preservando elementos que contenham espaços.",
+      "section": "4. Funções, argumentos e entrada de dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O descritor 2 é convencionalmente usado para a saída padrão de erros, enquanto o descritor 1 é usado para a saída padrão comum.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Os três descritores convencionais são 0 para a entrada padrão, 1 para a saída padrão e 2 para a saída padrão de erros. Um redirecionamento com `2>` seleciona especificamente o fluxo de diagnóstico, sem mudar stdout.",
+      "section": "5. Entrada/saída, pipes e robustez",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O operador `>>` normalmente acrescenta a saída ao fim do arquivo, sem truncar o conteúdo que já existia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O redirecionamento `>>` abre o destino para acréscimo, preservando o conteúdo anterior e escrevendo depois dele. O operador `>` também cria o arquivo quando necessário, mas trunca um arquivo existente antes de gravar.",
+      "section": "5. Entrada/saída, pipes e robustez",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um pipeline Bash comum, o status do conjunto é por padrão o status do primeiro comando executado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Por padrão, o status do pipeline é o do último comando. A opção `pipefail` altera o resultado para detectar falhas anteriores no pipeline.",
+      "section": "5. Entrada/saída, pipes e robustez",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um here-document com delimitador citado, como `<<'FIM'`, não expande variáveis do shell no corpo do documento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Quando qualquer parte do delimitador é citada, o texto do here-document não sofre expansão de parâmetro, substituição de comando nem expansão aritmética.",
+      "section": "5. Entrada/saída, pipes e robustez",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A forma `> saida 2>&1` direciona stdout e stderr ao arquivo saida, pois stderr é duplicado para o destino de stdout já redirecionado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Os redirecionamentos são processados da esquerda para a direita: primeiro stdout passa a apontar ao arquivo; depois stderr duplica esse destino.",
+      "section": "5. Entrada/saída, pipes e robustez",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+
+    {
+      "statement": "Qual comando cria uma variável de ambiente chamada MODO com valor lote para o comando filho executar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`MODO=lote comando`", "correct": false },
+        { "key": "B", "text": "`export MODO=lote; comando`", "correct": true },
+        { "key": "C", "text": "`$MODO=lote comando`", "correct": false },
+        { "key": "D", "text": "`local MODO=lote comando`", "correct": false },
+        { "key": "E", "text": "`set MODO=lote comando`", "correct": false }
+      ],
+      "explanation": "Exportar a atribuição torna MODO parte do ambiente de `comando`. Uma atribuição simples antes de um comando também pode valer apenas para aquele comando, mas não deixa a variável exportada para comandos filhos posteriores.",
+      "section": "2. Variáveis, aspas e expansões",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina precisa encaminhar todos os argumentos do script, inclusive argumentos vazios e nomes com espaços. Qual expansão é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`$*` sem aspas", "correct": false },
+        { "key": "B", "text": "`\"$*\"` como uma palavra", "correct": false },
+        { "key": "C", "text": "`\"$@\"` entre aspas duplas", "correct": true },
+        { "key": "D", "text": "`$#` entre aspas simples", "correct": false },
+        { "key": "E", "text": "`$0` sem aspas", "correct": false }
+      ],
+      "explanation": "`\"$@\"` expande cada parâmetro como palavra separada e preserva espaços e argumentos vazios. `\"$*\"` reúne os parâmetros em uma única palavra, e as formas sem aspas podem dividir ou expandir curingas.",
+      "section": "1. O script e seu fluxo de execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual condição de Bash verifica se a variável caminho nomeia um diretório existente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`[ -f \"$caminho\" ]`", "correct": false },
+        { "key": "B", "text": "`[ -x \"$caminho\" ]`", "correct": false },
+        { "key": "C", "text": "`[ -z \"$caminho\" ]`", "correct": false },
+        { "key": "D", "text": "`[ -n \"$caminho\" ]`", "correct": false },
+        { "key": "E", "text": "`[ -d \"$caminho\" ]`", "correct": true }
+      ],
+      "explanation": "`-d` testa se o caminho existente é um diretório. `-f` testa arquivo regular; `-z` e `-n` verificam comprimento textual e `-x` verifica permissão de execução.",
+      "section": "3. Testes, decisões e repetição",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que teste tradicional de shell verifica se a variável texto não está vazia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`[ -z \"$texto\" ]`", "correct": false },
+        { "key": "B", "text": "`[ -d \"$texto\" ]`", "correct": false },
+        { "key": "C", "text": "`[ -n \"$texto\" ]`", "correct": true },
+        { "key": "D", "text": "`[ \"$texto\" -eq 0 ]`", "correct": false },
+        { "key": "E", "text": "`[ -f \"$texto\" ]`", "correct": false }
+      ],
+      "explanation": "`-n` testa texto não vazio. `-z` faz o teste oposto; os operadores `-d` e `-f` são testes de caminho, e `-eq` compara inteiros.",
+      "section": "3. Testes, decisões e repetição",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual expressão Bash calcula o valor de n acrescido de um, como expansão aritmética?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`$(n + 1)`", "correct": false },
+        { "key": "B", "text": "`${n + 1}`", "correct": false },
+        { "key": "C", "text": "`$((n + 1))`", "correct": true },
+        { "key": "D", "text": "`$[n + 1]`", "correct": false },
+        { "key": "E", "text": "`\"$n + 1\"`", "correct": false }
+      ],
+      "explanation": "A expansão aritmética Bash usa `$(( expressão ))`. `$(...)` é substituição de comando e tenta executar o conteúdo como comando.",
+      "section": "2. Variáveis, aspas e expansões",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual forma fornece fallback sem atribuí-lo a uma variável ausente ou vazia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "`${x:-padrão}`", "correct": true },
+        { "key": "B", "text": "`${x:=padrão}`", "correct": false },
+        { "key": "C", "text": "`${x:?padrão}`", "correct": false },
+        { "key": "D", "text": "`${x:+padrão}`", "correct": false },
+        { "key": "E", "text": "`$(x:-padrão)`", "correct": false }
+      ],
+      "explanation": "O operador `:-` produz o texto alternativo se x estiver ausente ou vazia sem modificá-la. `:=` também atribui o valor; `:?` causa erro e `:+` usa o valor alternativo quando x está definida e não vazia.",
+      "section": "2. Variáveis, aspas e expansões",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função precisa disponibilizar o texto resumo ao chamador. Qual abordagem é compatível com a semântica de funções Bash?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar `return \"resumo\"` e ler o valor em `$?`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `exit resumo` para devolver texto ao chamador",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir `$?` com a palavra resumo dentro da função",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Imprimir o texto em stdout e capturar com `$(funcao)`",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar `shift resumo` para gravar a saída",
+          "correct": false
+        }
+      ],
+      "explanation": "`return` comunica um status numérico. Uma função pode escrever o texto em stdout e ser chamada em substituição de comando para que o chamador capture os dados produzidos.",
+      "section": "4. Funções, argumentos e entrada de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sintaxe declara uma função Bash chamada validar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`function validar { comandos; }`",
+          "correct": false
+        },
+        { "key": "B", "text": "`def validar(): comandos`", "correct": false },
+        { "key": "C", "text": "`validar() { comandos; }`", "correct": true },
+        { "key": "D", "text": "`validar := comandos`", "correct": false },
+        { "key": "E", "text": "`func validar [ comandos ]`", "correct": false }
+      ],
+      "explanation": "A forma `validar() { ...; }` é uma declaração válida de função Bash. `def` é associado a outra linguagem e as demais formas não correspondem à sintaxe de função do shell.",
+      "section": "4. Funções, argumentos e entrada de dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como criar uma variável local à função chamada total no Bash?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`private total=0`", "correct": false },
+        { "key": "B", "text": "`export -local total=0`", "correct": false },
+        { "key": "C", "text": "`static total=0`", "correct": false },
+        { "key": "D", "text": "`scope total=0`", "correct": false },
+        { "key": "E", "text": "`local total=0`", "correct": true }
+      ],
+      "explanation": "O builtin `local` declara uma variável cujo escopo é a função corrente. Não é uma declaração global exportada ao ambiente.",
+      "section": "4. Funções, argumentos e entrada de dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual resultado produz `shift` quando a função recebeu os argumentos alfa, beta e gama?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apaga todos os argumentos e define `$#` como zero",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remove o último argumento e mantém os índices",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remove alfa; beta passa a ser `$1` e gama passa a ser `$2`",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ordena os argumentos alfabeticamente",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converte os argumentos em uma única string",
+          "correct": false
+        }
+      ],
+      "explanation": "Sem argumento numérico, `shift` remove o primeiro parâmetro posicional. Os valores seguintes avançam um índice e a contagem diminui em um.",
+      "section": "4. Funções, argumentos e entrada de dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual declaração Bash cria um array associativo chamado codigos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "`codigos=(primeiro segundo)`", "correct": false },
+        { "key": "B", "text": "`local -i codigos`", "correct": false },
+        { "key": "C", "text": "`array -s codigos`", "correct": false },
+        { "key": "D", "text": "`declare -A codigos`", "correct": true },
+        { "key": "E", "text": "`unset codigos`", "correct": false }
+      ],
+      "explanation": "`declare -A` declara array associativo Bash, cujos índices são chaves textuais. `declare -a` declara um array indexado numericamente.",
+      "section": "4. Funções, argumentos e entrada de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual expansão fornece o número de elementos de um array Bash chamado itens?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "`${#itens[@]}`", "correct": true },
+        { "key": "B", "text": "`${itens[#]}`", "correct": false },
+        { "key": "C", "text": "`$#itens`", "correct": false },
+        { "key": "D", "text": "`${@itens}`", "correct": false },
+        { "key": "E", "text": "`${itens[*#]}`", "correct": false }
+      ],
+      "explanation": "A expansão `${#itens[@]}` retorna a quantidade de elementos do array. `$#` isolado conta parâmetros posicionais, não elementos de uma variável de array.",
+      "section": "4. Funções, argumentos e entrada de dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual redirecionamento acrescenta a saída padrão de comando ao arquivo log sem truncar seu conteúdo anterior?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`comando > log`", "correct": false },
+        { "key": "B", "text": "`comando 2< log`", "correct": false },
+        { "key": "C", "text": "`comando < log`", "correct": false },
+        { "key": "D", "text": "`comando >> log`", "correct": true },
+        { "key": "E", "text": "`comando | log`", "correct": false }
+      ],
+      "explanation": "`>>` abre o arquivo em modo de acréscimo, colocando a nova saída após os dados que já existem. `>` cria ou trunca o destino, `<` lê do arquivo e o pipe `|` conecta stdout de um processo ao stdin de outro.",
+      "section": "5. Entrada/saída, pipes e robustez",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como redirecionar apenas a saída padrão de erro para erros.log?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`comando 1> erros.log`", "correct": false },
+        { "key": "B", "text": "`comando >>& erros.log`", "correct": false },
+        { "key": "C", "text": "`comando <2 erros.log`", "correct": false },
+        { "key": "D", "text": "`comando 2> erros.log`", "correct": true },
+        { "key": "E", "text": "`comando |2 erros.log`", "correct": false }
+      ],
+      "explanation": "O descritor 2 identifica stderr; por isso `2>` direciona apenas mensagens de erro ao arquivo. O descritor 1 é stdout, e sua forma de redirecionamento é `1>`; os dois fluxos podem ser enviados ao mesmo destino com uma duplicação apropriada.",
+      "section": "5. Entrada/saída, pipes e robustez",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual forma conecta stdout de listar ao stdin de filtrar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`listar > filtrar`", "correct": false },
+        { "key": "B", "text": "`listar && filtrar`", "correct": false },
+        { "key": "C", "text": "`listar 2> filtrar`", "correct": false },
+        { "key": "D", "text": "`listar | filtrar`", "correct": true },
+        { "key": "E", "text": "`listar >> filtrar`", "correct": false }
+      ],
+      "explanation": "O pipe `|` conecta a saída padrão do comando à esquerda à entrada padrão do comando à direita. Os operadores de arquivo redirecionam fluxos a arquivos, não a outro processo nesse sentido.",
+      "section": "5. Entrada/saída, pipes e robustez",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção Bash faz o status de um pipeline refletir falha em algum comando anterior ao último?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "`set -o pipefail`", "correct": true },
+        { "key": "B", "text": "`set -o noclobber`", "correct": false },
+        { "key": "C", "text": "`set -o nounset`", "correct": false },
+        { "key": "D", "text": "`set -o allexport`", "correct": false },
+        { "key": "E", "text": "`set -o monitor`", "correct": false }
+      ],
+      "explanation": "Com `pipefail`, o pipeline retorna status diferente de zero se um comando falhar, segundo a regra do Bash. Sem essa opção, o resultado padrão é o status do último comando.",
+      "section": "5. Entrada/saída, pipes e robustez",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual redirecionamento envia stdin de um comando a partir do arquivo dados.txt?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`comando > dados.txt`", "correct": false },
+        { "key": "B", "text": "`comando < dados.txt`", "correct": true },
+        { "key": "C", "text": "`comando 2> dados.txt`", "correct": false },
+        { "key": "D", "text": "`comando >> dados.txt`", "correct": false },
+        { "key": "E", "text": "`comando | dados.txt`", "correct": false }
+      ],
+      "explanation": "O operador `<` abre o arquivo e o associa à entrada padrão do comando, permitindo que o programa leia seu conteúdo. `>` e `>>` redirecionam saída para arquivo, enquanto `2>` seleciona a saída padrão de erros.",
+      "section": "5. Entrada/saída, pipes e robustez",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como capturar a saída de `pwd` em uma variável Bash chamada atual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`atual=(pwd)`", "correct": false },
+        { "key": "B", "text": "`atual=<(pwd)`", "correct": false },
+        { "key": "C", "text": "`atual=$[pwd]`", "correct": false },
+        { "key": "D", "text": "`atual=${pwd}`", "correct": false },
+        { "key": "E", "text": "`atual=$(pwd)`", "correct": true }
+      ],
+      "explanation": "`$(pwd)` executa o comando e substitui a expressão por sua saída padrão, que pode ser atribuída à variável. `${pwd}` apenas expande uma variável chamada pwd.",
+      "section": "2. Variáveis, aspas e expansões",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual construção percorre os valores de i de zero a quatro no Bash?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`for ((i=0; i<5; i++)); do ...; done`",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`while i=0 to 4; do ...; done`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`foreach i in 0..4; do ...; done`",
+          "correct": false
+        },
+        { "key": "D", "text": "`loop i=0; i<5; i++; end`", "correct": false },
+        { "key": "E", "text": "`for i=0; i<5; i++; done`", "correct": false }
+      ],
+      "explanation": "A forma `for (( inicialização; condição; incremento ))` é o laço aritmético de Bash. Com condição `i<5`, os valores usados pelo corpo são 0 a 4.",
+      "section": "3. Testes, decisões e repetição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual construção seleciona um bloco segundo padrões de shell comparados a valor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`if pattern \"$valor\" do comandos`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`switch ($valor) { padrao: comandos }`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`select ($valor) then comandos`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`case \"$valor\" in padrao) comandos ;; esac`",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`match \"$valor\" { padrao => comandos }`",
+          "correct": false
+        }
+      ],
+      "explanation": "`case` compara o valor com padrões de shell e executa o bloco do padrão correspondente. A estrutura termina com `esac` e cada ramo normalmente com `;;`.",
+      "section": "3. Testes, decisões e repetição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como finalizar um script com status de falha 1?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`return 1` sempre encerra o processo de script",
+          "correct": false
+        },
+        { "key": "B", "text": "`shift 1`", "correct": false },
+        { "key": "C", "text": "`break 1` fora de um laço", "correct": false },
+        { "key": "D", "text": "`exit 1`", "correct": true },
+        { "key": "E", "text": "`continue 1` fora de um laço", "correct": false }
+      ],
+      "explanation": "`exit 1` encerra o shell do script com status 1. `return` encerra uma função ou execução de arquivo incluído, enquanto break e continue controlam laços.",
+      "section": "1. O script e seu fluxo de execução",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual operador tradicional compara numericamente se n é menor que 10 dentro de `[`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "`[ \"$n\" < 10 ]`", "correct": false },
+        { "key": "B", "text": "`[ \"$n\" =~ 10 ]`", "correct": false },
+        { "key": "C", "text": "`[ \"$n\" =< 10 ]`", "correct": false },
+        { "key": "D", "text": "`[ \"$n\" less 10 ]`", "correct": false },
+        { "key": "E", "text": "`[ \"$n\" -lt 10 ]`", "correct": true }
+      ],
+      "explanation": "`-lt` é o operador numérico de menor que em teste tradicional. `<` dentro de `[` é associado à comparação textual e deve ser escapado para não ser tratado pelo shell como redirecionamento.",
+      "section": "3. Testes, decisões e repetição",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa deve executar a etapa seguinte apenas se a cópia terminar com sucesso. Qual forma expressa isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "`copiar || verificar`", "correct": false },
+        { "key": "B", "text": "`copiar | verificar`", "correct": false },
+        { "key": "C", "text": "`copiar && verificar`", "correct": true },
+        { "key": "D", "text": "`copiar ; verificar`", "correct": false },
+        { "key": "E", "text": "`copiar ! verificar`", "correct": false }
+      ],
+      "explanation": "`&&` executa o comando seguinte somente quando o anterior termina com status zero. `||` executaria a segunda etapa diante de falha.",
+      "section": "1. O script e seu fluxo de execução",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual forma de atribuição Bash é sintaticamente válida para definir limite como 12?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`limite = 12`", "correct": false },
+        { "key": "B", "text": "`let limite := 12`", "correct": false },
+        { "key": "C", "text": "`$limite=12`", "correct": false },
+        { "key": "D", "text": "`set limite = 12`", "correct": false },
+        { "key": "E", "text": "`limite=12`", "correct": true }
+      ],
+      "explanation": "A atribuição de variável no shell não tem espaços em torno de `=`. Com espaços, o shell interpreta palavras separadas em vez de uma atribuição simples.",
+      "section": "2. Variáveis, aspas e expansões",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual forma de here-document fornece conteúdo literal, sem expandir `$HOME` no corpo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`cat <<FIM` com delimitador sem aspas",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`cat 2<<FIM` com delimitador sem aspas",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`cat <<<FIM` seguido de `$HOME`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`cat >FIM` com `$HOME` depois",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`cat <<'FIM'` com delimitador citado",
+          "correct": true
+        }
+      ],
+      "explanation": "Se qualquer parte do delimitador do here-document é citada, as linhas do corpo não sofrem expansão de parâmetro, comando ou aritmética. Com delimitador sem aspas, `$HOME` seria expandido.",
+      "section": "5. Entrada/saída, pipes e robustez",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual declaração define `itens` como array indexado com dois elementos no Bash?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "`itens=(\"um\" \"dois\")`", "correct": true },
+        { "key": "B", "text": "`itens=[\"um\", \"dois\"]`", "correct": false },
+        {
+          "key": "C",
+          "text": "`array itens = \"um\" \"dois\"`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`declare -A itens=(\"um\" \"dois\")`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`itens{0}=\"um\"; itens{1}=\"dois\"`",
+          "correct": false
+        }
+      ],
+      "explanation": "A atribuição entre parênteses cria um array indexado Bash, com elementos separados por palavras. `declare -A` é usado para array associativo, e colchetes em uma atribuição não criam a lista desse modo.",
+      "section": "4. Funções, argumentos e entrada de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe precisa que uma ação de limpeza seja executada quando o script terminar. Qual recurso Bash serve a esse propósito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "`trap 'limpar' EXIT`", "correct": true },
+        { "key": "B", "text": "`shift limpar EXIT`", "correct": false },
+        { "key": "C", "text": "`export EXIT=limpar`", "correct": false },
+        { "key": "D", "text": "`case EXIT then limpar`", "correct": false },
+        { "key": "E", "text": "`pipefail limpar`", "correct": false }
+      ],
+      "explanation": "`trap` associa uma ação a um sinal ou evento de shell; `EXIT` permite executar a ação quando o shell termina. A rotina de limpeza deve ser escrita de modo a não ocultar falhas importantes.",
+      "section": "5. Entrada/saída, pipes e robustez",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script chama `comando > saida 2>&1`. Qual descrição corresponde à ordem de processamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "stderr conserva o destino antigo, enquanto stdout vai para `saida`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "stdout segue para `saida`, mas stderr conserva seu destino anterior",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "stdout vai para stderr e stderr é descartado",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "stdout vai para `saida` e stderr duplica o destino atual de stdout",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A ordem dos redirecionamentos não altera o destino dos fluxos",
+          "correct": false
+        }
+      ],
+      "explanation": "O shell processa os redirecionamentos da esquerda para a direita. Primeiro, `> saida` associa stdout ao arquivo; depois, `2>&1` duplica para stderr o destino que stdout tem naquele momento. Assim, os dois fluxos vão ao arquivo.",
+      "section": "5. Entrada/saída, pipes e robustez",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual risco representa o uso de `eval` sobre uma string que contém dados fornecidos por usuário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O conteúdo pode virar sintaxe do shell e executar comandos injetados",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A string permanece protegida como um argumento literal e indivisível",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O shell desativa expansões e impede a execução de qualquer comando",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O builtin converte automaticamente qualquer dado recebido em número inteiro",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O builtin somente imprime os caracteres recebidos, sem analisá-los",
+          "correct": false
+        }
+      ],
+      "explanation": "`eval` concatena seus argumentos e pede ao shell que analise e execute o texto resultante novamente. Por isso, dados não confiáveis podem ser interpretados como operadores ou comandos; mantenha valores em argumentos citados, sem convertê-los em código textual.",
+      "section": "5. Entrada/saída, pipes e robustez",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script precisa ler um arquivo linha a linha e preservar barras invertidas e espaços iniciais. Qual abordagem atende melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`for linha in $(cat arquivo)` divide o conteúdo em palavras",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`while read linha; do ...; done < arquivo` remove espaços e trata barras como escapes",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`read linha < arquivo` captura somente a primeira linha do arquivo",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`for linha in \"$(cat arquivo)\"; do ...; done` percorre uma palavra só",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`while IFS= read -r linha; do ...; done < arquivo` preserva cada linha",
+          "correct": true
+        }
+      ],
+      "explanation": "`while IFS= read -r linha` lê uma linha por iteração: `IFS=` evita remover ou dividir espaços e `-r` preserva barras invertidas. O redirecionamento `< arquivo` fornece a entrada ao laço, que pode então processar cada linha sem transformá-la em palavras.",
+      "section": "4. Funções, argumentos e entrada de dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa deve funcionar em qualquer shell POSIX e a equipe planeja usar arrays Bash e `[[ ... ]]`. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Arrays Bash e `[[ ... ]]` são universais em toda implementação de `/bin/sh`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Bash exige somente construções POSIX, e declarar Bash impede usar extensões próprias",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Arrays e `[[ ... ]]` são extensões Bash; para portabilidade, use POSIX ou exija Bash",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`[[ ... ]]` é um programa externo fornecido diretamente pelo kernel",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Renomear o arquivo para `.sh` converte automaticamente a sintaxe em POSIX",
+          "correct": false
+        }
+      ],
+      "explanation": "Arrays e `[[ ... ]]` pertencem à linguagem Bash e não são garantidos por um interpretador `/bin/sh`, que pode ser outra shell compatível com POSIX. Um script portátil deve usar recursos POSIX; se depender desses recursos, precisa indicar e exigir Bash.",
+      "section": "4. Funções, argumentos e entrada de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "GNU Bash Reference Manual",
+      "publisher": "GNU Project / Free Software Foundation",
+      "reference": "Shell scripts, parâmetros posicionais, sintaxe, aspas, expansões, comandos compostos, funções, arrays e redirecionamentos.",
+      "url": "https://www.gnu.org/software/bash/manual/bash.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "GNU Bash Manual — Shell Scripts",
+      "publisher": "GNU Project / Free Software Foundation",
+      "reference": "Execução não interativa de arquivos de script, `$0`, parâmetros posicionais e permissões de execução.",
+      "url": "https://www.gnu.org/software/bash/manual/html_node/Shell-Scripts.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "GNU Bash Manual — Quoting",
+      "publisher": "GNU Project / Free Software Foundation",
+      "reference": "Aspas simples e duplas, escapes e proteção contra interpretação especial de caracteres.",
+      "url": "https://www.gnu.org/software/bash/manual/html_node/Quoting.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "GNU Bash Manual — Redirections",
+      "publisher": "GNU Project / Free Software Foundation",
+      "reference": "Redirecionamento de entrada/saída, descritores, duplicação de fluxos, pipes e here-documents.",
+      "url": "https://www.gnu.org/software/bash/manual/html_node/Redirections.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "POSIX Shell Command Language",
+      "publisher": "The Open Group",
+      "reference": "Sintaxe portável de shell, expansão, parâmetros, listas e comandos compostos da especificação POSIX.",
+      "url": "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html",
+      "accessedAt": "2026-10-31"
+    }
+  ]
+}

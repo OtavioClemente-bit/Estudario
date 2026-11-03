@@ -1,0 +1,572 @@
+{
+  "id": "financas.backtesting-simulacao-estrategias",
+  "subject": "Finanças",
+  "title": "Backtesting e simulação de estratégias",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Backtesting e simulação de estratégias",
+    "Teste histórico de estratégias financeiras",
+    "Simulação de estratégias de investimento",
+    "Avaliação histórica de carteiras de investimento",
+    "Backtest de estratégias de investimento",
+    "Simulação de carteiras e estratégias financeiras",
+    "Análise de cenários para investimentos",
+    "Teste retrospectivo de estratégias quantitativas",
+    "Monte Carlo em estratégias financeiras",
+    "Simulação histórica de retornos de carteiras"
+  ],
+  "scope": {
+    "covers": "Objetivos e etapas do backtesting de estratégias de investimento; construção e rebalanceamento de carteiras; janelas móveis e walk-forward; leitura de retorno, volatilidade, drawdown e risco; vieses de antecipação, sobrevivência e seleção; custos, execução, liquidez e qualidade dos dados; cenários históricos e estresse; simulação histórica, bootstrap e Monte Carlo; distribuição de retornos, caudas e dependência; análise de sensibilidade; desempenho hipotético e comunicação de limitações.",
+    "excludes": "Recomendação de ativos específicos, previsão garantida de retornos, programação de robôs de negociação, regras de negociação de bolsa e aconselhamento jurídico sobre regimes de outros países."
+  },
+  "theoryTitle": "Como testar e simular estratégias de investimento",
+  "chapters": [
+    {
+      "title": "1. O que o backtest mede",
+      "markdown": "### O problema que este assunto resolve\n\nUma estratégia pode parecer convincente em uma descrição e falhar quando suas regras são aplicadas a uma sequência realista de preços, sinais, rebalanceamentos e custos. O **backtesting** aplica regras de investimento a dados históricos para estimar como a estratégia teria se comportado. O resultado é uma avaliação condicionada aos dados, regras e hipóteses usados; não é uma operação real nem promessa de desempenho futuro.\n\n> **Siglas e termos deste capítulo**\n> - **Backtest**: aplicação retrospectiva e sistemática de regras a dados históricos.\n> - **Sinal**: informação que, segundo a regra, altera a decisão de investir.\n> - **Carteira**: conjunto de posições e pesos mantidos pela estratégia.\n> - **Rebalanceamento**: ajuste periódico dos pesos ou posições para voltar às regras definidas.\n> - **Benchmark**: referência usada para contextualizar o desempenho da estratégia.\n\n### Etapas de um teste que possa ser interpretado\n\nComece formulando a hipótese e o objetivo: por exemplo, verificar se uma regra de tendência melhora o retorno ajustado ao risco em relação a uma carteira de referência. Especifique universo de ativos, dados disponíveis em cada data, regra de entrada e saída, pesos, frequência de rebalanceamento, tratamento de caixa e custos. Em seguida, construa a carteira ao longo do tempo e calcule retornos e riscos sob a mesma convenção do benchmark. Registre as hipóteses antes de examinar o resultado para reduzir ajustes oportunistas.\n\n| Etapa | Pergunta concreta |\n| --- | --- |\n| Hipótese | Que comportamento econômico a regra pretende capturar? |\n| Regras | Quando comprar, vender, dimensionar e rebalancear? |\n| Dados | Quais informações estavam disponíveis naquela data? |\n| Execução | Que preço, atraso, spread e custos são plausíveis? |\n| Avaliação | Como retornos e riscos se comparam com a referência? |\n\nO desempenho precisa ser interpretado junto com o caminho da carteira. Retorno acumulado alto pode esconder perdas intermediárias profundas, concentração em poucos ativos, giro elevado ou exposição a um único regime. Por isso, examine também volatilidade, drawdown, períodos de recuperação, número e tamanho das operações, exposição e contribuição de cada ativo.\n\n### Métricas descrevem aspectos diferentes\n\nRetorno acumulado resume crescimento no período; retorno anualizado facilita comparar períodos de durações distintas, desde que o método de anualização seja adequado. Volatilidade resume dispersão dos retornos, mas não descreve sozinha a forma das perdas. **Drawdown** é a queda do valor da carteira desde um pico anterior até um vale; o máximo drawdown registra a maior queda pico-vale observada. Uma razão retorno/risco depende da métrica escolhida e não elimina a necessidade de inspecionar perdas extremas e pressupostos.\n\n### Como cai na prova\n\n- Backtest responde “como teria sido sob estas regras e dados?”, não “quanto certamente renderá?”.\n- O método inclui regras, composição da carteira, rebalanceamento e cálculo de risco, não só comparar dois gráficos de preços.\n- Uma métrica favorável não substitui avaliação de custos, quedas, concentração e benchmark."
+    },
+    {
+      "title": "2. Janelas móveis e vieses de pesquisa",
+      "markdown": "### O problema que este assunto resolve\n\nSe o pesquisador escolhe regras depois de observar todo o histórico, o teste pode incorporar informação que não estaria disponível no momento da decisão. O **viés de antecipação** aparece quando o algoritmo usa dado futuro — por exemplo, calcular um sinal de fechamento com o fechamento do dia e supor execução naquele mesmo fechamento sem uma regra que permita isso. O resultado aparenta ser melhor porque a decisão conhece o futuro.\n\n> **Siglas e termos deste capítulo**\n> - **Viés de antecipação (look-ahead)**: uso indevido de informação futura no sinal ou na execução.\n> - **Viés de sobrevivência**: omissão de ativos que saíram do universo, inclusive por falência ou deslistagem.\n> - **Sobreajuste (overfitting)**: adaptação excessiva das regras ao ruído da amostra.\n> - **Amostra fora do treino (out-of-sample)**: dados reservados para avaliar regras já definidas.\n> - **Walk-forward**: processo sequencial de estimar em janela passada e testar no período seguinte.\n\n### O que a janela móvel simula\n\nNo procedimento walk-forward, estima-se ou calibra-se a regra com uma janela de dados passados; usa-se a regra resultante no período seguinte; depois a janela avança e o processo se repete. A carteira é rebalanceada conforme a frequência definida e o desempenho é acompanhado fora de cada janela de estimação. Isso aproxima a rotina de um investidor que só conhece o passado em cada data. Não elimina riscos de modelo, erro de dados nem mudanças estruturais.\n\nSeparar treino, validação e teste ajuda a evitar que o resultado de teste seja usado repetidamente para escolher parâmetros. Se o pesquisador compara centenas de variantes e divulga só a melhor, o vencedor pode ser fruto da busca, mesmo sem intenção de manipular. Registrar hipóteses, limitar tentativas, conservar uma amostra final intocada e reportar tentativas relevantes tornam a avaliação mais honesta.\n\n### Viés de sobrevivência e universo histórico\n\nUma base composta apenas pelas empresas que existem hoje exclui companhias que faliram, foram incorporadas ou deixaram de negociar. Se essas empresas tiveram resultados ruins, excluí-las tende a inflar o desempenho retrospectivo. O universo de cada data deve refletir os ativos que eram elegíveis naquele momento, inclusive os que depois desapareceram. Também é preciso cuidar de revisões e atrasos de publicação: um dado econômico publicado depois não pode aparecer no sinal antes de sua divulgação.\n\n| Risco | Exemplo | Correção de desenho\n| --- | --- | --- |\n| Antecipação | Usar o preço de fechamento para gerar e executar um sinal no mesmo fechamento sem justificativa | Atrasar a execução para a próxima cotação disponível |\n| Sobrevivência | Testar só componentes atuais de um índice antigo | Reconstruir a composição histórica, incluindo saídas |\n| Sobreajuste | Escolher o parâmetro com melhor resultado entre muitas combinações | Separar amostra final e documentar a busca |\n\n### Como cai na prova\n\n- Informação publicada posteriormente não pode ser tratada como conhecida no passado.\n- A amostra fora do treino avalia a regra escolhida; não deve virar outra fonte de ajuste repetido.\n- Uma janela móvel refaz estimação com passado e acompanha um período posterior, aproximando decisões sequenciais."
+    },
+    {
+      "title": "3. Execução, custos e qualidade do backtest",
+      "markdown": "### O problema que este assunto resolve\n\nUma ordem não se converte automaticamente em uma operação pelo preço ideal mostrado no gráfico. Ela pode enfrentar spread entre compra e venda, comissões, tributos, impacto de mercado, atraso, execução parcial ou ausência de execução. Ignorar essas fricções transforma uma simulação em uma hipótese excessivamente otimista, sobretudo em estratégias com giro alto ou ativos pouco líquidos.\n\n> **Siglas e termos deste capítulo**\n> - **Spread**: diferença entre preços de compra e venda disponíveis.\n> - **Slippage (derrapagem)**: diferença entre o preço esperado e o preço efetivo de execução.\n> - **Impacto de mercado**: efeito da própria ordem sobre o preço negociado.\n> - **Liquidez**: capacidade de negociar quantidade sem grande demora ou alteração de preço.\n> - **Fill model**: regra que simula preço e quantidade executados para uma ordem.\n\n### Transformar sinal em execução plausível\n\nUm backtest precisa especificar quando a ordem é enviada e qual dado de mercado pode preenchê-la. Uma ordem a mercado prioriza execução, mas não garante preço; uma ordem limitada restringe o preço, mas pode não ser executada. Dados diários podem não revelar se a máxima ou mínima ocorreu antes de uma ordem intradiária, tornando ambíguo afirmar que um limite foi atingido. Cotações de compra e venda, frequência apropriada e regra conservadora ajudam a evitar preenchimentos impossíveis.\n\nDesconte custos de transação coerentes com ativo, mercado, tamanho da ordem e época. Se uma comissão fixa é pequena por operação, o spread e o impacto ainda podem dominar. Uma estratégia que troca frequentemente de posição pode deixar de ser rentável depois dos custos, embora o retorno bruto pareça atraente. Teste cenários de custos maiores para avaliar robustez.\n\n### Dados e convenções também são hipóteses\n\nVerifique preços ajustados por desdobramentos e distribuições, moedas, calendários, fuso horário, dados ausentes e mudanças na composição do universo. O tratamento de dividendos deve ser coerente entre estratégia e benchmark. Evite preencher lacunas de modo que fabrique preços negociáveis. Compare os resultados com uma referência apropriada e sob o mesmo período, moeda e tratamento de proventos.\n\nEm plataformas de backtest, modelos de preenchimento determinam preço e quantidade simulados e podem incorporar spread e slippage. Um modelo padrão pode preencher ordens imediatamente ou assumir execução integral; isso é uma convenção da simulação, não uma garantia de execução real. Documente o modelo e verifique se corresponde ao ativo e à frequência.\n\n### Como cai na prova\n\n- Retorno bruto não é retorno líquido quando comissões, spread e demais custos foram omitidos.\n- Tocar o preço limite em uma barra não prova necessariamente que a ordem foi executada.\n- Uma simulação com preço de preenchimento, atraso ou liquidez irrealistas tende a superestimar a viabilidade prática."
+    },
+    {
+      "title": "4. Cenários históricos e simulações",
+      "markdown": "### O problema que este assunto resolve\n\nO histórico observado contém apenas um conjunto limitado de trajetórias. Uma estratégia pode parecer estável porque não enfrentou certas combinações de inflação, juros, correlações ou choques. Análise de cenário e simulação ampliam as perguntas: como a carteira se comportaria em um episódio específico, ou sob trajetórias hipotéticas que não ocorreram exatamente daquela forma?\n\n> **Siglas e termos deste capítulo**\n> - **Cenário histórico**: aplicação de condições observadas em um episódio passado à carteira ou regra atual.\n> - **Estresse**: cenário severo usado para examinar vulnerabilidades.\n> - **Simulação histórica**: uso de variações observadas no histórico para produzir trajetórias hipotéticas.\n> - **Bootstrap**: reamostragem aleatória, normalmente com reposição, de observações históricas.\n> - **Monte Carlo**: geração de trajetórias a partir de distribuições e relações estatísticas especificadas.\n\n### Cenário histórico não é um novo backtest completo\n\nUm cenário pode isolar uma recessão, um choque de juros ou um episódio de forte inflação e perguntar como as exposições da estratégia reagiriam. A análise é útil para examinar regimes e eventos concretos, mas depende de como o episódio é transposto para a carteira atual. Relações entre ativos podem mudar e o evento passado não representa toda a gama de futuros possíveis. Cenários hipotéticos também podem combinar choques não vistos juntos na história, desde que as hipóteses sejam explícitas.\n\nNa simulação histórica, observações ou blocos de retornos passados são sorteados para formar trajetórias. O bootstrap com reposição permite repetir algumas observações e omitir outras em cada amostra; assim, cria sequências alternativas usando a distribuição empírica. Reamostrar cada ativo de modo independente, porém, pode destruir correlações entre ativos. Reamostrar vetores conjuntos ou blocos preserva mais dependência temporal e transversal, conforme o desenho adotado.\n\n### Monte Carlo depende do modelo escolhido\n\nMonte Carlo define distribuições para variáveis relevantes e gera muitos caminhos aleatórios. A quantidade de caminhos não corrige uma distribuição mal especificada. Uma normal multivariada é simples, mas pode subestimar assimetria negativa e caudas pesadas presentes nos retornos financeiros; relações de dependência também podem se intensificar em crises. Explique quais parâmetros, correlações, distribuições e processos foram escolhidos e reconheça o erro de estimação.\n\n| Abordagem | Fonte dos choques | Pergunta que responde | Limite típico\n| --- | --- | --- |\n| Backtest | Sequência histórica na ordem observada | Como as regras teriam atravessado aquele histórico? | Poucos regimes e vieses retrospectivos |\n| Simulação histórica | Observações históricas reamostradas | Que trajetórias alternativas combinam choques observados? | Depende da representatividade do passado |\n| Monte Carlo | Modelo probabilístico parametrizado | Que resultados aparecem sob distribuições assumidas? | Sensível à distribuição e aos parâmetros |\n\n### Como cai na prova\n\n- Cenário histórico foca condições de um episódio; Monte Carlo gera caminhos segundo um modelo especificado.\n- Bootstrap com reposição pode repetir observações, mas não inventa automaticamente choques fora da amostra histórica.\n- Mais iterações reduzem ruído de simulação, porém não eliminam erro de modelo nem caudas omitidas."
+    },
+    {
+      "title": "5. Sensibilidade, leitura crítica e comunicação",
+      "markdown": "### O problema que este assunto resolve\n\nUma estimativa central esconde dependência de hipóteses. A análise de sensibilidade muda entradas relevantes — por exemplo, custo de execução, frequência de rebalanceamento, correlação ou média de retorno — para verificar como o resultado e o risco respondem. Ela ajuda a localizar hipóteses decisivas; não revela qual hipótese ocorrerá no futuro.\n\n> **Siglas e termos deste capítulo**\n> - **Análise de sensibilidade**: variação de entradas para medir seu efeito nos resultados.\n> - **Robustez**: manutenção razoável da conclusão sob hipóteses alternativas plausíveis.\n> - **Desempenho hipotético**: resultado não obtido por uma carteira efetivamente operada.\n> - **Retorno bruto**: retorno antes de determinados custos e taxas.\n> - **Retorno líquido**: retorno após os custos e taxas especificados.\n\n### Variar uma hipótese de cada vez e em conjunto\n\nUma tabela de sensibilidade pode cruzar custos baixos, centrais e altos com diferentes frequências de negociação. Se uma pequena mudança de custo elimina todo o excesso de retorno, a estratégia depende de execução muito favorável. Sensibilidade univariada facilita atribuir efeito a uma hipótese, mas não capta interações. Cenários conjuntos examinam combinações coerentes, como queda de liquidez junto com aumento de volatilidade e correlação.\n\nExamine a distribuição de resultados simulados, não apenas sua média: mediana, dispersão, quantis desfavoráveis, probabilidade de perda e drawdown podem responder a perguntas diferentes. Um quantil de perda é condicionado ao modelo e aos dados usados; não é limite garantido. Retornos financeiros podem exibir assimetria negativa, caudas pesadas e dependência em momentos extremos, de modo que uma normal simples pode representar mal riscos de cauda.\n\n### Comunicar o que foi e o que não foi medido\n\nO resultado retrospectivo de uma estratégia aplicada a períodos em que ela não foi usada é hipotético. A SEC, em sua regra de marketing para consultores de investimento, inclui desempenho obtido ao aplicar retrospectivamente uma estratégia a dados de períodos anteriores entre as formas de desempenho hipotético. A regra exige contexto suficiente sobre critérios, pressupostos, riscos e limitações para que o público possa compreender os resultados; a aplicação concreta depende da comunicação e do público abrangidos pela regra.\n\nUma apresentação responsável informa período, universo, benchmark, rebalanceamento, custos, modelo de execução, fonte e limitações dos dados, decisões de seleção de parâmetros e diferenças entre simulação e operação real. Não chame resultado bruto de líquido; não o apresente como histórico real de carteira se ordens não foram executadas. Desempenho passado ou simulado não garante resultado futuro.\n\n### Como cai na prova\n\n- Sensibilidade revela dependência das entradas; não converte premissas em fatos.\n- Retorno hipotético precisa ser identificado e acompanhado de informação sobre método e limitações aplicáveis.\n- Um modelo mais complexo ou com mais iterações continua condicionado às hipóteses e à qualidade dos dados."
+    }
+  ],
+  "summary": "Backtesting aplica regras de investimento a dados históricos para estimar o perfil de risco e retorno que a estratégia teria apresentado sob aquelas regras e hipóteses. Defina hipótese, universo histórico, sinais, pesos, rebalanceamento, execução, custos e benchmark; avalie retorno junto com volatilidade, drawdown e concentração. Walk-forward estima com dados passados e testa no período seguinte. Evite viés de antecipação, sobrevivência e sobreajuste; use constituintes históricos, informação disponível na data e amostra final reservada. Custos, spread, slippage, liquidez, preenchimentos parciais e qualidade dos dados podem mudar o resultado. Cenários históricos estudam episódios concretos; simulação histórica reamostra retornos observados; Monte Carlo gera trajetórias segundo distribuições especificadas. Bootstrap não cria automaticamente eventos fora do histórico e Monte Carlo não corrige um modelo inadequado. Sensibilidade varia entradas para revelar dependências e fragilidade. Distribuições financeiras podem ter assimetria, caudas pesadas e dependência extrema, que uma normal pode não representar. Backtests são desempenho hipotético, não resultados efetivamente alcançados nem garantia de desempenho futuro; comunique método, custos, critérios, pressupostos, riscos e limitações.",
+  "flashcards": [
+    { "front": "O que pergunta um backtest?", "back": "Como regras definidas teriam se comportado ao serem aplicadas a dados históricos, sob as hipóteses documentadas." },
+    { "front": "Quais são passos essenciais de um backtest?", "back": "Definir hipótese e objetivo, regras, dados disponíveis, carteira, rebalanceamento, execução, custos e métricas de retorno e risco." },
+    { "front": "O que é rebalanceamento?", "back": "Ajuste das posições ou pesos em uma frequência definida para manter a carteira de acordo com as regras da estratégia." },
+    { "front": "O que mede drawdown?", "back": "Queda do valor da carteira desde um pico anterior até um vale; o máximo drawdown é a maior queda pico-vale observada." },
+    { "front": "O que é viés de antecipação?", "back": "Usar no sinal ou na execução informação que ainda não estaria disponível naquele momento histórico." },
+    { "front": "O que é viés de sobrevivência?", "back": "Excluir do universo histórico ativos que desapareceram, foram deslistados ou faliram, tendendo a melhorar o resultado medido." },
+    { "front": "O que é sobreajuste em backtesting?", "back": "Ajustar regras em excesso ao ruído da amostra, de modo que o bom resultado passado não se repita fora dela." },
+    { "front": "Como funciona walk-forward?", "back": "Estima ou calibra regras em uma janela passada, avalia no período seguinte e avança a janela sequencialmente." },
+    { "front": "Para que serve uma amostra out-of-sample?", "back": "Avaliar regras já definidas em dados que não foram usados para escolhê-las ou ajustá-las." },
+    { "front": "O que é slippage?", "back": "Diferença entre preço esperado e preço efetivo de execução de uma ordem." },
+    { "front": "Que custos podem reduzir o resultado líquido?", "back": "Comissões, spread, tributos, impacto de mercado e custos de financiamento ou empréstimo pertinentes à estratégia." },
+    { "front": "Por que uma ordem limitada pode não executar no backtest?", "back": "A cotação pode não atingir a condição, pode faltar liquidez ou a ordem pode não estar na vez; tocar o limite não prova preenchimento." },
+    { "front": "O que examina um cenário histórico?", "back": "A resposta a condições de um episódio passado, como choque de juros ou recessão, aplicadas às exposições da carteira." },
+    { "front": "O que faz o bootstrap?", "back": "Reamostra observações históricas, geralmente com reposição, para construir novas trajetórias empíricas." },
+    { "front": "Como funciona Monte Carlo?", "back": "Gera caminhos aleatórios a partir de distribuições, parâmetros e relações estatísticas especificadas pelo analista." },
+    { "front": "Qual limitação de uma normal multivariada em finanças?", "back": "Pode representar mal assimetria negativa, caudas pesadas e dependência de cauda observadas nos retornos." },
+    { "front": "O que responde a análise de sensibilidade?", "back": "Como resultados e riscos mudam quando entradas ou hipóteses relevantes são alteradas." },
+    { "front": "Mais iterações de Monte Carlo eliminam erro de modelo?", "back": "Não. Podem reduzir ruído de simulação, mas não corrigem dados ruins, distribuição ou dependência mal especificadas." },
+    { "front": "Backtest é histórico real de carteira?", "back": "Não necessariamente. Se a estratégia não foi realmente operada no período, o resultado é hipotético." },
+    { "front": "O que deve acompanhar a divulgação de resultado simulado?", "back": "Método, período, universo, benchmark, custos, execução, pressupostos, critérios de seleção e riscos e limitações." },
+    { "front": "O que significa robustez?", "back": "Que a conclusão permanece razoavelmente estável sob hipóteses alternativas plausíveis, sem depender de um único ajuste favorável." },
+    { "front": "Por que reconstruir a composição histórica de um índice?", "back": "Para incluir os ativos que eram elegíveis em cada data, inclusive os removidos posteriormente, reduzindo viés de sobrevivência." }
+  ],
+  "tips": [
+    "Antes de interpretar o gráfico de patrimônio, confira se o sinal usou somente dados disponíveis na data da decisão.",
+    "Separe retorno bruto e líquido e identifique custos, spread, slippage e regra de preenchimento.",
+    "Leia retorno junto com drawdown, concentração, giro e benchmark; uma única métrica não resume o risco.",
+    "No walk-forward, a janela de estimação vem antes do período avaliado; preserve um teste final para evitar ajustes repetidos.",
+    "Diferencie cenário histórico, bootstrap e Monte Carlo pela origem dos choques usados.",
+    "Ao comunicar desempenho, chame resultado não operado de hipotético e explique as premissas que o produziram."
+  ],
+  "traps": [
+    "Confundir resultado histórico condicional com previsão garantida: um backtest descreve regras e dados passados.",
+    "Usar apenas os ativos atuais no universo antigo: isso exclui sobreviventes negativos e cria viés de sobrevivência.",
+    "Supor que preço tocado significa ordem limitada preenchida: a sequência intradiária, a fila e a liquidez importam.",
+    "Achar que muitas iterações tornam Monte Carlo confiável por si: o modelo de distribuição ainda pode estar errado.",
+    "Tratar bootstrap como fonte de choques nunca observados: reamostragens dependem da experiência histórica fornecida.",
+    "Apresentar retorno bruto como líquido ou backtest como carteira operada: custos e natureza hipotética precisam ser claros."
+  ],
+  "activeRecall": [
+    { "question": "Descreva o roteiro de um backtest interpretável.", "answer": "Formular hipótese e objetivo; especificar universo e dados disponíveis; definir sinais, pesos, execução e rebalanceamento; incluir custos; calcular desempenho e riscos; comparar com benchmark e documentar limitações." },
+    { "question": "Como diferenciar retorno acumulado, volatilidade e drawdown?", "answer": "Retorno acumulado resume crescimento no período; volatilidade descreve dispersão dos retornos; drawdown descreve uma queda desde pico anterior até vale." },
+    { "question": "Dê um exemplo de viés de antecipação e uma correção.", "answer": "Gerar sinal com o fechamento do dia e supor execução naquele preço sem ser possível enviar ordem antes dele. Corrige-se usando a próxima cotação executável ou uma regra temporal plausível." },
+    { "question": "Como viés de sobrevivência pode inflar um teste de ações?", "answer": "Uma base com apenas empresas ainda listadas omite falidas e deslistadas. Reconstruir constituintes e elegibilidade em cada data inclui esses casos." },
+    { "question": "Como o walk-forward reduz a distância entre teste e decisão real?", "answer": "Em cada etapa estima com o passado disponível, aplica regras no período futuro seguinte e avança a janela, sem usar esse futuro na estimação." },
+    { "question": "Por que incluir custos e regras de preenchimento?", "answer": "Sinais não garantem execução ao preço observado. Spread, comissões, slippage, liquidez e execução parcial alteram retorno líquido e viabilidade." },
+    { "question": "Compare simulação histórica e Monte Carlo.", "answer": "A histórica reamostra observações empíricas; Monte Carlo gera trajetórias a partir de distribuições e parâmetros modelados. Ambas dependem de hipóteses e podem subestimar eventos não representados." },
+    { "question": "O que uma análise de sensibilidade pode revelar?", "answer": "Pode mostrar se a conclusão depende de custo, parâmetro, correlação ou frequência específica, inclusive quando hipóteses combinadas fragilizam a estratégia." },
+    { "question": "Por que um backtest divulgado é desempenho hipotético quando não houve operação?", "answer": "Porque o retorno foi calculado retrospectivamente com regras aplicadas a dados passados e não representa decisões executadas com capital real naquele período." },
+    { "question": "Que informações permitem ao leitor avaliar um resultado simulado?", "answer": "Período, universo, dados, regras, benchmark, custos, modelo de execução, critérios e parâmetros testados, pressupostos e limitações." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Resultado retrospectivo confundido com previsão", "summary": "O backtest é condicional às regras, dados e hipóteses e não garante desempenho futuro nem prova que a carteira foi operada." },
+    { "key": "e2", "title": "Vieses temporais e de universo", "summary": "Antecipação usa informação futura; sobrevivência exclui ativos que desapareceram; sobreajuste seleciona regras pelo ruído da amostra." },
+    { "key": "e3", "title": "Execução idealizada e custos omitidos", "summary": "Spread, slippage, comissões, impacto, liquidez e preenchimento parcial determinam se o resultado bruto é realizável e qual será o resultado líquido." },
+    { "key": "e4", "title": "Métodos de simulação confundidos", "summary": "Cenário histórico estuda episódio; simulação histórica reamostra observações; Monte Carlo gera dados sob distribuições especificadas." },
+    { "key": "e5", "title": "Confiança excessiva nas métricas e modelos", "summary": "Mais caminhos não eliminam erro de modelo; normalidade pode ignorar assimetria e caudas; sensibilidade e comunicação de hipóteses continuam necessárias." }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe deseja saber como uma regra de investimento teria atravessado dados históricos, incluindo rebalanceamentos definidos. Qual abordagem atende ao objetivo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Projetar retornos futuros a partir de metas de rentabilidade definidas pela equipe.", "correct": false },
+        { "key": "B", "text": "Aplicar sistematicamente as regras da estratégia à série histórica disponível.", "correct": false },
+        { "key": "C", "text": "Substituir os ativos da carteira por seus equivalentes atuais em toda a amostra.", "correct": false },
+        { "key": "D", "text": "Replicar diariamente as posições de uma carteira real sem registrar os custos.", "correct": false },
+        { "key": "E", "text": "Aplicar as regras predefinidas aos dados históricos e medir risco e retorno.", "correct": true }
+      ],
+      "explanation": "Backtesting aplica regras especificadas a dados históricos para avaliar a trajetória de risco e retorno que teria ocorrido sob essas condições. Metas são projeções; substituir o universo atual pode introduzir viés de sobrevivência; copiar posições sem custos ou escolher o vencedor não define, por si, um teste confiável.",
+      "section": "1. O que o backtest mede", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um analista apresenta retorno acumulado elevado, mas omite quedas intermediárias e benchmark. Qual informação adicional é mais útil para avaliar o perfil de risco e a comparação?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O número de páginas do relatório e a quantidade de gráficos apresentados.", "correct": false },
+        { "key": "B", "text": "A taxa de acerto das operações, sem considerar tamanho de ganhos ou perdas.", "correct": false },
+        { "key": "C", "text": "O retorno acumulado recalculado apenas para o melhor ano da amostra.", "correct": false },
+        { "key": "D", "text": "Volatilidade, drawdown e desempenho contra referência comparável.", "correct": true },
+        { "key": "E", "text": "A frequência de atualização do gráfico sem a série de retornos.", "correct": false }
+      ],
+      "explanation": "Volatilidade e drawdown complementam o retorno ao mostrar dispersão e quedas pico-vale, enquanto um benchmark comparável contextualiza o resultado. Taxa de acerto isolada ignora a dimensão dos ganhos e perdas; selecionar o melhor ano distorce o período avaliado.",
+      "section": "1. O que o backtest mede", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma estratégia gera sinal usando o fechamento de hoje e, sem regra de execução que permita isso, registra compra exatamente nesse fechamento. Qual risco metodológico aparece?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Viés de antecipação, pois o sinal usa preço que só se conhece no fechamento.", "correct": true },
+        { "key": "B", "text": "Viés de sobrevivência, pois a cotação final elimina empresas deslistadas.", "correct": false },
+        { "key": "C", "text": "Viés de frequência, pois o retorno diário é necessariamente anualizado.", "correct": false },
+        { "key": "D", "text": "Risco de liquidez, pois todo preço de fechamento representa mercado ilíquido.", "correct": false },
+        { "key": "E", "text": "Erro de benchmark, pois o índice de referência é calculado em outra moeda.", "correct": false }
+      ],
+      "explanation": "Se o fechamento é necessário para formar o sinal, a decisão não poderia ser executada retrospectivamente naquele mesmo preço sem uma convenção plausível. Isso permite que a regra use informação ainda indisponível na decisão, caracterizando viés de antecipação.",
+      "section": "2. Janelas móveis e vieses de pesquisa", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um teste de ações inclui somente empresas que ainda compõem o índice hoje, inclusive em períodos antigos. Qual correção reduz o viés de sobrevivência?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Excluir empresas cujo retorno teve grande volatilidade durante o período.", "correct": false },
+        { "key": "B", "text": "Manter a lista atual e ampliar o período de observação para décadas.", "correct": false },
+        { "key": "C", "text": "Reconstruir os ativos elegíveis em cada data, inclusive os que saíram.", "correct": true },
+        { "key": "D", "text": "Substituir empresas encerradas por companhias de setor semelhante.", "correct": false },
+        { "key": "E", "text": "Usar retornos brutos para compensar as empresas ausentes da base.", "correct": false }
+      ],
+      "explanation": "O universo precisa refletir os constituintes históricos e incluir ativos removidos, deslistados ou falidos enquanto eram elegíveis. Usar a composição atual elimina retrospectivamente casos ruins e tende a inflar o resultado; substituições por empresas atuais não reconstituem os dados faltantes.",
+      "section": "2. Janelas móveis e vieses de pesquisa", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe testa muitos valores de parâmetros, escolhe o melhor no histórico inteiro e divulga apenas esse resultado. Qual procedimento reduz a chance de sobreajuste?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Repetir os testes com mais casas decimais nos mesmos parâmetros selecionados.", "correct": false },
+        { "key": "B", "text": "Aumentar o universo atual sem modificar as regras previamente escolhidas.", "correct": false },
+        { "key": "C", "text": "Substituir o benchmark por um índice que tenha retorno mais elevado.", "correct": false },
+        { "key": "D", "text": "Executar a estratégia em dados futuros e tratar o resultado como histórico.", "correct": false },
+        { "key": "E", "text": "Reservar amostra final intocada e documentar a busca de parâmetros.", "correct": true }
+      ],
+      "explanation": "Escolher o melhor dentre muitas tentativas explora ruído da amostra. Uma amostra final não usada na seleção fornece avaliação mais independente; registrar hipóteses e tentativas permite dimensionar a busca. Mais casas decimais ou um benchmark escolhido pelo resultado não resolvem a seleção retrospectiva.",
+      "section": "2. Janelas móveis e vieses de pesquisa", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No procedimento walk-forward, como se aproximam decisões tomadas ao longo do tempo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Ajusta-se a regra com toda a amostra e aplica-se ao período mais antigo.", "correct": false },
+        { "key": "B", "text": "Usa-se uma regra fixa sem qualquer avaliação em período posterior.", "correct": false },
+        { "key": "C", "text": "Reestima-se com passado disponível e testa-se no período seguinte.", "correct": true },
+        { "key": "D", "text": "Ordenam-se os retornos do maior para o menor antes de investir.", "correct": false },
+        { "key": "E", "text": "Escolhe-se a janela pelo maior retorno final, sem avançar as datas.", "correct": false }
+      ],
+      "explanation": "Walk-forward calibra usando a janela passada, aplica no período seguinte e avança a janela. Assim, cada decisão é avaliada com informação disponível até aquele momento. Ajustar toda a amostra para explicar o passado introduz antecipação.",
+      "section": "2. Janelas móveis e vieses de pesquisa", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um dado macroeconômico é revisado meses depois de sua primeira divulgação. Qual série deve alimentar o sinal histórico da estratégia?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A estimativa revisada mais recente, aplicada retroativamente a todos os anos.", "correct": false },
+        { "key": "B", "text": "O valor preliminar disponível na data em que a decisão ocorreria.", "correct": false },
+        { "key": "C", "text": "A média entre o valor preliminar e o valor revisado no encerramento.", "correct": false },
+        { "key": "D", "text": "O valor do trimestre seguinte, desde que tenha menor erro estatístico.", "correct": false },
+        { "key": "E", "text": "Usar a versão preliminar publicada antes da decisão simulada.", "correct": true }
+      ],
+      "explanation": "A estratégia só poderia usar a versão do dado publicada e disponível naquela data. Aplicar revisões posteriores ao passado introduz informação futura, ainda que a série final seja estatisticamente mais precisa para descrever hoje o período antigo.",
+      "section": "2. Janelas móveis e vieses de pesquisa", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de custos é mais relevante ao converter retorno bruto simulado em uma estimativa de retorno líquido?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Apenas a inflação anual, sem considerar a negociação dos ativos.", "correct": false },
+        { "key": "B", "text": "Somente a taxa de administração do índice de referência escolhido.", "correct": false },
+        { "key": "C", "text": "Spread, comissões, slippage e impacto de mercado plausível.", "correct": true },
+        { "key": "D", "text": "Apenas os custos de armazenamento dos arquivos históricos usados.", "correct": false },
+        { "key": "E", "text": "O retorno do benchmark descontado duas vezes, como custo operacional.", "correct": false }
+      ],
+      "explanation": "Custos de negociação como spread, comissões, slippage e impacto reduzem o retorno da estratégia. Conforme o caso, também entram tributos, financiamento ou empréstimo. Inflação e custos do benchmark podem ser relevantes a outras comparações, mas não substituem os custos de execução da carteira.",
+      "section": "3. Execução, custos e qualidade do backtest", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma barra diária mostra que a mínima alcançou o preço limite de compra, mas não há dados intradiários. Qual conclusão sobre execução é metodologicamente mais adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A ordem certamente executou integralmente, pois a mínima tocou o limite.", "correct": false },
+        { "key": "B", "text": "A ordem executou antes da abertura, pois a barra resume o dia.", "correct": false },
+        { "key": "C", "text": "A ordem teve prioridade, pois preços diários ordenam a fila de ofertas.", "correct": false },
+        { "key": "D", "text": "A barra não revela sequência, liquidez ou posição da ordem na fila.", "correct": true },
+        { "key": "E", "text": "A execução depende somente do fechamento e não do mercado intradiário.", "correct": false }
+      ],
+      "explanation": "Uma barra diária resume extremos sem informar em que ordem ocorreram nem se havia quantidade e prioridade para preencher a ordem. Um modelo de preenchimento precisa explicitar essas hipóteses; afirmar execução integral pelo simples toque pode superestimar o desempenho.",
+      "section": "3. Execução, custos e qualidade do backtest", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma estratégia negocia ativos pouco líquidos e suas ordens são grandes em relação ao volume. Qual teste de robustez é mais pertinente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Assumir execução imediata no preço médio, sem variar o tamanho das ordens.", "correct": false },
+        { "key": "B", "text": "Aplicar custos maiores e limites de capacidade ou preenchimento parcial.", "correct": true },
+        { "key": "C", "text": "Trocar o benchmark por outro com liquidez inferior à da carteira.", "correct": false },
+        { "key": "D", "text": "Excluir os períodos em que o volume negociado caiu muito.", "correct": false },
+        { "key": "E", "text": "Aumentar o capital simulado para reduzir o impacto proporcional.", "correct": false }
+      ],
+      "explanation": "Ordens grandes em ativos pouco líquidos podem mover preços, não executar integralmente ou sofrer custos maiores. Testar custos e capacidade mais conservadores ou preenchimentos parciais revela se o desempenho depende de liquidez idealizada. Aumentar capital tende a agravar o problema.",
+      "section": "3. Execução, custos e qualidade do backtest", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar carteira e benchmark, qual procedimento evita uma diferença de convenção que torne a comparação enganosa?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Usar o mesmo período, moeda e tratamento de proventos nas duas séries.", "correct": true },
+        { "key": "B", "text": "Selecionar para cada uma o intervalo com maior retorno acumulado.", "correct": false },
+        { "key": "C", "text": "Converter somente o benchmark para a moeda de maior valorização.", "correct": false },
+        { "key": "D", "text": "Excluir dividendos da carteira e incluí-los no benchmark sem ajuste.", "correct": false },
+        { "key": "E", "text": "Comparar frequência mensal da carteira com preços diários do índice.", "correct": false }
+      ],
+      "explanation": "Período, moeda e tratamento de proventos devem ser comparáveis. Se dividendos entram em uma série e não em outra, ou as moedas e datas diferem, a diferença medida mistura desempenho com convenções. O benchmark também deve ser apropriado para a estratégia.",
+      "section": "3. Execução, custos e qualidade do backtest", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a diferença central entre um cenário histórico e uma simulação Monte Carlo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O cenário histórico usa episódio passado; Monte Carlo gera caminhos de um modelo.", "correct": true },
+        { "key": "B", "text": "O cenário histórico exige dados futuros; Monte Carlo usa somente preços atuais.", "correct": false },
+        { "key": "C", "text": "O cenário histórico calcula taxas; Monte Carlo elimina toda incerteza.", "correct": false },
+        { "key": "D", "text": "O cenário histórico dispensa hipóteses; Monte Carlo não requer parâmetros.", "correct": false },
+        { "key": "E", "text": "O cenário histórico mede liquidez; Monte Carlo mede apenas retorno bruto.", "correct": false }
+      ],
+      "explanation": "Um cenário histórico examina como exposições responderiam a condições observadas em um episódio. Monte Carlo gera trajetórias aleatórias a partir de distribuições e relações especificadas. Ambos dependem de hipóteses, mas a origem dos choques é diferente.",
+      "section": "4. Cenários históricos e simulações", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma simulação histórica por bootstrap, o analista sorteia observações com reposição. O que essa escolha permite?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Impedir que uma observação histórica apareça mais de uma vez.", "correct": false },
+        { "key": "B", "text": "Repetir algumas observações e deixar outras fora de uma trajetória.", "correct": true },
+        { "key": "C", "text": "Criar choques de qualquer magnitude sem depender da amostra.", "correct": false },
+        { "key": "D", "text": "Garantir que correlações futuras coincidam com as passadas.", "correct": false },
+        { "key": "E", "text": "Converter retornos empíricos em uma distribuição necessariamente normal.", "correct": false }
+      ],
+      "explanation": "Com reposição, cada sorteio pode selecionar novamente a mesma observação, enquanto outras ficam ausentes da trajetória reamostrada. Isso cria sequências alternativas a partir da distribuição empírica, mas não produz automaticamente choques fora do histórico nem garante relações futuras.",
+      "section": "4. Cenários históricos e simulações", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma carteira mantém ativos correlacionados em períodos comuns, mas as correlações aumentam em crises. Qual limitação pode surgir ao simular cada ativo de forma independente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A independência preserva automaticamente as perdas conjuntas extremas.", "correct": false },
+        { "key": "B", "text": "A independência aumenta a duração histórica de cada observação.", "correct": false },
+        { "key": "C", "text": "A independência transforma o cenário em teste fora da amostra.", "correct": false },
+        { "key": "D", "text": "A independência pode apagar dependência conjunta e risco de cauda.", "correct": true },
+        { "key": "E", "text": "A independência assegura que toda carteira tenha retorno positivo.", "correct": false }
+      ],
+      "explanation": "Sortear ativos independentemente quebra a associação observada entre seus retornos e pode subestimar perdas simultâneas, particularmente quando dependência aumenta em estresse. Reamostrar vetores conjuntos ou blocos pode preservar aspectos transversais ou temporais, conforme o objetivo.",
+      "section": "4. Cenários históricos e simulações", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um modelo Monte Carlo usa distribuição normal multivariada para retornos de ativos com caudas pesadas. Qual ressalva é adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A normal garante que crises apareçam na proporção observada historicamente.", "correct": false },
+        { "key": "B", "text": "A normal dispensa estimar parâmetros de retorno e dependência.", "correct": false },
+        { "key": "C", "text": "A normal pode subrepresentar assimetria e eventos extremos de cauda.", "correct": true },
+        { "key": "D", "text": "A normal transforma todo retorno negativo em perda limitada conhecida.", "correct": false },
+        { "key": "E", "text": "A normal incorpora automaticamente mudanças estruturais futuras.", "correct": false }
+      ],
+      "explanation": "A normal multivariada é conveniente, mas não representa assimetria negativa e caudas pesadas de forma adequada, nem garante a dependência extrema observada em crises. As conclusões continuam condicionadas à distribuição, aos parâmetros estimados e à estrutura de dependência.",
+      "section": "4. Cenários históricos e simulações", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma estratégia só permanece atraente quando o custo presumido é muito baixo. Que análise testa diretamente essa dependência?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Eliminar os custos do modelo e manter o retorno bruto como conclusão.", "correct": false },
+        { "key": "B", "text": "Variar custos em cenários e recalcular retorno líquido e risco.", "correct": true },
+        { "key": "C", "text": "Aumentar o número de gráficos sem alterar as entradas simuladas.", "correct": false },
+        { "key": "D", "text": "Trocar a estratégia pelo benchmark com taxa de retorno maior.", "correct": false },
+        { "key": "E", "text": "Aumentar a amostra histórica usando a mesma hipótese de custo.", "correct": false }
+      ],
+      "explanation": "A análise de sensibilidade varia a entrada suspeita — neste caso, custos — e observa como retorno líquido e risco mudam. Se a conclusão desaparece sob custos plausíveis mais altos, a estratégia depende de execução favorável. Mais gráficos não testam a hipótese.",
+      "section": "5. Sensibilidade, leitura crítica e comunicação", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Após milhares de iterações Monte Carlo, o resultado continua usando correlações fixas estimadas em um período tranquilo. O que ainda limita a conclusão?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A quantidade de iterações torna as correlações fixas necessariamente corretas.", "correct": false },
+        { "key": "B", "text": "O resultado elimina incerteza porque simula todos os caminhos possíveis.", "correct": false },
+        { "key": "C", "text": "A média simulada substitui a necessidade de avaliar perdas extremas.", "correct": false },
+        { "key": "D", "text": "A independência das correlações transforma o modelo em histórico real.", "correct": false },
+        { "key": "E", "text": "A dependência pode mudar em estresse, apesar do grande número de caminhos.", "correct": true }
+      ],
+      "explanation": "Mais caminhos diminuem ruído numérico da simulação, mas não corrigem a hipótese de correlações estáveis. Se as dependências aumentam em crises, a distribuição simulada pode subestimar perdas conjuntas. Sensibilidade a correlações e cenários de estresse examinam essa fragilidade.",
+      "section": "5. Sensibilidade, leitura crítica e comunicação", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma apresentação comercial mostra retorno retrospectivo de uma estratégia que não foi operada no período analisado. Como deve ser caracterizado esse resultado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Como retorno efetivamente obtido, pois os preços históricos são observáveis.", "correct": false },
+        { "key": "B", "text": "Como desempenho hipotético, com método, pressupostos e limitações claros.", "correct": true },
+        { "key": "C", "text": "Como retorno garantido, se o algoritmo foi escrito antes da apresentação.", "correct": false },
+        { "key": "D", "text": "Como retorno líquido, ainda que nenhum custo tenha sido deduzido.", "correct": false },
+        { "key": "E", "text": "Como resultado auditado, sempre que houver benchmark disponível.", "correct": false }
+      ],
+      "explanation": "Aplicar retrospectivamente uma estratégia a dados de período em que ela não foi usada produz desempenho hipotético. A apresentação deve permitir compreender critérios, pressupostos, riscos e limitações, e não sugerir operação efetiva ou garantia. A existência de dados e benchmark não muda essa natureza.",
+      "section": "5. Sensibilidade, leitura crítica e comunicação", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma tabela de sensibilidade, custo de negociação e frequência de rebalanceamento são variados simultaneamente. Que benefício essa análise conjunta oferece?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Mostra combinações de hipóteses e possíveis interações entre entradas.", "correct": true },
+        { "key": "B", "text": "Prova qual combinação será observada no mercado no próximo ano.", "correct": false },
+        { "key": "C", "text": "Remove a necessidade de estimar liquidez dos ativos negociados.", "correct": false },
+        { "key": "D", "text": "Garante que os efeitos de cada entrada sejam independentes.", "correct": false },
+        { "key": "E", "text": "Converte custos hipotéticos em comissões efetivamente cobradas.", "correct": false }
+      ],
+      "explanation": "Variar entradas em conjunto permite examinar combinações e interações, como rebalanceamento mais frequente elevando custos. Isso não prevê qual cenário ocorrerá, não elimina a estimação das entradas e não transforma premissas em custos realmente cobrados.",
+      "section": "5. Sensibilidade, leitura crítica e comunicação", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma perda no percentil desfavorável de uma simulação é apresentada como o pior resultado possível da carteira. Qual interpretação é correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O percentil é limite garantido, desde que haja muitas trajetórias simuladas.", "correct": false },
+        { "key": "B", "text": "O percentil descreve um quantil condicionado ao modelo e às entradas.", "correct": true },
+        { "key": "C", "text": "O percentil prova que perdas mais severas não podem ocorrer.", "correct": false },
+        { "key": "D", "text": "O percentil equivale ao máximo drawdown histórico observado.", "correct": false },
+        { "key": "E", "text": "O percentil independe da distribuição e da dependência adotadas.", "correct": false }
+      ],
+      "explanation": "Um quantil resume a distribuição produzida pelo modelo e pelos parâmetros escolhidos. Eventos mais extremos podem ocorrer se a distribuição, dependência ou regime diferir das hipóteses. Mais caminhos estabilizam a estimativa daquele modelo, mas não transformam o percentil em limite garantido.",
+      "section": "5. Sensibilidade, leitura crítica e comunicação", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma estratégia apresenta resultado bruto alto, mas resultado líquido negativo após spread e comissões plausíveis. Qual conclusão é mais apropriada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A estratégia é viável porque custos não alteram o sinal dos retornos.", "correct": false },
+        { "key": "B", "text": "O resultado bruto deve ser divulgado como líquido para comparação.", "correct": false },
+        { "key": "C", "text": "A estratégia depende de custos e execução que precisam ser reavaliados.", "correct": true },
+        { "key": "D", "text": "O benchmark deve ser removido para que o retorno líquido melhore.", "correct": false },
+        { "key": "E", "text": "A frequência de negociação não afeta a rentabilidade líquida.", "correct": false }
+      ],
+      "explanation": "O desempenho bruto não demonstra viabilidade quando custos plausíveis consomem o retorno. É necessário rever execução, giro, liquidez e capacidade, reportando separadamente resultados brutos e líquidos. O benchmark ou a nomenclatura não altera os custos reais da estratégia.",
+      "section": "3. Execução, custos e qualidade do backtest", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao calcular retorno anualizado de uma série, que cuidado permite uma comparação mais consistente entre períodos de durações diferentes?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Anualizar com convenção coerente com duração e frequência.", "correct": true },
+        { "key": "B", "text": "Comparar retornos acumulados sem considerar a duração observada.", "correct": false },
+        { "key": "C", "text": "Escolher o período que produza a maior taxa anual equivalente.", "correct": false },
+        { "key": "D", "text": "Usar somente retorno do primeiro ano para representar a série.", "correct": false },
+        { "key": "E", "text": "Somar volatilidade ao retorno acumulado antes de anualizá-lo.", "correct": false }
+      ],
+      "explanation": "A anualização facilita comparar períodos diferentes quando a convenção corresponde à duração e à frequência dos dados. Selecionar apenas o melhor trecho ou comparar acumulados de durações distintas não produz medida equivalente; volatilidade não é somada ao retorno para esse fim.",
+      "section": "1. O que o backtest mede", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer avaliar uma estratégia em um choque hipotético de juros e inflação que não ocorreu exatamente na amostra. Que recurso é adequado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Aplicar exclusivamente o último retorno anual observado sem alterar premissas.", "correct": false },
+        { "key": "B", "text": "Aplicar exclusivamente o último retorno anual sem alterar premissas.", "correct": false },
+        { "key": "C", "text": "Excluir do estudo todos os períodos históricos com juros positivos.", "correct": false },
+        { "key": "D", "text": "Rebatizar o episódio mais favorável como choque futuro certo.", "correct": false },
+        { "key": "E", "text": "Combinar choques explícitos para examinar exposições da carteira.", "correct": true }
+      ],
+      "explanation": "Um cenário hipotético pode combinar choques explicitamente definidos para examinar vulnerabilidades, mesmo que aquela combinação não tenha ocorrido. A conclusão depende das magnitudes e relações assumidas; escolher apenas trajetórias favoráveis cria seleção e não constitui estresse equilibrado.",
+      "section": "4. Cenários históricos e simulações", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma base de preços contém lacuna justamente em datas de forte estresse. Qual tratamento evita que a série sugira negociação não observada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Preencher automaticamente com retorno médio diário do período.", "correct": false },
+        { "key": "B", "text": "Preencher automaticamente com o retorno médio diário do período.", "correct": false },
+        { "key": "C", "text": "Copiar preço de ativo parecido e marcar como cotação observada.", "correct": false },
+        { "key": "D", "text": "Investigar a lacuna e explicitar tratamento conservador dos dados.", "correct": true },
+        { "key": "E", "text": "Supor que toda ordem executaria pelo último preço disponível.", "correct": false }
+      ],
+      "explanation": "Lacunas exigem investigação e convenção transparente, pois imputações podem criar preços e execuções inexistentes. Remover períodos adversos sem explicar a exclusão ou atribuir preenchimento ao último preço disponível pode enviesar a conclusão para cima.",
+      "section": "3. Execução, custos e qualidade do backtest", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma estimativa de retorno é incerta e a estratégia tem risco de perdas extremas. Qual relatório de simulação é mais informativo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Divulgar só a trajetória mediana e omitir cenários desfavoráveis.", "correct": false },
+        { "key": "B", "text": "Apresentar a média como resultado certo para cada investidor.", "correct": false },
+        { "key": "C", "text": "Substituir risco de cauda pela taxa de acerto das operações.", "correct": false },
+        { "key": "D", "text": "Reportar volatilidade e ignorar quantis de perda mais severos.", "correct": false },
+        { "key": "E", "text": "Mostrar distribuição, quantis ruins e hipóteses do modelo.", "correct": true }
+      ],
+      "explanation": "A distribuição, os quantis desfavoráveis e as premissas permitem compreender dispersão e cenários de perda, respeitando que as estimativas são condicionais ao modelo. Média, mediana ou caminho mais favorável isolados escondem riscos relevantes.",
+      "section": "5. Sensibilidade, leitura crítica e comunicação", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O objetivo principal do backtesting é aproximar o processo real de investimento para compreender a relação entre risco e retorno da estratégia.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Um backtest simula a aplicação de regras a dados históricos para examinar risco e retorno em condições especificadas. A aproximação depende de dados, regras, rebalanceamento, execução e custos e não equivale a uma carteira real nem garante o futuro.",
+      "section": "1. O que o backtest mede", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Volatilidade e drawdown descrevem exatamente o mesmo aspecto do risco, pois ambos medem somente o retorno médio da carteira.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Volatilidade resume dispersão dos retornos; drawdown mede queda do valor desde um pico anterior até um vale. São medidas diferentes e nenhuma, isoladamente, descreve todos os riscos da carteira.",
+      "section": "1. O que o backtest mede", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O uso de um dado revisado depois da data simulada pode introduzir informação que o investidor ainda não conhecia naquele momento.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A versão revisada só ficou disponível posteriormente. Usá-la retroativamente no sinal pode antecipar informação e distorcer a avaliação; deve-se usar a versão conhecida na data de decisão, quando disponível.",
+      "section": "2. Janelas móveis e vieses de pesquisa", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Manter somente ativos que ainda existem no fim da amostra é uma forma neutra de reconstruir o universo investível de décadas anteriores.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Essa seleção omite empresas que deixaram de existir, inclusive por resultados ruins, e produz viés de sobrevivência. A composição do universo precisa ser reconstruída para cada data histórica.",
+      "section": "2. Janelas móveis e vieses de pesquisa", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Walk-forward estima ou calibra a estratégia com uma janela passada e acompanha seu desempenho em um período posterior.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O procedimento sequencial usa informação passada para calibrar e aplica a regra no intervalo seguinte. Ao avançar as janelas, aproxima uma decisão que só conhece os dados já divulgados.",
+      "section": "2. Janelas móveis e vieses de pesquisa", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Se uma ordem a mercado é registrada no backtest, seu preço de preenchimento histórico é necessariamente igual ao último preço exibido no gráfico.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O preenchimento depende do modelo, da cotação disponível, do spread, da slippage e do instante de execução. Um gráfico pode mostrar preço de negócio, enquanto uma compra enfrenta preço de venda e custos adicionais.",
+      "section": "3. Execução, custos e qualidade do backtest", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O impacto de mercado pode ser relevante quando a ordem simulada é grande em relação à liquidez disponível no ativo.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Ordens relevantes diante do volume podem alterar preços e não ser executadas integralmente sem custo. Ignorar esse efeito pode fazer a simulação parecer mais rentável e escalável do que seria na prática.",
+      "section": "3. Execução, custos e qualidade do backtest", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma ordem limitada que toca o preço durante uma barra diária deve ser considerada integralmente executada, mesmo sem informação de volume ou sequência intradiária.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A barra diária não mostra a sequência de preços, a fila de ordens ou a quantidade disponível. Preenchimento integral é uma hipótese do modelo, não uma consequência comprovada pelo toque do preço limite.",
+      "section": "3. Execução, custos e qualidade do backtest", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Análise de cenário histórico pode examinar a resposta da estratégia a um episódio de inflação alta ou choque de juros.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Cenários históricos aplicam condições de episódios passados para examinar vulnerabilidades da carteira ou estratégia. A análise não implica que o episódio se repetirá nem cobre todas as condições possíveis.",
+      "section": "4. Cenários históricos e simulações", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O bootstrap com reposição impede que uma observação histórica selecionada apareça novamente na mesma amostra reamostrada.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Com reposição, uma observação selecionada pode aparecer várias vezes, enquanto outra pode não aparecer. Esse é o mecanismo que permite criar trajetórias alternativas a partir da distribuição empírica.",
+      "section": "4. Cenários históricos e simulações", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma simulação Monte Carlo continua condicionada à distribuição e às relações estatísticas escolhidas, mesmo que gere muitos caminhos.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Mais caminhos podem reduzir incerteza numérica da estimativa sob o modelo, mas não corrigem distribuição, parâmetros ou dependências mal especificadas. A interpretação deve explicitar essas escolhas.",
+      "section": "4. Cenários históricos e simulações", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma distribuição normal multivariada representa necessariamente assimetria negativa e caudas mais pesadas que as de uma normal em retornos financeiros.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A normal é simétrica e tem caudas determinadas por sua forma; não incorpora automaticamente assimetria negativa nem caudas pesadas. Modelos alternativos também exigem estimar parâmetros e podem ter erro de estimação.",
+      "section": "4. Cenários históricos e simulações", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Variar custos e frequências de rebalanceamento permite investigar se a conclusão da estratégia depende dessas hipóteses.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Sensibilidade mostra como o desempenho e o risco mudam quando entradas variam. Ela revela fragilidade ou robustez relativa, mas não determina qual custo ou frequência ocorrerá no futuro.",
+      "section": "5. Sensibilidade, leitura crítica e comunicação", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma apresentação de desempenho hipotético pode omitir pressupostos e limitações quando o gráfico do backtest é visualmente claro.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Um gráfico não explica critérios, pressupostos, riscos e limitações que condicionam o resultado. A regra de marketing da SEC trata backtests como desempenho hipotético e prevê contexto suficiente para compreensão; a aplicação depende do âmbito da comunicação.",
+      "section": "5. Sensibilidade, leitura crítica e comunicação", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma carteira testada retrospectivamente em período no qual não foi operada deve ser descrita como resultado efetivamente alcançado se os dados forem oficiais.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A qualidade ou oficialidade do preço não torna as decisões simuladas em operações efetivas. Se a estratégia não foi usada naquele período, o resultado permanece hipotético e condicionado às regras e hipóteses aplicadas.",
+      "section": "5. Sensibilidade, leitura crítica e comunicação", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Backtesting & Simulation",
+      "publisher": "CFA Institute",
+      "reference": "Etapas de backtesting, janelas móveis, vieses, cenários históricos, bootstrap, Monte Carlo e análise de sensibilidade",
+      "url": "https://www.cfainstitute.org/insights/professional-learning/refresher-readings/2026/backtesting-and-simulation",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Investment Adviser Marketing: Final Rule",
+      "publisher": "U.S. Securities and Exchange Commission",
+      "reference": "Tratamento de desempenho retrospectivo como hipotético, condições de divulgação, pressupostos, riscos e limitações",
+      "url": "https://www.sec.gov/files/rules/final/2020/ia-5653.pdf",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Trade Fills: Key Concepts",
+      "publisher": "QuantConnect",
+      "reference": "Modelos de preenchimento, preço e quantidade, spread, slippage, preenchimento parcial e cotações defasadas em backtests",
+      "url": "https://www.quantconnect.com/docs/v2/writing-algorithms/reality-modeling/trade-fills/key-concepts",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Initial Observations Regarding Advisers Act Marketing Rule Compliance",
+      "publisher": "U.S. Securities and Exchange Commission",
+      "reference": "Observações de fiscalização sobre omissões materiais, riscos, limitações e apresentação equilibrada de desempenho",
+      "url": "https://www.sec.gov/compliance/risk-alerts/risk-alert-041724",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

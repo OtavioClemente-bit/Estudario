@@ -1,0 +1,1747 @@
+{
+  "id": "informatica.bancos-dados-distribuidos-orientados-objetos",
+  "subject": "Informática",
+  "title": "Bancos de dados distribuídos e orientados a objetos",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Banco de dados distribuído e orientado a objetos",
+    "Bancos de dados distribuídos",
+    "Banco de dados distribuído",
+    "Bancos de dados orientados a objetos",
+    "Banco de dados orientado a objetos",
+    "Banco de dados objeto-relacional",
+    "Sistemas de bancos distribuídos",
+    "Particionamento e replicação de dados",
+    "Fragmentação de banco de dados distribuído",
+    "Tipos estruturados em banco de dados",
+    "Tabelas tipadas e objetos SQL",
+    "Referências REF em bancos de dados",
+    "Herança em tipos de banco de dados",
+    "Banco distribuído e modelo orientado a objetos"
+  ],
+  "scope": {
+    "covers": "Fundamentos de bancos distribuídos: transparência de localização, fragmentação horizontal e vertical, particionamento, distribuição por chave, replicação, coordenação, acesso federado e compromissos de desempenho, disponibilidade e consistência; fundamentos objeto-relacionais: tipos estruturados, atributos e métodos, instâncias, tabelas tipadas, hierarquias de tipos, identificadores, referências e coleções, com exemplos oficiais de PostgreSQL, IBM Db2 e Oracle.",
+    "excludes": "Administração detalhada de produtos específicos, sintaxe completa de SQL, configuração de clusters, protocolos distribuídos especializados, bancos NoSQL em profundidade e implementação interna de algoritmos de consenso."
+  },
+  "theoryTitle": "Distribuir dados e representar objetos no banco",
+  "chapters": [
+    {
+      "title": "1. Banco de dados distribuído: dados em vários nós",
+      "markdown": "### O problema que este assunto resolve\n\nUm banco distribuído mantém dados em mais de um computador ou partição conectados por uma rede, mas oferece às aplicações meios de consultar e atualizar esse conjunto como um sistema lógico. A distribuição pode aproximar dados dos usuários, dividir carga e ampliar capacidade. A rede, porém, introduz latência, falhas parciais e necessidade de coordenar cópias.\n\n> **Siglas e termos deste capítulo**\n> - **Nó**: servidor ou partição que armazena ou processa parte dos dados.\n> - **Transparência de localização**: o usuário acessa os dados sem precisar indicar sua localização física em cada consulta.\n> - **Coordenador**: nó que recebe uma operação e a encaminha às partições participantes.\n> - **SGBD**: sistema gerenciador de banco de dados.\n\nO Db2 descreve banco particionado como um conjunto de partições que pode estar em máquinas distintas. Uma consulta pode ser decomposta em subconsultas executadas em paralelo; o usuário ainda trata os dados como um conjunto lógico. A partição coordenadora recebe a interação da aplicação e distribui trabalho quando necessário. Isso não significa que toda operação seja local ou instantânea: uma consulta que cruza nós precisa trafegar pela rede.\n\nA distribuição é uma escolha de projeto. Dados acessados e atualizados frequentemente por uma unidade podem ficar próximos dela; dados compartilhados por locais distintos podem ser posicionados segundo o padrão de uso. Também se pesam segurança, atualidade, disponibilidade, recuperação e responsabilidade pela correção dos dados.\n\n### Arquiteturas e acesso a dados remotos\n\nUm sistema pode dividir uma base entre partições de um mesmo SGBD ou integrar fontes autônomas por uma camada de federação. No PostgreSQL, um *foreign data wrapper* (FDW) esconde detalhes de conexão e consulta da fonte externa. Um servidor estrangeiro guarda opções de conexão; um mapeamento de usuário fornece credenciais conforme o papel local; uma tabela estrangeira descreve a estrutura remota e pode ser consultada em SQL como uma tabela comum. Ela não armazena localmente as linhas: o FDW busca os dados na origem quando a consulta é executada.\n\nFederação não equivale a copiar dados. A consulta pode depender de conectividade e desempenho do sistema remoto. Também não se deve confundir uma tabela estrangeira com uma chave estrangeira relacional: o termo *foreign* refere-se à origem externa, não a uma restrição entre tabelas.\n\n### Como cai na prova\n\n- Transparência lógica não apaga a distribuição física nem o custo de comunicação.\n- Em Db2 particionado, uma chave de distribuição e um mapa orientam a partição de cada linha; operações podem ser paralelas.\n- No PostgreSQL, FDW, servidor estrangeiro, mapeamento de usuário e tabela estrangeira têm funções distintas.\n- Replicar é manter cópias; federar é consultar uma fonte externa por uma interface."
+    },
+    {
+      "title": "2. Fragmentação, particionamento e replicação",
+      "markdown": "### O problema que este assunto resolve\n\nQuando uma tabela cresce ou é usada em locais diferentes, há duas decisões independentes: separar os dados em partes ou manter cópias. **Fragmentação** divide uma relação lógica em fragmentos; **replicação** mantém cópias dos dados em mais de um local. Um sistema pode combinar ambas.\n\n> **Siglas e termos deste capítulo**\n> - **Fragmentação horizontal**: separa linhas, por exemplo, por região ou faixa de chave.\n> - **Fragmentação vertical**: separa colunas; a chave de identificação costuma permitir recompor a linha.\n> - **Particionamento**: divisão física/lógica dos dados entre partições de armazenamento ou processamento.\n> - **Chave de distribuição**: coluna ou conjunto de colunas usado para determinar onde uma linha será guardada.\n> - **Replicação**: manutenção de cópias de uma tabela ou conjunto de dados em vários locais.\n\nNo Db2, aplica-se uma função de hash aos valores da chave de distribuição; o resultado é associado a uma partição por um mapa de distribuição. Tabelas com chaves compatíveis e colocadas no mesmo grupo podem ficar **colocadas** (co-located): linhas relacionadas permanecem na mesma partição, permitindo que certos joins sejam processados localmente. Uma tabela também pode ser distribuída só por um subconjunto das partições.\n\nUma chave ruim pode concentrar muitas linhas em poucas partições (*skew*), frustrando o balanceamento. Uma chave com alta cardinalidade e valores razoavelmente distribuídos tende a repartir melhor; a decisão deve considerar consultas e joins frequentes. Aumentar partições não garante aceleração se o gargalo estiver na rede, no disco, numa partição saturada ou numa operação que exige coordenação global.\n\nA replicação favorece leituras locais e pode aumentar disponibilidade, mas requer propagar atualizações e tratar atraso ou conflitos conforme o desenho. Cópia assíncrona pode ficar temporariamente desatualizada. Cópia síncrona exige coordenação antes de confirmar certas alterações e pode elevar latência ou reduzir disponibilidade diante de falha de comunicação. Não há uma configuração que maximize simultaneamente todos os objetivos.\n\n| Estratégia | O que é dividido ou copiado | Uso típico | Custo característico |\n| --- | --- | --- | --- |\n| Horizontal | Linhas entre nós | Localizar clientes por região | Consultas globais podem visitar vários nós |\n| Vertical | Colunas entre nós | Separar dados acessados por perfis diferentes | Recompor uma linha pode exigir junção |\n| Replicação | Cópias de linhas/tabelas | Leituras locais e tolerância a falhas | Propagar e reconciliar atualizações |\n\n### Cópias, extrações e instantâneos\n\nA documentação IBM distingue extração (cópia carregada por solicitação, possivelmente ocasional), *snapshot* (cópia somente de leitura atualizada periodicamente) e replicação (atualização automática das cópias). Esses termos descrevem políticas de cópia distintas. Replicar uma tabela não é o mesmo que particioná-la: na replicação há múltiplas cópias; na fragmentação horizontal cada linha pode residir em um fragmento escolhido, ainda que o sistema mantenha cópias redundantes desse fragmento.\n\n### Como cai na prova\n\n- Hash da chave de distribuição ajuda a decidir a partição; não é, por si só, replicação.\n- Colocation de tabelas compatíveis pode reduzir tráfego em joins.\n- Snapshot periódico pode estar desatualizado entre atualizações.\n- Fragmentação horizontal divide linhas; vertical divide atributos/colunas."
+    },
+    {
+      "title": "3. Consistência, disponibilidade e transações entre nós",
+      "markdown": "### O problema que este assunto resolve\n\nUma atualização distribuída pode tocar vários nós e réplicas. O sistema precisa decidir quando confirmar a operação, que leituras podem observar e o que acontece se uma partição ou o enlace de rede falhar. Uma falha parcial é diferente de um servidor central simplesmente parar: alguns componentes podem continuar acessíveis enquanto outros não respondem.\n\n> **Siglas e termos deste capítulo**\n> - **Consistência de réplica**: grau em que cópias apresentam o mesmo estado observável.\n> - **Replicação síncrona**: confirmação depende de resposta de outras réplicas participantes conforme a política adotada.\n> - **Replicação assíncrona**: a origem confirma antes de todas as cópias receberem a mudança.\n> - **Partição de rede**: interrupção de comunicação entre subconjuntos de nós.\n> - **Transação distribuída**: unidade de trabalho que envolve mais de um nó ou recurso.\n\nNa replicação síncrona, esperar as cópias pode reduzir divergência após uma confirmação, mas aumenta o tempo da operação e pode impedir gravações quando réplicas exigidas estão indisponíveis. Na assíncrona, a origem pode continuar respondendo com rapidez, embora leitores de uma réplica atrasada vejam estado antigo. A política concreta depende do produto e da topologia; não se deve inferir garantia forte só pelo fato de existir replicação.\n\nUma transação que abrange vários nós exige coordenação para que os participantes cheguem a um resultado coerente. O custo de mensagens e a possibilidade de falhas durante a coordenação tornam operações distribuídas mais caras que alterações locais. O particionamento reduz custo quando consulta e dados estão colocados juntos; não elimina coordenação em operações que cruzam partições.\n\nÉ essencial distinguir disponibilidade do serviço e consistência dos dados. Uma réplica acessível pode responder mesmo sem ter recebido a atualização mais recente; uma política que exige confirmação de várias réplicas pode preferir rejeitar ou esperar a escrita quando não consegue coordená-las. O desenho deve explicitar quais leituras aceitam atraso, quais dados podem ser atualizados em paralelo e como resolver conflitos.\n\n### Como cai na prova\n\n- Replicação assíncrona pode produzir atraso de leitura; não implica automaticamente perda permanente.\n- Replicação síncrona pode elevar latência e depender de participantes disponíveis.\n- Particionamento distribui dados; não garante tolerância a falhas sem estratégia adicional.\n- Transações entre nós custam coordenação e comunicação; não são operações locais comuns."
+    },
+    {
+      "title": "4. Bancos orientados a objetos e objeto-relacionais",
+      "markdown": "### O problema que este assunto resolve\n\nAplicações representam entidades compostas, como uma pessoa com endereço e métodos associados. Um banco objeto-relacional permite definir tipos estruturados com atributos e, em alguns produtos, métodos, hierarquias e referências. Ele acrescenta construções de objetos ao ambiente SQL; não significa que cada produto relacional implemente o mesmo conjunto de recursos.\n\n> **Siglas e termos deste capítulo**\n> - **Tipo estruturado**: tipo definido pelo usuário, composto por atributos nomeados e tipos próprios.\n> - **Instância/objeto**: valor concreto que satisfaz a definição do tipo.\n> - **Método**: rotina associada a um tipo para operar sobre suas instâncias.\n> - **Tabela tipada**: tabela cujas linhas armazenam instâncias de um tipo estruturado.\n> - **OID**: identificador de objeto, usado para identificar um objeto independentemente de seus atributos.\n> - **REF**: valor de referência tipado que aponta para objeto/linha identificável.\n\nNo Oracle, `CREATE TYPE` define estrutura lógica, mas não aloca sozinho armazenamento. O tipo pode ser usado como coluna de uma tabela relacional ou como tipo de uma tabela de objetos (`CREATE TABLE ... OF tipo`). Na tabela de objetos, cada linha representa um objeto e seus atributos podem aparecer como colunas relacionais. Um OID lógico identifica a linha-objeto; um `REF` funciona como referência a ela. Uma referência pendente pode ficar *dangling* se o objeto apontado deixar de estar disponível; integridade referencial pode ajudar a evitar esse estado.\n\nNo Db2, tipos estruturados possuem atributos e especificações de métodos. Uma tabela tipada armazena cada atributo como coluna; tabelas tipadas podem formar hierarquias com tabela raiz, supertabelas e subtabelas. Um subtipo herda atributos e métodos do supertipo e pode acrescentar outros. Tipos de referência são fortemente tipados; a desreferência navega ao objeto relacionado. A documentação Db2 ressalta que uma referência não é, por si só, uma restrição de integridade referencial: pode apontar para objeto inexistente, salvo mecanismos de integridade aplicáveis.\n\nOracle também oferece coleções. Um `VARRAY` tem limite máximo declarado e preserva a ordem dos elementos; uma tabela aninhada é coleção sem ordem preservada e sem máximo fixado na definição. Elementos de tabela aninhada são armazenados em tabela de armazenamento associada; um VARRAY costuma ser armazenado junto à linha, podendo ser armazenado como LOB se grande. São escolhas com semânticas distintas, não apenas nomes alternativos.\n\n### Relacional, orientado a objetos e objeto-relacional\n\n| Modelo | Representação principal | Relações/identidade |\n| --- | --- | --- |\n| Relacional | Tabelas, linhas e colunas | Chaves e junções |\n| Orientado a objetos | Objetos com identidade, estado e comportamento | Referências e navegação entre objetos |\n| Objeto-relacional | Tabelas SQL acrescidas de tipos estruturados e recursos de objeto | Combina operações relacionais e construções de objetos, conforme o SGBD |\n\n### Como cai na prova\n\n- Definir um tipo não é o mesmo que armazenar suas instâncias.\n- Tabela tipada deriva colunas dos atributos do tipo; hierarquia de tipo pode refletir-se em hierarquia de tabelas.\n- `REF` permite referência/navegação, mas não deve ser confundido automaticamente com chave estrangeira ou garantia de integridade.\n- VARRAY tem ordem e limite; tabela aninhada não preserva ordem."
+    }
+  ],
+  "summary": "Banco distribuído apresenta dados logicamente integrados embora armazenados em nós/partições diferentes. Fragmentação horizontal separa linhas; vertical separa colunas; replicação mantém cópias e exige decisões de atualização, consistência e disponibilidade. Chaves e mapas de distribuição encaminham linhas, enquanto colocation pode tornar joins locais. Federação, como FDW do PostgreSQL, acessa fontes externas por wrappers, servidores e mapeamentos de usuário. Bancos objeto-relacionais acrescentam tipos estruturados, métodos, tabelas tipadas, herança, OIDs, REFs e coleções. Tipos descrevem valores; tabelas armazenam instâncias. Referências facilitam navegação, mas não garantem sozinhas integridade. VARRAY preserva ordem e declara limite; tabela aninhada não preserva ordem.",
+  "flashcards": [
+    {
+      "front": "O que caracteriza um banco de dados distribuído?",
+      "back": "Dados e processamento ficam em mais de um nó, mas são tratados por aplicações como um conjunto lógico."
+    },
+    {
+      "front": "O que significa transparência de localização?",
+      "back": "A aplicação acessa os dados sem precisar conhecer sua localização física em cada consulta."
+    },
+    {
+      "front": "O que faz o nó coordenador?",
+      "back": "Recebe a interação e encaminha ou coordena trabalho nas partições envolvidas."
+    },
+    {
+      "front": "O que é fragmentação horizontal?",
+      "back": "Divisão de linhas de uma relação entre fragmentos, por exemplo por região."
+    },
+    {
+      "front": "O que é fragmentação vertical?",
+      "back": "Divisão das colunas entre locais; uma chave permite relacionar os fragmentos da mesma linha."
+    },
+    {
+      "front": "O que faz uma chave de distribuição no Db2 particionado?",
+      "back": "Seus valores são submetidos a hash e ao mapa de distribuição para determinar a partição da linha."
+    },
+    {
+      "front": "O que é colocation de tabelas?",
+      "back": "Linhas relacionadas de tabelas compatíveis ficam na mesma partição, facilitando joins locais."
+    },
+    {
+      "front": "Como replicação difere de fragmentação?",
+      "back": "Replicação mantém cópias dos dados; fragmentação divide o conjunto em partes."
+    },
+    {
+      "front": "Qual é um custo da replicação síncrona?",
+      "back": "Aguardar confirmações de réplicas pode aumentar latência e limitar gravações durante falhas."
+    },
+    {
+      "front": "Qual é um efeito da replicação assíncrona?",
+      "back": "Uma réplica pode ficar temporariamente atrasada em relação à origem."
+    },
+    {
+      "front": "O que distingue snapshot de replicação automática?",
+      "back": "Snapshot é cópia somente leitura atualizada periodicamente; replicação propaga cópias automaticamente conforme política."
+    },
+    {
+      "front": "O que é um FDW no PostgreSQL?",
+      "back": "Wrapper que comunica com fonte externa e apresenta seus dados ao executor PostgreSQL."
+    },
+    {
+      "front": "Para que serve uma tabela estrangeira no PostgreSQL?",
+      "back": "Descreve dados remotos como tabela consultável; não armazena localmente as linhas remotas."
+    },
+    {
+      "front": "O que guarda um servidor estrangeiro?",
+      "back": "Opções para conexão com uma fonte externa por meio de um FDW."
+    },
+    {
+      "front": "O que define um tipo estruturado?",
+      "back": "Um tipo do usuário com atributos nomeados e, conforme o SGBD, métodos associados."
+    },
+    {
+      "front": "O que é uma tabela tipada?",
+      "back": "Tabela definida para armazenar instâncias de um tipo estruturado, com colunas derivadas de seus atributos."
+    },
+    {
+      "front": "O que herda um subtipo estruturado?",
+      "back": "Atributos e métodos do supertipo, podendo acrescentar atributos e métodos próprios."
+    },
+    {
+      "front": "O que é REF?",
+      "back": "Uma referência tipada que aponta para objeto/linha identificável e permite navegação até ele."
+    },
+    {
+      "front": "Uma REF garante integridade referencial automaticamente?",
+      "back": "Não necessariamente; a referência pode ficar sem objeto válido se não houver proteção de integridade."
+    },
+    {
+      "front": "Como VARRAY difere de tabela aninhada?",
+      "back": "VARRAY tem limite declarado e ordem preservada; tabela aninhada não preserva ordem nem fixa máximo na definição."
+    }
+  ],
+  "tips": [
+    "Associe horizontal a linhas e vertical a colunas; use essa distinção antes de avaliar alternativas sobre fragmentação.",
+    "Hash da chave responde onde guardar a linha; replicação responde quantas cópias manter.",
+    "Quando um join ocorre em partições diferentes, considere custo de comunicação; colocation pode evitá-lo.",
+    "No acesso federado, separe FDW (comunicação), servidor (fonte/configuração), mapeamento (credenciais) e tabela estrangeira (estrutura consultável).",
+    "Tipo estruturado define forma; objeto é instância; tabela tipada oferece armazenamento em linhas.",
+    "Memorize as duas distinções: REF não equivale automaticamente a integridade e tabela aninhada não tem ordem preservada."
+  ],
+  "traps": [
+    "Confundir distribuição física transparente com ausência de latência ou falhas de rede.",
+    "Tratar particionamento e replicação como sinônimos: um divide; o outro mantém cópias.",
+    "Supor que acrescentar nós sempre melhora desempenho, mesmo com chave enviesada ou consultas globais.",
+    "Chamar snapshot periódico de cópia sempre atualizada em tempo real.",
+    "Afirmar que qualquer REF é chave estrangeira e impede referência pendente.",
+    "Trocar a semântica de VARRAY (ordem e limite) pela de tabela aninhada (sem ordem preservada)."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique a transparência de localização e cite um custo que ela não elimina.",
+      "answer": "A aplicação pode tratar dados distribuídos como conjunto lógico sem endereçar cada nó. A abstração não elimina latência, falhas de comunicação nem custo de coordenar operações remotas."
+    },
+    {
+      "question": "Diferencie fragmentação horizontal, vertical e replicação.",
+      "answer": "Horizontal divide linhas; vertical divide colunas; replicação mantém cópias de dados em mais de um local."
+    },
+    {
+      "question": "Como uma chave de distribuição pode levar uma linha a uma partição Db2?",
+      "answer": "Uma função hash é aplicada às colunas da chave; o resultado indexa um mapa que aponta a partição de destino."
+    },
+    {
+      "question": "Por que colocation pode acelerar um join?",
+      "answer": "Se linhas relacionadas de tabelas compatíveis estiverem na mesma partição, o join pode ser executado localmente com menos tráfego de rede."
+    },
+    {
+      "question": "Compare replicação síncrona e assíncrona em latência e atualidade.",
+      "answer": "A síncrona espera participantes requeridos e pode elevar latência; a assíncrona pode confirmar antes, deixando réplicas temporariamente atrasadas."
+    },
+    {
+      "question": "Descreva as peças de acesso PostgreSQL via FDW.",
+      "answer": "O FDW implementa comunicação; o servidor estrangeiro configura a fonte; o mapeamento associa credenciais ao usuário local; a tabela estrangeira descreve estrutura remota consultável."
+    },
+    {
+      "question": "Como uma tabela tipada se relaciona com seu tipo estruturado?",
+      "answer": "A tabela armazena instâncias do tipo e suas colunas correspondem aos atributos definidos no tipo."
+    },
+    {
+      "question": "Por que REF não deve ser presumido como chave estrangeira?",
+      "answer": "REF é mecanismo de referência/navegação; a documentação Db2 permite referência a objeto inexistente quando não há restrição de integridade aplicável."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Partição confundida com réplica",
+      "summary": "Partição guarda parte do conjunto; réplica guarda cópia. Uma arquitetura pode combinar as duas técnicas."
+    },
+    {
+      "key": "e2",
+      "title": "Chave de distribuição e colocation",
+      "summary": "Hash e mapa encaminham linha. Chaves compatíveis e grupo de partições comum podem colocar tabelas juntas e favorecer joins locais."
+    },
+    {
+      "key": "e3",
+      "title": "Cópias com níveis diferentes de atualização",
+      "summary": "Síncrona espera réplicas requeridas; assíncrona pode deixar cópias atrasadas. Snapshot periódico é cópia de leitura renovada em intervalos."
+    },
+    {
+      "key": "e4",
+      "title": "Tipo e instância trocados",
+      "summary": "Tipo estruturado define atributos e métodos; instância é o valor concreto; tabela tipada armazena instâncias em linhas."
+    },
+    {
+      "key": "e5",
+      "title": "REF e coleções interpretados incorretamente",
+      "summary": "REF navega para objeto, mas não garante integridade por si só. VARRAY tem ordem e máximo; tabela aninhada não preserva ordem."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em uma aplicação que consulta clientes por região, a equipe decide separar as linhas de clientes conforme a região de atendimento. Qual técnica descreve a decisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fragmentação horizontal por linhas segundo um critério regional.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Fragmentação vertical por atributos conforme o tipo de atendimento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Replicação integral de toda linha em cada servidor regional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Federação de esquemas sem distribuir as linhas da relação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desnormalização das colunas para remover a chave regional.",
+          "correct": false
+        }
+      ],
+      "explanation": "A divisão descrita separa subconjuntos de linhas, portanto é horizontal. Fragmentação vertical divide atributos; replicação mantém cópias, não apenas uma partição regional de cada linha.",
+      "section": "2. Fragmentação, particionamento e replicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um catálogo registra informações de identificação num nó e dados extensos de perfil em outro, mantendo uma chave comum para recompor o registro. Qual forma de fragmentação foi usada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Horizontal, pois os mesmos atributos foram repartidos por faixas de chave.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Vertical, pois colunas diferentes foram armazenadas em locais distintos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Replicada, pois cada atributo aparece em todos os locais disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Federada, pois nenhum fragmento pertence ao banco lógico original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aleatória, pois as linhas foram copiadas sem regra de distribuição.",
+          "correct": false
+        }
+      ],
+      "explanation": "A descrição separa atributos/colunas e usa chave comum para relacionar os fragmentos verticais. Não diz que subconjuntos de linhas foram separados nem que cópias completas foram mantidas.",
+      "section": "2. Fragmentação, particionamento e replicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Db2 particionado, como o sistema pode determinar a partição que armazenará uma linha com base na chave de distribuição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Replicando a linha antes e escolhendo depois a cópia menos consultada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ordenando todas as linhas por data em cada banco participante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicando hash à chave e consultando o mapa de distribuição.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Enviando cada linha ao coordenador para armazenamento central obrigatório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usando somente o nome da aplicação que abriu a conexão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação Db2 descreve função de hash sobre a chave e um mapa que associa o resultado à partição. A escolha não depende de replicar primeiro nem de centralizar o armazenamento.",
+      "section": "2. Fragmentação, particionamento e replicação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas tabelas grandes usam chaves de distribuição compatíveis e estão no mesmo grupo de partições. Qual vantagem pode resultar da colocação das linhas relacionadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A eliminação automática de todas as restrições referenciais entre elas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A conversão das linhas em objetos com identificadores globais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A cópia de cada tabela inteira em todos os nós do sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A possibilidade de executar certos joins na partição que guarda os dados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A garantia de que consultas futuras nunca cruzarão a rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tabelas colocadas podem permitir processamento local de joins e subconsultas, reduzindo comunicação. Isso não elimina toda consulta distribuída nem implica replicação integral.",
+      "section": "2. Fragmentação, particionamento e replicação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta distribuída pode ser decomposta em subconsultas executadas em várias partições, enquanto a aplicação acessa o sistema como conjunto lógico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Em ambiente Db2 multipartição, pedidos podem ser divididos em subpedidos paralelos; a distribuição física pode ficar transparente à aplicação.",
+      "section": "1. Banco de dados distribuído: dados em vários nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A transparência de localização garante que uma consulta distribuída não sofra latência de rede nem falha parcial.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Transparência é abstração de acesso, não remoção da rede. Comunicação remota ainda introduz latência, indisponibilidade e necessidade de coordenação.",
+      "section": "1. Banco de dados distribuído: dados em vários nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PostgreSQL, uma tabela estrangeira consultável via FDW mantém necessariamente uma cópia física local de cada linha remota.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A tabela estrangeira descreve dados externos e não tem armazenamento local das linhas; o wrapper busca ou transmite dados à fonte quando usada.",
+      "section": "1. Banco de dados distribuído: dados em vários nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema com cópias assíncronas pode permitir que uma consulta leia uma réplica que ainda não recebeu a atualização mais recente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Na replicação assíncrona, a origem pode confirmar antes da propagação completa, criando uma janela de atraso observável.",
+      "section": "3. Consistência, disponibilidade e transações entre nós",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual componente PostgreSQL esconde os detalhes de comunicação com uma fonte externa para o executor do banco local?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O mapeamento de usuário, que converte as linhas em esquema local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O foreign data wrapper, que implementa o acesso à fonte externa.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A tabela estrangeira, que guarda localmente os dados em cache permanente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A chave estrangeira, que abre conexão com o servidor remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O índice local, que replica automaticamente o banco de origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "O FDW comunica com a fonte e abstrai detalhes de conexão e obtenção de dados. Mapeamento contém informação específica do usuário; tabela estrangeira declara a estrutura remota.",
+      "section": "1. Banco de dados distribuído: dados em vários nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No acesso PostgreSQL via postgres_fdw, qual elemento associa um papel local às credenciais usadas na conexão remota?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O OID oculto atribuído a cada linha da fonte remota.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A tabela estrangeira com uma coluna extra de senha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A função hash da chave de distribuição da tabela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O mapa de usuário criado para o servidor estrangeiro.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A partição coordenadora que substitui o usuário remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "O user mapping associa o usuário local ao usuário remoto e pode conter credenciais. A definição do servidor concentra opções da fonte, enquanto a foreign table descreve colunas.",
+      "section": "1. Banco de dados distribuído: dados em vários nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cópia somente de leitura é atualizada automaticamente em intervalos definidos, como diariamente. Qual termo da descrição IBM corresponde a esse arranjo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Extração sob solicitação, executada uma única vez pelo usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Fragmento vertical, composto somente por colunas descritivas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Snapshot, renovado periodicamente pelo sistema.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Partição coordenadora, que recebe as consultas de gravação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tabela tipada, que herda os dados de uma supertabela.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação IBM chama snapshot a cópia de leitura atualizada periodicamente. Extração é carregada a pedido; replicação atualiza cópias automaticamente segundo sua política.",
+      "section": "2. Fragmentação, particionamento e replicação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma partição de rede pode deixar alguns nós comunicáveis e outros inacessíveis, exigindo que o sistema decida se espera coordenação ou atende com estado potencialmente atrasado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Falhas distribuídas podem ser parciais. Políticas de consistência e disponibilidade determinam se operações esperam participantes ou respondem com cópias possivelmente atrasadas.",
+      "section": "3. Consistência, disponibilidade e transações entre nós",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A replicação síncrona sempre reduz latência porque todos os nós já possuem os dados antes da escrita começar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Esperar réplicas requeridas antes de confirmar costuma acrescentar comunicação e latência; a disponibilidade de participantes também pode condicionar a escrita.",
+      "section": "3. Consistência, disponibilidade e transações entre nós",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Particionar uma tabela em vários nós, sem cópias redundantes ou outro mecanismo de recuperação, garante que ela continuará acessível após a perda de qualquer nó.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Particionamento distribui partes dos dados, mas não implica cópia redundante. A perda do nó que guarda um fragmento pode tornar aquela parte indisponível.",
+      "section": "2. Fragmentação, particionamento e replicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma tabela com muitos valores concentrados numa única chave de distribuição, qual risco é mais direto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A referência REF deixa de ser um tipo fortemente tipado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O wrapper passa a armazenar dados locais em vez da fonte remota.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O banco converte automaticamente a tabela em cópias síncronas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O trabalho pode ficar enviesado, concentrando carga em poucas partições.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A tabela deixa de possuir linhas e passa a armazenar apenas colunas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma distribuição enviesada concentra dados e acessos em poucos nós, anulando parte do paralelismo e criando gargalo. A chave não altera semântica de REF nem ativa replicação sozinha.",
+      "section": "2. Fragmentação, particionamento e replicação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório faz joins frequentes entre tabelas grandes por uma chave comum. Qual critério de projeto pode reduzir comunicação entre partições?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolher chaves de distribuição compatíveis e grupo que permita colocation.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenar cada tabela somente no nó coordenador de toda aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar colunas sem relação com os joins para forçar acessos globais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover os mapas de distribuição para escolher nós ao acaso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transformar as tabelas em snapshots sem chave compartilhada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Distribuição compatível pode colocar linhas relacionadas na mesma partição, permitindo joins locais. A escolha deve refletir as consultas; centralização ou distribuição aleatória não oferece essa vantagem.",
+      "section": "2. Fragmentação, particionamento e replicação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe exige que leituras em qualquer réplica reflitam imediatamente uma gravação recém-confirmada, mesmo quando a origem e as réplicas não conseguem se comunicar.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar cópias periódicas, pois a atualização diária garante leitura imediata.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Confiar que fragmentação vertical sincroniza todos os atributos sem rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tratar uma tabela estrangeira como cache local com atualização instantânea.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Replicar assincronamente e aceitar que a cópia pode atrasar durante a falha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reconhecer que essa exigência pode impedir respostas sem coordenação entre réplicas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Sem comunicação, réplicas não conseguem verificar imediatamente o estado umas das outras. Exigir leitura sempre atual pode obrigar espera ou indisponibilidade em certos cenários; cópia periódica e replicação assíncrona não oferecem essa garantia.",
+      "section": "3. Consistência, disponibilidade e transações entre nós",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação atualiza contas em dois nós. Comparada a uma alteração confinada a uma partição, qual dificuldade adicional é esperada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A tabela local deixa de ter atributos com tipos declarados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O FDW passa a converter a transação em snapshot de leitura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É preciso coordenar participantes e lidar com mensagens e falhas parciais.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A chave de distribuição é removida do esquema de todas as tabelas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O objeto recebe necessariamente um novo OID em cada comando.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma transação distribuída envolve comunicação e coordenação entre participantes; falhas podem ocorrer durante o processo. Operações locais evitam parte desse custo, mas os detalhes de garantia dependem do SGBD.",
+      "section": "3. Consistência, disponibilidade e transações entre nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o sistema possui nós adicionais, qualquer consulta ficará mais rápida, inclusive consultas globais que precisam reunir resultados de todas as partições.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Mais partições podem permitir paralelismo, mas consultas globais pagam comunicação e agregação; chaves enviesadas, rede ou outros gargalos podem limitar o ganho.",
+      "section": "2. Fragmentação, particionamento e replicação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A partição coordenadora de uma aplicação necessariamente é a única partição que armazena dados ou executa trabalho no pedido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O coordenador recebe a interação, mas pedidos podem ser decompostos e executados em outras partições participantes; qualquer partição pode atuar como coordenadora conforme a conexão.",
+      "section": "1. Banco de dados distribuído: dados em vários nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um tipo estruturado Oracle é apenas uma tabela física e já aloca armazenamento assim que seu nome é declarado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O tipo define uma estrutura lógica; armazenamento surge quando instâncias são armazenadas em colunas ou em uma tabela de objetos.",
+      "section": "4. Bancos orientados a objetos e objeto-relacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Db2, o que caracteriza uma tabela tipada definida a partir de um tipo estruturado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "As colunas são sempre cópias integrais de toda a hierarquia de tabelas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cada linha representa um banco remoto acessado por um wrapper.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A tabela contém somente métodos e não armazena valores de atributos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cada linha armazena uma instância cujos atributos correspondem às colunas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O tipo é descartado no momento da criação da primeira instância.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma tabela tipada armazena instâncias do tipo e deriva nomes e tipos de coluna dos atributos definidos. O tipo continua sendo a definição que estrutura esses valores.",
+      "section": "4. Bancos orientados a objetos e objeto-relacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um subtipo estruturado pode herdar atributos e métodos do supertipo e ainda definir características adicionais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Na hierarquia de tipos estruturados Db2, o subtipo herda atributos e métodos do supertipo e pode acrescentar outros.",
+      "section": "4. Bancos orientados a objetos e objeto-relacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção descreve corretamente uma tabela de objetos Oracle definida como `CREATE TABLE ... OF tipo`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada linha representa uma instância do tipo e seus atributos são acessíveis como colunas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cada linha contém necessariamente a localização de uma partição remota.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A instrução converte o tipo em foreign data wrapper automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A tabela só pode conter referências e não pode armazenar os atributos dos objetos em suas linhas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A tabela cria uma cópia de todos os objetos de qualquer banco conectado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A tabela de objetos guarda objetos do tipo declarado em suas linhas; a representação também pode ser vista por atributos em colunas, permitindo operações relacionais.",
+      "section": "4. Bancos orientados a objetos e objeto-relacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na documentação Oracle, um REF é uma referência lógica a um objeto de linha identificável e pode ser usado para navegar até ele.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Oracle define REF como referência lógica a row object construída a partir de OID, útil para obter, examinar ou atualizar o objeto referenciado.",
+      "section": "4. Bancos orientados a objetos e objeto-relacionais",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coleção deve preservar a ordem dos elementos e declarar limite máximo sempre, seja ela VARRAY ou tabela aninhada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. VARRAY tem limite declarado e ordem preservada; tabela aninhada não preserva ordem e não fixa máximo na definição.",
+      "section": "4. Bancos orientados a objetos e objeto-relacionais",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um modelo mantém referências a departamentos em linhas de funcionários. Que cuidado descreve corretamente a diferença entre REF Db2 e integridade referencial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A referência substitui qualquer necessidade de validar a existência do departamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A referência oferece navegação, mas pode apontar para objeto inexistente sem restrição adequada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A referência só pode guardar texto literal e nunca identifica uma linha tipada nem permite navegar ao objeto relacionado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A referência transforma a tabela de departamentos em partição replicada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A referência impede consultas ao objeto apontado por qualquer operador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Db2 distingue referência e restrição referencial: REF facilita navegar até o objeto, mas não garante por si que o objeto exista. É possível definir restrição de integridade quando isso for necessário.",
+      "section": "4. Bancos orientados a objetos e objeto-relacionais",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Oracle, elementos de uma tabela aninhada são armazenados em estrutura de armazenamento separada associada à tabela que contém a coleção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação Oracle indica que os atributos folha de tipos de tabela aninhada ficam em tabelas de armazenamento associadas, declaradas para a tabela que contém a coleção.",
+      "section": "4. Bancos orientados a objetos e objeto-relacionais",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O requisito é armazenar uma lista ordenada de até vinte medições por objeto. Qual construção Oracle corresponde melhor à semântica descrita?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma tabela aninhada, pois conserva a ordem de inserção dos elementos e exige limite máximo declarado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma referência REF, pois representa uma lista de valores ordenados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um FDW, pois limita a quantidade de linhas remotas consultáveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um VARRAY, com máximo definido e ordem dos elementos preservada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma tabela tipada, pois todo tipo estruturado é uma coleção ordenada e exige limite máximo para os elementos.",
+          "correct": false
+        }
+      ],
+      "explanation": "VARRAY é a coleção com limite máximo declarado e ordem preservada, ajustando-se aos requisitos. Tabela aninhada não conserva ordem nem fixa máximo na definição.",
+      "section": "4. Bancos orientados a objetos e objeto-relacionais",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um objeto armazenado como coluna de uma tabela relacional é chamado de objeto de coluna, enquanto linhas de uma tabela de objetos são objetos de linha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Oracle distingue column objects, armazenados como valores de coluna, de row objects, cada um representado por uma linha em tabela de objetos.",
+      "section": "4. Bancos orientados a objetos e objeto-relacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação deseja dividir uma entidade Pessoa em supertipo e subtipos Empregado e Estudante, armazenando cada tipo em uma hierarquia Db2. Qual descrição é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar apenas foreign tables, pois herança de tipo é função do wrapper remoto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir tipos estruturados e uma hierarquia correspondente de tabelas tipadas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Criar snapshots periódicos, pois eles representam métodos herdados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Replicar cada linha em tabelas sem relação de supertipo ou subtipo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar somente colunas escalares em tabela normal, pois Db2 não armazena nem reconhece tipos estruturados definidos pelo usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Db2 permite hierarquias de tipos estruturados e hierarquias correspondentes de tabelas tipadas, com subtabelas sob a tabela raiz. FDW, snapshot e replicação não definem herança de objeto.",
+      "section": "4. Bancos orientados a objetos e objeto-relacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Oracle, definir um tipo de objeto sem criar tabela ou coluna que armazene instâncias já cria armazenamento para todos os valores possíveis do tipo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O tipo define estrutura lógica sem alocar armazenamento por si. Instâncias passam a ser armazenadas quando usadas em tabelas ou colunas apropriadas.",
+      "section": "4. Bancos orientados a objetos e objeto-relacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Oracle, qual afirmação compara corretamente VARRAY e tabela aninhada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "VARRAY não tem limite nem ordem; tabela aninhada preserva ambas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ambas exigem tabela física remota e conexão por FDW.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "VARRAY tem ordem e limite; tabela aninhada não preserva ordem e tem armazenamento associado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Tabela aninhada é somente leitura; VARRAY aceita apenas referências REF.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "VARRAY é tabela tipada de subtipo; tabela aninhada é seu supertipo e herda automaticamente a mesma ordenação.",
+          "correct": false
+        }
+      ],
+      "explanation": "VARRAY declara máximo e mantém ordem. Tabela aninhada é conjunto sem ordem preservada e seus elementos são armazenados em tabela de armazenamento associada.",
+      "section": "4. Bancos orientados a objetos e objeto-relacionais",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma tabela tipada Db2, nomes e tipos de atributos do tipo estruturado tornam-se nomes e tipos das colunas correspondentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A tabela tipada armazena instâncias em linhas e suas colunas derivam dos atributos definidos no tipo estruturado.",
+      "section": "4. Bancos orientados a objetos e objeto-relacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe vê REF pendente após excluir um objeto Oracle referenciado. Qual diagnóstico é mais preciso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O tipo estruturado foi convertido em método de tabela aninhada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A tabela foi fragmentada verticalmente e perdeu suas colunas de identidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O FDW materializou uma cópia periódica que precisa ser reordenada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "VARRAY removeu automaticamente o OID da tabela que contém o objeto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A REF pode estar dangling; restrições de integridade ajudam a evitar referências inválidas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Oracle chama dangling REF a referência cujo objeto fica indisponível, por exemplo após exclusão. Predicados podem detectar o estado e restrições referenciais podem evitá-lo.",
+      "section": "4. Bancos orientados a objetos e objeto-relacionais",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Db2, uma coluna REF pode ser usada como referência tipada para um objeto de tabela tipada, e o operador de desreferência permite acessar atributos do objeto apontado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Tipos REF são fortemente tipados e o operador de desreferência navega da referência ao objeto, permitindo recuperar atributo como nome do departamento.",
+      "section": "4. Bancos orientados a objetos e objeto-relacionais",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação é apropriada para modelar objetos de departamento referenciáveis por empregados em tabelas tipadas Db2?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tipos estruturados, tabela tipada de departamentos e coluna REF nos empregados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Tabelas estrangeiras sem servidor e uma chave hash como método de objeto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Snapshots periódicos para criar métodos e fragmentos horizontais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "VARRAY como tipo de tabela e FDW como identificador de objeto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somente uma partição coordenadora, pois REF é endereço de rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação Db2 descreve tipos estruturados, tabelas tipadas e referências entre objetos, inclusive para relacionar empregado a departamento e navegar ao objeto apontado.",
+      "section": "4. Bancos orientados a objetos e objeto-relacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um REF Db2 equivale necessariamente a uma chave estrangeira: se a linha referenciada for apagada, o SGBD sempre impede a exclusão sem configuração adicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A documentação Db2 ressalta que referências não cumprem automaticamente o papel de restrições referenciais; pode haver referência a departamento inexistente. Integridade deve ser definida quando necessária.",
+      "section": "4. Bancos orientados a objetos e objeto-relacionais",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve uma diferença útil entre a visão objeto-relacional e a visão relacional tradicional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A objeto-relacional pode oferecer tipos estruturados e referências dentro do ambiente SQL.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A relacional não organiza dados em linhas, colunas ou tabelas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A objeto-relacional elimina consultas SQL e proíbe operações relacionais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A relacional armazena somente cópias em servidores distribuídos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A objeto-relacional exige que todo atributo seja método executável e, por isso, proíbe atributos de dados declarativos em tabelas SQL.",
+          "correct": false
+        }
+      ],
+      "explanation": "O modelo objeto-relacional estende o relacional com recursos como tipos estruturados, métodos, referências e coleções, mantendo operações relacionais conforme o produto.",
+      "section": "4. Bancos orientados a objetos e objeto-relacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Oracle, toda REF é garantida válida e não pode ficar pendente, mesmo que o objeto referenciado seja excluído ou fique inacessível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A documentação prevê dangling REFs quando o objeto se torna indisponível. É possível testar esse estado e usar restrições de integridade para evitá-lo.",
+      "section": "4. Bancos orientados a objetos e objeto-relacionais",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um órgão quer consultar uma base PostgreSQL remota como relação, sem copiar previamente as linhas para uma tabela local. Qual solução documentada é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar uma chave estrangeira que transfira os dados pela rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir uma tabela estrangeira ligada a servidor e FDW apropriados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Criar um VARRAY com o endereço IP de cada linha remota.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar uma tabela tipada sem tipo estruturado e sem conexão externa, que por si só obtenha as linhas remotas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter a consulta em snapshot que nunca se atualiza.",
+          "correct": false
+        }
+      ],
+      "explanation": "postgres_fdw acessa tabelas de outro servidor PostgreSQL usando extensão, servidor estrangeiro, mapeamento de usuário e tabela estrangeira. Essa tabela consulta a fonte sem armazenar suas linhas localmente.",
+      "section": "1. Banco de dados distribuído: dados em vários nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização copia uma tabela para vários locais para que leituras próximas aos usuários sejam rápidas. Qual custo deve ser considerado junto ao benefício?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A necessidade de propagar atualizações e lidar com atraso ou conflitos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A impossibilidade de executar qualquer leitura local nas cópias.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A conversão automática de toda réplica em fragmento vertical.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A perda da capacidade de definir políticas de acesso aos dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A remoção obrigatória dos dados existentes na origem após cada leitura.",
+          "correct": false
+        }
+      ],
+      "explanation": "Réplicas beneficiam leituras locais, mas as alterações precisam chegar às cópias. Dependendo da política, surgem atraso, coordenação adicional ou tratamento de conflitos.",
+      "section": "2. Fragmentação, particionamento e replicação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Distribuir tabelas por uma parte das partições disponíveis é possível em Db2; nem toda tabela precisa usar todos os nós.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Db2 suporta distribuição parcial (*partial declustering*), permitindo alocar tabelas a subconjuntos de partições por grupo de partições.",
+      "section": "2. Fragmentação, particionamento e replicação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual diferença entre extração e replicação é compatível com a terminologia IBM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Extração é cópia solicitada pelo usuário; replicação atualiza cópias automaticamente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Extração distribui colunas; replicação converte atributos em métodos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Extração é sempre síncrona; replicação é sempre uma cópia diária somente leitura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Extração usa REF; replicação depende de tipos estruturados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Extração é partição coordenadora; replicação é tabela estrangeira sem origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "A IBM descreve extrações como cópias carregadas a pedido, úteis para usos pontuais, enquanto replicação atualiza automaticamente cópias em vários locais.",
+      "section": "2. Fragmentação, particionamento e replicação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta sobre tabela estrangeira PostgreSQL executa sempre somente contra armazenamento local e não pode enviar operações à fonte externa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O FDW busca dados na origem em consultas e, quando suportado, transmite comandos de atualização à fonte externa.",
+      "section": "1. Banco de dados distribuído: dados em vários nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma leitura exige que a informação esteja fisicamente em determinada cidade por razões operacionais. Qual propriedade deve influenciar principalmente o desenho da distribuição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A escolha de localização dos dados e a política de acesso e segurança por local.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A ordem dos elementos de VARRAY usada pela equipe de desenvolvimento, que por si só determina a cidade dos servidores e substitui regras de localização, acesso e segurança.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O número de métodos associados ao tipo estruturado de endereço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O nome da tabela estrangeira, que decide a região sem configuração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A eliminação de mapas de distribuição para ocultar o armazenamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Distribuição envolve decisões sobre onde localizar dados, padrões de acesso, segurança, disponibilidade e responsabilidade. Transparência de consulta não substitui requisitos de colocação e controle.",
+      "section": "1. Banco de dados distribuído: dados em vários nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Oracle, objetos armazenados como valores de coluna de uma tabela relacional são chamados de objetos de coluna; linhas de uma tabela de objetos são objetos de linha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A distinção descreve onde a instância aparece: como valor de uma coluna relacional ou como a própria linha em tabela de objetos.",
+      "section": "4. Bancos orientados a objetos e objeto-relacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta acessa dados em fonte externa pela tabela estrangeira PostgreSQL. Qual afirmação é correta sobre sua definição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela descreve a estrutura dos dados remotos e pode ser consultada como tabela comum.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ela contém sempre as linhas locais e elimina a necessidade de fonte remota.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela é uma restrição de chave estrangeira entre duas tabelas locais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela define os métodos de todo tipo estruturado do servidor remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela distribui linhas por hash sem envolver servidor ou wrapper.",
+          "correct": false
+        }
+      ],
+      "explanation": "Foreign table declara colunas que representam a estrutura da fonte e encaminha operações pelo wrapper. Ela não é chave estrangeira nem uma cópia materializada local por definição.",
+      "section": "1. Banco de dados distribuído: dados em vários nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Db2, uma hierarquia de tabelas tipadas pode incluir uma tabela raiz e subtabelas associadas a subtipos de um tipo estruturado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Tabelas tipadas podem formar hierarquia com tabela raiz/supertabelas e subtabelas correspondentes a subtipos; atributos herdados se refletem nas colunas.",
+      "section": "4. Bancos orientados a objetos e objeto-relacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação de leitura em réplica assíncrona retornou valor antigo. Qual explicação é compatível com o mecanismo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A réplica pode ainda não ter recebido a atualização confirmada na origem.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A fragmentação vertical sempre troca a ordem das linhas retornadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A tabela tipada converte métodos em valores de cache obsoletos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A chave REF obriga o servidor a reverter a consulta distribuída.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O coordenador removeu o dado porque consultas paralelas são somente leitura.",
+          "correct": false
+        }
+      ],
+      "explanation": "A replicação assíncrona permite atraso de propagação, então uma leitura direcionada a uma cópia pode observar estado anterior por algum intervalo.",
+      "section": "3. Consistência, disponibilidade e transações entre nós",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chave de distribuição e um mapa de partições servem para posicionar linhas; a replicação automática de todos os dados é uma propriedade separada que não decorre apenas do hash.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O mecanismo de hash e mapa escolhe partição de destino. Replicação precisa ser configurada ou definida por mecanismo próprio; as ideias não são sinônimas.",
+      "section": "2. Fragmentação, particionamento e replicação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "IBM Db2 — Distributing data across multiple database partitions",
+      "publisher": "IBM",
+      "reference": "Chaves de distribuição, hash, mapa, colocation e grupos de partições",
+      "url": "https://www.ibm.com/docs/en/db2/11.5.x?topic=partitions-distributing-data-across-multiple-database",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "IBM Db2 — Partitioned database environments",
+      "publisher": "IBM",
+      "reference": "Partições, execução paralela e transparência lógica",
+      "url": "https://www.ibm.com/docs/en/db2/12.1.0?topic=partitions-partitioned-database-environments",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "IBM i — Other distributed relational database terms and concepts",
+      "publisher": "IBM",
+      "reference": "Fragmentação horizontal e vertical, extração, snapshot e replicação",
+      "url": "https://www.ibm.com/docs/en/i/7.6.0?topic=processing-other-distributed-relational-database-terms-concepts",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL — Foreign Data",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "FDW, servidor estrangeiro, mapeamento de usuário e tabela estrangeira",
+      "url": "https://www.postgresql.org/docs/current/ddl-foreign-data.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL — postgres_fdw",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Acesso a tabelas em servidores PostgreSQL externos",
+      "url": "https://www.postgresql.org/docs/17/postgres-fdw.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Oracle — Key Features of the Object-Relational Model",
+      "publisher": "Oracle",
+      "reference": "Tipos, objetos de linha e coluna, OID, REF e coleções",
+      "url": "https://docs.oracle.com/en/database/oracle/oracle-database/26/adobj/key-features-object-relational-model.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Oracle — Storage of Objects",
+      "publisher": "Oracle",
+      "reference": "Armazenamento de atributos, VARRAY, tabelas aninhadas e REF",
+      "url": "https://docs.oracle.com/en/database/oracle/oracle-database/26/adobj/storage-of-objects.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "IBM Db2 — Structured types",
+      "publisher": "IBM",
+      "reference": "Atributos, métodos, tipos estruturados e tabelas tipadas",
+      "url": "https://www.ibm.com/docs/en/db2/11.5.x?topic=types-user-defined-structured",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "IBM Db2 — Relationships between objects in typed tables",
+      "publisher": "IBM",
+      "reference": "REF, navegação e distinção de integridade referencial",
+      "url": "https://www.ibm.com/docs/en/db2/11.1?topic=types-relationships-between-objects-in-typed-tables",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

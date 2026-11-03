@@ -1,0 +1,2218 @@
+{
+  "id": "informatica.administracao-usuarios-grupos-permissoes",
+  "subject": "Informática",
+  "title": "Administração de usuários, grupos, permissões e controles de acesso",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Administração de usuários, grupos, permissões e controles de acesso",
+    "Gestão de contas de usuários e grupos",
+    "Permissões de arquivos e pastas no Linux",
+    "Contas locais e grupos do Windows",
+    "Controle de acesso a recursos do sistema",
+    "Listas de controle de acesso ACL",
+    "Permissões POSIX de leitura escrita execução",
+    "Administração de identidades e permissões",
+    "Controle de acesso baseado em funções RBAC",
+    "Segurança de contas e privilégios administrativos"
+  ],
+  "scope": {
+    "covers": "Administração de contas locais e grupos; autenticação e autorização; menor privilégio e ciclo de vida de contas; permissões e privilégios; ACL, DACL, ACE, SID e token no Windows; UAC e grupos administrativos; permissões POSIX r, w, x para proprietário, grupo e outros; chmod octal e simbólico, umask, proprietário e grupo, ACL estendida e máscara no Linux; controle por função RBAC, separação de deveres, revisão e auditoria de acessos.",
+    "excludes": "Configuração detalhada de Active Directory e LDAP, administração de senhas corporativas, protocolos de rede, criptografia, comandos específicos de distribuições não descritos e implementação de aplicações de IAM."
+  },
+  "theoryTitle": "Identidades, permissões e decisões de acesso",
+  "chapters": [
+    {
+      "title": "1. Contas, grupos e ciclo de vida do acesso",
+      "markdown": "### O problema que este assunto resolve\n\nUm sistema multiusuário precisa distinguir quem está usando o computador e quais ações essa pessoa pode executar. **Conta** representa uma identidade; **grupo** reúne contas que compartilham necessidades; **permissão** delimita uma ação sobre um recurso. No Windows, contas locais são definidas no próprio dispositivo e têm direitos sobre aquele dispositivo. Uma conta local não se transforma, por isso só, em identidade de rede. No Ubuntu/Linux, cada usuário e grupo também tem identificadores numéricos (UID e GID); o nome é uma representação legível.\n\n> **Siglas e termos deste capítulo**\n> - **Autenticação**: verificar a identidade apresentada, por exemplo no início de uma sessão.\n> - **Autorização**: decidir quais operações a identidade autenticada pode realizar.\n> - **Conta local**: identidade cuja autoridade e cadastro pertencem a um computador.\n> - **Grupo**: conjunto de usuários usado para administrar permissões em conjunto.\n> - **Privilégio ou direito**: autorização para uma ação administrativa do sistema.\n> - **Menor privilégio**: conceder apenas o acesso necessário à tarefa e pelo tempo necessário.\n\n### Criar, alterar, suspender e remover\n\nA administração acompanha a vida funcional da pessoa: ao entrar, cria-se uma conta individual e atribuem-se os grupos indispensáveis; quando a função muda, revisam-se os grupos e permissões; quando o vínculo termina, bloqueia-se o acesso e revogam-se credenciais e associações. Contas individuais preservam atribuição de ações a uma pessoa. Uma conta compartilhada enfraquece a responsabilização porque o registro identifica a conta, não necessariamente quem a usou. Contas de serviço também devem ter finalidade restrita e não ser usadas para tarefas interativas comuns.\n\nNo Windows, a documentação da Microsoft descreve gerenciamento local pelo console **Computer Management**, na pasta Local Users and Groups, e também pelas ferramentas `NET.EXE USER`, `NET.EXE LOCALGROUP` ou cmdlets do módulo LocalAccounts do PowerShell. Em um controlador de domínio, o snap-in Local Users and Groups não administra contas do próprio controlador como se fosse um computador membro. No Ubuntu, `/etc/group` registra grupos locais em linhas com nome, campo de senha reservado, GID e lista de membros; grupos suplementares permitem acumular acessos sem trocar a identidade principal. A associação ao grupo `sudo` concede capacidade de executar comandos administrativos com elevação no Ubuntu, portanto deve ser restrita.\n\n### Permissões e privilégios não são a mesma coisa\n\nUma permissão costuma estar ligada a um objeto, como arquivo, pasta, impressora ou chave de registro: leitura, gravação, alteração ou controle. Um direito de usuário permite uma ação do sistema, como desligar o computador ou fazer backup. A conta pode ter permissão sobre um arquivo sem ter um privilégio administrativo geral; ser membro de Administrators tampouco é necessário para ler todo arquivo. A Microsoft ressalta que conceder permissões de arquivo ao grupo Administrators não concede automaticamente as mesmas permissões à identidade SYSTEM.\n\n| Decisão | Exemplo | Boa prática |\n| --- | --- | --- |\n| Identidade | Conta pessoal de uma técnica | Conta individual e rastreável |\n| Associação | Grupo `relatorios-leitura` | Conceder por necessidade de função |\n| Permissão | Ler a pasta de relatórios | Preferir leitura se edição não for necessária |\n| Privilégio | Instalar software para todos | Elevar apenas para a tarefa administrativa |\n\n### Como cai na prova\n\nDiferencie autenticação de autorização; grupo de função; direito de sistema de permissão sobre objeto; conta local de conta de domínio. Em cenários de desligamento, revogar o acesso é necessário mesmo que a senha seja conhecida por outras pessoas. A associação ao grupo `sudo` no Ubuntu tem efeito administrativo; no Windows, a conta padrão deve trabalhar sem elevação contínua quando possível."
+    },
+    {
+      "title": "2. Permissões POSIX e ACLs no Linux",
+      "markdown": "### O problema que este assunto resolve\n\nO modelo tradicional de permissões Unix/Linux separa três classes: **proprietário**, **grupo do arquivo** e **outros**. Para cada classe existem `r` (ler), `w` (escrever) e `x` (executar em arquivo ou pesquisar/entrar em diretório). Em uma listagem como `-rw-r-----`, o primeiro caractere indica tipo de objeto e os nove seguintes dividem-se em proprietário, grupo e outros. `-` significa que a permissão correspondente não foi concedida.\n\n> **Siglas e termos deste capítulo**\n> - **POSIX**: família de interfaces e convenções de sistemas Unix.\n> - **UID/GID**: identificadores numéricos de usuário e grupo.\n> - **chmod**: altera os bits de modo de acesso.\n> - **chown**: altera proprietário e, quando indicado, grupo associado.\n> - **umask**: máscara que retira permissões do modo máximo na criação.\n> - **ACL**: lista de entradas de controle que permite especificar acessos além das três classes simples.\n\n### Ler os bits e escolher o modo\n\nNo formato octal, `r=4`, `w=2` e `x=1`; somam-se os valores de cada classe. Assim `640` significa proprietário `rw-` (6), grupo `r--` (4) e outros sem acesso (0). `755` significa proprietário `rwx` e grupo/outros `r-x`. `chmod 640 arquivo` define o modo numérico. Na forma simbólica, `chmod g-w arquivo` remove escrita do grupo; `chmod u+x script` acrescenta execução ao proprietário. `chmod` muda bits de modo; não muda proprietário. Para mudar o proprietário, usa-se ferramenta própria como `chown`, normalmente com privilégio adequado.\n\nO significado de `x` muda com o tipo: em arquivo regular permite executar o conteúdo como programa, se também for válido; em diretório permite atravessá-lo/pesquisar nomes. Para listar o conteúdo de um diretório, também é necessária leitura; para acessar um arquivo conhecido dentro dele, a pesquisa no diretório de caminho importa. Portanto, remover `x` de um diretório pode impedir acesso aos itens mesmo que o arquivo tenha leitura.\n\n### Criação, umask e diretórios compartilhados\n\nAs permissões iniciais dependem do modo pedido pelo programa e da `umask`, que remove bits; ela não adiciona permissões. No exemplo documentado pelo Ubuntu, `umask 022` resulta normalmente em arquivos `644` e diretórios `755`, partindo de máximos usuais `666` e `777`. Arquivos comuns não recebem execução automaticamente nesse exemplo. Um diretório compartilhado deve combinar grupo apropriado, permissões de travessia e política de escrita coerente; dar escrita a todos amplia quem pode alterar ou remover entradas. O sticky bit em diretório compartilhável como `/tmp` restringe remoção/renomeação de arquivos a quem os possui, ao dono do diretório ou a privilegiados.\n\n### ACLs ampliam o modelo\n\nACLs POSIX acrescentam entradas para usuários ou grupos nomeados. Uma ACL de acesso controla o objeto atual; uma ACL padrão em diretório serve de base para ACL de objetos criados nele, limitada pelo modo solicitado na criação. A entrada `mask` limita o máximo efetivo que pode ser concedido a usuários nomeados e grupos; não limita o proprietário nem `other`. Por isso, uma entrada pode exibir `rw-`, mas ter acesso efetivo `r--` quando a máscara permite apenas leitura. Em `ls -l`, um sinal `+` após a cadeia de permissões indica ACL estendida em sistemas que exibem essa convenção; `getfacl` consulta e `setfacl` altera ACLs em ambientes que os disponibilizam.\n\n| Classe / entrada | A quem se aplica | Observação prática |\n| --- | --- | --- |\n| `user::` | Dono do arquivo | Corresponde aos bits do dono |\n| `group::` | Grupo proprietário | Pode ser limitado pela máscara |\n| `user:nome:` | Usuário nomeado | ACL estendida |\n| `group:nome:` | Grupo nomeado | ACL estendida e limitada pela máscara |\n| `mask::` | Entradas nomeadas e grupos | Teto de permissão efetiva |\n| `other::` | Quem não corresponde às anteriores | Não é reduzido pela máscara |\n\n### Como cai na prova\n\nCalcule cada dígito somando 4, 2 e 1; não confunda `chmod` (modo) com `chown` (propriedade); lembre que execução em diretório significa pesquisa/travessia. Em ACL, a máscara pode reduzir o acesso efetivo de uma entrada, e a ACL padrão propaga parâmetros aos novos objetos, não altera retroativamente os antigos."
+    },
+    {
+      "title": "3. ACL e controle de acesso no Windows",
+      "markdown": "### O problema que este assunto resolve\n\nNo Windows, o sistema representa usuários, grupos e outros sujeitos por **SIDs** (identificadores de segurança). Ao iniciar uma sessão, o processo recebe um **token de acesso** com o SID do usuário e os SIDs de grupos habilitados, além de informações da sessão e privilégios. Quando o processo solicita uma operação em objeto protegido, o sistema compara o token com o descritor de segurança do objeto. Isso permite que a regra seja associada a grupos, sem manter uma cópia da permissão para cada pessoa.\n\n> **Siglas e termos deste capítulo**\n> - **SID**: identificador de segurança único de uma conta ou grupo.\n> - **ACL**: lista de entradas de controle associada ao objeto.\n> - **ACE**: entrada individual que concede, nega ou audita direitos para um SID.\n> - **DACL**: ACL discricionária que determina concessões e negações de acesso.\n> - **SACL**: ACL de sistema usada para definir auditoria de acesso.\n> - **Token**: contexto de segurança do processo, com identidade, grupos e privilégios.\n\n### DACL, ACE e decisão de acesso\n\nCada ACE da DACL especifica direitos permitidos ou negados a um usuário, grupo ou sessão. Durante a verificação, o Windows procura ACEs cujo SID corresponda a uma identidade no token. A ordem das entradas importa: a documentação explica que a verificação pode parar quando os direitos solicitados já foram concedidos ou negados explicitamente. Assim, regras de negação e concessão precisam ser avaliadas na ordem efetivamente gravada. Uma ACL ausente (NULL DACL) concede acesso irrestrito segundo a documentação da API; uma DACL vazia não contém concessões e nega o acesso ordinário. Não confunda esses dois estados.\n\nA propriedade do objeto é uma relação administrativa, não uma permissão automática universal para todos os demais. Um proprietário pode ter capacidade de alterar a DACL conforme as regras do sistema; usuários comuns não ganham acesso só por saber o caminho do arquivo. Permissões podem ser herdadas de pastas superiores para objetos descendentes. Ao investigar “acesso negado”, verifique identidade, grupos do token, ACE aplicável, herança e direitos pedidos.\n\n### Direitos de objeto, privilégios e auditoria\n\nUma ACE pode permitir leitura ou escrita em arquivo, acesso a propriedades de objeto do Active Directory, ou outras operações compatíveis com o recurso. Privilégios como realizar backup pertencem à política de direitos do usuário e não são sinônimos de uma ACE de arquivo. A SACL registra critérios de auditoria; ela não substitui a DACL que concede ou nega. Registros de auditoria ajudam a descobrir qual identidade acessou ou tentou acessar um recurso e dão suporte a revisão de mudanças.\n\n### UAC e administração com elevação\n\nO Controle de Conta de Usuário (UAC) informa e medeia mudanças que exigem permissões administrativas. Uma conta com direitos administrativos pode operar em contexto padrão até solicitar elevação; a operação sensível exige aprovação ou credenciais conforme a configuração. Essa separação reduz o uso contínuo de privilégios elevados. A Microsoft recomenda usar conta padrão para atividades comuns e elevar somente tarefas administrativas. Dar a um usuário acesso a uma pasta compartilhada específica é diferente de torná-lo Administrador local.\n\n| Elemento | Pergunta respondida | Exemplo |\n| --- | --- | --- |\n| Token | Quem é o processo e a que grupos pertence? | SID do usuário e do grupo `Equipe` |\n| DACL | Quem pode fazer o quê neste objeto? | ACE permitindo leitura ao grupo |\n| SACL | Que acesso deve ser auditado? | Registrar tentativas de escrita |\n| UAC | A operação precisa de elevação aprovada? | Instalar programa para todos |\n\n### Como cai na prova\n\nSe o enunciado disser “quem pode ler o arquivo”, procure DACL/ACE e token; se disser “registrar tentativas”, procure SACL/auditoria; se disser “aprovar tarefa administrativa”, procure UAC/elevação. Grupo Administrators e conta SYSTEM são identidades diferentes. Uma ACE concedida a um grupo alcança sujeitos cujo token contenha o SID correspondente habilitado."
+    },
+    {
+      "title": "4. Modelos, revisão e controles de acesso",
+      "markdown": "### O problema que este assunto resolve\n\nUma política de acesso pode ser administrada por usuário, por função, por atributos ou por regras de classificação. A escolha do modelo determina como uma decisão é descrita e revisada. O NIST define **RBAC** como controle em que as ações permitidas sobre recursos são associadas a funções (roles), em vez de identidades individuais. Por exemplo, a função `analista-de-pessoal` pode receber leitura de cadastro funcional; usuários que exercem essa atividade são associados à função.\n\n> **Siglas e termos deste capítulo**\n> - **RBAC**: controle de acesso baseado em funções.\n> - **ABAC**: controle de acesso baseado em atributos do sujeito, objeto, ação ou contexto.\n> - **DAC**: controle discricionário, em que o proprietário ou autoridade delegada pode conceder acesso.\n> - **MAC**: controle obrigatório, guiado por política central e rótulos de segurança.\n> - **Segregação de deveres**: impedir que uma pessoa acumule combinações incompatíveis de funções.\n> - **Revisão de acesso**: confirmar se contas, grupos e permissões ainda são necessários.\n\n### Função não é sinônimo de grupo\n\nNo RBAC formal, usuários são associados a funções e permissões são associadas a funções. Um grupo tradicional geralmente é uma coleção de usuários; permissões podem ser concedidas ao grupo ou diretamente a usuários. Um sistema pode usar grupos como mecanismo técnico para implementar funções, mas os conceitos não são idênticos. O RBAC centraliza os direitos da atividade no papel, facilitando a atribuição e a revisão quando pessoas mudam de equipe. A hierarquia pode permitir que uma função superior herde permissões de outra.\n\nO modelo RBAC do NIST descreve componentes: Core RBAC contém relações usuário-função e permissão-função e ativação de papéis na sessão; Hierarchical RBAC trata hierarquia; Static Separation of Duty (SSD) limita atribuições incompatíveis ao usuário; Dynamic Separation of Duty (DSD) limita funções ativadas juntas em uma sessão. Exemplo: a mesma pessoa não deve cadastrar um fornecedor e aprovar o pagamento correspondente; outra pessoa executa a segunda etapa. Restrições podem ser estáticas (não se atribuem ambas as funções) ou dinâmicas (ambas atribuídas, mas não ativas juntas).\n\n### Princípios práticos de controle\n\n- **Menor privilégio**: comece com acesso negado e conceda apenas o indispensável para a tarefa.\n- **Necessidade de conhecer**: acesso a dados depende da função concreta, não da curiosidade ou senioridade.\n- **Separação de deveres**: dividir operações sensíveis para evitar que uma única identidade controle todo o ciclo.\n- **Acesso temporário**: conceder elevação por tarefa e retirar ao terminar.\n- **Revisão periódica e por evento**: conferir grupos em mudanças de função, afastamentos e desligamentos.\n- **Auditoria**: registrar concessões, alterações e uso de direitos sensíveis; proteger os registros contra alteração.\n\n| Modelo | Base da decisão | Cenário ilustrativo |\n| --- | --- | --- |\n| DAC | Identidade/proprietário e ACL | Dono compartilha um arquivo |\n| MAC | Rótulo e política central | Documento confidencial e credencial adequada |\n| RBAC | Função de trabalho | Grupo de permissões para analistas |\n| ABAC | Atributos e contexto | Acesso conforme setor, classificação e local |\n\n### Como cai na prova\n\nRBAC associa permissões a funções e usuários a funções. Separação estática impede combinações na atribuição; dinâmica restringe ativação simultânea. A auditoria observa e registra; não substitui autorização. Revogar acessos de pessoa desligada exige mais do que trocar permissões de uma pasta: é preciso desabilitar credenciais e revisar sessões, grupos e acessos delegados."
+    }
+  ],
+  "summary": "Contas identificam usuários; grupos organizam sujeitos com necessidades comuns; permissões protegem objetos e privilégios autorizam ações administrativas. Separe autenticação (identidade) de autorização (decisão de acesso) e aplique menor privilégio. No Linux, os bits r, w e x são separados entre proprietário, grupo e outros; em octal, r=4, w=2 e x=1. `chmod` altera modos, `chown` altera propriedade e `umask` remove permissões padrão na criação. ACLs POSIX acrescentam usuários e grupos nomeados, mas sua máscara limita o acesso efetivo; ACL padrão influencia objetos novos em diretório. No Windows, SID identifica principal, token reúne identidade e grupos, DACL contém ACEs que permitem/negam e SACL define auditoria. UAC medeia elevação administrativa. RBAC liga permissões a funções; a separação de deveres controla combinações estáticas ou ativação simultânea. Revisar e revogar acesso quando a função muda ou termina é parte da administração, assim como registrar concessões e acessos sensíveis.",
+  "flashcards": [
+    {
+      "front": "O que distingue autenticação de autorização?",
+      "back": "Autenticação verifica a identidade apresentada; autorização decide as ações e recursos permitidos após a identificação."
+    },
+    {
+      "front": "Para que serve um grupo de usuários?",
+      "back": "Agrupa contas com necessidade semelhante e permite atribuir ou revisar permissões coletivamente."
+    },
+    {
+      "front": "O que significa menor privilégio?",
+      "back": "Conceder somente os direitos necessários à tarefa e retirar os acessos quando deixam de ser necessários."
+    },
+    {
+      "front": "Quais são as três classes tradicionais POSIX?",
+      "back": "Proprietário, grupo associado ao arquivo e outros usuários."
+    },
+    {
+      "front": "Qual é o valor octal de leitura, escrita e execução?",
+      "back": "Leitura vale 4, escrita vale 2 e execução/pesquisa vale 1; somam-se os bits de cada classe."
+    },
+    {
+      "front": "O que representa o modo 640?",
+      "back": "Proprietário lê e escreve; grupo apenas lê; outros não têm permissões."
+    },
+    {
+      "front": "Qual é a diferença entre chmod e chown?",
+      "back": "chmod altera bits de permissão; chown altera o proprietário e pode alterar o grupo associado."
+    },
+    {
+      "front": "O que faz umask?",
+      "back": "Retira permissões do modo solicitado na criação; ela não adiciona permissões."
+    },
+    {
+      "front": "O que significa x em um diretório Linux?",
+      "back": "Permite pesquisar/atravessar o diretório, condicionando acesso aos nomes contidos nele."
+    },
+    {
+      "front": "O que é uma ACL POSIX?",
+      "back": "Lista de controle que permite especificar permissões para usuários ou grupos nomeados além das três classes básicas."
+    },
+    {
+      "front": "Para que serve a máscara de uma ACL POSIX?",
+      "back": "Limita o máximo efetivo das entradas de usuário nomeado e de grupo; não limita dono nem other."
+    },
+    {
+      "front": "O que faz uma ACL padrão em diretório?",
+      "back": "Serve de base para ACL de objetos criados no diretório, limitada pelo modo solicitado na criação."
+    },
+    {
+      "front": "O que é SID no Windows?",
+      "back": "Identificador de segurança usado para representar contas, grupos e outros principais de segurança."
+    },
+    {
+      "front": "O que há no token de acesso do Windows?",
+      "back": "Identidade do usuário, SIDs de grupos habilitados, dados da sessão e privilégios do processo."
+    },
+    {
+      "front": "Qual o papel de uma ACE?",
+      "back": "Uma entrada associada a um principal que especifica direitos concedidos, negados ou auditados."
+    },
+    {
+      "front": "O que a DACL controla?",
+      "back": "A concessão ou negação de acesso ao objeto por meio de ACEs aplicáveis ao token."
+    },
+    {
+      "front": "O que a SACL define?",
+      "back": "Critérios para auditar acessos ao objeto; não é a lista que concede acesso ordinário."
+    },
+    {
+      "front": "O que faz o UAC?",
+      "back": "Medeia tarefas que requerem privilégios administrativos e pode pedir aprovação ou credenciais para elevação."
+    },
+    {
+      "front": "Como RBAC relaciona usuários e permissões?",
+      "back": "Usuários são associados a funções; permissões são associadas às funções."
+    },
+    {
+      "front": "O que distingue SSD de DSD no RBAC?",
+      "back": "SSD limita combinações de funções atribuídas; DSD limita funções que podem ser ativadas juntas na sessão."
+    },
+    {
+      "front": "Qual é o propósito da revisão de acesso?",
+      "back": "Confirmar que contas, grupos e permissões continuam necessários e retirar acessos obsoletos."
+    },
+    {
+      "front": "Por que contas compartilhadas prejudicam auditoria?",
+      "back": "O registro aponta para a conta comum e não permite atribuir com segurança a ação a uma pessoa específica."
+    }
+  ],
+  "tips": [
+    "Em Linux, leia os nove bits sempre em três blocos: dono, grupo e outros.",
+    "Lembre-se: `chmod` muda o modo; `chown` muda quem é dono; `umask` restringe a criação.",
+    "Para uma pasta Linux, `x` é pesquisa/travessia, não execução de programa.",
+    "No Windows, acompanhe a cadeia token → SID correspondente → ACE na DACL → decisão de acesso.",
+    "Para auditoria de acesso ao objeto, pense em SACL; para permitir ou negar, pense em DACL.",
+    "Em RBAC, memorize as relações usuário-função e permissão-função; grupos tradicionais são conjuntos de usuários."
+  ],
+  "traps": [
+    "Não confunda autenticação com autorização: login bem-sucedido não libera todos os recursos.",
+    "Não suponha que a máscara de ACL limita o proprietário ou a entrada other; ela limita entradas nomeadas e grupos.",
+    "Não confunda DACL vazia com DACL ausente: a ausência pode significar concessão ampla, enquanto a vazia não contém concessões.",
+    "Ser membro de Administrators não é o mesmo que ser SYSTEM; são principais distintos.",
+    "Permissão de arquivo é diferente de privilégio do sistema, como desligar ou fazer backup.",
+    "Em RBAC, separação dinâmica trata da ativação na sessão, não da atribuição permanente de funções."
+  ],
+  "activeRecall": [
+    {
+      "question": "Uma pessoa foi transferida de setor. Que revisão de acesso deve ocorrer?",
+      "answer": "Retire os grupos e permissões que só faziam sentido no setor anterior e atribua apenas os necessários à nova função."
+    },
+    {
+      "question": "Decodifique `-rwxr-x---`.",
+      "answer": "Arquivo regular; dono lê, escreve e executa; grupo lê e executa; outros não têm acesso."
+    },
+    {
+      "question": "Com que comando conceitual altero o dono de um arquivo Linux?",
+      "answer": "Com `chown`; `chmod` altera os bits de modo, não a propriedade."
+    },
+    {
+      "question": "Como o processo Windows apresenta seus grupos durante uma verificação?",
+      "answer": "Por meio dos SIDs contidos no token de acesso do processo; ACEs correspondentes são avaliadas na DACL."
+    },
+    {
+      "question": "Qual recurso do Windows define que acessos devem ser registrados para auditoria?",
+      "answer": "A SACL do objeto, em conjunto com a configuração de auditoria do sistema."
+    },
+    {
+      "question": "Qual a diferença entre a máscara e uma entrada de grupo na ACL POSIX?",
+      "answer": "A entrada identifica permissões candidatas do grupo; a máscara limita o conjunto efetivamente disponível às entradas de grupo e usuários nomeados."
+    },
+    {
+      "question": "Como RBAC ajuda quando um servidor muda de função?",
+      "answer": "Ajusta-se sua associação às funções apropriadas, cujas permissões já estão definidas, facilitando a revisão e remoção de acessos anteriores."
+    },
+    {
+      "question": "Dê um exemplo de separação dinâmica de deveres.",
+      "answer": "A pessoa pode ter funções de preparação e aprovação, mas o sistema impede que ative ambas simultaneamente na mesma sessão."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Identidade não equivale a autorização",
+      "summary": "Autenticar comprova quem iniciou a sessão; a autorização ainda avalia a operação, o recurso e as regras aplicáveis."
+    },
+    {
+      "key": "e2",
+      "title": "Permissões POSIX e efeito de diretório",
+      "summary": "Os bits são avaliados por dono, grupo e outros; em diretório, x é pesquisa/travessia e pode ser indispensável mesmo quando o arquivo tem leitura."
+    },
+    {
+      "key": "e3",
+      "title": "Máscara da ACL não é permissão adicional",
+      "summary": "A máscara POSIX limita o acesso efetivo de entradas de grupo e usuários nomeados; ela pode reduzir permissões indicadas por outra entrada."
+    },
+    {
+      "key": "e4",
+      "title": "DACL e SACL têm finalidades distintas",
+      "summary": "A DACL contém concessões e negações de acesso; a SACL define o que deve gerar auditoria."
+    },
+    {
+      "key": "e5",
+      "title": "Função RBAC e grupo tradicional",
+      "summary": "RBAC associa permissões a funções e usuários a funções; grupos comuns são coleções de usuários e podem receber ACLs diretamente."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma pessoa consegue entrar no sistema, mas recebe acesso negado ao relatório. Qual distinção explica diretamente a situação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A autorização confirmou a identidade, mas a autenticação negou o recurso sem verificar a permissão atribuída ao objeto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A autenticação confirmou a identidade, mas a autorização não permitiu o recurso.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O grupo substituiu a senha e impediu o início da sessão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A auditoria alterou a conta e bloqueou a leitura do relatório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ACL converteu automaticamente a conta em administrador local.",
+          "correct": false
+        }
+      ],
+      "explanation": "Autenticação identifica o usuário durante a entrada; autorização verifica se aquela identidade tem direito à operação no relatório. A sessão pode estar válida mesmo quando uma ACL, grupo ou política não concede leitura. Auditoria registra eventos, e grupo ou ACL não substituem a senha nem promovem automaticamente a conta.",
+      "section": "1. Contas, grupos e ciclo de vida do acesso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Ubuntu, um usuário precisa executar comandos administrativos pontuais. Qual associação concede essa capacidade segundo a documentação do sistema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Incluí-lo em qualquer grupo de arquivos, pois todo grupo eleva a sessão e libera comandos administrativos no sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Incluí-lo no grupo `sudo`, que permite executar comandos com privilégios administrativos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Definir sua umask como zero para obter direitos administrativos permanentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar seu UID para o GID de um arquivo que precise editar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conceder execução em sua pasta pessoal, o que equivale a `sudo`.",
+          "correct": false
+        }
+      ],
+      "explanation": "No Ubuntu, a associação ao grupo `sudo` permite ao usuário executar comandos administrativos por meio da elevação apropriada. Um grupo comum controla acessos associados a recursos, e umask afeta permissões de criação; nenhum desses mecanismos transforma por si só qualquer grupo ou permissão de pasta em privilégio administrativo.",
+      "section": "1. Contas, grupos e ciclo de vida do acesso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conta local do Windows foi criada no computador A. Qual afirmação descreve corretamente seu escopo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela equivale a uma conta de domínio após a primeira troca de senha e passa a valer automaticamente na rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela passa a autenticar automaticamente em todos os domínios da rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela é definida naquele dispositivo e tem direitos e permissões locais a ele.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ela recebe acesso de rede irrestrito por ser armazenada localmente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela pode administrar qualquer controlador de domínio da organização.",
+          "correct": false
+        }
+      ],
+      "explanation": "Contas locais são definidas localmente, e o próprio dispositivo atua como autoridade; seus direitos e permissões são naquele dispositivo. Isso não cria conta de domínio, autenticação universal ou acesso irrestrito a recursos de rede. A troca de senha tampouco altera o escopo da autoridade que mantém a conta.",
+      "section": "1. Contas, grupos e ciclo de vida do acesso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um colaborador foi desligado, mas sua conta e sua associação a grupos ainda existem. Qual ação é essencial para revogar seu acesso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar o proprietário de um arquivo e manter a conta ativa para auditoria, o que por si só revoga os demais acessos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Alterar a umask da equipe e manter os grupos sem revisão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter a conta ativa e apenas trocar seu nome de exibição para impedir novas sessões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar a conta e remover ou revisar credenciais, grupos e acessos delegados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Remover a permissão de execução de todos os arquivos do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "O desligamento deve levar à desativação da identidade e à revogação das associações e credenciais que permitam acesso. Alterar a propriedade de um arquivo não encerra a sessão nem remove outros direitos. Apagar auditoria destrói evidências, e mudanças gerais em permissões não substituem o encerramento da conta individual.",
+      "section": "1. Contas, grupos e ciclo de vida do acesso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer que cada integrante tenha leitura de uma pasta sem conceder privilégios administrativos. Qual prática atende ao menor privilégio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar todos os integrantes ao grupo Administrators do computador, ainda que precisem apenas consultar aquela pasta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Compartilhar a senha de uma conta proprietária com a equipe inteira.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conceder leitura à pasta para um grupo funcional e associar apenas os integrantes necessários.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Conceder controle total a todos os usuários para evitar solicitações futuras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar a auditoria para reduzir registros de acesso ao diretório.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma permissão de leitura associada a grupo funcional concede exatamente o acesso sobre o objeto que a equipe precisa, sem elevar os usuários no sistema inteiro. Tornar todos administradores ou conceder controle total excede a necessidade; conta compartilhada prejudica atribuição individual; desativar auditoria não concede uma permissão apropriada.",
+      "section": "1. Contas, grupos e ciclo de vida do acesso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em `/etc/group`, a entrada de um grupo contém um nome legível, um campo reservado, um GID e uma lista de membros. Qual campo identifica numericamente o grupo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O GID, identificador numérico usado pelo sistema para representar o grupo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O campo reservado, que contém todos os privilégios do grupo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O UID do grupo, que identifica numericamente qualquer grupo no Linux.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A lista de membros, que atua como senha comum do grupo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O UID do primeiro membro, que substitui o GID em todo arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A estrutura documentada para `/etc/group` inclui nome, campo de senha reservado, GID e lista de usuários. O GID é o identificador numérico do grupo, usado pelo sistema para associar grupos a objetos e processos. Nome e lista são informações distintas; UID identifica usuário, não grupo.",
+      "section": "1. Contas, grupos e ciclo de vida do acesso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conta administrativa navega na internet e lê e-mails com privilégios elevados o tempo todo. Qual ajuste reduz a exposição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Compartilhar a conta administrativa entre os membros para distribuir o risco e manter rastreabilidade individual das ações.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar uma conta padrão nas tarefas comuns e elevar apenas ações administrativas necessárias.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Conceder controle total sobre todos os arquivos para evitar elevações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover todos os grupos da conta e manter seu privilégio administrativo ativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar as verificações de acesso para evitar interrupções da rotina.",
+          "correct": false
+        }
+      ],
+      "explanation": "A orientação da Microsoft é usar conta padrão nas atividades cotidianas e solicitar elevação para ações administrativas, reduzindo o tempo em que processos comuns operam com direitos elevados. Compartilhar credenciais compromete rastreabilidade; ampliar permissões ou desligar verificações aumenta exposição em vez de aplicar privilégio mínimo.",
+      "section": "1. Contas, grupos e ciclo de vida do acesso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Windows, qual ferramenta descrita pela Microsoft pode administrar usuários locais e grupos locais por linha de comando?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`chmod` para contas e `chown` para grupos locais do Windows, usando os bits POSIX para administrar o sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`umask` para usuários e `getfacl` para grupos locais do Windows.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`NET.EXE USER` para contas e `NET.EXE LOCALGROUP` para grupos locais.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`sudo` para contas locais e `setfacl` para grupos do Windows.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`ls -l` para criar contas e `pwd` para editar grupos locais.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação de contas locais do Windows indica `NET.EXE USER` para gerenciar usuários e `NET.EXE LOCALGROUP` para grupos locais, além de console MMC e cmdlets PowerShell. chmod, chown, umask e ferramentas ACL são comandos do ecossistema Unix/Linux e não administram contas locais Windows.",
+      "section": "1. Contas, grupos e ciclo de vida do acesso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo Linux tem modo octal 640. Quais acessos foram atribuídos ao proprietário, grupo e outros?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dono executa; grupo escreve; outros leem e executam, conforme os três dígitos que compõem esse modo octal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Dono lê; grupo lê e escreve; outros apenas executam.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dono lê e escreve; grupo lê; outros não recebem permissão.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Dono tem controle total; grupo não acessa; outros leem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dono lê e executa; grupo escreve; outros não acessam.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada dígito octal soma leitura 4, escrita 2 e execução 1. O 6 inicial equivale a 4+2: leitura e escrita do dono; 4 concede leitura ao grupo; 0 não concede bits a outros. Nenhuma das classes recebe execução nesse modo.",
+      "section": "2. Permissões POSIX e ACLs no Linux",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador usa `chmod g-w arquivo`. Qual é o efeito da forma simbólica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remove leitura e execução do proprietário do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remove a permissão de escrita do grupo associado ao arquivo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Concede escrita a todos os usuários que não pertencem ao grupo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Altera o proprietário do arquivo para o grupo associado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Define a máscara de criação para todos os arquivos do usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na sintaxe simbólica do chmod, `g` seleciona a classe do grupo, `-` remove bits e `w` é escrita. A operação não altera proprietário, classe de outros nem máscara de criação. Para mudar a propriedade, usa-se ferramenta própria, e umask afeta permissões de novos objetos.",
+      "section": "2. Permissões POSIX e ACLs no Linux",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma permissão de diretório Linux, o bit `x` tem qual significado principal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permite executar o diretório como se fosse um programa binário, sem exigir pesquisa dos nomes nele contidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Permite listar os nomes do diretório mesmo sem leitura e sem pesquisar entradas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permite alterar o proprietário de todos os arquivos descendentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permite pesquisar nomes e atravessar o diretório no caminho de acesso.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Permite gravar arquivos sem qualquer permissão de escrita.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para diretórios, x significa pesquisa/travessia: o processo pode atravessar o diretório e resolver nomes no caminho, sujeito às demais permissões e regras. Não significa executar o diretório como programa. Leitura permite listar conteúdo e escrita é relevante para alterar entradas, mas não substituem a travessia.",
+      "section": "2. Permissões POSIX e ACLs no Linux",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comando conceitualmente altera o proprietário de um arquivo Linux, em vez de seus bits de permissão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`chmod`, que altera o dono e o grupo pelo valor octal e transfere a propriedade do objeto ao usuário indicado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`umask`, que transfere a propriedade para quem cria o arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`chown`, que altera o dono e pode também indicar o grupo associado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`getfacl`, que sempre transfere o dono para o usuário consultante.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`ls`, que troca o grupo ao exibir a listagem longa.",
+          "correct": false
+        }
+      ],
+      "explanation": "`chown` altera a propriedade do arquivo e pode definir o grupo associado conforme a sintaxe usada. `chmod` muda bits de modo; umask influencia permissões de criação; getfacl consulta ACL e ls lista informações. Exibir o proprietário não o altera.",
+      "section": "2. Permissões POSIX e ACLs no Linux",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Com uma umask 022, quais modos padrão são exemplificados para novos arquivos e diretórios no Ubuntu?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Arquivos 644 e diretórios 755.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Arquivos 666 e diretórios 777, pois a umask não afeta os modos de criação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Arquivos 600 e diretórios 700, removendo todas as permissões de grupo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Arquivos 755 e diretórios 644, invertendo os modos entre os objetos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Arquivos 022 e diretórios 022, usando a máscara como modo final.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação Ubuntu explica que umask subtrai permissões dos máximos usuais 666 para arquivos e 777 para diretórios. Com 022, os resultados ilustrados são 644 e 755, respectivamente. A máscara não é o modo final nem acrescenta bits; o arquivo comum também não ganha execução nesse exemplo.",
+      "section": "2. Permissões POSIX e ACLs no Linux",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa conceder leitura a uma usuária específica sem torná-la membro do grupo proprietário. Qual mecanismo Linux permite uma entrada nominal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Umask, que cria uma exceção permanente para uma usuária específica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "GID do proprietário, que identifica diretamente qualquer usuária individual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sticky bit, que concede leitura nominal a todos os arquivos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ACL POSIX com uma entrada de usuário nomeado para o objeto.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Bit de execução, que concede automaticamente leitura ao usuário nomeado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma ACL estendida pode conter entradas para usuário ou grupo nomeado e assim complementar as classes dono, grupo e outros. A umask afeta padrões de criação, o sticky bit limita certas remoções em diretórios e GID identifica grupo. O bit x não cria identidade nem concede leitura por si só.",
+      "section": "2. Permissões POSIX e ACLs no Linux",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ACL POSIX tem entrada `user:bia:rw-` e máscara `r--`. Qual é o acesso efetivo de Bia por essa entrada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Leitura, porque a máscara reduz escrita e mantém o bit de leitura.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Leitura e escrita, porque entradas nominais não são limitadas pela máscara.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Execução, porque a máscara substitui a entrada do usuário nomeado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Nenhum acesso, porque a máscara só permite permissões de outros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Controle total, porque qualquer ACL nominal prevalece sobre os bits.",
+          "correct": false
+        }
+      ],
+      "explanation": "A máscara é o limite máximo efetivo para a entrada de usuário nomeado. A entrada oferece leitura e escrita, mas a máscara `r--` retira a escrita e mantém a leitura. Ela não concede execução nem substitui a entrada; dono e other têm regras próprias e não são limitados pela máscara.",
+      "section": "2. Permissões POSIX e ACLs no Linux",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um diretório possui ACL padrão e recebe um arquivo novo. O que se espera da ACL padrão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela substitui imediatamente as ACLs de todos os objetos antigos do diretório e atualiza retroativamente suas permissões.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela serve de base para a ACL de acesso do novo objeto, limitada pelo modo pedido na criação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ela concede ao novo objeto todas as permissões, ignorando o modo solicitado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela altera apenas o proprietário do diretório e não afeta objetos novos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela é uma cópia da SACL do Windows aplicada ao arquivo Linux.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ACL padrão do diretório é herdada como base da ACL de acesso do objeto criado, mas as entradas são limitadas pelas permissões solicitadas pelo programa na criação. Ela não reconfigura retroativamente objetos existentes e não ignora o modo. O mecanismo é POSIX e não depende da SACL do Windows.",
+      "section": "2. Permissões POSIX e ACLs no Linux",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em diretório compartilhável com escrita ampla, o sticky bit é usado principalmente para restringir qual operação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A leitura de arquivos por todos os membros do grupo proprietário, mesmo quando os bits de leitura estão ausentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A criação de ACL padrão em cada subdiretório descendente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A execução de programas por qualquer usuário do sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A remoção ou renomeação de arquivo por usuário que não seja dono do arquivo ou do diretório.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A alteração de proprietário pelo comando chown sem privilégios.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em diretórios, o sticky bit restringe remoção ou renomeação de entradas: usuário sem privilégio só pode remover ou renomear arquivo que possui, salvo também ser dono do diretório. Não concede leitura nem execução, não cria ACLs e não altera as regras de propriedade de chown.",
+      "section": "2. Permissões POSIX e ACLs no Linux",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Linux quer consultar uma ACL estendida e outra quer alterar uma ACL do arquivo. Quais utilitários são associados a essas tarefas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`setfacl` consulta e `getfacl` altera ACLs em qualquer sistema, inclusive sem suporte a listas de controle.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`getfacl` consulta e `setfacl` altera ACLs em sistemas que os disponibilizam.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`chmod` consulta ACL e `chown` converte entradas em usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`umask` consulta ACL e `ls` altera entradas nomeadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`sudo` consulta ACL e `id` grava a máscara no arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "As ferramentas usuais da suíte ACL associam `getfacl` à consulta e `setfacl` à edição das entradas. chmod continua sendo usado para bits de modo, chown para propriedade e umask para máscara de criação; ls pode sinalizar ACL estendida em sua listagem, mas não altera as entradas.",
+      "section": "2. Permissões POSIX e ACLs no Linux",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O nome de um usuário no Linux foi alterado, mas seu UID permaneceu. Como o sistema identifica a conta para fins de propriedade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O nome exibido substitui o UID em todos os metadados do arquivo, que passam a guardar apenas o nome textual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O UID numérico continua identificando o usuário associado aos objetos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O GID do grupo principal passa a ser o identificador do usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A umask é convertida automaticamente no novo identificador da conta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O bits de leitura e escrita determinam o nome da pessoa proprietária.",
+          "correct": false
+        }
+      ],
+      "explanation": "A propriedade de arquivos é registrada por identificadores numéricos, como UID para usuário e GID para grupo. Ferramentas podem exibir nomes obtidos por resolução desses identificadores, mas mudar o nome legível não transforma o UID armazenado nos metadados. GID e umask têm funções distintas.",
+      "section": "2. Permissões POSIX e ACLs no Linux",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pasta pai não permite travessia por determinado grupo, embora um arquivo filho conceda leitura ao grupo. Qual efeito pode ocorrer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A leitura do arquivo sempre ignora as permissões de todos os diretórios pais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O bit de escrita no arquivo concede travessia automaticamente à pasta pai.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O acesso ao arquivo pode falhar porque falta pesquisa/travessia no diretório do caminho.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A associação ao grupo substitui o bit x em todo diretório do caminho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A umask do usuário concede pesquisa temporária no diretório pai.",
+          "correct": false
+        }
+      ],
+      "explanation": "O processo precisa poder atravessar/pesquisar cada diretório no caminho para resolver o nome do arquivo. A leitura concedida no arquivo não anula as permissões do diretório pai. Escrita do arquivo, associação ao grupo e umask não alteram automaticamente o bit de pesquisa do diretório.",
+      "section": "2. Permissões POSIX e ACLs no Linux",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Windows, qual elemento do token permite que uma ACE concedida a um grupo corresponda ao processo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O nome visível do arquivo que aparece no Explorador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A SACL do usuário, que substitui todos os SIDs do processo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O valor octal calculado a partir de leitura, escrita e execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O SID do grupo habilitado que está presente no token de acesso.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A umask da sessão, que converte grupos em proprietários.",
+          "correct": false
+        }
+      ],
+      "explanation": "O token contém SIDs que identificam usuário e grupos aos quais ele pertence; na verificação, o sistema compara esses principais com as ACEs da DACL. SIDs de grupo desabilitados podem ser ignorados. Nome de arquivo, octal e umask são conceitos diferentes e não substituem o token Windows.",
+      "section": "3. ACL e controle de acesso no Windows",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual lista do descritor de segurança contém ACEs que concedem ou negam direitos de acesso a um objeto Windows?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SACL, a lista que define exclusivamente o proprietário do objeto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DACL, a lista discricionária de controle de acesso do objeto.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "GID, o identificador de grupo usado pelo sistema Unix.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Umask, a máscara que calcula permissões no Windows.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "UID, o identificador numérico usado como ACE no token Windows.",
+          "correct": false
+        }
+      ],
+      "explanation": "A DACL reúne ACEs que determinam direitos permitidos ou negados para principais correspondentes. A SACL estabelece critérios de auditoria. GID, UID e umask pertencem ao vocabulário de sistemas Unix/Linux e não são as listas do descritor de segurança Windows.",
+      "section": "3. ACL e controle de acesso no Windows",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador quer registrar tentativas de leitura de um objeto Windows para revisão posterior. Que componente deve configurar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A DACL, pois ela armazena os eventos de auditoria já ocorridos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A SACL, associada à configuração de auditoria do sistema.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O token, pois ele grava por si só todas as operações em disco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O SID, pois seu valor numérico contém o histórico de acessos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A umask, que escreve tentativas de leitura no registro do Windows.",
+          "correct": false
+        }
+      ],
+      "explanation": "A SACL define os acessos que devem gerar auditoria; a política e os serviços de auditoria do sistema produzem os eventos correspondentes. DACL controla concessão e negação, e token/SID identificam contexto e principal, mas não armazenam histórico. Umask não é mecanismo de auditoria Windows.",
+      "section": "3. ACL e controle de acesso no Windows",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente o papel do SID no controle de acesso do Windows?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazenar a senha em texto claro para cada sessão de usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Identificar de forma única uma conta, grupo ou outro principal de segurança.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Definir diretamente o modo octal de arquivos e diretórios.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Registrar sozinho todas as operações solicitadas ao sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transformar uma permissão de leitura em privilégio de administrador.",
+          "correct": false
+        }
+      ],
+      "explanation": "SIDs identificam principais de segurança, como contas e grupos, e são usados no token e nas ACEs para relacioná-los. Não são senhas, modos octais ou registros de auditoria. O direito concedido depende das entradas e da decisão do mecanismo de acesso, não do SID isoladamente.",
+      "section": "3. ACL e controle de acesso no Windows",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que ocorre quando um aplicativo Windows pede uma operação que requer elevação administrativa sob UAC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O UAC substitui a DACL por permissões POSIX equivalentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O aplicativo recebe elevação automática ao abrir qualquer arquivo pessoal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O sistema pode exigir aprovação ou credenciais antes de executar a operação elevada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A elevação apaga as ACEs existentes do objeto solicitado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O UAC converte toda conta local em conta de domínio.",
+          "correct": false
+        }
+      ],
+      "explanation": "UAC medeia mudanças que exigem permissões administrativas, podendo pedir aprovação ou credenciais conforme tipo de conta e configuração. Ele não altera as ACEs do objeto nem converte identidades ou sistemas de permissões. A abertura de qualquer arquivo pessoal não implica elevação administrativa.",
+      "section": "3. ACL e controle de acesso no Windows",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ACE permite leitura a um grupo. Um processo do usuário não tem SID desse grupo habilitado no token. Qual conclusão é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O UAC habilita todos os grupos quando qualquer arquivo é aberto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A ACE concede acesso porque basta o nome do grupo existir no diretório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A SACL adiciona automaticamente o SID faltante ao token durante a leitura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ACE pode não corresponder ao processo, pois a verificação usa SIDs habilitados no token.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O proprietário do objeto herda leitura para qualquer processo da máquina.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Windows compara os trustees das ACEs com os SIDs presentes e habilitados no token do processo. A existência de um grupo no diretório não basta se o token não o contém como habilitado; SACL audita, UAC medeia elevação e propriedade não concede automaticamente o mesmo acesso a todo processo.",
+      "section": "3. ACL e controle de acesso no Windows",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual distinção entre uma DACL ausente e uma DACL vazia é importante na análise do acesso Windows?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A DACL vazia registra auditoria; a ausente define o proprietário do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ambas sempre concedem controle total a todos os grupos autenticados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A ausência pode permitir acesso irrestrito; uma DACL vazia não contém concessões e nega acesso ordinário.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A DACL ausente equivale a uma umask 000 e a vazia a chmod 777.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ambas desabilitam o token e exigem que o usuário reinicie a sessão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma NULL DACL, isto é, ACL discricionária ausente, permite acesso sem restrição pela DACL segundo o modelo Windows. Uma DACL presente mas vazia não tem ACE concedendo direitos e resulta em negação ordinária. Confundir os estados pode levar a exposição grave; eles não definem auditoria ou propriedade.",
+      "section": "3. ACL e controle de acesso no Windows",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário recebeu permissão de leitura em uma pasta, mas não deve instalar programas para toda a máquina. Qual conclusão distingue os controles?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O SID da pasta é uma credencial que autoriza instalação irrestrita.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Toda permissão de leitura concede todos os privilégios de usuário do sistema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O grupo da pasta torna o usuário administrador em todos os computadores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A SACL converte leitura em instalação quando registra auditoria.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permissão no objeto não implica automaticamente privilégio administrativo para instalar software.",
+          "correct": true
+        }
+      ],
+      "explanation": "Permissão regula acesso a um objeto, enquanto privilégio ou direito autoriza determinadas ações administrativas do sistema. Conceder leitura numa pasta não concede instalação global. Grupo e SID identificam sujeitos e relações; SACL define auditoria e não converte direitos de objeto em privilégio administrativo.",
+      "section": "3. ACL e controle de acesso no Windows",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em RBAC, onde são associadas as permissões e por qual relação o usuário as recebe?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permissões são associadas a funções, e usuários são associados às funções autorizadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Permissões são associadas apenas a senhas, e funções são atribuídas aos arquivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permissões ficam ligadas somente a usuários individuais, sem relação com funções.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Funções são associadas a SACLs, e permissões são atribuídas a sessões de logon.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usuários recebem permissões por GID, mesmo em sistema sem grupos ou funções.",
+          "correct": false
+        }
+      ],
+      "explanation": "O modelo RBAC conecta usuários a funções e funções a permissões. A autorização decorre da associação autorizada à função e pode envolver ativação na sessão e restrições. O princípio reduz a gestão de ligações individuais usuário-recurso, embora mecanismos de grupos possam ser usados tecnicamente para representar funções.",
+      "section": "4. Modelos, revisão e controles de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política impede que a mesma pessoa seja designada simultaneamente às funções de cadastrar fornecedor e aprovar pagamento. Qual restrição RBAC exemplifica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Herança hierárquica que concede automaticamente a função de aprovação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Separação dinâmica aplicada somente à ordem das ACEs em uma DACL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Separação estática de deveres aplicada às atribuições de funções do usuário.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Autenticação multifator que substitui a revisão das funções atribuídas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Máscara POSIX que retira o bit de escrita da função cadastrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A separação estática de deveres restringe quais funções podem ser atribuídas juntas a um usuário, evitando combinações incompatíveis desde a designação. Separação dinâmica restringe papéis ativados em sessão; ordem de ACE, autenticação e máscara POSIX tratam de outros controles.",
+      "section": "4. Modelos, revisão e controles de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa pode ter duas funções atribuídas, mas não pode ativá-las simultaneamente na mesma sessão. Qual componente de separação de deveres descreve isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Separação dinâmica de deveres, que limita funções ativadas na sessão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Separação estática, que exige remover uma função da atribuição permanente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Herança de permissões, que torna todas as funções simultâneas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ACL padrão, que propaga funções para novos usuários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Autenticação local, que impede mudança de senha na sessão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A separação dinâmica de deveres trata de funções ativadas durante uma sessão. O usuário pode manter atribuições compatíveis com a política geral, mas não ativar uma combinação proibida ao mesmo tempo. A separação estática atua na atribuição das funções e impediria a coexistência desde o cadastro.",
+      "section": "4. Modelos, revisão e controles de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa associa todas as permissões a funções estáveis e ajusta a função quando a pessoa troca de atividade. Qual benefício é próprio do RBAC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substitui auditoria e autenticação por uma lista de nomes de usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Elimina a necessidade de verificar se a pessoa ainda pertence à organização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garante que toda operação será autorizada sem avaliar a função ativa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Simplifica atribuição e revisão porque os direitos seguem funções organizacionais.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Concede automaticamente privilégios administrativos a qualquer função.",
+          "correct": false
+        }
+      ],
+      "explanation": "Funções tendem a mudar menos frequentemente que pessoas e permissões; concentrar direitos na função simplifica atribuição e revisão quando há movimentação de pessoal. Ainda é necessário revisar a associação, autenticar o usuário, aplicar restrições e auditar operações. RBAC não eleva qualquer função a administrador.",
+      "section": "4. Modelos, revisão e controles de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um acesso depende do setor do usuário, da classificação do documento e do horário da solicitação. Qual modelo expressa diretamente uma decisão por atributos e contexto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ABAC, que avalia atributos do sujeito, recurso, ação e contexto conforme política.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RBAC básico, que considera somente a senha escolhida pelo usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ABAC avalia os atributos do sujeito, do recurso, da ação e do contexto definidos na política.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Sticky bit, que decide a autorização pelo grupo e pela classificação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SACL, que concede acesso com base no setor e no local do usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "ABAC permite expressar regras que consideram atributos do sujeito, recurso, ação e contexto, como setor, classificação e horário. RBAC pode representar funções, mas o conjunto de condições do cenário é descrito diretamente por atributos. Sticky bit e umask tratam de permissões POSIX; SACL registra auditoria, não concede acesso.",
+      "section": "4. Modelos, revisão e controles de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema RBAC, uma função superior recebe permissões de outra função menos abrangente por relação hierárquica. Qual recurso está sendo usado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Hierarquia de funções, que pode propagar permissões conforme as relações definidas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "DACL vazia, que herda todos os direitos de usuários anteriores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Umask hierárquica, que acrescenta privilégios a grupos superiores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SACL dinâmica, que converte auditoria em permissão de função.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Autenticação de grupo, que substitui a relação usuário-função.",
+          "correct": false
+        }
+      ],
+      "explanation": "Hierarchical RBAC acrescenta relações de hierarquia entre funções e pode fazer uma função herdar permissões autorizadas de outra. Isso é definido pela política, não por DACL vazia, umask ou SACL. Autenticação comprova a identidade e não substitui a relação entre usuário e função.",
+      "section": "4. Modelos, revisão e controles de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa tem função de preparar pagamentos e função de aprovar pagamentos; a política quer que outra pessoa aprove. Qual controle reduz o risco de uma só pessoa concluir o ciclo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Separação de deveres, dividindo etapas sensíveis entre funções ou pessoas distintas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Controle total para a pessoa que prepara, evitando atrasos na aprovação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remoção da auditoria, para que o processo não revele duplicidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Separação de deveres para dividir as etapas sensíveis entre pessoas ou funções diferentes.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Permissão de escrita ampla no diretório de pagamentos para todos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Separação de deveres divide operações críticas para que uma única pessoa não controle todas as etapas, reduzindo erros e abuso. A regra pode ser aplicada nas atribuições ou na ativação de funções. Aumentar privilégios, compartilhar identidade e eliminar auditoria enfraquece a responsabilização.",
+      "section": "4. Modelos, revisão e controles de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema inicia com acesso negado e concede apenas a leitura de que cada função precisa. Qual princípio de administração está sendo aplicado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Menor privilégio, limitando cada identidade ao necessário para sua tarefa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Acesso irrestrito, garantindo que toda pessoa possa desempenhar qualquer função.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Herança total, copiando todas as permissões do administrador para os usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Separação dinâmica, desabilitando todas as sessões simultaneamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Auditoria preventiva, concedendo acesso após apagar os registros antigos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Menor privilégio é limitar permissões às necessidades reais de trabalho, começando sem concessões desnecessárias. Acesso irrestrito e herança total ampliam exposição. Separação dinâmica controla combinações de papéis em sessão; auditoria registra eventos e não consiste em apagar registros ou conceder permissões.",
+      "section": "4. Modelos, revisão e controles de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma revisão periódica identifica um grupo antigo que mantém acesso a dados após mudança de função. Qual correção é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover o acesso obsoleto e confirmar as associações atuais necessárias à função.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter o grupo para garantir compatibilidade com futuras funções possíveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Retirar o acesso sem justificativa e confirmar os grupos ainda necessários às tarefas atuais.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Conceder controle total a outro grupo para compensar a mudança.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar todas as contas sem verificar suas atividades atuais.",
+          "correct": false
+        }
+      ],
+      "explanation": "A revisão deve confirmar se grupos e permissões continuam necessários, retirar acessos que perderam justificativa e manter os direitos indispensáveis à função atual. Preservar permissões por conveniência acumula privilégios; apagar logs remove evidências e desabilitar indiscriminadamente interrompe contas válidas.",
+      "section": "4. Modelos, revisão e controles de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um responsável concede a um colega acesso a um arquivo por decisão própria e segundo sua autoridade sobre o objeto. Qual modelo tradicional descreve esse controle?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DAC, em que proprietário ou autoridade delegada pode conceder acesso discricionariamente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "MAC, que depende somente da escolha livre do proprietário do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ABAC, que sempre ignora atributos e contexto do recurso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RBAC, que não utiliza funções nem permissões associadas a papéis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SACL, que concede direitos de leitura por registrar eventos de acesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "No controle discricionário (DAC), o proprietário ou autoridade autorizada pode decidir e delegar acesso ao objeto, frequentemente por ACL. MAC depende de política central e rótulos, RBAC usa funções, ABAC usa atributos e SACL é uma estrutura de auditoria Windows, não um modelo de concessão discricionária.",
+      "section": "4. Modelos, revisão e controles de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um modelo central impede que o proprietário altere acesso e compara rótulos de segurança do usuário e do documento segundo política obrigatória. Qual modelo é mais compatível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "MAC permite ao proprietário decidir livremente cada concessão, sem política central.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DAC, pois o proprietário decide livremente cada concessão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RBAC, pois não pode coexistir com rótulos nem hierarquias.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MAC, controle obrigatório que usa política central e rótulos de segurança.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "SACL, pois sempre concede acesso se o usuário for auditado.",
+          "correct": false
+        }
+      ],
+      "explanation": "MAC impõe uma política central que utiliza classificações ou rótulos e não deixa a decisão final a critério livre do dono do objeto. DAC permite discricionariedade do proprietário; RBAC é baseado em funções. umask e SACL não são modelos que comparem rótulos para autorizar acesso.",
+      "section": "4. Modelos, revisão e controles de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No RBAC, uma sessão de usuário ativa apenas um subconjunto de suas funções atribuídas. Que característica do modelo isso exemplifica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ativação de funções na sessão, permitindo aplicar restrições às funções em uso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Herança de permissões de arquivo causada pela ACL padrão do diretório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DACL que converte todos os grupos do usuário em administradores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "umask que seleciona funções ativas conforme os bits de criação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SACL que substitui as relações de usuário e função no modelo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Core RBAC inclui ativação de funções como parte da sessão; um usuário pode ter funções autorizadas sem ativar todas simultaneamente. Isso permite restrições dinâmicas e menor exposição durante a sessão. ACL padrão trata de criação de objetos, DACL de acesso Windows e umask de permissões de criação POSIX.",
+      "section": "4. Modelos, revisão e controles de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A auditoria registra alterações de grupos, concessões e tentativas de acesso, mas não decide se a operação solicitada é permitida. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Auditoria produz registros para atribuir e revisar eventos; autorização é o mecanismo que avalia permissões, token, identidade e política para conceder ou negar a operação. Um log pode ajudar a explicar uma decisão, mas não substitui a DACL, a ACL POSIX ou a política aplicável.",
+      "section": "1. Contas, grupos e ciclo de vida do acesso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Permissões de leitura e escrita concedidas a um arquivo tornam automaticamente seu usuário proprietário administrador do sistema. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Permissões do objeto regulam operações sobre aquele arquivo, enquanto privilégios administrativos autorizam ações mais amplas do sistema. A propriedade pode permitir gerenciar o objeto conforme a plataforma, mas não equivale por si só a integrar Administrators ou obter todos os direitos administrativos.",
+      "section": "1. Contas, grupos e ciclo de vida do acesso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conta individual facilita relacionar ações registradas a uma pessoa, enquanto uma conta compartilhada enfraquece a atribuição individual. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A identidade individual ajuda a associar eventos à pessoa autenticada e dá suporte à responsabilização. Quando várias pessoas usam a mesma credencial, os registros apontam para uma conta comum e não demonstram com a mesma confiança quem executou a ação. A gestão deve preferir contas individuais.",
+      "section": "1. Contas, grupos e ciclo de vida do acesso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Linux, o bit de leitura em diretório permite percorrer o caminho mesmo sem o bit de execução/pesquisa. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Leitura permite listar nomes do diretório, mas o bit x representa pesquisa/travessia e é necessário para atravessar o diretório e resolver nomes no caminho. As permissões interagem: ter leitura no arquivo não elimina a necessidade de atravessar diretórios que levam até ele.",
+      "section": "2. Permissões POSIX e ACLs no Linux",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um arquivo Linux, o modo 755 concede leitura, escrita e execução ao proprietário e leitura e execução ao grupo e a outros. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O primeiro dígito 7 é 4+2+1, isto é, leitura, escrita e execução. Os dígitos 5 são 4+1, leitura e execução, sem escrita. A sequência aplica-se a proprietário, grupo e outros, respectivamente; execução em diretório tem sentido de pesquisa/travessia.",
+      "section": "2. Permissões POSIX e ACLs no Linux",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A umask adiciona permissões aos modos máximos de arquivos e diretórios quando eles são criados. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A umask retira bits de permissão do modo solicitado e não adiciona direitos. No exemplo Ubuntu, uma máscara 022 produz normalmente arquivo 644 e diretório 755, partindo de modos máximos usuais diferentes para arquivo e diretório.",
+      "section": "2. Permissões POSIX e ACLs no Linux",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ACL padrão associada a um diretório fornece a base para as ACLs de objetos criados nele, sujeita ao modo pedido na criação. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O modelo POSIX aplica a ACL padrão do diretório como ACL de acesso inicial do novo objeto e ajusta entradas correspondentes para não exceder permissões do modo de criação. Ela não modifica automaticamente todos os objetos preexistentes no diretório.",
+      "section": "2. Permissões POSIX e ACLs no Linux",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A máscara de uma ACL POSIX reduz o acesso efetivo das entradas de usuário nomeado e grupo, mas não limita a entrada do proprietário nem a de outros. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A máscara representa o máximo efetivo para entradas de usuário nomeado, grupo proprietário e grupos nomeados. A entrada do dono do arquivo e a entrada other têm correspondências próprias e não são limitadas pela máscara, embora a máscara influencie os bits de grupo exibidos.",
+      "section": "2. Permissões POSIX e ACLs no Linux",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um arquivo tiver uma ACL estendida, uma listagem longa de `ls -l` pode exibir um sinal `+` após a cadeia de permissões. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Em sistemas que suportam ACLs, `ls -l` exibe um sinal `+` depois da cadeia de permissões para objetos com ACL padrão ou ACL de acesso estendida. A indicação sinaliza que há informação adicional; para ver as entradas, usa-se ferramenta de consulta de ACL como getfacl.",
+      "section": "2. Permissões POSIX e ACLs no Linux",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Windows, um token de acesso pode conter SIDs do usuário e dos grupos aos quais ele pertence, usados na verificação da DACL. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O token identifica o usuário e grupos associados por meio de SIDs, além de informações adicionais de segurança. Na verificação, o sistema compara esses trustees com as ACEs da DACL e considera atributos como grupos habilitados. A DACL é avaliada para o objeto solicitado.",
+      "section": "3. ACL e controle de acesso no Windows",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A SACL do Windows é a lista que normalmente concede leitura ou escrita a usuários e grupos no objeto. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A DACL determina concessões e negações de acesso por ACEs. A SACL estabelece quais acessos devem ser auditados. Ambas são ACLs associadas ao objeto, mas desempenham funções distintas; confundi-las pode levar a configurar auditoria esperando que ela conceda acesso.",
+      "section": "3. ACL e controle de acesso no Windows",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O UAC pode tratar uma conta administrativa como padrão até que uma tarefa solicite e receba elevação aprovada. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O UAC permite mediar operações que exigem direitos administrativos, solicitando consentimento ou credenciais conforme a configuração. A conta pode realizar tarefas comuns sem manter todos os processos continuamente elevados, e a operação sensível só prossegue após a elevação apropriada.",
+      "section": "3. ACL e controle de acesso no Windows",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma concessão de permissão ao grupo Administrators no arquivo concede automaticamente exatamente os mesmos direitos à conta SYSTEM. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Administrators e SYSTEM são principais de segurança diferentes. A Microsoft esclarece que conceder ao grupo Administrators permissões de arquivo não concede implicitamente essas permissões a SYSTEM. A decisão depende das ACEs que correspondem aos SIDs no token do processo.",
+      "section": "3. ACL e controle de acesso no Windows",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No RBAC, o Core RBAC inclui relações entre usuário e função e entre permissão e função, além de ativação de função em uma sessão. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O modelo de referência descreve essas duas relações fundamentais e a ativação de papéis na sessão. Componentes hierárquicos e de separação de deveres acrescentam recursos, mas o Core RBAC estabelece a base para atribuir usuários, funções e permissões.",
+      "section": "4. Modelos, revisão e controles de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Separação estática de deveres restringe funções que podem ser ativadas simultaneamente durante uma sessão, ainda que o usuário possa recebê-las todas. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Essa descrição corresponde à separação dinâmica, que limita funções ativadas em uma sessão. A separação estática trata das relações e restrições sobre atribuições de funções a usuários, impedindo certas combinações na designação, independentemente da sessão atual.",
+      "section": "4. Modelos, revisão e controles de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um grupo tradicional é conceitualmente igual a uma função RBAC, pois ambos são sempre conjuntos de permissões e nunca conjuntos de usuários. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Um grupo tradicional é normalmente uma coleção de usuários, e permissões podem ser associadas ao grupo ou diretamente a usuários. Em RBAC, permissões são associadas a funções e usuários às funções; há semelhança operacional possível, mas os conceitos e as relações formais não são idênticos.",
+      "section": "4. Modelos, revisão e controles de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma revisão de acesso após transferência de setor pode detectar e remover associações a grupos que deixaram de ser necessárias. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Mudança de função é um evento para revisar autorizações: removem-se grupos e permissões antigos sem justificativa e mantêm-se os necessários às novas tarefas. A revisão evita acúmulo de privilégios e complementa a gestão de contas, os registros de auditoria e o princípio do menor privilégio.",
+      "section": "4. Modelos, revisão e controles de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conta de serviço deve ser compartilhada por usuários humanos para facilitar o registro de quem executou tarefas administrativas. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Uma conta compartilhada reduz a capacidade de atribuir ações a uma pessoa. Contas de serviço devem ter finalidade restrita e credenciais protegidas; atividades humanas devem usar identidades individuais com permissões apropriadas para permitir auditoria e revogação individualizadas.",
+      "section": "1. Contas, grupos e ciclo de vida do acesso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No controle ABAC, atributos do sujeito, do objeto, da ação e do contexto podem integrar a avaliação da política. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O controle baseado em atributos permite decisões que consideram características do usuário, recurso e operação, além do contexto como local ou horário. Isso contrasta com uma regra que depende exclusivamente da identidade individual ou de uma função fixa, embora modelos possam ser combinados.",
+      "section": "4. Modelos, revisão e controles de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ausência de DACL no Windows e uma DACL presente sem ACEs têm sempre o mesmo efeito: negar todo acesso. Certo ou errado?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Uma DACL ausente (NULL DACL) permite acesso sem restrição pela DACL, enquanto uma DACL vazia não contém concessões e normalmente nega o acesso solicitado. Os dois estados não são equivalentes; por isso, verificar se a lista está ausente ou apenas vazia é essencial ao diagnóstico.",
+      "section": "3. ACL e controle de acesso no Windows",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Access Control (Authorization)",
+      "publisher": "Microsoft Learn",
+      "reference": "Modelo de controle de acesso do Windows e objetos protegidos",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/secauthz/access-control",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Local accounts",
+      "publisher": "Microsoft Learn",
+      "reference": "Contas locais, grupos, gerenciamento, direitos, permissões e UAC",
+      "url": "https://learn.microsoft.com/en-us/windows/security/identity-protection/access-control/local-accounts",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "How AccessCheck Works",
+      "publisher": "Microsoft Learn",
+      "reference": "DACL, ACE, token, SIDs e verificação de acesso no Windows",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/secauthz/how-dacls-control-access-to-an-object",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "acl(5) Linux manual page",
+      "publisher": "Linux man-pages project",
+      "reference": "ACL POSIX, entradas, máscara, herança padrão e algoritmo de verificação",
+      "url": "https://man7.org/linux/man-pages/man5/acl.5.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "chmod(1) Linux manual page",
+      "publisher": "Linux man-pages project",
+      "reference": "Modos simbólicos e octais, bits r/w/x e sticky bit",
+      "url": "https://man7.org/linux/man-pages/man1/chmod.1.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Welcome to the terminal",
+      "publisher": "Ubuntu Server documentation",
+      "reference": "Proprietário e grupo, leitura das permissões, umask e grupo sudo",
+      "url": "https://ubuntu.com/server/docs/tutorial/welcome-to-the-terminal/",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Role Based Access Control FAQs",
+      "publisher": "NIST Computer Security Resource Center",
+      "reference": "Core RBAC, hierarquia e separação estática e dinâmica de deveres",
+      "url": "https://csrc.nist.gov/Projects/Role-Based-Access-Control/faqs",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Role-based access control (RBAC) glossary",
+      "publisher": "NIST Computer Security Resource Center",
+      "reference": "Definição de controle de acesso baseado em funções",
+      "url": "https://csrc.nist.gov/glossary/term/role_based_access_control",
+      "accessedAt": "2026-10-31"
+    }
+  ]
+}

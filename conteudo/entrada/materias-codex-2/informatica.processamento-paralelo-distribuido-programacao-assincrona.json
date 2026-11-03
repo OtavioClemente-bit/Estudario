@@ -1,0 +1,1784 @@
+{
+  "id": "informatica.processamento-paralelo-distribuido-programacao-assincrona",
+  "subject": "Informática",
+  "title": "Processamento paralelo e distribuído; programação assíncrona",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Processamento paralelo e distribuído",
+    "Programação assíncrona em sistemas",
+    "Computação paralela e distribuída",
+    "Execução paralela de tarefas computacionais",
+    "Concorrência, paralelismo e distribuição",
+    "Sistemas distribuídos e comunicação entre processos",
+    "Programação concorrente e assíncrona",
+    "Threads, processos e tarefas assíncronas",
+    "Paralelismo de dados e de tarefas",
+    "Sincronização em processamento paralelo",
+    "Programação com futuros e promessas",
+    "Modelo de passagem de mensagens MPI",
+    "Escalonamento de tarefas paralelas",
+    "Comunicação e coordenação distribuída",
+    "Assíncrono, concorrente e paralelo",
+    "Execução não bloqueante de operações de entrada e saída"
+  ],
+  "scope": {
+    "covers": "Conceitos de concorrência, paralelismo e distribuição; processos, threads, memória compartilhada e passagem de mensagens; decomposição de tarefas e dados, granularidade, escalonamento, speedup, eficiência e limites de aceleração; sincronização, condições de corrida, exclusão mútua, deadlock e contenção; sistemas distribuídos, latência, falhas parciais, consistência e comunicação; programação assíncrona orientada a eventos, operações bloqueantes e não bloqueantes, event loop, callbacks, futures/promises, async/await, cancelamento, timeout e tratamento de erros; escolha entre I/O-bound e CPU-bound.",
+    "excludes": "Configuração de hardware específico, sintaxe aprofundada de uma linguagem, administração de clusters, protocolos de aplicação particulares, computação gráfica em GPU em detalhe e prova formal de algoritmos distribuídos."
+  },
+  "theoryTitle": "Como dividir e coordenar trabalho computacional",
+  "chapters": [
+    {
+      "title": "1. Concorrência, paralelismo e decomposição",
+      "markdown": "### O problema que este assunto resolve\n\nUm programa pode ter várias atividades em andamento: atender conexões, carregar dados e calcular resultados. **Concorrência** é organizar essas atividades para que o progresso de uma não exija que outra termine primeiro. **Paralelismo** é executar mais de uma operação ao mesmo tempo, em unidades de execução distintas. Um sistema de um núcleo pode intercalar tarefas concorrentes por fatias de tempo, mas não executa duas instruções simultaneamente nesse núcleo.\n\n> **Siglas e termos deste capítulo**\n> - **CPU**: unidade central de processamento.\n> - **Concorrência**: sobreposição lógica de atividades, com alternância ou execução simultânea.\n> - **Paralelismo**: execução simultânea de partes do trabalho.\n> - **I/O-bound**: tarefa limitada por espera de entrada e saída, como rede ou disco.\n> - **CPU-bound**: tarefa limitada pelo tempo de cálculo do processador.\n> - **Granularidade**: tamanho das unidades de trabalho repartidas.\n\n### Maneiras de repartir o trabalho\n\nNo **paralelismo de dados**, vários trabalhadores aplicam a mesma operação a partes diferentes de uma coleção. Exemplo: somar blocos de um vetor e combinar as somas parciais. No **paralelismo de tarefas**, atividades distintas são executadas em conjunto, como decodificar áudio enquanto outro fluxo busca metadados. A decomposição só ajuda quando o custo de coordenar e reunir resultados não supera o trabalho poupado.\n\nUma estratégia de dividir e conquistar separa um problema em subproblemas, calcula-os e combina os resultados. O escalonador distribui tarefas aos trabalhadores; uma fila dinâmica pode equilibrar cargas quando algumas tarefas demoram mais, enquanto uma partição fixa pode ser simples quando os blocos têm custo semelhante. Tarefas muito pequenas aumentam o custo de despacho e comunicação; tarefas muito grandes reduzem o balanceamento.\n\n### Medir ganho sem prometer aceleração ilimitada\n\nO **speedup** compara o tempo sequencial com o paralelo: S = T1 / Tp. A eficiência aproximada é S / p, sendo p o número de processadores usados. Se uma fração do programa necessariamente continuar serial, acrescentar processadores não elimina esse limite. Também pesam sincronização, comunicação, contenção de memória, desequilíbrio de carga e criação de tarefas.\n\n| Tipo de trabalho | Exemplo | Estratégia típica |\n| --- | --- | --- |\n| CPU-bound independente | calcular estatísticas de blocos | processos ou pool de trabalhadores |\n| I/O-bound independente | consultar vários serviços | operações assíncronas ou threads |\n| Dependente | etapa B usa o resultado de A | respeitar dependência e paralelizar ramos independentes |\n\n### Como cai na prova\n\n- Concorrência pode existir com um núcleo por alternância; paralelismo simultâneo requer recursos de execução simultâneos.\n- Amdahl explica por que uma parte serial limita o ganho total.\n- Repartir dados e repartir tarefas são decomposições diferentes.\n- Mais trabalhadores podem piorar o tempo se coordenação e contenção dominarem."
+    },
+    {
+      "title": "2. Processos, threads, memória e sincronização",
+      "markdown": "### O problema que este assunto resolve\n\nPara executar trabalho ao mesmo tempo, o programa precisa de unidades de execução e de uma forma segura de trocar resultados. Um **processo** costuma ter espaço de endereçamento próprio; uma **thread** existe dentro de um processo e compartilha com as demais threads daquele processo memória e recursos abertos. A memória compartilhada torna a troca direta, mas permite interferência quando operações concorrentes disputam o mesmo estado.\n\n> **Siglas e termos deste capítulo**\n> - **IPC**: comunicação entre processos, por pipes, sockets, filas ou memória compartilhada.\n> - **Mutex**: mecanismo de exclusão mútua que protege uma região crítica.\n> - **Semáforo**: contador de permissões para limitar acessos simultâneos.\n> - **Condição de corrida**: resultado dependente da ordem não controlada das operações.\n> - **Deadlock**: bloqueio circular em que participantes aguardam recursos retidos uns pelos outros.\n> - **Seção crítica**: trecho que acessa estado compartilhado e exige coordenação.\n\n### Compartilhar estado ou trocar mensagens\n\nThreads podem alterar um objeto comum; por isso, uma sequência como ler contador, somar um e gravar não é necessariamente atômica. Duas threads podem ler o mesmo valor e perder uma atualização. Um mutex protege o trecho crítico, desde que todos os acessos relevantes respeitem o mesmo protocolo. Operações atômicas servem para atualizações indivisíveis específicas; não tornam automaticamente segura uma sequência arbitrária de várias operações.\n\nEm sistemas de memória distribuída, cada processo mantém memória local e coordena-se enviando mensagens. MPI é uma interface padronizada para comunicação paralela, com operações como envio e recebimento entre processos. A troca explícita reduz a suposição de memória comum, mas introduz custos de serialização, transferência e espera. Comunicação coletiva, como redução, combina valores de participantes segundo uma operação; uma barreira faz os participantes aguardarem a chegada dos demais.\n\nDeadlock pode surgir quando há espera circular por locks. Reduzir a posse simultânea de recursos, adquirir locks em ordem global e usar timeouts cuidadosamente são formas de reduzir risco; timeout, por si só, não desfaz efeitos já realizados. Starvation ocorre quando um participante fica sem oportunidade de avançar; livelock ocorre quando há atividade repetida sem progresso útil.\n\n### Consistência e falhas\n\nEm um único processo, sincronização adequada define quando alterações se tornam visíveis a outras threads. Em sistemas distribuídos não há uma memória global instantaneamente compartilhada: mensagens atrasam, duplicam-se ou falham, e máquinas podem ficar inacessíveis. Um timeout informa que não houve resposta dentro do limite esperado; não prova que o servidor remoto parou, pois a resposta pode estar atrasada.\n\n### Como cai na prova\n\n- Threads do mesmo processo compartilham recursos; processos isolados precisam de IPC para cooperar.\n- Mutex protege seção crítica; semáforo controla quantidade de acessos permitidos.\n- Barreira sincroniza chegada; redução agrega valores.\n- Falha parcial e atraso de rede impedem tratar timeout como prova de falha definitiva."
+    },
+    {
+      "title": "3. Sistemas distribuídos e desempenho",
+      "markdown": "### O problema que este assunto resolve\n\nUm sistema distribuído usa componentes em computadores distintos que comunicam pela rede para executar um serviço ou cálculo. Ele pode aumentar capacidade ao repartir carga e aproximar dados dos consumidores, mas não vira um único computador sem custos: rede tem latência, largura de banda finita e falhas independentes. Uma chamada remota pode falhar depois de o servidor ter realizado o efeito e antes de o cliente receber a resposta.\n\n> **Siglas e termos deste capítulo**\n> - **Latência**: tempo até uma operação ou mensagem começar a produzir resposta.\n> - **Throughput**: quantidade de trabalho concluída por unidade de tempo.\n> - **Balanceamento de carga**: distribuição de requisições ou tarefas entre trabalhadores.\n> - **Replicação**: manutenção de cópias de dados ou serviços em mais de um nó.\n> - **Particionamento**: divisão de dados ou tarefas entre nós.\n> - **Falha parcial**: parte do sistema falha enquanto outras partes seguem funcionando.\n\n### Escalar exige coordenar\n\nEscala vertical significa dar mais recursos a uma máquina; escala horizontal acrescenta máquinas. Particionar dados pode aumentar capacidade, mas uma consulta que precisa reunir partições paga custo de comunicação. Replicar pode aumentar disponibilidade de leitura, porém as cópias precisam ser atualizadas e podem divergir temporariamente. Balanceadores distribuem requisições, mas uma partição lenta ou indisponível ainda afeta o serviço.\n\nUma operação de rede não deve ser presumida instantânea. Clientes usam limites de tempo, repetição controlada e identificadores de operação quando precisam reconhecer uma tentativa repetida. Repetir uma operação não idempotente (por exemplo, cobrar uma compra) pode duplicar efeitos. Uma operação idempotente repetida com a mesma entrada mantém o mesmo efeito final, desde que o contrato do serviço realmente garanta essa propriedade.\n\nA consistência descreve o que os clientes podem observar após atualizações. Um sistema pode privilegiar respostas imediatas em cada nó ou exigir coordenação para que leituras observem uma ordem mais forte; a escolha depende do requisito. Partições de rede podem separar nós que continuam funcionando localmente. O projeto deve definir o comportamento em vez de prometer disponibilidade e consistência fortes sem explicar a coordenação necessária.\n\n### Como cai na prova\n\n- Distribuído significa componentes em nós que se comunicam; não significa ausência de falhas.\n- Timeout e repetição precisam de política para evitar efeitos duplicados.\n- Replicação mantém cópias; particionamento divide o conjunto de dados.\n- Latência pode dominar tarefas pequenas mesmo quando há muitos trabalhadores."
+    },
+    {
+      "title": "4. Programação assíncrona e event loop",
+      "markdown": "### O problema que este assunto resolve\n\nUm servidor pode ficar parado esperando o disco ou a rede responder. Na programação **bloqueante**, a execução que fez a chamada não avança até a operação terminar. Na programação **assíncrona**, a operação pode suspender a tarefa que a aguarda e devolver o controle ao event loop, que executa outra tarefa pronta enquanto a resposta não chega. Isso melhora o uso de recursos em muita espera de I/O, mas não transforma cálculo pesado em execução paralela por si só.\n\n> **Siglas e termos deste capítulo**\n> - **Event loop**: laço que acompanha operações pendentes e agenda continuações prontas.\n> - **Callback**: função chamada quando um evento ou operação termina.\n> - **Future/Promise**: objeto que representa um resultado ainda indisponível ou uma falha futura.\n> - **`async`/`await`**: sintaxe para declarar trabalho assíncrono e aguardar seu resultado sem bloquear o loop.\n> - **Não bloqueante**: a chamada retorna sem esperar que a operação de I/O termine.\n> - **Backpressure**: controle para não produzir trabalho mais rápido do que o consumidor consegue processar.\n\n### Ciclo de vida de uma tarefa assíncrona\n\nUma função assíncrona pode iniciar uma leitura de rede, aguardar a future e ceder a execução. Quando a operação conclui, o loop agenda a continuação; o resultado é entregue ou a exceção é propagada no ponto de espera. Em Python, `asyncio` fornece event loop, tarefas e primitivas para I/O assíncrona; em JavaScript, promises e `async`/`await` organizam continuações; em Java, `CompletableFuture` compõe etapas assíncronas. Os detalhes variam por ambiente, mas a ideia é representar conclusão futura.\n\nEsperar operações sequencialmente pode desperdiçar tempo quando são independentes. Iniciá-las conjuntamente e aguardar o conjunto pode sobrepor esperas; dependências, limites de concorrência e tratamento de falha ainda precisam ser modelados. Uma função marcada como assíncrona não é automaticamente executada em outra thread. Se fizer cálculo longo sem ceder controle, pode bloquear o event loop. Para CPU-bound, pode-se usar processos, threads adequadas à plataforma ou um executor, observando custos e limitações.\n\nCancelamento e timeout são resultados possíveis do ciclo de vida. Cancelar uma tarefa solicita que ela pare; a operação subjacente talvez não seja cancelável ou possa já ter produzido efeitos. Tratadores devem liberar recursos e preservar consistência. Futures e promises também carregam erros: ignorar rejeições ou exceções deixa falhas sem tratamento. Backpressure limita filas e impede que produtores sobrecarreguem consumidores.\n\n### Como cai na prova\n\n- `await` suspende a tarefa corrente e permite ao loop cuidar de outra tarefa pronta; não significa necessariamente nova thread.\n- Assincronismo é especialmente útil para I/O-bound; CPU-bound longo precisa de execução apropriada fora do loop.\n- Futures/promises representam conclusão futura e podem conter erro.\n- Concorrência assíncrona não garante paralelismo nem aceleração de cálculo."
+    }
+  ],
+  "summary": "Concorrência organiza várias atividades em progresso; paralelismo executa operações simultaneamente. Repartir dados ou tarefas pode acelerar cálculo quando o custo de despacho, sincronização, comunicação e combinação não supera o ganho. Processos normalmente têm memória separada; threads compartilham recursos do processo e exigem coordenação para evitar condições de corrida. Mutexes protegem seções críticas, semáforos controlam permissões, e deadlock impede progresso por espera circular. Sistemas distribuídos comunicam por rede, enfrentam latência e falhas parciais, e usam particionamento, replicação e balanceamento com compromissos de consistência. Programação assíncrona usa event loop e futures/promises para suspender tarefas durante espera de I/O; async/await facilita compor essas operações, mas não cria paralelismo automaticamente. Para CPU-bound, avalie processos ou executores; sempre trate dependências, limites, erros, cancelamento e repetição segura.",
+  "flashcards": [
+    {
+      "front": "O que distingue concorrência de paralelismo?",
+      "back": "Concorrência organiza atividades sobrepostas; paralelismo executa operações ao mesmo tempo."
+    },
+    {
+      "front": "Um núcleo pode executar tarefas concorrentes?",
+      "back": "Sim, alternando entre elas, embora não execute duas instruções simultaneamente no mesmo núcleo."
+    },
+    {
+      "front": "O que é paralelismo de dados?",
+      "back": "Aplicar a mesma operação a partes diferentes de um conjunto de dados."
+    },
+    {
+      "front": "O que é paralelismo de tarefas?",
+      "back": "Executar atividades distintas em paralelo, se suas dependências permitirem."
+    },
+    {
+      "front": "O que mede speedup?",
+      "back": "A razão entre o tempo sequencial e o tempo paralelo para o mesmo trabalho."
+    },
+    {
+      "front": "Por que a parte serial limita a aceleração?",
+      "back": "Ela permanece sem paralelização e estabelece um piso para o tempo total."
+    },
+    {
+      "front": "Que memória threads do mesmo processo compartilham?",
+      "back": "Compartilham o espaço de endereçamento e recursos do processo."
+    },
+    {
+      "front": "Qual é o risco de atualizar contador compartilhado sem proteção?",
+      "back": "Uma condição de corrida pode perder atualizações conforme a ordem de execução."
+    },
+    {
+      "front": "Para que serve um mutex?",
+      "back": "Para permitir exclusão mútua ao acessar uma seção crítica protegida."
+    },
+    {
+      "front": "O que faz um semáforo?",
+      "back": "Controla um número limitado de permissões de acesso simultâneo."
+    },
+    {
+      "front": "O que caracteriza deadlock?",
+      "back": "Participantes ficam bloqueados aguardando recursos retidos em uma espera circular."
+    },
+    {
+      "front": "O que é IPC?",
+      "back": "Mecanismos de comunicação entre processos, como pipes, sockets e filas."
+    },
+    {
+      "front": "Como processos MPI cooperam?",
+      "back": "Trocando mensagens e usando operações coletivas definidas pela interface MPI."
+    },
+    {
+      "front": "O que uma barreira MPI coordena?",
+      "back": "Faz os participantes aguardarem até que todos alcancem o ponto de sincronização."
+    },
+    {
+      "front": "Replicação versus particionamento?",
+      "back": "Replicação mantém cópias; particionamento divide os dados entre nós."
+    },
+    {
+      "front": "Timeout prova que um servidor caiu?",
+      "back": "Não; a resposta pode estar atrasada ou perdida, embora o servidor siga ativo."
+    },
+    {
+      "front": "O que é operação idempotente?",
+      "back": "Uma repetição não altera o efeito final além da primeira execução, conforme o contrato."
+    },
+    {
+      "front": "O que event loop agenda?",
+      "back": "Tarefas prontas e continuações de operações assíncronas concluídas."
+    },
+    {
+      "front": "O que representa uma Promise ou Future?",
+      "back": "Um resultado ou falha que ficará disponível quando uma operação terminar."
+    },
+    {
+      "front": "`await` sempre cria uma thread?",
+      "back": "Não; suspende a tarefa assíncrona e cede controle ao mecanismo de agendamento."
+    },
+    {
+      "front": "Qual carga combina com I/O assíncrono?",
+      "back": "Muitas operações independentes que passam tempo aguardando rede ou disco."
+    },
+    {
+      "front": "O que pode bloquear um event loop?",
+      "back": "Cálculo longo ou chamada bloqueante executada diretamente no loop."
+    }
+  ],
+  "tips": [
+    "Identifique se o gargalo é CPU ou espera de I/O antes de escolher threads, processos ou async/await.",
+    "Separe o custo de cálculo do custo de comunicação ao analisar paralelização.",
+    "Ao ver memória compartilhada, procure a região crítica e o protocolo de sincronização.",
+    "Ao ver timeout, lembre que ausência de resposta não identifica sozinha a causa remota.",
+    "Leia `await` como suspensão cooperativa da tarefa, não como sinônimo de nova thread.",
+    "Verifique dependências e efeitos colaterais antes de executar tarefas simultaneamente ou repeti-las."
+  ],
+  "traps": [
+    "Confundir concorrência com execução simultânea em múltiplos núcleos.",
+    "Supor que threads têm memória privada equivalente à de processos distintos.",
+    "Achar que um mutex torna atômica toda sequência posterior fora da região protegida.",
+    "Tratar timeout de rede como prova conclusiva de que o servidor falhou.",
+    "Acreditar que async/await acelera cálculo CPU-bound automaticamente.",
+    "Repetir uma operação remota sem avaliar se ela pode duplicar efeitos."
+  ],
+  "activeRecall": [
+    "Explique como um sistema de um núcleo pode ser concorrente sem ser paralelo.",
+    "Compare decomposição por dados e decomposição por tarefas com exemplos.",
+    "Descreva como a parte serial e o custo de comunicação limitam speedup.",
+    "Diferencie processo e thread quanto a memória e comunicação.",
+    "Explique uma condição de corrida em uma atualização de contador.",
+    "Compare mutex, semáforo e barreira pelo problema que cada um coordena.",
+    "Descreva uma sequência de espera circular que produza deadlock.",
+    "Explique por que uma chamada remota pode ter sido executada mesmo sem resposta ao cliente.",
+    "Diferencie replicação de particionamento em um serviço distribuído.",
+    "Descreva o ciclo de uma tarefa que aguarda I/O em um event loop."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Concorrência não implica paralelismo",
+      "summary": "Atividades progridem por alternância em um núcleo; simultaneidade física exige recursos de execução distintos."
+    },
+    {
+      "key": "e2",
+      "title": "Sincronização de estado compartilhado",
+      "summary": "Threads podem interferir em operações compostas; proteção precisa abranger acessos concorrentes relevantes."
+    },
+    {
+      "key": "e3",
+      "title": "Falhas e repetição em rede",
+      "summary": "Timeout não revela se houve execução remota; repetir efeitos não idempotentes pode duplicar operações."
+    },
+    {
+      "key": "e4",
+      "title": "Assincronismo não é paralelismo de CPU",
+      "summary": "Event loop sobrepõe esperas, mas cálculo longo pode ocupar e bloquear o próprio mecanismo de agendamento."
+    },
+    {
+      "key": "e5",
+      "title": "Custos da distribuição",
+      "summary": "Mensagens, latência, coordenação, desequilíbrio e junção podem superar o ganho do trabalho repartido."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um sistema com um único núcleo, tarefas concorrentes podem progredir por alternância, embora não executem instruções simultaneamente nesse núcleo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O escalonador pode intercalar atividades em um núcleo. Isso cria concorrência, mas a execução física simultânea de instruções exigiria unidades de execução distintas.",
+      "section": "1. Concorrência, paralelismo e decomposição",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa é CPU-bound quando a maior parte do seu tempo é consumida aguardando respostas de rede ou leituras do disco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Esperas de rede ou disco caracterizam carga I/O-bound. CPU-bound descreve trabalho cujo limite principal é o processamento do processador.",
+      "section": "1. Concorrência, paralelismo e decomposição",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No paralelismo de dados, trabalhadores podem aplicar a mesma função a blocos distintos e combinar resultados parciais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A partição distribui elementos diferentes da coleção; cada trabalhador calcula uma parte e uma etapa posterior pode reduzir ou reunir os resultados.",
+      "section": "1. Concorrência, paralelismo e decomposição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Adicionar trabalhadores reduz sempre o tempo total, mesmo que cada tarefa seja muito pequena e exija coordenação frequente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Criação, despacho, sincronização e comunicação têm custo. Se dominarem o cálculo útil, mais trabalhadores podem aumentar o tempo total.",
+      "section": "1. Concorrência, paralelismo e decomposição",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O speedup compara o tempo sequencial de referência com o tempo medido na execução paralela do mesmo trabalho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A razão usual é T1 dividido por Tp. A medida permite observar ganho, mas deve ser interpretada junto ao número de processadores e aos custos do método.",
+      "section": "1. Concorrência, paralelismo e decomposição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O limite de Amdahl decorre de que uma parte serial do programa continua sem aceleração quando outras partes são paralelizadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Mesmo que a parte paralelizável ganhe velocidade, a fração serial permanece no tempo total e limita a aceleração máxima possível.",
+      "section": "1. Concorrência, paralelismo e decomposição",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Granularidade muito grossa pode deixar trabalhadores ociosos quando alguns blocos terminam bem antes dos outros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Blocos de custo desigual podem causar desequilíbrio. Partições menores ou escalonamento dinâmico podem distribuir melhor a carga, embora também tragam custo de coordenação.",
+      "section": "1. Concorrência, paralelismo e decomposição",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar o throughput de um serviço necessariamente reduz a latência observada por cada requisição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Throughput mede trabalho por unidade de tempo e latência mede demora de uma operação. Uma pode melhorar sem que a outra caia; filas e saturação podem até aumentar latência.",
+      "section": "3. Sistemas distribuídos e desempenho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Threads que pertencem ao mesmo processo podem acessar objetos compartilhados no espaço de endereçamento desse processo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Threads compartilham memória e recursos do processo, o que facilita troca de dados e exige proteção contra interferência concorrente.",
+      "section": "2. Processos, threads, memória e sincronização",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Processos independentes compartilham por padrão o mesmo espaço de endereçamento privado, tal como as threads de um processo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Processos normalmente têm espaços de endereçamento próprios. Para cooperar, podem usar mecanismos de IPC como pipes, sockets, filas ou memória compartilhada configurada.",
+      "section": "2. Processos, threads, memória e sincronização",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um mutex pode proteger uma seção crítica quando todos os acessos concorrentes relevantes seguem o mesmo protocolo de bloqueio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A exclusão mútua impede que mais de um participante protegido execute simultaneamente aquele trecho, desde que nenhum caminho ignore o mutex.",
+      "section": "2. Processos, threads, memória e sincronização",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma variável atômica torna atômica qualquer sequência de leitura, cálculo e escrita que use seu valor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Atomicidade aplica-se às operações atômicas oferecidas. Uma sequência composta pode ainda intercalar com outra thread e exigir operação composta atômica ou sincronização.",
+      "section": "2. Processos, threads, memória e sincronização",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um semáforo contador pode limitar a quantidade de participantes que acessam simultaneamente um conjunto de recursos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O contador representa permissões disponíveis; adquirir uma permissão reduz a disponibilidade e liberá-la devolve capacidade ao conjunto.",
+      "section": "2. Processos, threads, memória e sincronização",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma espera circular por locks pode formar deadlock mesmo que cada participante esteja corretamente bloqueado em seu próprio lock.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Se cada participante retém um recurso e espera por outro retido pelo próximo, nenhum consegue avançar para liberar o que os demais precisam.",
+      "section": "2. Processos, threads, memória e sincronização",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta atrasada após timeout demonstra que o servidor remoto não chegou a executar a solicitação original.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O servidor pode ter executado a solicitação e a resposta ter sido atrasada ou perdida. O cliente não deduz o resultado apenas da expiração do seu prazo de espera.",
+      "section": "3. Sistemas distribuídos e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada `await` em uma função assíncrona sempre inicia uma nova thread para executar a operação aguardada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. `await` suspende a tarefa corrente enquanto aguarda a conclusão e permite que o loop agende outra tarefa pronta. A operação pode usar outros mecanismos, mas nova thread não é consequência automática.",
+      "section": "4. Programação assíncrona e event loop",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa assíncrona que executa cálculo longo sem ceder o controle pode impedir o event loop de atender outras tarefas prontas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Um event loop cooperativo precisa recuperar o controle para agendar outras continuações. Cálculo longo síncrono no loop pode atrasar todo o trabalho associado.",
+      "section": "4. Programação assíncrona e event loop",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Future ou Promise pode representar uma exceção futura, além de um valor que ainda não está disponível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A conclusão assíncrona pode ser bem-sucedida ou falhar; o consumidor precisa observar e tratar o resultado ou a rejeição.",
+      "section": "4. Programação assíncrona e event loop",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição distingue concorrência de paralelismo com precisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concorrência organiza atividades em progresso; paralelismo executa partes ao mesmo tempo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Concorrência exige vários computadores; paralelismo exige somente uma thread ativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Concorrência ocorre só em tarefas de rede; paralelismo ocorre só em cálculos numéricos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Concorrência evita escalonamento; paralelismo depende de executar uma tarefa por vez.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Concorrência e paralelismo significam execução simultânea e têm requisitos idênticos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Concorrência trata da organização de várias atividades que progridem; paralelismo descreve execução simultânea. Pode haver concorrência por alternância sem paralelismo físico.",
+      "section": "1. Concorrência, paralelismo e decomposição",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa processar milhões de registros independentes aplicando a mesma transformação a cada registro. Qual decomposição se ajusta diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atribuir todos os registros a uma única tarefa serial e aguardar cada resposta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Repartir os registros em blocos e aplicar a transformação em paralelo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Duplicar a base inteira em cada thread e descartar todas as saídas parciais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar uma barreira por registro para impedir que os blocos sejam processados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar as transformações em ordem reversa para remover dependências da rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "A operação é a mesma e os elementos são independentes, padrão de paralelismo de dados. Blocos reduzem despacho individual, e suas saídas podem ser combinadas conforme o resultado exigido.",
+      "section": "1. Concorrência, paralelismo e decomposição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cálculo apresenta speedup de 3 usando 6 processadores. Qual é sua eficiência paralela aproximada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A eficiência é 18, pois se multiplica o speedup pela quantidade de processadores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A eficiência é 50%, pois o speedup é dividido por seis processadores.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A eficiência é 100%, pois qualquer speedup acima de um usa todos os núcleos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A eficiência é 3%, pois o speedup deve ser convertido diretamente em porcentagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A eficiência não pode ser estimada sem conhecer o tamanho da memória física.",
+          "correct": false
+        }
+      ],
+      "explanation": "A eficiência aproximada é speedup dividido pelo número de processadores: 3/6 = 0,5, ou 50%. A medida pode também refletir comunicação, desequilíbrio e contenção.",
+      "section": "1. Concorrência, paralelismo e decomposição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quatro atividades de mesma prioridade compartilham um núcleo por fatias de tempo. Qual propriedade descreve essa execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Paralelismo distribuído, pois cada fatia ocorre em um computador separado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Concorrência por alternância, sem execução simultânea no mesmo núcleo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Execução sequencial estrita, pois somente uma atividade pode estar em progresso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Replicação de memória, pois cada atividade recebe uma cópia da fatia.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Assincronismo de rede, pois o escalonador substitui as operações de entrada e saída.",
+          "correct": false
+        }
+      ],
+      "explanation": "O núcleo alterna entre atividades, permitindo que várias progridam ao longo do tempo. No mesmo instante, uma instrução por vez ocupa aquele núcleo.",
+      "section": "1. Concorrência, paralelismo e decomposição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação ilustra melhor o limite previsto pelo raciocínio de Amdahl?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A etapa serial fixa impede que o tempo total caia indefinidamente ao adicionar processadores.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A memória cache elimina a necessidade de combinar resultados calculados por trabalhadores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A execução em rede torna automaticamente serial toda tarefa que use dados numéricos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O escalonador mantém o speedup sempre igual ao número de tarefas criadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um resultado dividido em partes dispensa a etapa serial que inicia a computação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fração serial permanece no caminho crítico. Mesmo com aceleração ideal da parte paralelizável, essa fração limita o speedup global.",
+      "section": "1. Concorrência, paralelismo e decomposição",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma soma paralela, trabalhadores calculam somas parciais e uma etapa final agrega os valores. Qual custo precisa entrar na estimativa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o custo de alocar nomes distintos para cada elemento do vetor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A comunicação e a combinação das somas parciais além do cálculo local.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O custo de impedir qualquer cálculo local antes de iniciar a agregação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A conversão obrigatória de cada resultado numérico em uma conexão de rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A criação de um processo por elemento, independentemente do volume de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "O trabalho paralelo inclui custos de repartir dados, despachar tarefas e combinar resultados. Para entradas pequenas, esses custos podem superar o ganho do cálculo dividido.",
+      "section": "1. Concorrência, paralelismo e decomposição",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um conjunto tem tarefas com duração muito variável. Que decisão tende a reduzir trabalhadores ociosos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atribuir desde o início um bloco enorme e fixo para cada trabalhador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar uma fila dinâmica de tarefas pequenas o bastante para redistribuir carga.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Esperar todos os trabalhadores terminarem antes de liberar qualquer tarefa nova.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Duplicar cada tarefa lenta em todos os trabalhadores e aceitar cada resposta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover o escalonador para preservar a ordem em que os dados foram lidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Escalonamento dinâmico permite que trabalhadores ociosos retirem trabalho disponível quando tarefas variam de duração. O tamanho da unidade deve equilibrar despacho e balanceamento.",
+      "section": "1. Concorrência, paralelismo e decomposição",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação executa as tarefas A e B simultaneamente, mas ambas só calculam depois que C termina. O que deve orientar o paralelismo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar A e B antes de C para evitar a dependência registrada no fluxo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Preservar a dependência de C e paralelizar A e B se forem independentes entre si.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Descartar C, porque qualquer precedência impede decomposição de tarefas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Duplicar C em cada trabalhador e supor que seus efeitos sejam intercambiáveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Inserir uma barreira depois de cada instrução para permitir que A se antecipe.",
+          "correct": false
+        }
+      ],
+      "explanation": "O grafo de dependências exige que C preceda A e B. Se A e B não dependem uma da outra, podem ocorrer em paralelo depois de C.",
+      "section": "1. Concorrência, paralelismo e decomposição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, duas threads incrementam um contador compartilhado usando leitura, soma e escrita comuns. Qual risco concreto existe?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambas podem ler o mesmo valor e uma das atualizações deixar de aparecer.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O contador passa a ser replicado em processos remotos automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O escalonador converte a soma em uma operação de rede não bloqueante.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A JVM ordena os incrementos comuns como uma transação indivisível.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A segunda thread recebe uma cópia privada do objeto em toda leitura.",
+          "correct": false
+        }
+      ],
+      "explanation": "Leitura, soma e gravação são etapas distintas. Uma intercalação pode fazer ambas lerem o mesmo valor e gravarem o mesmo incremento, perdendo uma atualização.",
+      "section": "2. Processos, threads, memória e sincronização",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois processos em máquinas diferentes precisam trocar blocos de um cálculo. Qual abordagem corresponde a memória distribuída?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada processo acessa diretamente todos os endereços privados do outro processo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os processos trocam mensagens que carregam dados ou resultados parciais.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um mutex local transforma a rede em um espaço de memória compartilhado global.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma thread do cliente lê o heap remoto sem protocolo de comunicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A barreira copia automaticamente todo o conteúdo entre as máquinas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em memória distribuída, cada processo mantém memória local e coordena a troca explicitamente por comunicação, por exemplo com mensagens MPI ou sockets.",
+      "section": "2. Processos, threads, memória e sincronização",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço mantém três conexões simultâneas disponíveis para uma operação custosa. Qual primitiva representa diretamente esse limite?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma barreira que espera a chegada de todos os clientes antes de liberar a conexão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um semáforo contador inicializado com três permissões de uso.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um callback que repete a operação até que todos os clientes terminem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma future compartilhada que concede uma conexão diferente a cada chamada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um mutex distinto para cada solicitação, sem limite sobre a soma dos acessos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um semáforo contador controla o número máximo de participantes concorrentes. Um mutex permite apenas um detentor de cada vez, salvo composição de mecanismos.",
+      "section": "2. Processos, threads, memória e sincronização",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Thread A retém o lock L1 e aguarda L2; thread B retém L2 e aguarda L1. Qual condição ocorre?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Starvation por falta de prioridade, sem dependência entre locks.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Deadlock por espera circular sobre recursos retidos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Livelock porque ambas as threads continuam mudando os dados compartilhados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Backpressure porque o consumidor não consegue esvaziar a fila de eventos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Corrida de dados sem bloqueio, pois os dois locks já foram adquiridos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada thread aguarda o recurso que a outra retém, formando ciclo de espera. Nenhuma libera seu lock enquanto não avançar.",
+      "section": "2. Processos, threads, memória e sincronização",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma aplicação com estado compartilhado, qual prática ajuda a evitar corrida de dados no acesso ao saldo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Proteger leituras e gravações relacionadas com o mesmo protocolo de sincronização.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar um callback por alteração e permitir que todos escrevam livremente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o tamanho do heap para tornar cada atualização indivisível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar as atualizações em processos distintos sem IPC ou armazenamento comum.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Inserir uma pausa de duração fixa entre leitura do saldo e sua gravação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A proteção precisa abranger a operação composta que lê e atualiza o saldo, e todos os caminhos concorrentes devem obedecer à mesma disciplina.",
+      "section": "2. Processos, threads, memória e sincronização",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação MPI precisa somar valores parciais calculados por vários processos. Qual operação conceitual é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma redução coletiva que agrega os valores segundo a operação de soma.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma barreira que multiplica os valores locais ao liberar cada participante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma seção crítica compartilhada que une heaps privados sem mensagens.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma future local que coleta processos sem identificar participantes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um semáforo de rede que converte cada valor em instrução serial.",
+          "correct": false
+        }
+      ],
+      "explanation": "Operações coletivas de redução combinam valores de participantes em um resultado conforme uma operação, como soma. Uma barreira apenas sincroniza chegada.",
+      "section": "2. Processos, threads, memória e sincronização",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que o acesso direto à memória comum pode ser mais simples e ainda exigir sincronização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A troca direta evita qualquer possibilidade de leituras concorrentes inconsistentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Compartilhar objetos facilita a comunicação, mas operações intercaladas podem interferir.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Memória compartilhada garante que atualizações compostas sejam transacionais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Threads compartilham apenas código imutável e nunca dados mutáveis do processo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sincronização é necessária só quando threads enviam mensagens a máquinas remotas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A memória comum facilita acesso e troca, mas não impõe por si só uma ordem segura a operações concorrentes sobre dados mutáveis.",
+      "section": "2. Processos, threads, memória e sincronização",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente envia uma solicitação de pagamento, recebe timeout e não sabe se o servidor executou a operação. Qual medida de projeto é mais pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reenviar sem identificador, pois timeout garante que nenhum efeito foi produzido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar uma chave de idempotência ou deduplicação definida pelo serviço.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o número de threads no cliente para concluir a chamada anterior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir a solicitação por uma barreira local que confirme a cobrança remota.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover qualquer prazo de espera para eliminar falhas parciais da rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "O timeout deixa o resultado incerto. Uma chave reconhecida pelo serviço pode fazer novas tentativas corresponderem à mesma operação lógica e evitar cobrança duplicada.",
+      "section": "3. Sistemas distribuídos e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comparação entre replicação e particionamento está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Replicação cria cópias; particionamento distribui partes diferentes do conjunto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Replicação divide registros; particionamento mantém todas as cópias idênticas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Replicação reduz latência de rede a zero; particionamento elimina coordenação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Replicação é usada só em CPU; particionamento é usado só em armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Replicação e particionamento designam o mesmo arranjo de nós e dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Replicar mantém múltiplas cópias dos mesmos dados ou serviços. Particionar divide o conjunto entre nós, podendo exigir recomposição em consultas globais.",
+      "section": "3. Sistemas distribuídos e desempenho",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada remota expira no cliente, mas o servidor continua acessível a outras máquinas. Qual conclusão é justificada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A requisição necessariamente não chegou ao servidor remoto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O timeout indica ausência de resposta no prazo, sem provar a causa da demora.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O cliente pode concluir que a operação foi revertida atomicamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A rede garante que uma repetição não causará efeito adicional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O servidor precisa ter encerrado o processo que recebeu a solicitação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Timeout é uma observação local sobre o prazo. A solicitação pode não ter chegado, estar em execução ou ter terminado com resposta perdida.",
+      "section": "3. Sistemas distribuídos e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma requisição repetida com a mesma chave produz o mesmo efeito final porque o serviço registra e deduplica a chave. Como se classifica a propriedade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Paralelismo de tarefas, pois a chave cria outra thread de execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Idempotência implementada pelo contrato e pela deduplicação do serviço.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Replicação síncrona, pois toda solicitação grava cópias em vários nós.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Deadlock prevenido, pois a operação não aguarda recurso algum.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Backpressure, pois a chave limita a quantidade de dados da resposta.",
+          "correct": false
+        }
+      ],
+      "explanation": "A chave permite reconhecer tentativas da mesma operação e evitar que uma repetição gere novo efeito. Idempotência depende do comportamento garantido pelo serviço.",
+      "section": "3. Sistemas distribuídos e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um nó de armazenamento fica indisponível, mas outros nós seguem respondendo. Que característica da arquitetura distribuída está em evidência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Falha parcial, em que componentes do sistema têm estados distintos de disponibilidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Atomicidade local, pois todos os nós encerraram juntos a operação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Execução serial, pois a indisponibilidade suspende necessariamente todos os clientes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Memória compartilhada global, que torna os nós igualmente acessíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Concorrência cooperativa, pois o nó parado cedeu o controle ao event loop.",
+          "correct": false
+        }
+      ],
+      "explanation": "Falha parcial significa que alguns componentes podem falhar enquanto outros continuam ativos. O sistema precisa definir como responder diante desse estado misto.",
+      "section": "3. Sistemas distribuídos e desempenho",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe aumenta o número de réplicas de leitura. Qual custo pode surgir como consequência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atualizar e coordenar as cópias para controlar divergência após escritas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Eliminar a necessidade de enviar respostas por rede aos consumidores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Transformar cada leitura em acesso simultâneo à memória privada de todos os nós.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Impedir qualquer falha parcial porque as cópias sempre param juntas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover todo custo de armazenamento por manter dados repetidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Réplicas podem ajudar leituras e disponibilidade, mas precisam receber atualizações e podem divergir conforme o modelo de consistência e o atraso de propagação.",
+      "section": "3. Sistemas distribuídos e desempenho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço responde a cada consulta com baixa latência, mas conclui poucas consultas por segundo. Qual medida descreve essa taxa de conclusão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Throughput, que conta trabalho concluído por unidade de tempo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Latência, que mede o total de consultas concluídas em um período.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Granularidade, que mede o tempo entre requisições e respostas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Speedup, que equivale sempre à quantidade de clientes conectados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Consistência, que representa o número de operações executadas por segundo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Throughput é taxa de trabalho concluído por unidade de tempo. Latência é a demora de uma operação individual ou observada pelo cliente.",
+      "section": "3. Sistemas distribuídos e desempenho",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição representa programação assíncrona em uma operação de entrada e saída?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A tarefa aguarda sem bloquear o mecanismo que pode executar outras tarefas prontas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A tarefa consome todos os núcleos para impedir que o disco responda cedo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O sistema transforma toda resposta de rede em variável global compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A função retorna somente depois de concluir todo cálculo e toda operação remota.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A chamada bloqueia o event loop para preservar a ordem de chegada dos bytes.",
+          "correct": false
+        }
+      ],
+      "explanation": "A operação assíncrona suspende a tarefa enquanto a espera está pendente; o event loop pode avançar outra tarefa pronta até a conclusão.",
+      "section": "4. Programação assíncrona e event loop",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um event loop, três consultas de rede independentes são iniciadas antes de aguardar seus resultados. Qual benefício é esperado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sobrepor períodos de espera, sem assegurar que o servidor processe em paralelo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Converter automaticamente cada consulta em cálculo CPU-bound paralelo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eliminar latência de rede porque o loop reúne as conexões em uma chamada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Garantir que as respostas cheguem na mesma ordem em que foram iniciadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Impedir que qualquer consulta falhe depois de iniciada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Iniciar operações independentes antes de aguardar pode sobrepor suas esperas. Ordem das respostas, paralelismo no servidor e sucesso precisam de garantias separadas.",
+      "section": "4. Programação assíncrona e event loop",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função `async` percorre uma imagem enorme fazendo cálculo síncrono sem nenhum ponto de suspensão. O que é mais provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O event loop pode ficar ocupado, atrasando outras tarefas até o cálculo ceder controle.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O runtime necessariamente divide o cálculo entre todos os núcleos disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A anotação `async` converte automaticamente cada iteração em uma mensagem MPI.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A função entrega progresso ao loop a cada instrução mesmo sem suspensão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O cálculo passa a aguardar disco porque toda função assíncrona é I/O-bound.",
+          "correct": false
+        }
+      ],
+      "explanation": "`async` não obriga o runtime a paralelizar cálculo. Sem ceder, a tarefa pode monopolizar o loop; trabalho CPU-bound deve ser deslocado para mecanismo apropriado quando necessário.",
+      "section": "4. Programação assíncrona e event loop",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma Future termina com erro e o código consumidor nunca consulta nem aguarda esse resultado. Qual risco de programação existe?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A falha pode ficar sem tratamento ou sem observação pelo fluxo chamador.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A exceção converte automaticamente a tarefa em operação idempotente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O event loop reverte todos os efeitos colaterais executados antes da falha.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A Future passa a funcionar como barreira que sincroniza todos os processos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O resultado se transforma em timeout de rede mesmo que a operação seja local.",
+          "correct": false
+        }
+      ],
+      "explanation": "Futures e promises carregam falhas além de valores. O código deve aguardar, encadear um tratador ou consumir explicitamente o estado de erro.",
+      "section": "4. Programação assíncrona e event loop",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual estratégia combina melhor com muitas leituras de rede independentes em uma aplicação com event loop?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter operações assíncronas e limitar a quantidade simultânea quando preciso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar um processo por byte recebido e aguardar cada leitura em sequência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar chamadas bloqueantes no loop para impedir troca entre tarefas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar uma barreira global para aguardar toda leitura antes de iniciar qualquer outra.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Duplicar cada solicitação em todas as conexões e aceitar qualquer resposta.",
+          "correct": false
+        }
+      ],
+      "explanation": "I/O assíncrono permite sobrepor esperas. Um limite de concorrência e backpressure controlam recursos e evitam que a fila cresça sem controle.",
+      "section": "4. Programação assíncrona e event loop",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação assíncrona é cancelada após enviar uma solicitação de gravação ao servidor. Qual cuidado é correto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar o estado e liberar recursos, pois cancelamento não garante reversão do efeito remoto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Supor que cancelamento apaga a solicitação de toda fila de rede já transmitida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reenviar a gravação sem identificador porque cancelamento prova que nada ocorreu.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar tratamento final, pois operações canceladas não mantêm recursos abertos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter a operação em paralela para garantir que a resposta seja descartada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cancelamento solicita interrupção, mas nem toda operação subjacente pode ser cancelada depois de enviada. É necessário considerar efeitos já realizados e limpeza de recursos.",
+      "section": "4. Programação assíncrona e event loop",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila assíncrona cresce sem limite porque produtores geram itens mais depressa do que consumidores os processam. Qual mecanismo enfrenta o problema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Backpressure, reduzindo ou limitando produção conforme a capacidade de consumo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Replicação, criando cópias ilimitadas de cada item da fila.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma barreira, liberando todos os itens somente quando a memória estiver cheia.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um mutex, aumentando a taxa de produção ao serializar todos os consumidores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um timeout infinito, que transforma consumo lento em execução paralela.",
+          "correct": false
+        }
+      ],
+      "explanation": "Backpressure comunica ou impõe limites quando o consumidor não acompanha a produção. Isso controla fila e uso de memória, sem implicar aceleração do consumidor.",
+      "section": "4. Programação assíncrona e event loop",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual escolha é mais adequada para uma transformação CPU-bound longa em um serviço assíncrono?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executá-la sem pausa no event loop, confiando que `await` antes dela a paralelize.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Avaliar um executor ou processos e preservar o loop para operações de I/O.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Transformar todos os cálculos em timeouts para que o loop os considere concluídos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir a transformação por callbacks síncronos em cada cliente conectado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Replicar o mesmo cálculo no servidor de rede sem medir custo ou dependências.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cálculo longo bloqueia o loop se executado nele. Executor ou processos podem deslocar CPU-bound, com escolha dependente da plataforma, custo de transferência e modelo de paralelismo.",
+      "section": "4. Programação assíncrona e event loop",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas leituras assíncronas independentes são aguardadas uma após a outra, e cada uma leva três segundos. Qual mudança pode reduzir a espera total?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Iniciá-las antes de aguardar ambas, para sobrepor os períodos de espera.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aguardar a primeira terminar e só então criar a segunda tarefa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar cada leitura em duas chamadas sequenciais para confirmar o resultado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter as leituras em cálculo paralelo no processador sem usar a rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar uma barreira depois de cada leitura para estender o tempo de espera.",
+          "correct": false
+        }
+      ],
+      "explanation": "Como não há dependência entre as leituras, iniciá-las conjuntamente permite sobrepor espera. Dependências ou limites do serviço ainda podem impedir essa escolha.",
+      "section": "4. Programação assíncrona e event loop",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Java Tutorials — Processes and Threads",
+      "publisher": "Oracle",
+      "reference": "Diferenças entre processos e threads, memória privada e recursos compartilhados",
+      "url": "https://docs.oracle.com/javase/tutorial/essential/concurrency/procthread.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Java Tutorials — Synchronization",
+      "publisher": "Oracle",
+      "reference": "Interferência entre threads, sincronização e contenção",
+      "url": "https://docs.oracle.com/javase/tutorial/essential/concurrency/sync.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MPI Documents",
+      "publisher": "MPI Forum",
+      "reference": "Documentos oficiais da interface padrão de passagem de mensagens; versão MPI 5.0",
+      "url": "https://www.mpi-forum.org/docs/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Python — asyncio: Asynchronous I/O",
+      "publisher": "Python Software Foundation",
+      "reference": "Event loop, corrotinas, tarefas e operações assíncronas",
+      "url": "https://docs.python.org/3/library/asyncio.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Python — multiprocessing",
+      "publisher": "Python Software Foundation",
+      "reference": "Paralelismo baseado em processos e distribuição de dados por pools",
+      "url": "https://docs.python.org/3/library/multiprocessing.html",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

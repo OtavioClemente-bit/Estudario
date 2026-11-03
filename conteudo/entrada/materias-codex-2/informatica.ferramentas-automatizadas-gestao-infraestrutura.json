@@ -1,0 +1,1846 @@
+{
+  "id": "informatica.ferramentas-automatizadas-gestao-infraestrutura",
+  "subject": "Informática",
+  "title": "Ferramentas automatizadas de gestão de infraestrutura",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Ferramentas automatizadas de gestão de infraestrutura",
+    "Automação da gestão de infraestrutura de TI",
+    "Gestão automatizada de infraestrutura de TI",
+    "Infraestrutura como código e automação operacional",
+    "Provisionamento automatizado de infraestrutura",
+    "Ferramentas de configuração de servidores",
+    "Ansible para automação de infraestrutura",
+    "Terraform para infraestrutura como código",
+    "Puppet para configuração de servidores",
+    "Chef Infra e gestão de configuração",
+    "Salt para execução remota e estados",
+    "Kubernetes e reconciliação de infraestrutura",
+    "Orquestração automatizada de serviços de TI"
+  ],
+  "scope": {
+    "covers": "Conceitos e usos de ferramentas automatizadas de gestão de infraestrutura: infraestrutura como código, provisionamento declarativo, gestão de configuração, execução remota, orquestração e reconciliação de estado; fluxo de trabalho do Terraform (init, plan, apply, state e providers); inventário, playbooks, plays, tasks, handlers, módulos, roles e idempotência no Ansible; manifests, recursos, catálogos e agente/servidor no Puppet; cookbooks, recipes, run-list, recursos e convergência no Chef; master, minions, states e execução remota no Salt; manifests declarativos, controladores e reconciliação no Kubernetes; uso em CI/CD, revisão, segurança de credenciais, deriva de configuração, limites e erros comuns.",
+    "excludes": "Sintaxe completa das linguagens HCL, YAML, Puppet, Ruby ou Salt; comandos específicos de provedores de nuvem; administração detalhada de sistemas operacionais; desenho de redes; criação de imagens; monitoramento e observabilidade aprofundados; implantação de aplicações com ferramentas específicas que não sejam necessárias para distinguir as categorias de automação."
+  },
+  "theoryTitle": "Automação, estado desejado e operação repetível",
+  "chapters": [
+    {
+      "title": "1. O que se automatiza na infraestrutura",
+      "markdown": "### O problema que este assunto resolve\n\nUma infraestrutura costuma reunir redes, máquinas virtuais, discos, servidores, contas, pacotes, arquivos de configuração e serviços. Se cada equipe cria esses componentes por cliques e configura cada servidor à mão, os ambientes se afastam: um tem uma regra de firewall diferente, outro não recebeu a atualização, e a implantação depende de alguém lembrar uma sequência extensa. Ferramentas automatizadas registram essas decisões em arquivos legíveis por máquina e aplicam operações repetíveis.\n\n**Infraestrutura como código (IaC)** é administrar recursos de infraestrutura por definições versionadas, em vez de depender exclusivamente de operações manuais em consoles. A definição pode descrever uma rede virtual, uma máquina, uma política de acesso ou um cluster. Já a **gestão de configuração** trata de instalar e manter o software e as configurações de sistemas existentes: pacote instalado, arquivo correto e serviço ativo. Uma mesma plataforma pode abranger mais de uma função, mas os conceitos não são idênticos.\n\n> **Siglas e termos deste capítulo**\n> - **IaC**: Infrastructure as Code, infraestrutura descrita e alterada por arquivos sob controle de versão.\n> - **Provisionamento**: criação ou remoção de recursos, por exemplo uma máquina virtual, uma sub-rede ou um volume.\n> - **Gestão de configuração**: aplicação e manutenção de configurações de sistema operacional, pacotes, arquivos e serviços.\n> - **Orquestração**: coordenação de várias operações ou componentes em uma sequência ou fluxo.\n> - **Estado desejado**: condição final declarada, como “três réplicas saudáveis” ou “serviço iniciado”.\n> - **Drift (deriva)**: diferença entre a configuração declarada e o estado real, frequentemente causada por alterações manuais ou externas.\n\n### Imperativo e declarativo\n\nNo modo **imperativo**, a instrução diz quais passos executar: criar diretório, copiar arquivo, reiniciar serviço. No modo **declarativo**, descreve-se o resultado esperado: o pacote deve estar presente e o serviço deve estar ativo. O mecanismo decide quais ações são necessárias para aproximar o sistema do resultado. Há ferramentas e módulos que combinam os dois estilos. Declarativo não significa que não existam etapas internas; significa que o operador expressa principalmente o estado final.\n\nA **idempotência** é uma propriedade importante das operações de configuração: executar a mesma definição repetidamente, quando o sistema já está no estado esperado, não deve produzir mudanças adicionais nem efeitos acumulados. Instalar um pacote apenas se ausente é normalmente idempotente. Acrescentar uma linha duplicada a um arquivo a cada execução não é. Nem toda tarefa automatizada é idempotente; isso depende da implementação e do módulo usado.\n\n| Categoria | Pergunta que responde | Exemplo típico |\n| --- | --- | --- |\n| Provisionamento | Quais recursos devem existir? | Criar rede e máquinas numa nuvem |\n| Configuração | Como cada sistema deve estar ajustado? | Instalar Nginx e manter seu arquivo de configuração |\n| Execução remota | Que ação pontual deve ocorrer em um conjunto de nós? | Consultar versão do sistema em servidores selecionados |\n| Orquestração | Em que ordem sistemas ou tarefas dependentes devem operar? | Atualizar servidores em lotes e só então liberar o balanceador |\n| Reconciliação | Como manter continuamente o estado declarado? | Recriar um pod que deixou de existir no cluster |\n\n### Modelos de execução e estado\n\nAlgumas ferramentas são **agentless** para a conexão comum: um controlador se conecta aos alvos, por exemplo por SSH ou WinRM, e envia tarefas. O Ansible é um exemplo usual. Outras mantêm um **agente** nos nós e um serviço central que distribui ou compila configurações; Puppet e Chef Infra são exemplos comuns dessa arquitetura. Salt pode executar comandos a partir do master nos minions e também oferece chamada local. Terraform interage com APIs de provedores para gerir recursos e mantém um arquivo ou backend de **state** que relaciona os objetos declarados aos objetos reais.\n\nEsses mecanismos cumprem papéis distintos. State do Terraform não é o mesmo que inventário do Ansible: o primeiro mapeia recursos acompanhados pela execução Terraform; o segundo lista ou define alvos e variáveis para tarefas. Nenhum arquivo de estado é um backup dos dados da aplicação.\n\n### Como cai na prova\n\n- “Crie uma rede e duas máquinas” descreve provisionamento; “instale um pacote e ajuste um arquivo” descreve configuração.\n- Uma ferramenta pode exercer várias funções; classifique a operação citada, não apenas o nome do produto.\n- Idempotência depende da tarefa ou módulo. Repetir uma tarefa mal construída pode duplicar efeitos.\n- Estado desejado é a meta; drift é a divergência entre a meta e o recurso real.\n- Terraform state associa configuração a recursos gerenciados; inventário Ansible identifica os hosts-alvo."
+    },
+    {
+      "title": "2. Provisionamento declarativo com Terraform",
+      "markdown": "### O problema que este assunto resolve\n\nCriar manualmente recursos em provedores diferentes é lento e difícil de reproduzir. O Terraform descreve recursos em arquivos de configuração, usa **providers** para conversar com APIs de plataformas e compara a declaração com o estado acompanhado. A configuração pode ser guardada em controle de versão e revisada como código.\n\n> **Siglas e termos deste capítulo**\n> - **HCL**: HashiCorp Configuration Language, linguagem de configuração usada normalmente pelo Terraform.\n> - **Provider**: plugin que implementa a interação com uma plataforma ou serviço.\n> - **Resource (recurso)**: objeto de infraestrutura declarado e gerenciado, como rede, máquina ou regra de acesso.\n> - **State**: registro que associa endereços de recursos da configuração a objetos reais gerenciados.\n> - **Plan**: proposta das ações que aproximariam os recursos do que a configuração declara.\n> - **Backend**: local ou serviço no qual o state é armazenado.\n\n### O ciclo básico: init, plan e apply\n\n`terraform init` prepara o diretório de trabalho, incluindo a inicialização do backend e a obtenção dos providers e módulos necessários. `terraform plan` lê a configuração e o state, consulta recursos gerenciados e mostra ações propostas, como adicionar, alterar ou destruir. O comando `plan`, sozinho, é uma prévia: não executa as mudanças nos objetos remotos. `terraform apply` executa as ações planejadas; no uso interativo usual, apresenta o plano e solicita aprovação. Em automações é possível salvar um plano e depois aplicar aquele artefato, observando que a equipe deve revisar o plano efetivamente aplicado.\n\nO Terraform não é simplesmente um script de criação executado uma vez. Em cada ciclo, procura aproximar os recursos gerenciados da configuração. Uma alteração feita manualmente no provedor pode ser detectada como diferença, mas a forma de tratá-la depende do plano e da decisão operacional. Um plano pode propor atualizar ou substituir o recurso, portanto deve ser lido antes de aplicar.\n\n### State e colaboração\n\nO state permite que o Terraform associe nomes como `aws_instance.web` a identificadores dos objetos reais. Sem essa associação, a ferramenta não sabe quais objetos foram criados anteriormente por aquela configuração. Para trabalho em equipe, um backend remoto pode centralizar o state e permitir controles de concorrência; armazenar o state em um local acessível a todos sem controle pode causar sobrescrita e divergência. O state pode conter informações sensíveis, então acesso, criptografia, cópias e credenciais precisam de proteção. State não substitui backup do serviço implantado.\n\n### Criar, alterar e destruir\n\nO plan deixa explícito se a ação é criar, atualizar no lugar, substituir ou destruir. Uma troca de propriedade que exige substituição pode causar indisponibilidade ou perda de dados se o recurso mantinha dados locais. O comando de destruição atua sobre os objetos que a configuração/state selecionados gerenciam; não deve ser tratado como uma limpeza inofensiva. Separar ambientes em workspaces ou diretórios e usar credenciais com escopo restrito reduz o risco de agir no alvo errado, mas não dispensa conferir contexto e plano.\n\n| Comando/artefato | Função | Efeito remoto imediato |\n| --- | --- | --- |\n| `init` | Prepara diretório, backend e dependências | Não provisiona por si só os recursos descritos |\n| `plan` | Calcula e exibe ações propostas | Não aplica a proposta |\n| `apply` | Executa um plano | Cria, altera ou remove recursos conforme aprovação/configuração |\n| `destroy` | Planeja e executa a remoção dos objetos gerenciados no escopo selecionado | Remove infraestrutura; requer alto cuidado |\n| state | Mantém o mapeamento entre declaração e objetos | É metadado de gestão, não cópia dos dados da aplicação |\n\n### Como cai na prova\n\n- `plan` mostra mudanças previstas; `apply` efetua mudanças.\n- Provider integra o Terraform a APIs; não é o arquivo de state.\n- State identifica quais objetos reais correspondem aos recursos declarados.\n- Um plan pode prever destruição ou substituição; a automação não torna toda mudança segura.\n- Em pipeline, revisar e aplicar o plano apropriado reduz a diferença entre o aprovado e o executado."
+    },
+    {
+      "title": "3. Configuração e automação em servidores",
+      "markdown": "### O problema que este assunto resolve\n\nDepois que uma máquina existe, ainda é necessário instalar componentes, manter arquivos, criar usuários, iniciar serviços e aplicar correções. Ferramentas de configuração permitem expressar essas operações uma vez e reaplicá-las em grupos de servidores. Elas diferem na linguagem, na arquitetura e na maneira de representar o estado.\n\n> **Siglas e termos deste capítulo**\n> - **Inventory**: relação de hosts, grupos e variáveis que o Ansible pode atingir.\n> - **Playbook**: arquivo YAML com plays e tarefas, usado para declarar uma automação Ansible.\n> - **Task**: operação de uma tarefa, normalmente executada por um módulo.\n> - **Handler**: ação notificada por uma tarefa, comumente usada para reiniciar ou recarregar serviço quando um arquivo muda.\n> - **Manifest**: arquivo de declarações Puppet que descreve recursos desejados.\n> - **Catalog**: conjunto compilado de recursos e dependências que o Puppet aplica a um nó.\n> - **Cookbook/recipe**: unidade do Chef que agrupa instruções e recursos para configurar nós.\n> - **Minion/state**: no Salt, nó gerenciado e declaração de estado que se aplica a ele.\n\n### Ansible: alvos, plays e tarefas\n\nO Ansible usa um **inventory** para nomear hosts e grupos. Um play associa um grupo-alvo a tarefas; cada task chama um módulo, por exemplo para instalar pacote, copiar arquivo ou iniciar serviço. Playbooks são escritos em YAML e podem executar plays em sequência, inclusive em subconjuntos de servidores. A execução típica é iniciada com `ansible-playbook`. Muitos módulos verificam se o estado já está correto e não alteram novamente; porém nem todo módulo ou comando arbitrário é idempotente.\n\nUm handler recebe notificação de uma tarefa e costuma executar apenas se houver mudança que o notifique. Por exemplo, uma tarefa que instala um arquivo de configuração pode notificar a recarga do servidor web; se o arquivo não mudou, a recarga pode ser dispensada. Roles organizam conteúdo reutilizável, como tarefas, handlers, variáveis e arquivos em uma estrutura previsível. A automação pode usar SSH ou outros meios de conexão conforme os alvos e a configuração; “agentless” não significa ausência de credenciais ou de requisitos de conectividade.\n\n### Puppet: manifests e catálogos\n\nNo Puppet, manifests escritos na linguagem declarativa descrevem recursos de arquivos, pacotes e serviços. O servidor Puppet compila os dados e manifests relevantes em um **catalog** específico para o nó; o agente recebe e aplica esse catálogo, comparando estado atual e desejado e registrando as mudanças. O recurso é a unidade fundamental de modelagem. Dependências entre recursos podem ser expressas para ordenar operações, por exemplo garantir que um pacote esteja instalado antes de habilitar o serviço que o utiliza.\n\n### Chef: cookbooks, recipes e convergência\n\nO Chef Infra Client roda em cada nó gerenciado. Ele se autentica no Chef Infra Server, sincroniza cookbooks necessários, compila uma coleção de recursos a partir da run-list e executa as ações para convergir o nó ao estado esperado. Um **cookbook** agrupa receitas e outros arquivos; uma **recipe** lista recursos, como instalar pacote ou manter arquivo. A run-list é uma lista ordenada de roles e/ou recipes daquele nó. Ohai coleta dados do sistema, como sistema operacional e rede, que podem orientar a configuração.\n\n### Salt: estados e execução remota\n\nSalt combina um framework de execução remota com gestão declarativa de configuração. O master envia comandos aos minions selecionados; os arquivos de estado descrevem condições finais, como pacote instalado, arquivo presente ou serviço em execução. `salt-call` permite executar uma função localmente no minion e ajuda no diagnóstico. Uma chamada de execução remota pontual não é sinônimo de estado declarado persistente: o primeiro realiza uma função escolhida; o segundo representa configuração a ser aplicada. Salt também pode coordenar dependências entre vários sistemas.\n\n| Ferramenta | Unidade comum de declaração | Alvos/execução |\n| --- | --- | --- |\n| Ansible | Playbook, play, task e módulo | Inventory; controlador executa contra hosts |\n| Puppet | Manifest, recurso e catalog | Servidor compila catalog por nó; agente aplica |\n| Chef Infra | Cookbook, recipe, recurso e run-list | Chef Infra Client converge nó gerenciado |\n| Salt | State e módulo de execução | Master direciona minions; `salt-call` atua localmente |\n\n### Como cai na prova\n\n- Inventory do Ansible responde “em quais hosts?”; playbook responde “quais ações/estados?”.\n- Handler do Ansible pode ser notificado por mudança; não é simplesmente uma task sempre executada no início.\n- Puppet compila manifests em catálogos por nó.\n- No Chef, run-list ordena roles/recipes; convergência é a execução das ações necessárias.\n- Salt State descreve estado; execução remota dispara funções em alvos.\n- Idempotência precisa ser verificada na tarefa concreta, especialmente ao usar comandos de shell."
+    },
+    {
+      "title": "4. Orquestração, implantação e controles de operação",
+      "markdown": "### O problema que este assunto resolve\n\nA automação de uma máquina isolada não basta quando uma mudança envolve rede, banco, dezenas de servidores, balanceador e aplicação. A orquestração ordena etapas e coordena os componentes, respeitando dependências. Em ambientes de contêineres, um orquestrador também observa o estado e tenta corrigir desvios continuamente.\n\n> **Siglas e termos deste capítulo**\n> - **CI/CD**: integração e entrega/implantação contínuas, processos automatizados de construção, validação e publicação.\n> - **Pull request (PR)**: proposta de mudança em repositório, normalmente revisada antes da integração.\n> - **Reconciliation loop**: ciclo de observar estado atual, comparar com o desejado e agir para reduzir a diferença.\n> - **Controller**: componente Kubernetes que implementa um loop para determinado tipo de recurso.\n> - **Manifest Kubernetes**: arquivo declarativo, frequentemente YAML, que representa objetos desejados da API do cluster.\n> - **Segredo/secret**: dado de autenticação ou outro dado sensível que exige armazenamento e acesso controlados.\n\n### Kubernetes: declarar e reconciliar\n\nNo Kubernetes, o operador declara objetos pela API, frequentemente em manifests: por exemplo, um Deployment que pede determinada quantidade de réplicas de uma aplicação. Um controlador observa objetos e o estado do cluster e age para realizar o estado pretendido. O controlador de Deployment acompanha os Pods correspondentes; outros controladores cuidam de outros tipos de objetos. Se um Pod deixa de existir e o estado declarado ainda pede aquela réplica, o controlador pode criar outro. Isso é um loop de reconciliação, não uma sequência de comandos executada somente uma vez.\n\nO control plane reúne componentes de gestão do cluster e interage com recursos de rede, armazenamento e provedores. O Kubernetes orquestra cargas de trabalho em contêineres, mas não substitui automaticamente todas as ferramentas de criação de redes, máquinas e configuração de sistemas externos. É comum combiná-lo com IaC e automação de configuração.\n\n### Pipeline com revisão e controle de mudança\n\nUm fluxo seguro pode guardar IaC e playbooks em controle de versão, executar validações, produzir um plano ou diff, solicitar revisão e, após aprovação, aplicar a mudança com credenciais controladas. Terraform separa apresentação do plano e aplicação. Um playbook pode ser verificado primeiro contra hosts de teste e executar em lotes para limitar impacto. Em Kubernetes, a revisão do diff dos manifests ajuda a detectar alterações de imagem, permissões ou exposição de serviço. A automação aumenta velocidade e repetibilidade, mas também aumenta a velocidade de erros se o alvo, credencial ou plano estiver errado.\n\nAntes da execução, confira: ambiente e conta de destino; identidade e permissões do executor; recursos que serão substituídos ou removidos; compatibilidade da mudança; dependências; estratégia de lote; possibilidade de retorno; logs e resultado. Em produção, credenciais devem ter privilégio mínimo e não devem ser embutidas em repositórios. State e arquivos de inventário podem revelar endereços, nomes, parâmetros ou segredos e exigem proteção.\n\n### Drift, falhas e recuperação\n\nUma alteração manual feita fora da ferramenta pode causar drift. Terraform pode mostrar diferença no próximo plan; ferramentas de configuração podem corrigir a divergência numa próxima aplicação; controladores Kubernetes tentam continuamente reconciliar o estado. Detectar e corrigir não é a mesma coisa que entender a causa: se a mudança manual foi uma mitigação urgente, uma reconciliação cega pode desfazê-la. Registre a decisão e atualize a fonte declarativa quando a alteração for intencional.\n\nFalhas parciais também precisam de plano. Uma implantação de vários nós pode ter sucesso em parte deles; relatórios por host, execução em lotes e verificações de saúde ajudam a identificar o ponto de interrupção. Rollback nem sempre é simples: remover uma versão nova pode não restaurar dados ou estado irreversível. Um procedimento pode preferir uma correção progressiva, desde que compatível e revisada.\n\n### Como cai na prova\n\n- Kubernetes controller observa e reconcilia objetos; não é apenas um executor de scripts de instalação.\n- Plan/diff é evidência para revisão, não garantia automática de segurança.\n- Drift pode ser detectado e corrigido, mas uma mudança manual pode ser intencional; investigar antes de sobrescrever.\n- Privilégio mínimo, segredo protegido e ambiente conferido continuam necessários mesmo com automação.\n- Execução em lotes limita o raio de impacto e facilita parar após falha."
+    }
+  ],
+  "summary": "Ferramentas automatizadas de gestão de infraestrutura codificam e aplicam definições de recursos e configurações de forma repetível. IaC descreve recursos sob controle de versão; provisionamento cria infraestrutura, gestão de configuração mantém sistemas e orquestração coordena dependências. Idempotência significa que repetir uma operação já satisfeita não produz novas mudanças, mas depende do módulo ou da tarefa. Terraform usa providers para interagir com APIs e state para relacionar a configuração aos recursos reais; `init` prepara, `plan` mostra alterações e `apply` executa. Ansible usa inventory para os hosts, playbooks com plays/tasks/módulos e handlers notificados; muitos módulos são idempotentes, mas comandos arbitrários podem não ser. Puppet compila manifests em catalogs por nó, que agentes aplicam. Chef Infra Client sincroniza cookbooks, processa run-list de recipes e converge recursos. Salt oferece execução remota via master/minions e states declarativos, além de execução local com `salt-call`. Kubernetes usa manifests e controladores que reconciliam continuamente o estado do cluster. Em CI/CD, versionamento, revisão de plan/diff, credenciais de privilégio mínimo, proteção do state e dos segredos, execução em lotes e observação de falhas reduzem riscos; automação não substitui revisão, teste nem plano de recuperação.",
+  "flashcards": [
+    {
+      "front": "O que é infraestrutura como código?",
+      "back": "Administrar recursos de infraestrutura por definições legíveis por máquina e versionadas, em vez de depender apenas de alterações manuais em consoles."
+    },
+    {
+      "front": "Qual a diferença entre provisionamento e gestão de configuração?",
+      "back": "Provisionamento cria ou remove recursos como redes e máquinas; gestão de configuração mantém pacotes, arquivos, serviços e parâmetros dos sistemas."
+    },
+    {
+      "front": "O que significa estado desejado?",
+      "back": "A condição final declarada que um recurso ou sistema deve alcançar, por exemplo um serviço ativo e um pacote instalado."
+    },
+    {
+      "front": "O que é drift em infraestrutura?",
+      "back": "Divergência entre o que a configuração declara e o estado real, muitas vezes causada por mudanças manuais ou externas."
+    },
+    {
+      "front": "O que é idempotência numa tarefa de configuração?",
+      "back": "Repeti-la quando o estado esperado já foi atingido não produz mudanças adicionais nem efeitos acumulados."
+    },
+    {
+      "front": "Que função cumpre um provider no Terraform?",
+      "back": "Implementa a interação do Terraform com a API de uma plataforma ou serviço para consultar e gerenciar recursos."
+    },
+    {
+      "front": "O que `terraform plan` faz?",
+      "back": "Calcula e mostra as ações propostas para aproximar recursos gerenciados da configuração, sem aplicar por si só as mudanças."
+    },
+    {
+      "front": "Para que serve o Terraform state?",
+      "back": "Relaciona endereços dos recursos da configuração a objetos reais e registra metadados necessários para operações futuras."
+    },
+    {
+      "front": "O que o inventory do Ansible representa?",
+      "back": "Os hosts e grupos que podem ser alvos de playbooks, além de variáveis associadas a esses alvos."
+    },
+    {
+      "front": "Como se organiza um playbook Ansible?",
+      "back": "Em uma lista de plays; cada play seleciona hosts e reúne tarefas que chamam módulos."
+    },
+    {
+      "front": "Para que serve um handler no Ansible?",
+      "back": "Para executar uma ação notificada por uma tarefa, como recarregar serviço quando seu arquivo de configuração mudou."
+    },
+    {
+      "front": "O que Puppet compila a partir de manifests?",
+      "back": "Um catalog específico para um nó, descrevendo recursos desejados e relações que o agente aplica."
+    },
+    {
+      "front": "O que representa a run-list do Chef?",
+      "back": "Uma sequência ordenada de roles e/ou recipes que o Chef Infra Client executará no nó."
+    },
+    {
+      "front": "O que é convergência no Chef Infra?",
+      "back": "A etapa de executar recursos para aproximar a máquina do estado descrito pelas recipes e pela run-list."
+    },
+    {
+      "front": "Qual a diferença entre Salt State e execução remota pontual?",
+      "back": "State descreve configuração desejada a aplicar; execução remota chama uma função específica em minions-alvo."
+    },
+    {
+      "front": "Que papel têm os controllers do Kubernetes?",
+      "back": "Observam objetos e estado atual e executam ações para reconciliar o cluster com o estado pretendido."
+    },
+    {
+      "front": "O que faz um Terraform plan salvo?",
+      "back": "Guarda o conjunto concreto de ações proposto para revisão e aplicação posterior, útil em fluxos automatizados."
+    },
+    {
+      "front": "Por que o state exige controle de acesso?",
+      "back": "Pode conter metadados sensíveis e é necessário para a ferramenta identificar recursos gerenciados; sobrescrita também pode causar inconsistência."
+    },
+    {
+      "front": "Como execução em lotes reduz risco?",
+      "back": "Limita quantos nós recebem a mudança de uma vez e permite observar saúde e interromper a implantação antes de atingir todo o conjunto."
+    },
+    {
+      "front": "Automação garante que uma mudança seja segura?",
+      "back": "Não. O alvo, o plano, as permissões, as dependências e os efeitos destrutivos precisam ser revisados e testados."
+    }
+  ],
+  "tips": [
+    "Separe as funções pelo objeto da ação: recurso de nuvem é provisionamento; pacote e arquivo de servidor são configuração; ordem entre componentes é orquestração.",
+    "Guarde a sequência do Terraform: init prepara, plan apresenta a proposta e apply executa.",
+    "No Ansible, lembre: inventory seleciona hosts; playbook organiza plays; tasks chamam módulos; handlers reagem a notificações.",
+    "Associe Puppet a manifests compilados em catalogs e Chef a cookbooks/recipes organizados numa run-list.",
+    "Diferencie no Salt os states que descrevem condições finais das funções disparadas por execução remota.",
+    "Em Kubernetes, pense em reconciliação contínua: o controlador observa a divergência e tenta aproximar o estado atual do declarado."
+  ],
+  "traps": [
+    "Afirmar que `terraform plan` já cria os recursos. Ele apresenta a proposta; a aplicação ocorre com apply.",
+    "Tratar Terraform state como backup da máquina ou do banco de dados. State é registro de gestão e associação de recursos.",
+    "Dizer que toda tarefa Ansible é idempotente. Muitos módulos são, mas um comando shell pode repetir efeitos ou acumular dados.",
+    "Confundir inventory do Ansible com state do Terraform: inventário orienta seleção de hosts; state mapeia recursos gerenciados.",
+    "Inverter a arquitetura Puppet e Chef: Puppet compila catalogs por nó; Chef Infra Client executa uma run-list de recipes.",
+    "Afirmar que Kubernetes executa uma sequência e termina. Controllers observam e reconciliam continuamente os recursos declarados."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva a diferença entre IaC, provisionamento, configuração e orquestração.",
+      "answer": "IaC é a prática de definir infraestrutura em código versionado; provisionamento cria/remove recursos; configuração ajusta software e sistemas existentes; orquestração coordena etapas e dependências."
+    },
+    {
+      "question": "Explique por que uma tarefa idempotente é útil numa automação recorrente.",
+      "answer": "Pode ser reaplicada para conferir ou corrigir estado sem acumular efeitos quando a condição desejada já existe; a propriedade deve ser verificada na tarefa concreta."
+    },
+    {
+      "question": "O que acontece no ciclo básico do Terraform?",
+      "answer": "Init prepara diretório e dependências, plan compara configuração e state e apresenta ações, apply executa as ações aprovadas."
+    },
+    {
+      "question": "Diferencie state do Terraform e inventory do Ansible.",
+      "answer": "State associa endereços da configuração a recursos reais gerenciados; inventory fornece hosts, grupos e variáveis que o Ansible pode atingir."
+    },
+    {
+      "question": "Como uma alteração de arquivo pode provocar uma ação de handler no Ansible?",
+      "answer": "Uma task detecta e aplica a mudança e notifica o handler; o handler executa a ação associada, como recarregar serviço, quando notificado."
+    },
+    {
+      "question": "Compare o fluxo de aplicação do Puppet e do Chef.",
+      "answer": "Puppet compila manifests e dados em um catalog por nó, recebido e aplicado pelo agente. Chef Infra Client obtém cookbooks, compila os recursos das recipes na run-list e converge o nó."
+    },
+    {
+      "question": "Como o Kubernetes corrige a falta de uma réplica declarada?",
+      "answer": "O controlador observa que o estado atual tem menos Pods do que o Deployment deseja e cria recursos para aproximar o cluster da quantidade declarada."
+    },
+    {
+      "question": "Quais verificações devem preceder a aplicação de IaC em produção?",
+      "answer": "Confirmar ambiente e conta, revisar plan/diff e recursos destruídos/substituídos, validar permissões, dependências e estratégia de execução, e garantir observação e recuperação."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Provisionamento confundido com configuração",
+      "summary": "Criar rede, volume ou máquina é provisionar. Instalar pacotes e manter serviço ativo é configurar um sistema. Ferramentas podem se sobrepor, mas a operação descrita determina a categoria."
+    },
+    {
+      "key": "e2",
+      "title": "Plan tratado como execução",
+      "summary": "Terraform plan gera prévia das ações; apply as executa. A proposta pode conter destruição ou substituição e precisa ser conferida."
+    },
+    {
+      "key": "e3",
+      "title": "Idempotência presumida",
+      "summary": "A repetição segura depende do módulo e da tarefa. Um comando arbitrário pode duplicar linhas, criar objetos repetidos ou causar impacto em cada execução."
+    },
+    {
+      "key": "e4",
+      "title": "Arquivos de controle trocados",
+      "summary": "Inventory relaciona alvos Ansible; state Terraform associa recursos declarados a objetos reais. Um não cumpre automaticamente a função do outro."
+    },
+    {
+      "key": "e5",
+      "title": "Automação confundida com segurança operacional",
+      "summary": "Ferramentas aceleram ações, inclusive as erradas. Revisão do plano, escopo de credenciais, teste, proteção de state e execução gradual continuam necessários."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe deseja criar redes, máquinas virtuais e volumes por definições versionadas que possam ser revisadas antes da aplicação. Qual abordagem atende diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar somente monitoramento para registrar o desempenho dos recursos",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar IaC para declarar recursos e revisar as alterações propostas",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar inventário de hosts para escolher contas de usuários finais",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar backup de arquivos como mecanismo de criação de redes",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar logs de aplicação para instalar os sistemas operacionais",
+          "correct": false
+        }
+      ],
+      "explanation": "IaC descreve recursos de infraestrutura em arquivos que podem ser versionados e revisados. Monitoramento observa métricas, inventário seleciona alvos de configuração e backup protege cópias; nenhum deles substitui a definição e o provisionamento declarativo dos recursos.",
+      "section": "1. O que se automatiza na infraestrutura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Criar uma sub-rede virtual e, depois, instalar um pacote de servidor são duas operações da mesma categoria de gestão, pois ambas alteram infraestrutura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Criar a sub-rede é provisionamento de recurso; instalar pacote é gestão de configuração de um sistema. Ambas podem fazer parte de uma automação maior, mas descrevem camadas diferentes da infraestrutura.",
+      "section": "1. O que se automatiza na infraestrutura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um playbook instala um pacote somente quando ausente e mantém um serviço ativo. Se os módulos usados se comportam conforme esperado, qual propriedade permite reaplicá-lo para conferir o estado sem alterar novamente um sistema já correto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Replicação, pois o playbook copia todo o host para outro",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Idempotência, pois a repetição não gera novas mudanças",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Serialização, pois o YAML impede acesso simultâneo",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Observabilidade, pois métricas executam tarefas de configuração",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Virtualização, pois cada pacote recebe uma máquina exclusiva",
+          "correct": false
+        }
+      ],
+      "explanation": "Idempotência significa que, se o estado desejado já foi atingido, repetir a tarefa não produz mudanças adicionais. A propriedade depende do módulo e da implementação; não decorre do formato YAML nem de replicação ou virtualização.",
+      "section": "1. O que se automatiza na infraestrutura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na gestão declarativa, a pessoa descreve o estado final esperado, e a ferramenta determina quais ações são necessárias para aproximar o sistema dessa condição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A declaração centra-se no resultado, como pacote presente ou serviço ativo. A ferramenta compara o estado observado com a meta e decide as alterações necessárias, ainda que internamente execute passos concretos.",
+      "section": "1. O que se automatiza na infraestrutura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mudança manual num recurso gerenciado divergiu do arquivo declarativo. A equipe precisa localizar essa diferença antes de agir. Qual conceito descreve a situação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Handler, uma ação notificada por alteração de arquivo",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Catalog, a lista compilada de recursos Puppet",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Drift, uma divergência entre declaração e realidade",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Backend, um local de execução de tarefas Ansible",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Run-list, uma sequência de recursos de nuvem Terraform",
+          "correct": false
+        }
+      ],
+      "explanation": "Drift é a diferença entre o estado real e o estado declarado ou acompanhado. A mudança manual pode ser detectada pela ferramenta, mas a equipe deve determinar se foi indevida ou uma mitigação intencional antes de sobrescrevê-la.",
+      "section": "1. O que se automatiza na infraestrutura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ferramenta agentless não precisa de nenhuma credencial nem de conectividade com os sistemas de destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Agentless indica que a abordagem não depende de um agente permanente instalado no host para a execução comum. O controlador ainda precisa alcançar o alvo e autenticar-se com credenciais ou mecanismos de identidade apropriados.",
+      "section": "1. O que se automatiza na infraestrutura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual associação entre categoria e operação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configuração: criar cópia de segurança; observabilidade: iniciar pacote",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Provisionamento: ler logs; configuração: criar uma sub-rede",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Orquestração: armazenar segredo; provisionamento: medir latência",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Provisionamento: criar máquina virtual; configuração: ajustar serviço",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Inventário: compilar aplicação; IaC: monitorar usuários",
+          "correct": false
+        }
+      ],
+      "explanation": "Criar uma máquina virtual estabelece um recurso e é provisionamento. Ajustar um serviço em um sistema já disponível é gestão de configuração. Logs e latência são observabilidade; guardar segredo e executar backup são outras funções.",
+      "section": "1. O que se automatiza na infraestrutura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo de state do Terraform é uma cópia de segurança integral dos dados de aplicação mantidos pelas máquinas virtuais que ele acompanha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O state registra associações e metadados que permitem ao Terraform acompanhar recursos declarados. Ele não contém, em regra, um backup integral dos dados da aplicação nem substitui estratégias próprias de backup e recuperação.",
+      "section": "1. O que se automatiza na infraestrutura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe trabalha com vários provedores de nuvem e precisa que a ferramenta tenha integrações que consultem e gerenciem recursos por APIs. No Terraform, qual componente oferece essa integração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um handler, que recebe notificações de tarefas",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um inventory, que agrupa servidores de configuração",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um provider, que implementa acesso à plataforma",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Um catalog, que descreve recursos por nó",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma recipe, que define tarefas de um cookbook",
+          "correct": false
+        }
+      ],
+      "explanation": "Providers são plugins que implementam a interação com APIs de plataformas e serviços. Inventory pertence ao modelo de alvos do Ansible, handler é uma ação notificada, catalog é central no Puppet e recipe pertence ao Chef.",
+      "section": "2. Provisionamento declarativo com Terraform",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma estação Terraform ainda não inicializada, qual operação prepara o diretório de trabalho e obtém dependências como providers necessários à configuração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`terraform plan`, que aplica recursos e grava o state",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`terraform destroy`, que instala módulos de configuração",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`terraform output`, que compila os providers remotos",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`terraform apply`, que baixa inventário de hosts",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`terraform init`, que prepara o diretório e dependências",
+          "correct": true
+        }
+      ],
+      "explanation": "`terraform init` inicializa o diretório de trabalho, configura o backend e obtém providers e módulos necessários. Plan calcula ações propostas, apply as executa e destroy remove recursos no escopo gerenciado.",
+      "section": "2. Provisionamento declarativo com Terraform",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Executar `terraform plan` sem aplicar o resultado modifica imediatamente os objetos remotos, pois plan é o comando que provisiona a infraestrutura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Plan compara configuração e state e apresenta as ações propostas, mas não realiza por si só as mudanças nos recursos. A execução ocorre com apply, após revisão e autorização no fluxo adotado.",
+      "section": "2. Provisionamento declarativo com Terraform",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma proposta Terraform será integrada após revisão. A equipe quer executar posteriormente exatamente o conjunto de mudanças que foi aprovado no plano produzido pela automação. Qual recurso ajuda nesse fluxo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar destroy e refazer o plano após cada revisão",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar o provider por um handler executado nos hosts",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Copiar o inventário Ansible para o arquivo de state",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar um plan salvo como arquivo e passá-lo ao apply",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar o state e permitir que o apply escolha os recursos",
+          "correct": false
+        }
+      ],
+      "explanation": "Terraform pode salvar o plano num arquivo e aplicar esse artefato depois, permitindo que a execução use as ações concretas planejadas. O time ainda deve tratar estado e mudanças concorrentes com cuidado; um plano especulativo antigo não deve ser considerado automaticamente atual.",
+      "section": "2. Provisionamento declarativo com Terraform",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O state associa endereços de recursos da configuração Terraform aos objetos reais que a ferramenta gerencia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Essa associação permite identificar quais objetos reais correspondem a cada recurso declarado durante planos e aplicações seguintes. O state deve ser protegido, pois pode conter informações sensíveis e sua perda ou sobrescrita prejudica a gestão.",
+      "section": "2. Provisionamento declarativo com Terraform",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao revisar um plano, a equipe vê que uma alteração proposta substituirá uma máquina que mantém dados locais. Qual conduta é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar de imediato, pois state impede toda perda durante substituições",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar init novamente, pois ele converte a substituição em atualização",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Revisar impacto, persistência, cópia e estratégia antes de aplicar",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Remover o provider, pois ele evita mudanças destrutivas no plano",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar a proposta e apagar o state para conservar os dados",
+          "correct": false
+        }
+      ],
+      "explanation": "Plan pode prever substituição ou destruição, que podem afetar dados locais. É necessário avaliar persistência, backup, dependências e janela de mudança antes de aprovar. State acompanha os recursos, mas não garante que operações destrutivas preservem dados.",
+      "section": "2. Provisionamento declarativo com Terraform",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois operadores aplicam configurações Terraform concorrentes usando cópias locais independentes do state compartilhado, sem coordenação. O risco principal inclui sobrescrita ou divergência no registro dos recursos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Colaboração sem backend compartilhado e controle de concorrência pode levar a operações baseadas em registros desatualizados e sobrescrita do state. Backends remotos com controles apropriados ajudam a coordenar acesso, sem eliminar a necessidade de revisar mudanças.",
+      "section": "2. Provisionamento declarativo com Terraform",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um plano mostra que a máquina real diverge da configuração. Qual arquivo ou artefato do Ansible normalmente identifica os grupos de hosts que o playbook pode atingir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um catalog, que relaciona recursos compilados por nó",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um backend, que guarda o mapeamento de recursos Terraform",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um inventory, que lista e agrupa os hosts-alvo",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma run-list, que ordena recipes num nó Chef",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um state, que descreve controladores do cluster",
+          "correct": false
+        }
+      ],
+      "explanation": "O inventory fornece hosts, grupos e variáveis que o Ansible usa para selecionar alvos. Catalog pertence ao Puppet, run-list ao Chef e state/backend cumprem funções de acompanhamento de recursos Terraform.",
+      "section": "3. Configuração e automação em servidores",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Ansible, cada play associa um conjunto de hosts a tarefas que chamam módulos, e um playbook pode organizar vários plays em sequência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Playbooks são listas ordenadas de plays. Cada play seleciona alvos, e suas tasks executam operações por módulos; o resumo ao final informa os resultados nos nós atingidos.",
+      "section": "3. Configuração e automação em servidores",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma task Ansible atualizou o arquivo de configuração do servidor web. A equipe deseja recarregar o serviço apenas quando a task detectou alteração. Qual recurso é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um handler notificado pela task quando o arquivo muda",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um provider que consulta a API do servidor web",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um inventory que reinicia serviços de todos os hosts",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um catalog que substitui o playbook inteiro",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um state Terraform que recebe eventos do arquivo",
+          "correct": false
+        }
+      ],
+      "explanation": "Handlers são ações acionadas por notificações de tasks e são usados, por exemplo, para recarregar serviço quando uma configuração mudou. A task pode notificar o handler; se não houver mudança, a ação pode não ser necessária.",
+      "section": "3. Configuração e automação em servidores",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Todos os módulos Ansible, inclusive tarefas que executam comandos arbitrários de shell, garantem idempotência por definição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Muitos módulos verificam o estado e evitam ações desnecessárias, mas nem todo módulo ou comando arbitrário é idempotente. Um comando que acrescente uma linha em cada execução, por exemplo, pode acumular duplicatas; a tarefa precisa ser desenhada e testada.",
+      "section": "3. Configuração e automação em servidores",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer que cada nó receba uma descrição compilada dos recursos que deve manter, preparada a partir de manifests e dados relevantes. Qual associação descreve o Puppet?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Recipes armazenadas no backend de state do Terraform",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Playbooks lidos exclusivamente a partir de um inventory",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Run-lists compostas somente por providers Terraform",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "States Kubernetes aplicados por handlers Ansible",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manifests compilados em catalogs específicos para os nós",
+          "correct": true
+        }
+      ],
+      "explanation": "Puppet usa manifests declarativos e compila os dados pertinentes em um catalog por nó. O agente aplica esse catálogo e aproxima o estado real do desejado. Playbooks são do Ansible e run-lists e recipes são conceitos do Chef.",
+      "section": "3. Configuração e automação em servidores",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Puppet, o catalog aplicado pelo agente representa os recursos desejados para um nó e pode incluir relações que definem dependências entre recursos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O servidor compila os manifests e demais dados em um catalog específico para cada nó; o agente aplica os recursos descritos. Relações podem garantir ordem, como instalar o pacote antes de iniciar seu serviço.",
+      "section": "3. Configuração e automação em servidores",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ambiente Chef precisa definir quais receitas serão executadas em cada servidor e em que ordem. Qual componente atende a essa necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O plan, que lista tasks por provedor de nuvem",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O inventory, composto pelos state files do cluster",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A run-list, formada por roles e/ou recipes ordenadas",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O catalog, contendo playbooks serializados por host",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O handler, que define as recipes de todos os nós",
+          "correct": false
+        }
+      ],
+      "explanation": "A run-list define uma lista ordenada de roles e/ou recipes para um nó. O Chef Infra Client obtém os cookbooks necessários, processa a run-list e executa seus recursos durante a convergência.",
+      "section": "3. Configuração e automação em servidores",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Chef Infra, o cliente executa a convergência do nó com base nos recursos carregados das recipes e da run-list.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Chef Infra Client reúne e compila os recursos necessários e os executa na ordem indicada pelas recipes e pela run-list. A convergência aproxima o sistema do estado definido pelas receitas.",
+      "section": "3. Configuração e automação em servidores",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador quer executar uma função Salt localmente no minion para depuração, sem enviar primeiro a chamada remota pelo master. Qual comando é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`terraform plan`, que executa a função no recurso local",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`puppet catalog`, que executa módulo pelo inventory",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`ansible-playbook`, que compila o catalog do minion",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`salt-call`, que inicia a chamada local no minion",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`chef-runlist`, que consulta a API do Kubernetes",
+          "correct": false
+        }
+      ],
+      "explanation": "`salt-call` executa funções localmente no minion e é útil para consulta e diagnóstico. O comando `salt` costuma ser iniciado no master para execução remota direcionada; Terraform, Ansible, Puppet e Chef possuem outros fluxos e conceitos.",
+      "section": "3. Configuração e automação em servidores",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Salt, um state descreve condições como pacote instalado e serviço em execução, enquanto uma chamada remota pontual pode invocar uma função específica nos minions selecionados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O sistema de states representa configuração que se deseja aplicar e manter. A execução remota dispara funções em alvos; os recursos são relacionados, mas a chamada isolada não expressa, por si só, a mesma declaração de estado.",
+      "section": "3. Configuração e automação em servidores",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa instalar um pacote em centenas de hosts, podendo reaplicar a automação para corrigir hosts que ainda não atingiram o estado esperado. Qual mecanismo corresponde ao uso de configuração Ansible?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Playbook com task de módulo direcionada aos grupos do inventory",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "State Terraform com handler que compila catalogs Puppet",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Run-list Kubernetes que seleciona arquivos de backend",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Provider Chef que converte tasks em objetos de rede",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Catalog Ansible que substitui todos os recursos dos hosts",
+          "correct": false
+        }
+      ],
+      "explanation": "O inventory permite selecionar grupos de hosts e um playbook organiza plays e tasks executadas por módulos, como os de gestão de pacotes. Muitos módulos evitam alterações se o pacote já estiver instalado, embora seja necessário verificar o comportamento da tarefa.",
+      "section": "3. Configuração e automação em servidores",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como as ferramentas de configuração podem detectar o estado atual e compará-lo ao desejado, todo arquivo de inventário pode ser tratado como segredo sem importância operacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Inventários podem revelar nomes, endereços, agrupamentos e parâmetros da infraestrutura; alguns também podem conter referências indevidas a credenciais. Devem ser controlados e protegidos conforme a sensibilidade, e segredos não devem ser expostos em repositórios.",
+      "section": "3. Configuração e automação em servidores",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um manifesto Kubernetes declara a quantidade desejada de réplicas, mas o cluster tem menos Pods. Qual comportamento caracteriza o controlador responsável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remove a declaração original para impedir novas réplicas",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Armazena cópias de backup dos dados do Pod e encerra o cluster",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converte automaticamente o manifesto em inventory Ansible",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplica somente uma tarefa única e nunca mais observa objetos",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Observa a diferença e age para aproximar o estado do declarado",
+          "correct": true
+        }
+      ],
+      "explanation": "Um controller Kubernetes executa um loop de reconciliação: observa recursos e estado atual e faz ações para aproximá-los do estado pretendido. Se um Deployment requer réplicas que não estão presentes, seu controlador pode criar Pods correspondentes.",
+      "section": "4. Orquestração, implantação e controles de operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Kubernetes usa controladores que observam recursos e estado do cluster e trabalham para reconciliá-los com as declarações desejadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Controladores implementam loops que acompanham tipos de recursos e atuam para realizar o estado pretendido. Essa reconciliação contínua distingue o modelo de uma simples lista de comandos executada uma vez.",
+      "section": "4. Orquestração, implantação e controles de operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mudança de infraestrutura entra em pull request. Qual sequência de pipeline oferece uma revisão concreta antes de efetuar a alteração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar em produção, gerar diff depois e dispensar revisão",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Validar, gerar plan/diff, revisar e então aplicar o plano",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apagar o state, executar destroy e aceitar o resultado",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Guardar credenciais no código e automatizar sem aprovação",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar só monitoramento e presumir que ele instala recursos",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma pipeline pode validar configuração e produzir plan ou diff para revisão antes de aplicar. No fluxo Terraform, plan mostra ações; apply efetua-as. A equipe deve revisar a proposta atual, pois o estado e os recursos podem mudar entre uma prévia e a execução.",
+      "section": "4. Orquestração, implantação e controles de operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A aprovação de um plan garante que o apply posterior terá exatamente o mesmo impacto, mesmo que os recursos remotos tenham mudado entre as duas etapas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Uma alteração remota ou outra mudança de configuração pode modificar o resultado final. O plano concreto que será aplicado deve ser revisado de acordo com o fluxo adotado; arquivos de plano ajudam a vincular proposta e aplicação, mas não tornam seguro ignorar estado e concorrência.",
+      "section": "4. Orquestração, implantação e controles de operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração precisa atualizar um conjunto grande de servidores. A equipe quer observar o efeito em parte deles antes de prosseguir para todos. Qual técnica reduz o raio de impacto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar em lotes e verificar saúde entre as etapas",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desativar logs e executar em todos os hosts ao mesmo tempo",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar o state como cópia integral do sistema operacional",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover o inventário para que nenhum host seja selecionado",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Repetir a operação em todos os nós sem verificar resultados",
+          "correct": false
+        }
+      ],
+      "explanation": "Execução em lotes limita quantos sistemas recebem a mudança de uma vez. A equipe pode avaliar saúde, erros e impacto após cada lote e interromper a expansão se detectar falha, em vez de afetar toda a frota simultaneamente.",
+      "section": "4. Orquestração, implantação e controles de operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "É recomendável limitar as credenciais de automação às permissões necessárias para a mudança e proteger state, inventários e outros arquivos que revelem detalhes da infraestrutura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Privilégio mínimo reduz o alcance de um erro ou comprometimento. State e inventários podem revelar informações sensíveis e devem ter acesso controlado; segredos não devem ser embutidos em código versionado.",
+      "section": "4. Orquestração, implantação e controles de operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração manual corrigiu temporariamente uma falha em produção, mas o controlador Kubernetes ou a ferramenta de configuração pode revertê-la. Como a equipe deve proceder?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desligar permanentemente todos os controllers e agentes",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Investigar a mudança e atualizar a fonte declarativa se intencional",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apagar manifests e state para tornar a mudança invisível",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar apply continuamente até a mudança manual prevalecer",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir credenciais por acesso administrativo compartilhado",
+          "correct": false
+        }
+      ],
+      "explanation": "A automação pode corrigir drift em favor do estado declarado e desfazer uma mitigação manual. É necessário investigar a causa e registrar a mudança intencional na fonte declarativa, com revisão, para que o estado pretendido reflita a decisão operacional.",
+      "section": "4. Orquestração, implantação e controles de operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Kubernetes substitui obrigatoriamente todas as ferramentas de provisionamento de redes, máquinas e configuração de sistemas externos, porque administra Pods.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Kubernetes orquestra cargas de trabalho em contêineres e administra objetos do cluster. A infraestrutura subjacente e sistemas externos podem continuar sendo geridos por ferramentas de IaC, provedores de nuvem e gestão de configuração integradas ao cluster.",
+      "section": "4. Orquestração, implantação e controles de operação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática melhor trata o risco de uma execução automatizada atingir a conta ou o ambiente incorreto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar credenciais administrativas iguais em todos os ambientes",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conferir contexto, conta, workspace e alvos antes da execução",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ignorar a saída do plan porque o comando é automatizado",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover nomes de ambientes para simplificar os arquivos",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar destroy como verificação de conectividade",
+          "correct": false
+        }
+      ],
+      "explanation": "Confirmar o contexto do provedor, conta, workspace e alvos evita aplicar mudanças no ambiente errado. Credenciais separadas e de privilégio mínimo, além de revisar plan/diff, complementam esse controle.",
+      "section": "4. Orquestração, implantação e controles de operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A execução parcial de uma implantação em vários nós pode ser identificada por relatórios por host e verificações de saúde antes de avançar para o lote seguinte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Relatórios e verificações de saúde mostram quais nós concluíram, falharam ou ficaram inacessíveis. A execução em lotes permite interromper o fluxo e investigar antes de ampliar o impacto.",
+      "section": "4. Orquestração, implantação e controles de operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço passou a divergir do manifesto declarado depois que foi alterado manualmente. Qual interpretação do comportamento de reconciliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O controlador pode detectar a diferença e tentar restaurar o estado declarado",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O manifesto é somente backup e restaura os dados do serviço",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O inventory converte automaticamente o desvio em plan Terraform",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A reconciliação apaga todo o cluster sempre que há mudança manual",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O controller ignora diferenças até receber comando shell manual",
+          "correct": false
+        }
+      ],
+      "explanation": "Controladores observam estado e trabalham para convergir aos objetos declarados. Uma mudança manual pode ser revertida, então a equipe deve avaliar se ela foi intencional e atualizar o manifesto de forma revisada quando necessário.",
+      "section": "4. Orquestração, implantação e controles de operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma automação bem-sucedida dispensa estratégia de recuperação, pois todas as ferramentas conseguem desfazer qualquer mudança e restaurar automaticamente dados perdidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Nem toda mudança é reversível; remoções e alterações de dados podem exigir backup ou procedimento específico. Automação aumenta repetibilidade, mas não garante rollback universal nem recuperação automática de dados.",
+      "section": "4. Orquestração, implantação e controles de operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual escolha distingue melhor o Terraform do Ansible nos exemplos comuns de gestão de infraestrutura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Terraform declara recursos por providers; Ansible usa inventory e tasks para configurar alvos",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Terraform mantém catalogs por nó; Ansible compila manifests Puppet",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Terraform usa recipes e run-lists; Ansible usa controllers Kubernetes",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Terraform executa somente comandos locais; Ansible guarda state remoto de recursos",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Terraform é uma ferramenta de backup; Ansible é um sistema de monitoramento",
+          "correct": false
+        }
+      ],
+      "explanation": "Terraform usa providers para gerenciar objetos de infraestrutura e mantém state dos recursos acompanhados. Ansible seleciona hosts por inventory e organiza automações em plays e tasks. Ambos podem se integrar num fluxo, mas seus artefatos e focos são diferentes.",
+      "section": "1. O que se automatiza na infraestrutura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um fluxo Ansible, o inventory identifica os alvos, e um playbook pode conter instruções ordenadas para configurar esses alvos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Inventory define hosts e grupos disponíveis para seleção; playbooks organizam plays e tarefas que executam operações nos alvos. O comando `ansible-playbook` inicia a execução do arquivo de playbook.",
+      "section": "3. Configuração e automação em servidores",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ferramenta aponta que um serviço está fora do estado esperado. Para garantir um diagnóstico correto, a equipe deve considerar logs e o resultado por nó, em vez de presumir sucesso porque a execução terminou.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A saída por host e os registros de execução permitem identificar falhas, nós inalcançáveis e recursos não processados. Uma execução automatizada pode ter sucesso parcial e precisa ser acompanhada por verificações do serviço.",
+      "section": "4. Orquestração, implantação e controles de operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação compara corretamente uma mudança imperativa e uma declarativa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Imperativa não executa ações; declarativa executa apenas comandos shell",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Imperativa descreve passos; declarativa descreve sobretudo o estado final",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Imperativa é sempre idempotente; declarativa nunca pode repetir",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Imperativa cria inventários; declarativa elimina a necessidade de revisão",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Imperativa é usada só em nuvem; declarativa só em sistemas locais",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma instrução imperativa enumera operações, enquanto uma declaração descreve o resultado desejado e deixa a ferramenta calcular as ações necessárias. Nenhum estilo garante sozinho idempotência ou segurança operacional.",
+      "section": "1. O que se automatiza na infraestrutura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de controles de versão para playbooks, manifests e definições Terraform permite revisar alterações e rastrear sua evolução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Tratar as definições como código permite comparar versões, identificar quem propôs alterações e submetê-las a revisão. O controle de versão não substitui o teste dos planos nem a proteção de segredos.",
+      "section": "4. Orquestração, implantação e controles de operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma configuração Terraform declara uma rede, enquanto Ansible instala e configura um servidor já provisionado. Que desenho de automação é esse?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Combinação de provisionamento de recursos e gestão de configuração",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituição do state por um backup do sistema operacional",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uso de um único mecanismo de monitoramento sem automação",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conversão de playbooks em providers de forma automática",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reconciliação Kubernetes de objetos fora do cluster",
+          "correct": false
+        }
+      ],
+      "explanation": "Terraform pode criar a rede e outras dependências como IaC; Ansible pode configurar o sistema operacional e os serviços da máquina. É comum combinar ferramentas com responsabilidades distintas dentro do mesmo fluxo de implantação.",
+      "section": "1. O que se automatiza na infraestrutura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na execução comum do Chef Infra, o cliente sincroniza os cookbooks necessários e usa recipes e run-list para executar recursos no nó.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Chef Infra Client autentica-se com o servidor, sincroniza cookbooks, compila a coleção de recursos pelas recipes da run-list e converge o sistema. A run-list estabelece a sequência aplicável ao nó.",
+      "section": "3. Configuração e automação em servidores",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual procedimento é mais apropriado para um arquivo de automação que pode conter parâmetros sensíveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Versionar senhas em texto claro para facilitar a auditoria",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Proteger o acesso e obter segredos de mecanismo apropriado",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Enviar o arquivo para todos os hosts sem autenticação",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ampliar as permissões para qualquer automação disponível",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apagar os logs para não registrar alterações sensíveis",
+          "correct": false
+        }
+      ],
+      "explanation": "Segredos devem ser armazenados e entregues por mecanismos apropriados, com acesso controlado e privilégio mínimo. Arquivos de state ou inventário também podem expor detalhes de arquitetura e precisam de proteção, sem eliminar trilhas de auditoria necessárias.",
+      "section": "4. Orquestração, implantação e controles de operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Ansible pode executar tarefas em hosts selecionados sem instalar necessariamente um agente permanente, mas precisa de conexão e autenticação adequadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A abordagem usual do Ansible é agentless, conectando-se aos alvos e executando tarefas a partir do controlador. Isso não elimina requisitos de rede, autenticação, autorização ou dependências do sistema remoto.",
+      "section": "3. Configuração e automação em servidores",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação remota deve primeiro configurar um balanceador e depois liberar tráfego para um conjunto de servidores web já atualizado. Qual conceito melhor descreve a coordenação da ordem entre componentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Orquestração, que coordena etapas e dependências",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Inventário, que calcula checksums de arquivos Terraform",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "State, que instala todos os pacotes automaticamente",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Backup, que ordena a inicialização dos servidores",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Idempotência, que representa a ordem de rede",
+          "correct": false
+        }
+      ],
+      "explanation": "Orquestração coordena tarefas e componentes interdependentes numa ordem definida, como preparar servidores e balanceador antes de liberar tráfego. Idempotência trata da repetição segura; inventory e state têm outras funções.",
+      "section": "1. O que se automatiza na infraestrutura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O `terraform destroy` é uma forma segura de revisar um plano sem remover recursos, pois seu nome apenas indica uma prévia de mudanças.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O modo destroy tem como objetivo remover os recursos gerenciados no escopo selecionado; comandos de execução podem aplicar a remoção. Para apenas revisar ações, use plan no modo apropriado e confira o contexto, sem executar uma operação destrutiva.",
+      "section": "2. Provisionamento declarativo com Terraform",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração de configuração no Puppet deve ser entregue como catalog compilado para cada nó, que o agente aplica para manter os recursos declarados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O modelo do Puppet combina manifests e dados para compilar um catálogo por nó; o agente aplica as declarações e registra alterações. O catalog representa recursos daquele nó, enquanto manifests podem conter lógica para diferentes classes de nós.",
+      "section": "3. Configuração e automação em servidores",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comparação entre Puppet e Chef Infra está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Puppet compila manifests em catalogs; Chef aplica recipes da run-list",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Puppet usa inventory e handlers; Chef usa providers e state",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Puppet executa somente APIs de nuvem; Chef monitora pods",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Puppet cria plans Terraform; Chef converte manifests em YAML",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Puppet exige run-list por pod; Chef usa controllers de cluster",
+          "correct": false
+        }
+      ],
+      "explanation": "Puppet compila manifests e dados em catalogs aplicados por agentes nos nós. Chef Infra Client obtém cookbooks e executa resources declarados em recipes ordenadas por run-list. Os outros conceitos citados pertencem a diferentes ferramentas ou categorias.",
+      "section": "3. Configuração e automação em servidores",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A reconciliação declarativa garante que um sistema nunca terá falhas, indisponibilidade ou configuração incorreta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Reconciliação e gestão declarativa ajudam a detectar ou corrigir divergências, mas falhas de infraestrutura, dependências, permissões ou declarações incorretas continuam possíveis. Monitoramento, validação e estratégia de recuperação permanecem necessários.",
+      "section": "4. Orquestração, implantação e controles de operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pipeline aplica uma atualização a todos os servidores. Para reduzir o impacto de um erro, qual melhoria operacional é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar lotes graduais, validar saúde e parar diante de falha",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desativar a autenticação para acelerar todas as conexões",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar a fonte declarativa depois do primeiro apply",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar novamente a pipeline sem consultar o resultado",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar os recursos no ambiente de produção durante o teste",
+          "correct": false
+        }
+      ],
+      "explanation": "Lotes graduais limitam o número de sistemas afetados e permitem verificar saúde entre etapas. Ao detectar falha, a equipe pode parar e investigar antes de prosseguir, preservando logs e a fonte declarativa para rastreabilidade.",
+      "section": "4. Orquestração, implantação e controles de operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um inventário pode ser usado para associar grupos de hosts e variáveis, mas não é a tabela de recursos Terraform que relaciona endereços a objetos reais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O inventory do Ansible ajuda a selecionar hosts e associar variáveis. O Terraform state mantém associações entre endereços declarados e objetos remotos gerenciados; são artefatos de ferramentas e finalidades distintas.",
+      "section": "1. O que se automatiza na infraestrutura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mudança manual em sistema gerenciado é sempre indevida e deve ser revertida sem investigação pela ferramenta automatizada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A mudança pode ser drift acidental ou uma mitigação emergencial deliberada. Antes de a ferramenta restaurar o estado declarado, a equipe deve entender a causa e registrar alterações intencionais na fonte versionada com revisão adequada.",
+      "section": "4. Orquestração, implantação e controles de operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Terraform — Overview of the core Terraform workflow",
+      "publisher": "HashiCorp",
+      "reference": "Fluxo de escrita, plan e apply com revisão de mudanças",
+      "url": "https://developer.hashicorp.com/terraform/intro/core-workflow",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Terraform — terraform plan command",
+      "publisher": "HashiCorp",
+      "reference": "Prévia de mudanças, state, planos salvos e automação",
+      "url": "https://developer.hashicorp.com/terraform/cli/commands/plan",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Ansible — Playbooks",
+      "publisher": "Ansible Project",
+      "reference": "Plays, tarefas, módulos, estado desejado e idempotência",
+      "url": "https://docs.ansible.com/projects/ansible-core/devel/playbook_guide/playbooks_intro.html",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Puppet — The Puppet language",
+      "publisher": "Puppet",
+      "reference": "Manifests, recursos, catálogos e estado desejado",
+      "url": "https://help.puppet.com/core/current/Content/PuppetCore/puppet_language.htm",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Puppet — Resources",
+      "publisher": "Puppet",
+      "reference": "Recursos, comparação de estado real e desejado e aplicação",
+      "url": "https://help.puppet.com/core/current/Content/PuppetCore/lang_resources.htm",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Chef Infra Client",
+      "publisher": "Progress Chef",
+      "reference": "Cliente, cookbooks, recipes, run-list e convergência de nós",
+      "url": "https://docs.chef.io/client/18/",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Salt — Configuration Management",
+      "publisher": "Salt Project",
+      "reference": "States, gestão de configuração e execução em minions",
+      "url": "https://docs.saltproject.io/en/master/topics/states/index.html",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Kubernetes — Controllers",
+      "publisher": "Kubernetes Project",
+      "reference": "Control loops, estado desejado e reconciliação",
+      "url": "https://kubernetes.io/docs/concepts/architecture/controller/",
+      "accessedAt": "2026-10-30"
+    }
+  ]
+}

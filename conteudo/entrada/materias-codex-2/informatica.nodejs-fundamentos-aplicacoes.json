@@ -1,0 +1,730 @@
+{
+  "id": "informatica.nodejs-fundamentos-aplicacoes",
+  "subject": "Informática",
+  "title": "Node.js: fundamentos e aplicações",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Node.js – fundamentos e aplicações",
+    "Fundamentos da plataforma Node.js",
+    "Aplicações com Node.js e JavaScript",
+    "Runtime JavaScript Node.js no servidor",
+    "Ambiente de execução Node.js",
+    "Programação assíncrona no Node.js",
+    "Módulos CommonJS e ES Modules no Node",
+    "Pacotes npm e package.json no Node.js",
+    "Event loop e operações não bloqueantes",
+    "Servidor HTTP com a biblioteca padrão Node",
+    "Eventos, streams e buffers em Node.js",
+    "Gerenciamento de processo em Node.js"
+  ],
+  "scope": {
+    "covers": "Fundamentos e aplicações de Node.js: runtime JavaScript baseado no V8, APIs de servidor, modelo orientado a eventos e operações de I/O não bloqueantes, event loop e pool de trabalho, callbacks, Promises e async/await, módulos CommonJS e ECMAScript, package.json e resolução de pacotes, npm, process e variáveis de ambiente, Buffer, streams e backpressure, EventEmitter, servidor HTTP, erros, testes e boas práticas de execução.",
+    "excludes": "Sintaxe geral completa de JavaScript, desenvolvimento de interfaces de navegador, framework específico (Express, NestJS ou similar), administração de sistemas operacionais, configuração detalhada de nuvem, banco de dados específico e APIs experimentais que variem entre versões."
+  },
+  "theoryTitle": "Node.js: do runtime às aplicações de servidor",
+  "chapters": [
+    {
+      "title": "1. Node.js como ambiente de execução",
+      "markdown": "### O problema que este assunto resolve\n\nJavaScript ficou conhecido por executar em navegadores, mas programas de servidor, ferramentas de linha de comando e automações também precisam de uma forma de executar essa linguagem fora da página. **Node.js** é um ambiente de execução de JavaScript construído sobre o mecanismo V8 e acompanhado de APIs próprias para interação com o sistema, arquivos, rede, processos e streams. Ele não é uma linguagem nova nem um navegador.\n\nO V8 interpreta e compila JavaScript. A camada do Node acrescenta APIs e integrações, enquanto a biblioteca libuv participa do loop de eventos, da operação de I/O e de um pool usado por certas tarefas. Isso permite que um servidor mantenha muitas conexões sem criar necessariamente uma thread JavaScript dedicada para cada solicitação.\n\n> **Siglas e termos deste capítulo**\n> - **Runtime**: ambiente que executa um programa e oferece serviços a ele.\n> - **V8**: mecanismo JavaScript desenvolvido pelo Google e usado pelo Node.js.\n> - **I/O**: entrada e saída, como ler arquivo ou comunicar-se pela rede.\n> - **libuv**: biblioteca usada pelo Node para loop de eventos e operações assíncronas.\n> - **Thread**: fluxo de execução; o JavaScript da aplicação costuma rodar na thread principal.\n\n### Um modelo orientado a eventos\n\nEm uma chamada bloqueante, o fluxo espera a operação terminar antes de continuar. Na chamada assíncrona, a operação é iniciada e o programa pode avançar; ao concluir, o resultado é tratado por callback, Promise ou outra forma de notificação. O Node é especialmente adequado a aplicações com muitas operações de entrada e saída, como APIs e servidores de rede.\n\nIsso não significa que todo trabalho é paralelo nem que CPU intensa fica gratuita. Um trecho síncrono longo ocupa a thread principal e impede que o loop de eventos atenda outras tarefas. Cálculos pesados podem ser separados em processos ou workers quando o perfil da aplicação justificar.\n\n| Situação | Efeito típico |\n| --- | --- |\n| Esperar resposta de rede com API assíncrona | Outras tarefas podem avançar durante a espera |\n| Ler arquivo com API síncrona em caminho crítico | A thread que chamou fica bloqueada |\n| Executar cálculo longo no JavaScript principal | Atraso no atendimento de eventos |\n\n### Como cai na prova\n\nA banca costuma trocar “assíncrono” por “paralelo” e atribuir ao Node uma thread JavaScript por conexão. São conceitos distintos: I/O não bloqueante favorece concorrência, mas não transforma automaticamente uma operação em execução paralela. O runtime oferece APIs de servidor; não é correto afirmar que Node é uma linguagem ou um framework web."
+    },
+    {
+      "title": "2. Event loop, assincronia e eventos",
+      "markdown": "### O problema que este assunto resolve\n\nUm serviço de rede precisa iniciar uma operação, continuar responsivo e tratar o resultado quando ele chegar. O **event loop** coordena callbacks associados a eventos e operações concluídas. A aplicação registra o que deve acontecer e o runtime executa os handlers quando chega sua vez.\n\nO código síncrono roda até terminar na thread JavaScript atual. Operações de I/O assíncronas podem aguardar fora dessa execução e depois agendar continuação. Algumas operações, como certos acessos a arquivos ou funções criptográficas, podem usar o pool de trabalho da libuv; não se deve concluir que todas as APIs assíncronas usam o mesmo mecanismo interno.\n\n> **Siglas e termos deste capítulo**\n> - **Event loop**: mecanismo que coordena eventos, callbacks e tarefas pendentes.\n> - **Callback**: função fornecida para ser chamada em resposta a um resultado ou evento.\n> - **Promise**: objeto que representa a conclusão futura ou falha de uma operação.\n> - **`async`/`await`**: sintaxe para trabalhar com Promises mantendo fluxo legível.\n> - **EventEmitter**: API de emissão e escuta de eventos do Node.\n\n### Três estilos de continuação\n\nUma API antiga pode receber callback de erro primeiro, normalmente `(err, resultado)`. Uma Promise encadeia sucesso por `.then()` e falha por `.catch()`. Em uma função `async`, `await` pausa a continuação daquela função até a Promise se resolver, sem bloquear por si só a thread principal; erros podem ser tratados com `try/catch`.\n\n`EventEmitter` é útil quando um objeto pode emitir vários eventos ao longo do tempo. O método `.on(nome, listener)` mantém o ouvinte registrado; `.once()` o remove depois da primeira ocorrência. A emissão de um evento invoca seus listeners de forma síncrona na ordem de registro. O evento especial `'error'` exige cuidado: sem listener apropriado, sua emissão pode encerrar o processo.\n\n| Forma | Uso típico | Tratamento de falha\n| --- | --- | --- |\n| Callback | API baseada em função de retorno | Verificar parâmetro de erro |\n| Promise | Uma conclusão futura | `.catch()` ou `try/catch` com `await` |\n| EventEmitter | Notificações repetidas nomeadas | Listener para `'error'` quando aplicável |\n\n### Como cai na prova\n\nNão confunda o event loop com uma fila única que executa tudo em paralelo. Um listener síncrono demorado bloqueia o processamento subsequente. `await` não converte código bloqueante em I/O assíncrono por mágica: é necessário que a expressão aguardada seja uma Promise ou então a função apenas recebe o valor normalmente."
+    },
+    {
+      "title": "3. Módulos, pacotes e npm",
+      "markdown": "### O problema que este assunto resolve\n\nAplicações precisam dividir código, declarar dependências e indicar como os arquivos devem ser interpretados. Node.js oferece dois sistemas principais de módulos: **CommonJS** e **ECMAScript Modules (ESM)**. CommonJS usa `require()` e `module.exports`; ESM usa `import` e `export`.\n\nA interpretação depende da configuração do pacote e do arquivo. Em termos gerais, `.mjs` indica ESM e `.cjs` indica CommonJS. O campo `type` do `package.json` pode definir como arquivos `.js` daquele pacote são tratados: `\"module\"` indica ESM e `\"commonjs\"` indica CommonJS. O campo `main` é um ponto de entrada tradicional de pacote; `exports` pode definir pontos de entrada públicos e limitar subcaminhos acessíveis.\n\n> **Siglas e termos deste capítulo**\n> - **Módulo**: unidade de código que expõe funcionalidades a outros arquivos.\n> - **CommonJS (CJS)**: sistema com `require`, `exports` e `module.exports`.\n> - **ESM**: sistema de módulos padrão ECMAScript, com `import` e `export`.\n> - **npm**: gerenciador de pacotes amplamente usado no ecossistema Node.\n> - **`package.json`**: manifesto com metadados, configuração, scripts e dependências.\n\n### O manifesto e as dependências\n\n`npm install` instala dependências declaradas e pode atualizar o lockfile; `npm ci` é voltado a instalação reproduzível em automação e exige coerência entre manifesto e lockfile. Dependências de execução costumam ser declaradas em `dependencies`; ferramentas usadas no desenvolvimento e teste, em `devDependencies`. Scripts definidos em `package.json` podem ser executados com `npm run nome`.\n\nO lockfile registra uma resolução concreta da árvore de dependências, reduzindo diferenças entre instalações. Não substitui o `package.json`: o manifesto declara a intenção e faixas de dependência, enquanto o lockfile fixa a resolução usada. A pasta `node_modules` contém pacotes instalados e normalmente não é a fonte de verdade do projeto.\n\n| CommonJS | ESM |\n| --- | --- |\n| `const x = require('./x')` | `import x from './x.js'` |\n| `module.exports = valor` | `export default valor` |\n| `__filename` e `__dirname` disponíveis no escopo de módulo tradicional | Usa URLs de módulo; não recebe automaticamente aqueles identificadores CommonJS |\n\n### Como cai na prova\n\nQuestões cobram a diferença entre `exports` e `module.exports`: o atalho `exports` aponta inicialmente para o objeto exportado, mas reatribuir a variável local `exports` não troca `module.exports`. Também cobram `type`, extensões, lockfile e scripts. A extensão e a configuração do pacote são relevantes; não presuma que todo `.js` é sempre CommonJS."
+    },
+    {
+      "title": "4. APIs do runtime: processo, buffers e streams",
+      "markdown": "### O problema que este assunto resolve\n\nProgramas precisam conhecer argumentos e variáveis de ambiente, manipular bytes e tratar dados maiores que a memória disponível. O objeto global `process` oferece informações e controle do processo atual. `process.argv` contém argumentos da linha de comando; `process.env` expõe o ambiente; `process.cwd()` informa o diretório de trabalho. `process.exitCode` permite indicar o código de saída sem encerrar imediatamente a execução.\n\nUm **Buffer** representa uma sequência de bytes. É comum usá-lo em arquivos, protocolos e dados binários. Texto deve ter codificação definida ao converter bytes em string; assumir que todo conteúdo é UTF-8 ou que um byte equivale a um caractere pode produzir erros.\n\n> **Siglas e termos deste capítulo**\n> - **Buffer**: armazenamento de bytes usado para dados binários.\n> - **Stream**: interface para processar dados em partes.\n> - **Readable**: stream de leitura.\n> - **Writable**: stream de escrita.\n> - **Backpressure**: sinal de que o destino não acompanha a velocidade da origem.\n\n### Fluxo de dados e backpressure\n\nStreams evitam que um programa precise carregar todo o conteúdo de uma vez. Um arquivo pode ser lido em blocos, transformado e enviado a outro destino. Streams comuns incluem Readable, Writable, Duplex (leitura e escrita) e Transform (Duplex que transforma dados). O método `pipe()` conecta uma origem a um destino; `pipeline()` ajuda a compor etapas e propagar erros e encerramentos.\n\nQuando `writable.write(chunk)` retorna `false`, a origem deve respeitar a pressão do destino e aguardar o evento `'drain'` antes de continuar escrevendo. Ignorar esse sinal pode acumular dados em memória. O evento `'finish'` de uma Writable indica que os dados foram encerrados e processados após `end()`; `'end'` de uma Readable indica que não há mais dados para ler.\n\n| API | Característica |\n| --- | --- |\n| `fs.readFile` | Entrega o arquivo completo ao concluir |\n| `fs.createReadStream` | Emite partes sucessivas do arquivo |\n| `Buffer` | Representa bytes em memória |\n| `stream.pipeline` | Encadeia streams com manejo de conclusão e falha |\n\n### Como cai na prova\n\nA banca pode dizer que `write()` sempre aceita dados ou que `'finish'` significa leitura concluída. Ambos estão errados: o retorno `false` é relevante para backpressure e `'finish'` é associado a escrita. Também não confunda fluxo com Promise: streams processam uma sequência de partes, que pode durar no tempo."
+    },
+    {
+      "title": "5. Aplicações HTTP, erros e operação segura",
+      "markdown": "### O problema que este assunto resolve\n\nUma API recebe uma solicitação, interpreta método, caminho e cabeçalhos, executa lógica e responde. O módulo padrão `node:http` permite criar servidores sem instalar framework. `http.createServer(handler)` cria o servidor; o handler recebe objetos de requisição e resposta. `server.listen(...)` inicia a escuta. O framework pode facilitar roteamento e middleware, mas não muda os fundamentos do protocolo nem do runtime.\n\nA requisição e a resposta são streams. O corpo pode chegar em partes e deve ser consumido; em respostas, cabeçalhos precisam ser definidos antes do envio final. Uma aplicação deve validar entrada, limitar o tamanho de corpos conforme sua necessidade, tratar erros e não expor segredos em respostas ou logs.\n\n> **Siglas e termos deste capítulo**\n> - **HTTP**: protocolo de aplicação usado para comunicação web.\n> - **Handler**: função que processa uma requisição ou evento.\n> - **Status**: código que resume o resultado HTTP.\n> - **Variável de ambiente**: configuração fornecida ao processo pelo ambiente que o inicia.\n> - **Worker thread**: thread separada para trabalho JavaScript que possa ser distribuído.\n\n### Servidor, processo e falhas\n\nO objeto de requisição fornece dados como método e URL; o objeto de resposta permite definir status, cabeçalhos e corpo. Para uma resposta simples, define-se o status e encerra-se com `res.end(...)`. O servidor deve continuar ativo enquanto houver trabalho pendente e conexões abertas.\n\nFalhas assíncronas devem ser tratadas no mecanismo correspondente: rejeições de Promise, callback de erro, evento `'error'` ou erro de stream. `uncaughtException` não é uma estratégia normal de recuperação: o estado do processo pode estar inconsistente. Em geral, registra-se o incidente, finaliza-se o processo de maneira controlada e deixa-se um supervisor reiniciá-lo. Segredos e credenciais devem vir de configuração protegida, não ser gravados no repositório.\n\n### Como cai na prova\n\nA prova pode pedir a sequência básica de servidor HTTP ou diferenciar código de status de método. Também pode sugerir tratar todo erro apenas com `uncaughtException`; isso mascara falhas e não garante consistência. Para carga limitada por CPU, considerar worker ou processo separado é diferente de usar APIs não bloqueantes de I/O."
+    }
+  ],
+  "summary": "Node.js é um runtime de JavaScript baseado no V8, com APIs para arquivos, rede, processos e outros recursos. Seu modelo orientado a eventos favorece I/O concorrente não bloqueante, mas JavaScript síncrono longo ainda bloqueia a thread principal; assincronia não significa paralelismo automático. O event loop coordena callbacks e eventos; Promises e async/await organizam continuações. EventEmitter permite listeners e emite `'error'` com cuidado. Node suporta CommonJS (`require`, `module.exports`) e ESM (`import`, `export`), selecionados por extensão e configuração do pacote. `package.json` declara scripts e dependências; lockfiles registram resolução concreta, e npm instala e executa scripts. `process.argv`, `process.env`, `process.cwd()` e `process.exitCode` tratam informações do processo. Buffer contém bytes; streams Readable, Writable, Duplex e Transform processam dados em partes. O retorno `false` de `write()` sinaliza backpressure. O módulo `node:http` cria servidores com `createServer` e `listen`, tratando requisição e resposta como streams. Erros devem ser tratados na API correspondente; `uncaughtException` não é recuperação rotineira. Valide entradas, proteja segredos, monitore bloqueios e use workers ou processos quando cálculo pesado precisar sair da thread principal.",
+  "flashcards": [
+    { "front": "O que é Node.js?", "back": "Um runtime para executar JavaScript fora do navegador, baseado no V8 e acrescido de APIs de sistema e rede." },
+    { "front": "Node.js é uma linguagem?", "back": "Não. A linguagem é JavaScript; Node.js é um ambiente de execução com mecanismo V8 e APIs próprias." },
+    { "front": "O que significa I/O não bloqueante?", "back": "A chamada inicia uma operação e permite que o fluxo progrida enquanto aguarda; a conclusão é comunicada depois." },
+    { "front": "Assíncrono significa paralelo?", "back": "Não. Assincronia descreve a forma de aguardar resultados; paralelismo é execução simultânea em recursos distintos." },
+    { "front": "O que coordena o event loop?", "back": "Eventos e continuações agendadas para que callbacks sejam executados quando operações ou condições ficam prontas." },
+    { "front": "Como capturar uma falha com async/await?", "back": "Aguardar a Promise dentro de try/catch, ou tratar a Promise com catch." },
+    { "front": "Para que serve EventEmitter.on()?", "back": "Registra um listener que pode ser chamado a cada emissão daquele evento." },
+    { "front": "Qual a diferença entre on() e once()?", "back": "on mantém o listener; once o remove automaticamente após a primeira emissão." },
+    { "front": "Quais são os marcadores comuns do CommonJS?", "back": "require() para carregar e module.exports para expor valores." },
+    { "front": "Quais são os marcadores de ESM?", "back": "import para carregar e export para expor valores." },
+    { "front": "Qual o efeito de type: module em package.json?", "back": "Indica que arquivos .js naquele pacote são interpretados como módulos ECMAScript, observadas regras e extensões explícitas." },
+    { "front": "Para que serve o lockfile do npm?", "back": "Registra uma resolução concreta da árvore de dependências para tornar instalações mais reproduzíveis." },
+    { "front": "O que contém process.argv?", "back": "Os argumentos passados ao processo pela linha de comando, incluindo as entradas iniciais associadas ao executável e ao programa." },
+    { "front": "O que representa um Buffer?", "back": "Uma sequência de bytes usada para dados binários e conversões com codificação explícita." },
+    { "front": "Quais são os quatro tipos comuns de streams?", "back": "Readable, Writable, Duplex e Transform." },
+    { "front": "O que significa write() retornar false?", "back": "A Writable atingiu sua capacidade de buffer; a origem deve aguardar 'drain' antes de escrever mais." },
+    { "front": "O que indica o evento finish?", "back": "Que uma Writable terminou de processar os dados após ser encerrada com end()." },
+    { "front": "Como criar um servidor HTTP básico no Node?", "back": "Usar http.createServer(handler) e iniciar a escuta com server.listen(...)." },
+    { "front": "O que process.cwd() informa?", "back": "O diretório de trabalho corrente do processo, que não é necessariamente o diretório do arquivo executado." },
+    { "front": "Por que uncaughtException não deve ser fluxo normal de recuperação?", "back": "O estado pode estar inconsistente; o processo deve ser encerrado de forma controlada e reiniciado por supervisão, após registro adequado." }
+  ],
+  "tips": [
+    "Associe CommonJS a require/module.exports e ESM a import/export.",
+    "Quando vir 'assíncrono', pergunte se a questão está falando de concorrência ou de paralelismo.",
+    "Em streams, memorize o par write() false → aguardar 'drain'.",
+    "Leia a extensão e o campo type antes de decidir como um arquivo .js será interpretado.",
+    "Separe a função de process.argv (argumentos) da de process.env (ambiente).",
+    "Em HTTP, reconheça createServer para configurar o handler e listen para começar a escutar."
+  ],
+  "traps": [
+    "Dizer que o Node cria automaticamente uma thread JavaScript para cada conexão.",
+    "Supor que async/await torna uma função bloqueante não bloqueante.",
+    "Tratar EventEmitter.emit() como execução necessariamente adiada: listeners são chamados de modo síncrono.",
+    "Achar que reatribuir exports substitui module.exports em CommonJS.",
+    "Confundir o evento finish de Writable com end de Readable.",
+    "Usar uncaughtException como se fosse garantia de que o processo pode continuar íntegro."
+  ],
+  "activeRecall": [
+    { "question": "Descreva as camadas principais que permitem ao Node executar JavaScript e acessar recursos do sistema.", "answer": "V8 executa JavaScript; Node oferece APIs de runtime; libuv participa do loop de eventos e de operações de I/O e pool de trabalho." },
+    { "question": "Por que I/O assíncrono ajuda um servidor com muitas conexões?", "answer": "Enquanto aguarda algumas operações de I/O, o processo pode atender outros eventos em vez de bloquear a thread chamadora." },
+    { "question": "Que risco traz um cálculo síncrono longo na thread principal?", "answer": "Atrasa callbacks e requisições que dependem do event loop, reduzindo a responsividade." },
+    { "question": "Como distinguir callback, Promise e evento?", "answer": "Callback é função de continuação; Promise representa uma conclusão futura; evento notifica ocorrências que podem se repetir e ter vários listeners." },
+    { "question": "Que elementos influenciam a interpretação de módulos em Node?", "answer": "Extensões .mjs/.cjs, campo type do pacote e as regras do resolvedor." },
+    { "question": "Por que projetos mantêm package.json e lockfile?", "answer": "O manifesto descreve dependências e scripts; o lockfile conserva uma resolução específica para instalações reproduzíveis." },
+    { "question": "Como uma aplicação evita acumular indefinidamente dados enviados a uma Writable lenta?", "answer": "Respeita o retorno de write(); se for false, aguarda o evento drain antes de prosseguir." },
+    { "question": "Quais passos essenciais ocorrem ao criar um servidor HTTP mínimo?", "answer": "Criar o servidor com handler, definir o comportamento da resposta e chamar listen para começar a aceitar conexões." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Assincronia confundida com paralelismo", "summary": "I/O assíncrono deixa a thread livre enquanto aguarda, mas não executa todo JavaScript em paralelo; código síncrono longo ainda bloqueia o loop." },
+    { "key": "e2", "title": "CommonJS e ESM misturados", "summary": "CommonJS usa require e module.exports; ESM usa import e export. Extensões e package.json influenciam a interpretação." },
+    { "key": "e3", "title": "Stream sem controle de backpressure", "summary": "Writable.write() pode retornar false; aguardar drain reduz acúmulo de dados em memória. finish é de escrita e end é de leitura." },
+    { "key": "e4", "title": "EventEmitter e tratamento de erro", "summary": "Listeners de emit são chamados de forma síncrona; once remove após a primeira ocorrência; o evento error requer tratamento apropriado." },
+    { "key": "e5", "title": "Processo e servidor HTTP confundidos", "summary": "process.argv são argumentos, process.env contém ambiente e cwd é diretório de trabalho; createServer configura atendimento e listen inicia a escuta." }
+  ],
+  "questions": [
+    {
+      "statement": "Node.js é um ambiente de execução que permite executar JavaScript fora do navegador e fornece APIs próprias para operações de sistema e rede.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Node.js combina o mecanismo V8 com APIs do runtime para executar programas JavaScript em contextos como servidores e ferramentas de linha de comando.",
+      "section": "1. Node.js como ambiente de execução", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Como o Node.js usa JavaScript, cada conexão de rede recebe automaticamente uma thread JavaScript exclusiva.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O modelo usual executa JavaScript da aplicação na thread principal e coordena operações por eventos; isso não cria automaticamente uma thread por conexão.",
+      "section": "1. Node.js como ambiente de execução", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma API de leitura assíncrona permite que o fluxo chamador continue enquanto aguarda a conclusão da operação, desde que o programa não bloqueie a thread com outro trabalho síncrono.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A chamada assíncrona agenda uma continuação para a conclusão; código síncrono pesado executado no meio ainda pode bloquear o event loop.",
+      "section": "1. Node.js como ambiente de execução", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve melhor a relação entre Node.js e V8?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "V8 é um pacote npm que instala APIs HTTP no Node.js.", "correct": false },
+        { "key": "B", "text": "Node.js é o nome atual do mecanismo de JavaScript dos navegadores.", "correct": false },
+        { "key": "C", "text": "V8 executa JavaScript e Node acrescenta APIs de runtime e integrações.", "correct": true },
+        { "key": "D", "text": "V8 controla a instalação de dependências e a configuração do npm.", "correct": false },
+        { "key": "E", "text": "Node.js traduz todo programa JavaScript para uma linguagem distinta.", "correct": false }
+      ],
+      "explanation": "V8 é o mecanismo que executa JavaScript; Node.js o incorpora e oferece APIs para recursos como arquivos, processos e rede. npm é ferramenta de pacotes, não o mecanismo de execução.",
+      "section": "1. Node.js como ambiente de execução", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço recebe muitas respostas de rede lentamente e precisa continuar processando outras conexões. Qual escolha se ajusta ao modelo do Node?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Fazer cada solicitação aguardar de forma síncrona até toda rede terminar.", "correct": false },
+        { "key": "B", "text": "Usar APIs de I/O assíncronas e tratar seus resultados quando concluídas.", "correct": true },
+        { "key": "C", "text": "Converter as respostas de rede em cálculo síncrono no event loop.", "correct": false },
+        { "key": "D", "text": "Substituir todos os callbacks por cópias independentes do V8.", "correct": false },
+        { "key": "E", "text": "Executar uma chamada process.exit após cada resposta recebida.", "correct": false }
+      ],
+      "explanation": "I/O assíncrono permite aguardar rede sem manter a thread principal parada durante toda a espera. Isso mantém o serviço responsivo enquanto as conclusões são tratadas.",
+      "section": "1. Node.js como ambiente de execução", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual código tende a prejudicar mais diretamente a responsividade de um servidor Node executado em uma única thread JavaScript?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Aguardar uma Promise de rede sem ocupar a thread durante a espera.", "correct": false },
+        { "key": "B", "text": "Enviar resposta em partes por uma Writable com backpressure.", "correct": false },
+        { "key": "C", "text": "Executar um loop síncrono de cálculo por longo período no handler.", "correct": true },
+        { "key": "D", "text": "Registrar um listener para tratar o evento de conclusão.", "correct": false },
+        { "key": "E", "text": "Ler variável de ambiente durante a configuração inicial.", "correct": false }
+      ],
+      "explanation": "O cálculo síncrono prolongado mantém a thread JavaScript ocupada, atrasando callbacks, timers e atendimento de novas requisições. I/O assíncrono normalmente libera a thread enquanto espera.",
+      "section": "1. Node.js como ambiente de execução", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O event loop coordena a execução de callbacks e tarefas associadas a eventos e operações que ficam prontas.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O loop de eventos permite que o runtime encaminhe continuações quando eventos e operações assíncronas ficam aptos a serem tratados.",
+      "section": "2. Event loop, assincronia e eventos", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A palavra-chave await transforma qualquer função síncrona chamada em uma operação não bloqueante, mesmo quando ela não retorna uma Promise.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. await organiza a espera por um valor, em especial uma Promise; ele não altera a natureza de uma API síncrona nem move automaticamente seu trabalho para outra thread.",
+      "section": "2. Event loop, assincronia e eventos", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um EventEmitter, os listeners de um evento emitido são chamados de modo síncrono, na ordem em que foram registrados.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A emissão invoca os listeners registrados imediatamente e em sequência; se um listener bloquear, os próximos também aguardam.",
+      "section": "2. Event loop, assincronia e eventos", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção mostra uma forma adequada de tratar a rejeição de uma Promise aguardada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Usar try/catch em torno de await dentro de uma função async.", "correct": true },
+        { "key": "B", "text": "Trocar await por process.cwd para a Promise concluir.", "correct": false },
+        { "key": "C", "text": "Registrar a rejeição somente com EventEmitter.once('finish').", "correct": false },
+        { "key": "D", "text": "Ignorar a rejeição porque o event loop converte erros em valores.", "correct": false },
+        { "key": "E", "text": "Substituir a Promise por Buffer e inspecionar seus bytes.", "correct": false }
+      ],
+      "explanation": "Uma rejeição aguardada é lançada no ponto de await e pode ser capturada com try/catch. Alternativamente, uma Promise pode receber um tratador catch.",
+      "section": "2. Event loop, assincronia e eventos", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma função usa uma API baseada em callback que recebe primeiro um erro e depois o resultado. Como deve tratar a conclusão?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Sempre ignorar o primeiro argumento e usar apenas o segundo.", "correct": false },
+        { "key": "B", "text": "Verificar o argumento de erro antes de consumir o resultado.", "correct": true },
+        { "key": "C", "text": "Converter o callback em evento HTTP sem examinar argumentos.", "correct": false },
+        { "key": "D", "text": "Chamar callback duas vezes para confirmar o resultado.", "correct": false },
+        { "key": "E", "text": "Esperar que o Node lance toda falha como erro síncrono.", "correct": false }
+      ],
+      "explanation": "No padrão de callback de erro primeiro, o primeiro argumento indica falha e deve ser testado. Em caso de erro, o resultado normalmente não deve ser tratado como válido.",
+      "section": "2. Event loop, assincronia e eventos", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a diferença operacional entre on() e once() em EventEmitter?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "on remove o listener após uso, enquanto once o mantém indefinidamente.", "correct": false },
+        { "key": "B", "text": "on registra para ocorrências sucessivas; once remove após a primeira.", "correct": true },
+        { "key": "C", "text": "on trata apenas erros e once trata apenas dados binários.", "correct": false },
+        { "key": "D", "text": "on inicia o servidor e once fecha uma conexão HTTP.", "correct": false },
+        { "key": "E", "text": "on e once são aliases que sempre removem todos os listeners.", "correct": false }
+      ],
+      "explanation": "on mantém o ouvinte registrado para emissões posteriores, permitindo tratar cada ocorrência futura do evento. once também o registra, mas remove automaticamente a inscrição depois da primeira emissão atendida.",
+      "section": "2. Event loop, assincronia e eventos", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Por que emitir o evento especial error sem listener apropriado é perigoso em EventEmitter?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Porque o Node converte o evento em uma requisição HTTP pendente.", "correct": false },
+        { "key": "B", "text": "Porque a emissão pode lançar a falha e encerrar o processo.", "correct": true },
+        { "key": "C", "text": "Porque o listener é removido antes de a emissão começar.", "correct": false },
+        { "key": "D", "text": "Porque error só pode ser emitido por streams de leitura.", "correct": false },
+        { "key": "E", "text": "Porque o event loop converte todo error em código de saída zero.", "correct": false }
+      ],
+      "explanation": "A emissão de error tem semântica especial: se não houver listener, o erro pode ser lançado como exceção não capturada e derrubar o processo. Deve haver estratégia explícita de tratamento.",
+      "section": "2. Event loop, assincronia e eventos", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em CommonJS, require() carrega módulos e module.exports define o valor exposto pelo módulo.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. CommonJS carrega módulos com require() e expõe seu valor por module.exports. Esses mecanismos pertencem ao formato CommonJS do Node e diferem da sintaxe import e export usada por ESM.",
+      "section": "3. Módulos, pacotes e npm", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No sistema ECMAScript Modules, a forma padrão de importar e exportar é usar require() e module.exports.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. ESM usa import e export. require e module.exports são associados ao CommonJS, embora Node ofereça interoperabilidade em situações documentadas.",
+      "section": "3. Módulos, pacotes e npm", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um pacote que declara type como module, arquivos .js são tratados como ESM pelas regras de pacote do Node, ressalvadas extensões explícitas e outros contextos.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O campo type afeta a interpretação dos arquivos .js dentro do pacote; .mjs e .cjs são extensões explícitas para ESM e CommonJS, respectivamente.",
+      "section": "3. Módulos, pacotes e npm", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Que instrução substitui o objeto exportado de um módulo CommonJS por uma função?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "exports.default = require", "correct": false },
+        { "key": "B", "text": "module.exports = function () {}", "correct": true },
+        { "key": "C", "text": "import.module = function () {}", "correct": false },
+        { "key": "D", "text": "package.exports = function () {}", "correct": false },
+        { "key": "E", "text": "process.exports = function () {}", "correct": false }
+      ],
+      "explanation": "A atribuição a module.exports define o valor retornado por require(). O identificador exports é inicialmente um atalho para a propriedade, mas sua reatribuição não substitui essa propriedade.",
+      "section": "3. Módulos, pacotes e npm", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto quer declarar que arquivos .js do pacote usam a sintaxe ESM. Qual configuração é apropriada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Criar node_modules sem package.json no pacote.", "correct": false },
+        { "key": "B", "text": "Definir main como npm no package.json do pacote.", "correct": false },
+        { "key": "C", "text": "Definir scripts como import no package.json do pacote.", "correct": false },
+        { "key": "D", "text": "Definir type como module no package.json do pacote.", "correct": true },
+        { "key": "E", "text": "Definir engines como browser no package.json do pacote.", "correct": false }
+      ],
+      "explanation": "O campo type com valor module determina que arquivos .js naquele escopo de pacote sejam tratados como ECMAScript Modules. A extensão .mjs também sinaliza ESM explicitamente.",
+      "section": "3. Módulos, pacotes e npm", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação diferencia adequadamente package.json e lockfile?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O lockfile contém apenas código-fonte e o manifesto só guarda logs locais.", "correct": false },
+        { "key": "B", "text": "O manifesto descreve dependências e scripts; o lockfile registra uma resolução concreta.", "correct": true },
+        { "key": "C", "text": "O manifesto instala pacotes por conta própria e elimina a necessidade do npm.", "correct": false },
+        { "key": "D", "text": "O lockfile substitui o manifesto e deve ser o único arquivo publicado.", "correct": false },
+        { "key": "E", "text": "Ambos são diretórios que contêm as cópias executáveis de cada dependência.", "correct": false }
+      ],
+      "explanation": "package.json declara metadados, scripts e dependências pretendidas. O lockfile registra versões e resolução efetivamente selecionadas para instalações mais consistentes.",
+      "section": "3. Módulos, pacotes e npm", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em integração contínua, a equipe quer instalar exatamente a árvore registrada no lockfile e falhar se manifesto e arquivo travado não estiverem coerentes. Qual comando npm é voltado a esse fluxo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "npm ci", "correct": true },
+        { "key": "B", "text": "npm publish", "correct": false },
+        { "key": "C", "text": "npm outdated", "correct": false },
+        { "key": "D", "text": "npm cache", "correct": false },
+        { "key": "E", "text": "npm init", "correct": false }
+      ],
+      "explanation": "npm ci é destinado a instalações limpas e reproduzíveis baseadas no lockfile; detecta divergência com o manifesto em vez de resolver livremente novas versões.",
+      "section": "3. Módulos, pacotes e npm", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual arquivo declara metadados, scripts npm e dependências de um pacote Node?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "process.env", "correct": false },
+        { "key": "B", "text": "node_modules.json", "correct": false },
+        { "key": "C", "text": "event-loop.json", "correct": false },
+        { "key": "D", "text": "http.request", "correct": false },
+        { "key": "E", "text": "package.json", "correct": true }
+      ],
+      "explanation": "package.json é o manifesto usual do pacote e pode declarar scripts, dependências, metadados e campos de configuração como type, main e exports.",
+      "section": "3. Módulos, pacotes e npm", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "process.argv contém argumentos do processo; process.env expõe variáveis de ambiente.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. São interfaces distintas: argv representa argumentos da linha de comando e env contém valores de ambiente herdados ou definidos para o processo.",
+      "section": "4. APIs do runtime: processo, buffers e streams", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "process.cwd() sempre retorna o diretório onde está localizado o arquivo JavaScript principal.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. cwd informa o diretório de trabalho corrente do processo, que pode ser diferente do diretório do arquivo de entrada.",
+      "section": "4. APIs do runtime: processo, buffers e streams", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Buffer é usado para representar dados binários como uma sequência de bytes.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Buffer fornece uma representação de bytes em memória, útil para arquivos, rede e outras interfaces binárias; texto exige interpretação de codificação.",
+      "section": "4. APIs do runtime: processo, buffers e streams", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma ferramenta CLI precisa ler uma opção --modo=seguro informada ao iniciar. Qual propriedade é a fonte direta dos argumentos?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Buffer.byteLength", "correct": false },
+        { "key": "B", "text": "process.cwd", "correct": false },
+        { "key": "C", "text": "process.exitCode", "correct": false },
+        { "key": "D", "text": "process.argv", "correct": true },
+        { "key": "E", "text": "http.createServer", "correct": false }
+      ],
+      "explanation": "process.argv contém os argumentos da linha de comando recebidos pelo processo. cwd informa diretório e exitCode comunica o código de saída.",
+      "section": "4. APIs do runtime: processo, buffers e streams", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação transmite um arquivo grande por etapas sem manter o arquivo inteiro na memória. Qual recurso do Node atende melhor esse padrão?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "process.argv como recipiente para todo o conteúdo.", "correct": false },
+        { "key": "B", "text": "Uma única string global que concatena todo o arquivo.", "correct": false },
+        { "key": "C", "text": "Um evento error usado como armazenamento temporário.", "correct": false },
+        { "key": "D", "text": "O campo type do package.json como buffer de arquivo.", "correct": false },
+        { "key": "E", "text": "Streams que conduzem os dados em partes.", "correct": true }
+      ],
+      "explanation": "Streams processam sequências de dados em partes, reduzindo a necessidade de carregar tudo de uma vez. Uma Readable pode alimentar transformações e uma Writable.",
+      "section": "4. APIs do runtime: processo, buffers e streams", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O método write() de uma Writable sempre retorna true quando ainda existe espaço físico no disco de destino.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O retorno indica se a Writable aceita mais dados sem pressionar a origem; false sinaliza que se deve aguardar drain, independentemente de haver espaço físico final.",
+      "section": "4. APIs do runtime: processo, buffers e streams", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Depois que Writable.write() retorna false, qual procedimento respeita o fluxo de controle recomendado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Continuar escrevendo sem limite até o evento finish.", "correct": false },
+        { "key": "B", "text": "Parar temporariamente a origem e retomá-la ao receber drain.", "correct": true },
+        { "key": "C", "text": "Converter o destino em módulo ESM e repetir a escrita.", "correct": false },
+        { "key": "D", "text": "Chamar process.exit para esvaziar o buffer em memória.", "correct": false },
+        { "key": "E", "text": "Emitir error manualmente para liberar a capacidade do destino.", "correct": false }
+      ],
+      "explanation": "false indica que o buffer da Writable atingiu seu limite de pressão. A origem deve aguardar o evento drain para retomar, evitando crescimento descontrolado da memória.",
+      "section": "4. APIs do runtime: processo, buffers e streams", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual associação entre eventos e tipos de stream está correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "end ocorre apenas em Buffer; finish existe apenas em EventEmitter.", "correct": false },
+        { "key": "B", "text": "end indica erro fatal em Writable; finish inicia leitura em Readable.", "correct": false },
+        { "key": "C", "text": "end e finish significam que o servidor HTTP começou a escutar.", "correct": false },
+        { "key": "D", "text": "end indica término de leitura em Readable; finish indica conclusão de escrita em Writable.", "correct": true },
+        { "key": "E", "text": "end pausa o event loop; finish reinicia a thread principal.", "correct": false }
+      ],
+      "explanation": "O evento end marca que uma Readable não tem mais dados a fornecer. finish marca que uma Writable terminou de processar os dados depois do encerramento da escrita.",
+      "section": "4. APIs do runtime: processo, buffers e streams", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto identifica as principais categorias de streams do Node?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Request, Response, Header e Status.", "correct": false },
+        { "key": "B", "text": "Promise, Callback, Package e Module.", "correct": false },
+        { "key": "C", "text": "Readable, Writable, Duplex e Transform.", "correct": true },
+        { "key": "D", "text": "CommonJS, ESM, npm e V8.", "correct": false },
+        { "key": "E", "text": "Process, Worker, Thread e Cluster apenas.", "correct": false }
+      ],
+      "explanation": "As categorias são Readable para leitura, Writable para escrita, Duplex para leitura e escrita, e Transform para ler, transformar e produzir dados. Elas descrevem o papel do fluxo, não o protocolo de rede.",
+      "section": "4. APIs do runtime: processo, buffers e streams", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "process.exitCode permite definir um código de saída que será usado quando o processo terminar, sem necessariamente encerrá-lo naquele instante.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Definir exitCode registra o código para a saída eventual, permitindo que operações pendentes terminem; chamar process.exit() é uma ação mais imediata.",
+      "section": "4. APIs do runtime: processo, buffers e streams", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O módulo node:http permite criar um servidor por meio de createServer e iniciar sua escuta com listen.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. createServer recebe o handler de requisições e respostas, mas a criação do objeto não começa a escutar conexões. listen inicia a aceitação na configuração informada.",
+      "section": "5. Aplicações HTTP, erros e operação segura", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No módulo HTTP do Node, o corpo de toda requisição já está integralmente disponível como uma string no início do handler.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A requisição HTTP é uma Readable e seus dados podem chegar em vários chunks. O handler precisa consumir o fluxo, tratar erros e aplicar limites e validação próprios antes de usar o corpo.",
+      "section": "5. Aplicações HTTP, erros e operação segura", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência cria um servidor HTTP básico que responde ao cliente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Criar com EventEmitter(handler), definir end e chamar package.", "correct": false },
+        { "key": "B", "text": "Criar com process.argv(handler), definir cwd e chamar once.", "correct": false },
+        { "key": "C", "text": "Criar com Buffer(handler), definir type e chamar exports.", "correct": false },
+        { "key": "D", "text": "Criar com npm.listen(handler), definir lockfile e chamar require.", "correct": false },
+        { "key": "E", "text": "Criar com http.createServer(handler), definir a resposta e chamar listen.", "correct": true }
+      ],
+      "explanation": "createServer associa um handler que recebe requisição e resposta; o código prepara a resposta e listen inicia a escuta do servidor.",
+      "section": "5. Aplicações HTTP, erros e operação segura", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação recebe um corpo HTTP muito grande de cliente desconhecido. Qual medida é mais apropriada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Acumular todos os bytes sem limite e validar somente depois da gravação.", "correct": false },
+        { "key": "B", "text": "Consumir o fluxo com limites e validar os dados antes de usá-los.", "correct": true },
+        { "key": "C", "text": "Tratar o corpo como código confiável e executá-lo no V8.", "correct": false },
+        { "key": "D", "text": "Ignorar erros de stream para que o event loop descarte o conteúdo.", "correct": false },
+        { "key": "E", "text": "Usar process.argv para que o cliente envie o corpo como argumento.", "correct": false }
+      ],
+      "explanation": "Como o corpo chega por stream, a aplicação deve impor limites adequados, tratar falhas e validar os dados antes de qualquer uso. Acumular dados sem limite pode consumir memória excessiva.",
+      "section": "5. Aplicações HTTP, erros e operação segura", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Como uma aplicação deve tratar credenciais necessárias em produção?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Armazená-las em process.argv em um script versionado.", "correct": false },
+        { "key": "B", "text": "Gravá-las no código-fonte para facilitar o uso de npm.", "correct": false },
+        { "key": "C", "text": "Enviar os valores em cada resposta HTTP para depuração.", "correct": false },
+        { "key": "D", "text": "Mantê-las em variáveis de ambiente ou mecanismo de configuração protegido.", "correct": true },
+        { "key": "E", "text": "Publicá-las no lockfile junto com as versões dos pacotes.", "correct": false }
+      ],
+      "explanation": "Segredos devem vir de configuração protegida do ambiente ou de um gerenciador de segredos, sem serem incluídos no repositório, logs públicos ou respostas HTTP.",
+      "section": "5. Aplicações HTTP, erros e operação segura", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual é uma resposta operacional adequada diante de uma exceção não capturada que pode ter deixado o processo inconsistente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Ignorar a falha e assegurar que todas as requisições futuras estão íntegras.", "correct": false },
+        { "key": "B", "text": "Registrar o incidente, encerrar de forma controlada e usar supervisão para reiniciar.", "correct": true },
+        { "key": "C", "text": "Converter qualquer exceção em status HTTP de sucesso sem análise.", "correct": false },
+        { "key": "D", "text": "Limpar o event loop e continuar sem verificar o estado da aplicação.", "correct": false },
+        { "key": "E", "text": "Remover todos os listeners de erro para impedir novas notificações.", "correct": false }
+      ],
+      "explanation": "uncaughtException não garante recuperação segura. A aplicação deve registrar informações úteis, encerrar com controle e permitir reinício por supervisor, em vez de confiar em estado possivelmente corrompido.",
+      "section": "5. Aplicações HTTP, erros e operação segura", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um handler síncrono bloqueante pode atrasar outras requisições mesmo que o servidor use APIs assíncronas para rede.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Um handler síncrono longo ocupa a thread JavaScript principal; enquanto ele não termina, callbacks e outros eventos aguardam. Usar APIs assíncronas em outra parte do servidor não elimina esse bloqueio.",
+      "section": "5. Aplicações HTTP, erros e operação segura", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um cálculo de imagem consome CPU por vários segundos e atrasa solicitações HTTP. Qual estratégia pode isolar esse tipo de trabalho?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Transferir o cálculo para worker thread ou processo separado conforme a arquitetura.", "correct": true },
+        { "key": "B", "text": "Acrescentar await antes do cálculo síncrono sem mudar sua execução.", "correct": false },
+        { "key": "C", "text": "Registrar outro listener síncrono no mesmo handler HTTP.", "correct": false },
+        { "key": "D", "text": "Converter os pixels em process.argv antes de cada requisição.", "correct": false },
+        { "key": "E", "text": "Aumentar o tamanho do Buffer e manter o cálculo na mesma thread.", "correct": false }
+      ],
+      "explanation": "Cálculo CPU-bound na thread principal bloqueia o event loop. Worker threads ou processos separados podem executar esse trabalho sem monopolizar a thread que atende eventos, conforme os requisitos de isolamento e comunicação.",
+      "section": "5. Aplicações HTTP, erros e operação segura", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A requisição e a resposta do módulo HTTP podem ser tratadas como fluxos de dados, e o corpo pode chegar em partes.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A API HTTP do Node usa streams para requisição e resposta; a aplicação pode receber o corpo em blocos e deve tratá-lo de modo apropriado.",
+      "section": "5. Aplicações HTTP, erros e operação segura", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação define corretamente a função de server.listen() em um servidor criado com node:http?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Converte CommonJS em ECMAScript Modules durante a execução.", "correct": false },
+        { "key": "B", "text": "Carrega os pacotes listados em devDependencies.", "correct": false },
+        { "key": "C", "text": "Inicia a escuta e permite que o servidor aceite conexões conforme a configuração.", "correct": true },
+        { "key": "D", "text": "Lê integralmente todos os arquivos do diretório corrente.", "correct": false },
+        { "key": "E", "text": "Encerra o processo após enviar uma resposta HTTP.", "correct": false }
+      ],
+      "explanation": "listen coloca o servidor em estado de escuta no endereço ou porta configurados. createServer define o servidor e seu handler, mas não inicia por si só a escuta.",
+      "section": "5. Aplicações HTTP, erros e operação segura", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma API registra todo corpo de requisição e todas as variáveis de ambiente em logs para facilitar o diagnóstico, inclusive senhas e tokens.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Logs podem expor dados pessoais e segredos. Deve-se registrar informação necessária para diagnóstico com controles de acesso e redigir ou omitir credenciais e conteúdo sensível.",
+      "section": "5. Aplicações HTTP, erros e operação segura", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação deseja executar testes automatizados por comando npm test. Onde pode definir esse comando?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "No campo process.argv do runtime.", "correct": false },
+        { "key": "B", "text": "No objeto scripts do package.json.", "correct": true },
+        { "key": "C", "text": "Na lista de eventos error do EventEmitter.", "correct": false },
+        { "key": "D", "text": "No buffer interno de uma resposta HTTP.", "correct": false },
+        { "key": "E", "text": "No método server.listen do módulo http.", "correct": false }
+      ],
+      "explanation": "O manifesto package.json aceita scripts nomeados que podem ser executados pelo npm, por exemplo para testes, compilação ou inicialização local.",
+      "section": "3. Módulos, pacotes e npm", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O campo exports de package.json pode controlar os pontos de entrada públicos de um pacote e restringir subcaminhos importáveis.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. exports define entradas e subcaminhos públicos, incluindo condições de resolução; ele funciona como uma fronteira de API do pacote.",
+      "section": "3. Módulos, pacotes e npm", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma aplicação não deve presumir que um byte em Buffer equivale sempre a um caractere de texto?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Porque codificações podem usar quantidades distintas de bytes por caractere.", "correct": true },
+        { "key": "B", "text": "Porque Buffer contém apenas nomes de módulos importados.", "correct": false },
+        { "key": "C", "text": "Porque o event loop remove os caracteres depois de uma leitura.", "correct": false },
+        { "key": "D", "text": "Porque todo conteúdo binário usa necessariamente UTF-16.", "correct": false },
+        { "key": "E", "text": "Porque a codificação é definida pelo status HTTP, não pelos dados.", "correct": false }
+      ],
+      "explanation": "Buffer guarda bytes. Uma codificação como UTF-8 pode representar caracteres com quantidades diferentes de bytes; a conversão correta precisa considerar a codificação dos dados.",
+      "section": "4. APIs do runtime: processo, buffers e streams", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O método pipeline pode ajudar a conectar streams e propagar erros e conclusão entre as etapas.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A API pipeline conecta origem, transformações e destino e oferece tratamento coordenado de conclusão e falhas, simplificando o ciclo de vida do fluxo.",
+      "section": "4. APIs do runtime: processo, buffers e streams", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma Readable entra em modo flowing e emite chunks pelo evento data. Qual é a afirmação mais adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O consumidor ainda deve considerar falhas e o evento de término da leitura.", "correct": true },
+        { "key": "B", "text": "O evento data garante que a origem já foi gravada em uma Writable.", "correct": false },
+        { "key": "C", "text": "A Readable deixa de ser stream quando emite o primeiro chunk.", "correct": false },
+        { "key": "D", "text": "O consumidor deve chamar finish para concluir a origem de leitura.", "correct": false },
+        { "key": "E", "text": "Cada chunk é obrigatoriamente uma string sem codificação envolvida.", "correct": false }
+      ],
+      "explanation": "O consumidor de Readable precisa acompanhar dados, erros e término; os chunks podem ser bytes ou objetos conforme configuração. finish é evento de Writable, não sinal de término de leitura.",
+      "section": "4. APIs do runtime: processo, buffers e streams", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma função async, aguardar uma Promise suspende a continuação da função até a resolução ou rejeição, sem bloquear por si só a thread principal durante a espera assíncrona.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. await organiza a continuação da função async. A operação subjacente deve ser realmente assíncrona para que a espera não consuma a thread principal.",
+      "section": "2. Event loop, assincronia e eventos", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a finalidade mais adequada de uma Transform stream?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Ler e escrever dados, transformando cada parte no fluxo.", "correct": true },
+        { "key": "B", "text": "Armazenar metadados do pacote no npm registry.", "correct": false },
+        { "key": "C", "text": "Substituir o runtime V8 por um mecanismo HTTP.", "correct": false },
+        { "key": "D", "text": "Finalizar o processo depois de uma requisição.", "correct": false },
+        { "key": "E", "text": "Converter todos os listeners de eventos em callbacks síncronos.", "correct": false }
+      ],
+      "explanation": "Transform implementa leitura e escrita como Duplex e produz dados transformados a partir dos dados recebidos, por exemplo ao comprimir ou converter um fluxo.",
+      "section": "4. APIs do runtime: processo, buffers e streams", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O campo main de package.json pode apontar para o ponto de entrada tradicional de um pacote.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. main identifica um ponto de entrada tradicional; exports permite definir uma superfície pública mais explícita e condições de resolução.",
+      "section": "3. Módulos, pacotes e npm", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um handler HTTP, qual abordagem permite enviar status, cabeçalho e corpo de resposta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Definir propriedades da resposta e encerrar com res.end quando apropriado.", "correct": true },
+        { "key": "B", "text": "Alterar process.argv e aguardar o próximo evento drain.", "correct": false },
+        { "key": "C", "text": "Editar o lockfile e chamar require sobre o status.", "correct": false },
+        { "key": "D", "text": "Emitir evento error na requisição para escrever o corpo.", "correct": false },
+        { "key": "E", "text": "Chamar server.listen novamente para concluir a resposta atual.", "correct": false }
+      ],
+      "explanation": "O objeto de resposta permite definir status e cabeçalhos e enviar o corpo; end encerra a resposta quando os dados foram enviados.",
+      "section": "5. Aplicações HTTP, erros e operação segura", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O evento finish de uma Writable ocorre depois que end() encerra a escrita e os dados pendentes foram processados.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. finish é emitido quando a Writable conclui a escrita após end(); não significa que a conexão HTTP inteira foi necessariamente fechada em todos os níveis.",
+      "section": "4. APIs do runtime: processo, buffers e streams", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o uso típico de node:test, a biblioteca de testes nativa do Node?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Declarar e executar testes automatizados sem exigir um framework externo para o básico.", "correct": true },
+        { "key": "B", "text": "Instalar dependências de produção no lugar do npm.", "correct": false },
+        { "key": "C", "text": "Criar conexões HTTP persistentes para todos os servidores.", "correct": false },
+        { "key": "D", "text": "Compilar arquivos JavaScript em V8 antes de cada import.", "correct": false },
+        { "key": "E", "text": "Substituir package.json pelo registro de resultados de teste.", "correct": false }
+      ],
+      "explanation": "Node inclui um test runner nativo, acessível pelo módulo node:test, para descrever e executar testes. Ferramentas externas podem ampliar essa capacidade, mas não são obrigatórias para uso básico.",
+      "section": "5. Aplicações HTTP, erros e operação segura", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma biblioteca precisa permitir importação do pacote pela raiz, mas ocultar módulos internos que não fazem parte da API pública. Qual campo do pacote ajuda a definir essa fronteira?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "exports", "correct": true },
+        { "key": "B", "text": "cwd", "correct": false },
+        { "key": "C", "text": "argv", "correct": false },
+        { "key": "D", "text": "exitCode", "correct": false },
+        { "key": "E", "text": "scripts", "correct": false }
+      ],
+      "explanation": "O campo exports estabelece pontos de entrada e subcaminhos públicos do pacote, ajudando a evitar que consumidores dependam de arquivos internos não suportados.",
+      "section": "3. Módulos, pacotes e npm", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Node.js — Introduction to Node.js",
+      "publisher": "Node.js",
+      "reference": "Visão geral do runtime e caminhos de aprendizagem oficiais",
+      "url": "https://nodejs.org/learn/getting-started/introduction-to-nodejs",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Node.js — The Node.js Event Loop",
+      "publisher": "Node.js",
+      "reference": "Event loop, operações não bloqueantes e libuv",
+      "url": "https://nodejs.org/en/learn/asynchronous-work/event-loop-timers-and-nexttick",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Node.js — Events",
+      "publisher": "Node.js",
+      "reference": "EventEmitter, listeners, ordem de emissão e tratamento do evento error",
+      "url": "https://nodejs.org/api/events.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Node.js — Modules: CommonJS modules",
+      "publisher": "Node.js",
+      "reference": "require, module.exports, cache e resolução CommonJS",
+      "url": "https://nodejs.org/api/modules.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Node.js — Modules: Packages",
+      "publisher": "Node.js",
+      "reference": "package.json, type, main, exports e resolução de módulos",
+      "url": "https://nodejs.org/api/packages.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Node.js — Stream",
+      "publisher": "Node.js",
+      "reference": "Readable, Writable, Transform, pipeline e backpressure",
+      "url": "https://nodejs.org/api/stream.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Node.js — Process",
+      "publisher": "Node.js",
+      "reference": "process.argv, process.env, cwd, exitCode e eventos do processo",
+      "url": "https://nodejs.org/api/process.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Node.js — HTTP",
+      "publisher": "Node.js",
+      "reference": "Servidor HTTP, requisições e respostas como streams",
+      "url": "https://nodejs.org/api/http.html",
+      "accessedAt": "2026-10-31"
+    }
+  ]
+}

@@ -1,0 +1,1914 @@
+{
+  "id": "engenharia-software.servicos-e-testes-software",
+  "subject": "Engenharia de Software",
+  "title": "Desenvolvimento orientado a serviços e testes de software",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Desenvolvimento orientado a serviços",
+    "Arquitetura orientada a serviços de software",
+    "SOA e serviços distribuídos",
+    "Serviços e testes de software",
+    "Testes de software em serviços distribuídos",
+    "Desenvolvimento baseado em serviços de software",
+    "Arquitetura de serviços e integração de sistemas",
+    "Teste unitário de componentes de software",
+    "Teste de integração entre serviços",
+    "Teste funcional e não funcional de software"
+  ],
+  "scope": {
+    "covers": "Fundamentos da arquitetura orientada a serviços (SOA): serviço, provedor, consumidor, descrição, contrato, visibilidade, interoperabilidade, baixo acoplamento, composição, orquestração, coreografia e desafios de sistemas distribuídos; desenvolvimento de serviços com interfaces, mensagens, versionamento, segurança, disponibilidade e tratamento de falhas; fundamentos e níveis de teste; testes unitários, de integração, de sistema, de aceitação, regressão, funcionais e não funcionais; técnicas de caixa-preta, caixa-branca e experiência; automação, pirâmide de testes, TDD, mocks e critérios de teste para serviços e APIs.",
+    "excludes": "Implementação detalhada de produtos específicos, sintaxe completa de protocolos, configuração operacional de nuvem, administração de infraestrutura e certificações profissionais de teste."
+  },
+  "theoryTitle": "Serviços de software e verificação da qualidade",
+  "chapters": [
+    {
+      "title": "1. O que significa organizar software como serviços",
+      "markdown": "### O problema que este assunto resolve\n\nEm uma organização, cadastro, faturamento e logística podem pertencer a sistemas e equipes diferentes. Se cada sistema acessar diretamente as tabelas internas do outro, uma alteração local quebra consumidores sem aviso. A **arquitetura orientada a serviços (SOA)** organiza capacidades distribuídas para que provedores as ofereçam por interfaces e consumidores as usem por contratos conhecidos. O modelo de referência da OASIS descreve SOA como um paradigma para organizar e utilizar capacidades distribuídas, inclusive sob diferentes domínios de propriedade.\n\n> **Siglas e termos deste capítulo**\n> - **SOA**: Service-Oriented Architecture, arquitetura orientada a serviços.\n> - **Provedor**: pessoa ou organização que oferece uma capacidade por meio de um serviço.\n> - **Consumidor**: entidade que busca atender uma necessidade usando um serviço.\n> - **Descrição do serviço**: informação necessária para avaliar ou usar o serviço.\n> - **Interface**: meio pelo qual as capacidades do serviço são acessadas.\n> - **Contrato**: entendimento das operações, mensagens, regras e expectativas de uso.\n\n### Elementos e fluxo de uso\n\nO provedor expõe uma capacidade; o consumidor precisa conhecê-la e ter visibilidade suficiente para interagir; a descrição informa como usar ou considerar o serviço. Imagine um serviço de consulta de saldo. O contrato deve esclarecer a operação, os dados de entrada, a resposta e condições relevantes, como autenticação e erros. Conhecer somente o formato da mensagem não basta: a descrição do serviço deve tornar claros os efeitos e as expectativas da interação.\n\nA independência entre consumidor e provedor é relativa, não mágica. Um serviço bem delimitado esconde sua implementação interna e evita exigir que o consumidor conheça tabelas, classes ou detalhes de implantação. O contrato continua sendo um ponto de dependência: mudar o significado de um campo ou retirar uma operação afeta consumidores. Por isso, mudanças compatíveis, versões e comunicação importam.\n\n| Conceito | Pergunta que responde | Exemplo\n| --- | --- | ---\n| Capacidade | Que necessidade pode ser atendida? | Consultar disponibilidade de um produto\n| Interface | Como acessar a capacidade? | Operação HTTP com rota e método definidos\n| Mensagem | Que dados são trocados? | Identificador do produto e quantidade disponível\n| Contrato | Quais regras e resultados esperar? | Resposta, erros, autenticação e limites\n| Implementação | Como o provedor realiza o trabalho? | Consulta a estoque e cálculo interno\n\n### Benefícios e custos reais\n\nServiços podem facilitar integração entre tecnologias e equipes, reutilizar capacidades e permitir evolução interna sem revelar detalhes de implementação. Em contrapartida, uma chamada remota pode atrasar ou falhar, há custos de rede e segurança, e consumidores podem ficar presos a contratos mal geridos. Distribuir componentes não elimina dependências: transforma dependências locais em interações explícitas que precisam de observabilidade, segurança e tratamento de falhas.\n\n### Como cai na prova\n\n- Provedor oferece a capacidade; consumidor usa a capacidade para atender uma necessidade.\n- A descrição do serviço explica o que é necessário para avaliar ou utilizar o serviço.\n- SOA é um paradigma arquitetural, não sinônimo de um protocolo, linguagem ou produto específico.\n- Um consumidor que depende de tabelas internas do provedor contorna a interface e aumenta o acoplamento."
+    },
+    {
+      "title": "2. Contratos, composição e falhas em serviços",
+      "markdown": "### O problema que este assunto resolve\n\nUm serviço isolado costuma fazer parte de um processo maior. Para concluir uma compra, por exemplo, um sistema pode reservar estoque, autorizar pagamento e solicitar entrega. É preciso definir como as partes interagem e o que fazer quando uma delas não responde. Em arquitetura distribuída, falhas parciais são normais: o pagamento pode ter sido aprovado mesmo que a resposta tenha se perdido na rede.\n\n> **Siglas e termos deste capítulo**\n> - **Interoperabilidade**: capacidade de sistemas distintos trocarem informação e cooperarem.\n> - **Orquestração**: coordenação central que controla a sequência do processo.\n> - **Coreografia**: participantes reagem a eventos e regras compartilhadas sem um único coordenador central.\n> - **Idempotência**: repetir uma solicitação produz o mesmo efeito observável de uma execução, dentro das condições definidas.\n> - **Timeout**: limite de espera por uma resposta.\n> - **Contrato de API**: definição de operações, mensagens, semântica e respostas de uma interface.\n\n### Contrato e evolução\n\nUm contrato de serviço abrange mais que nomes de operações: inclui estrutura e significado dos dados, regras de validação, autenticação, respostas de sucesso e falha, limites e expectativas temporais. Se uma API devolve `404` para produto inexistente, trocar esse caso por uma resposta de sucesso com estoque zero pode alterar a semântica mesmo que a estrutura JSON continue igual. Consumidores precisam saber qual comportamento é garantido.\n\nUma mudança aditiva, como introduzir um campo opcional que consumidores antigos ignoram, tende a ser mais compatível que remover ou renomear um campo usado. Ainda assim, compatibilidade depende das regras de cada formato e consumidor. Versionar permite manter contratos distintos durante uma transição; não dispensa planejar migração e desativação de versões antigas.\n\n### Compor sem presumir uma transação única\n\nNa orquestração, um componente coordenador chama reserva, pagamento e entrega em uma ordem definida e controla respostas e compensações. Na coreografia, a reserva publica um evento; pagamento reage a ele e, após sucesso, outro participante inicia a entrega. Uma coreografia reduz a dependência de um coordenador central, mas torna o fluxo global menos evidente; observabilidade e correlação de eventos ajudam a reconstruí-lo.\n\nUma transação local de banco não torna automaticamente atômicas várias chamadas remotas. Se uma etapa posterior falhar, o sistema pode executar uma **compensação**, como cancelar uma reserva, quando essa operação for possível. Retry indiscriminado também é perigoso: se o primeiro pedido foi processado e apenas a resposta se perdeu, uma repetição pode cobrar duas vezes. Chaves de idempotência e operações idempotentes ajudam a controlar esse cenário.\n\n### Disponibilidade e segurança\n\nConfigure timeouts coerentes; sem limite, uma chamada pode prender recursos indefinidamente. Retentativas devem ser limitadas e aplicadas a falhas transitórias, com espera progressiva e atenção a operações não idempotentes. Um circuit breaker pode interromper chamadas repetidamente malsucedidas por um intervalo para evitar sobrecarregar um serviço indisponível. Proteja dados em trânsito, autentique consumidores, autorize operações e não registre segredos em logs.\n\n### Como cai na prova\n\n- Orquestração tem coordenação explícita; coreografia coordena por eventos e regras distribuídas.\n- Uma resposta perdida não prova que a operação remota deixou de ocorrer; retry pode duplicar efeito.\n- Timeout limita a espera; não garante que o provedor cancelou o processamento.\n- Compatibilidade de contrato depende da semântica, não apenas de o formato continuar sintaticamente válido."
+    },
+    {
+      "title": "3. Objetivos, níveis e tipos de teste",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação compila e ainda pode calcular imposto errado, integrar-se mal ao banco ou frustrar o usuário. Testar é obter informação sobre qualidade e reduzir risco por meio de execução e outras atividades de avaliação. Um teste pode revelar defeitos; a ausência de falhas encontradas não prova que o software não contém defeitos. O ISTQB organiza fundamentos, níveis e tipos de teste, técnicas, gestão, ferramentas e automação como partes distintas do conhecimento de teste.\n\n> **Siglas e termos deste capítulo**\n> - **SUT**: System Under Test, sistema ou componente sob teste.\n> - **Teste unitário**: verifica unidade pequena, como função ou classe, isolada de infraestrutura quando apropriado.\n> - **Teste de integração**: verifica interação entre componentes ou sistemas.\n> - **Teste de sistema**: avalia o sistema integrado como um todo contra requisitos.\n> - **Teste de aceitação**: avalia se a solução atende necessidades e critérios de aceitação dos interessados.\n> - **Regressão**: teste após mudança para procurar efeitos adversos em comportamentos existentes.\n\n### Níveis respondem “qual escopo?”\n\n| Nível | Foco | Exemplo\n| --- | --- | ---\n| Componente ou unidade | Uma função, classe ou módulo | Validar cálculo de frete com entradas-limite\n| Integração | Comunicação e contratos entre partes | Serviço de pedido grava no banco e chama pagamento\n| Sistema | Produto completo em ambiente representativo | Fluxo de compra pela interface até confirmação\n| Aceitação | Adequação a necessidades e critérios do usuário ou negócio | Operador confere se o relatório permite fechar o caixa\n\nOs níveis não são simplesmente fases rígidas nem correspondem sempre a pessoas diferentes. Uma equipe pode automatizar testes de aceitação e realizar integração continuamente. O critério é o objetivo e o escopo do teste.\n\n### Tipos respondem “qual aspecto?”\n\nTestes **funcionais** verificam o que o sistema faz: por exemplo, um pedido válido gera confirmação. Testes **não funcionais** avaliam como ele se comporta: tempo de resposta, capacidade, segurança, acessibilidade ou usabilidade. Testes de **desempenho** podem medir latência sob carga; teste de carga observa o comportamento sob volume esperado ou especificado, enquanto teste de estresse investiga condições além do esperado e a recuperação.\n\nTestes de **confirmação** verificam se um defeito específico foi corrigido. Testes de **regressão** procuram efeitos colaterais em funcionalidades que já funcionavam. Uma correção pode exigir ambos: reproduzir o defeito antes e depois conferir áreas próximas.\n\n### Testar serviços distribuídos\n\nNo nível unitário, teste a regra local sem depender de rede real. No nível de integração, verifique serialização, autenticação, persistência e compatibilidade com um provedor de teste ou simulador controlado. No nível de sistema, percorra um fluxo realista entre serviços. Testes de contrato verificam se provedor e consumidor concordam com mensagens e comportamentos pactuados; eles complementam, mas não substituem, todos os testes de integração.\n\n### Como cai na prova\n\n- Unidade, integração, sistema e aceitação descrevem níveis e escopos diferentes.\n- Funcional e não funcional classificam objetivos; não são níveis.\n- Confirmação mira a correção específica; regressão busca efeitos adversos da mudança.\n- Testar não prova ausência de defeitos: aumenta evidência sobre qualidade para um conjunto de condições."
+    },
+    {
+      "title": "4. Técnicas, automação e estratégia de qualidade",
+      "markdown": "### O problema que este assunto resolve\n\nTestar todas as combinações de entradas geralmente é inviável. Técnicas de projeto ajudam a escolher casos que revelem defeitos com esforço controlado. Automação permite repetir verificações com rapidez, mas testes automatizados também podem estar frágeis, lentos ou medir o aspecto errado. A estratégia deve equilibrar risco, custo e retorno do feedback.\n\n> **Siglas e termos deste capítulo**\n> - **Caixa-preta**: deriva testes do comportamento especificado, sem depender da estrutura interna.\n> - **Caixa-branca**: usa a estrutura do código, como decisões e caminhos, para orientar a cobertura.\n> - **Partição de equivalência**: agrupa entradas que se espera que sejam tratadas de forma semelhante.\n> - **Valor-limite**: ponto extremo de uma partição, onde erros de fronteira são comuns.\n> - **TDD**: desenvolvimento orientado a testes; escreve um teste que falha antes de implementar a mudança.\n> - **Mock**: substituto controlado que simula colaboração ou dependência durante um teste.\n\n### Técnicas de projeto\n\nPara um campo que aceita idades de 18 a 65, partições incluem valores abaixo do mínimo, dentro do intervalo e acima do máximo. Testar 17, 18, 65 e 66 explora as fronteiras com poucos casos. Tabela de decisão é útil quando combinações de condições determinam ações; transição de estados serve para fluxos como pedido “criado → pago → enviado”, incluindo transições inválidas.\n\nA técnica de caixa-branca pode medir se cada decisão do código foi exercitada em seus resultados verdadeiro e falso. Cobertura alta não demonstra que os requisitos estão corretos nem que as asserções dos testes verificam resultados relevantes. Testes exploratórios combinam aprendizado, projeto e execução, guiados por objetivos e observações do testador.\n\n### Pirâmide e substitutos\n\nUma estratégia comum mantém muitos testes unitários rápidos, uma quantidade menor de testes de integração e poucos testes de ponta a ponta que percorrem toda a aplicação. A pirâmide é uma orientação de custo e feedback, não uma lei universal. Um teste de ponta a ponta é valioso para jornadas críticas, mas pode ser lento e falhar por problemas de ambiente.\n\nMocks isolam uma colaboração e permitem simular erro ou resposta específica; usados em excesso, podem reproduzir a expectativa do próprio teste sem detectar incompatibilidade real. Para serviços, combine testes de lógica com mocks e alguns testes contra componentes reais ou ambientes controlados, especialmente para verificar protocolo, contrato e configuração. Dados de teste devem ser previsíveis e isolados para evitar interferência entre execuções.\n\n### TDD e ciclo de execução\n\nNo TDD, escreva um teste pequeno para o comportamento ainda ausente, execute e observe a falha esperada, implemente o mínimo para passar e refatore mantendo os testes verdes. O teste ajuda a definir exemplos executáveis e orienta o desenho, mas não substitui validação de requisitos nem testes de sistema. No padrão Arrange–Act–Assert, prepare contexto e dados, execute a ação e compare o resultado observado com o esperado.\n\n### Como cai na prova\n\n- Partições reduzem casos representativos; valores-limite verificam fronteiras.\n- Caixa-branca usa estrutura interna; caixa-preta usa comportamento especificado.\n- Mock é substituto controlado e não prova que um serviço real aceita o contrato.\n- Automação agiliza repetição, mas casos, dados, assertivas e manutenção continuam necessários."
+    }
+  ],
+  "summary": "SOA organiza capacidades distribuídas como serviços acessados por interfaces e descritos por contratos: provedor oferece, consumidor usa, e descrição informa como interagir. Contratos definem semântica, mensagens, autenticação, falhas e expectativas; mudanças incompatíveis exigem evolução coordenada. Orquestração tem coordenador explícito; coreografia coordena participantes por eventos. Chamadas remotas falham parcialmente: timeout limita espera, retry pode repetir efeitos, idempotência reduz duplicidade e compensações tratam processos distribuídos sem transação única. Testes têm níveis de unidade, integração, sistema e aceitação; tipos funcionais e não funcionais descrevem objetivos. Confirmação verifica correção específica e regressão procura efeitos colaterais. Técnicas caixa-preta usam especificação, caixa-branca usa estrutura, partições e limites reduzem casos. TDD escreve teste antes da implementação; mocks isolam dependências, mas testes reais de integração e sistema continuam importantes. Automação acelera feedback e precisa de dados, assertivas e manutenção adequados.",
+  "flashcards": [
+    {
+      "front": "O que caracteriza SOA?",
+      "back": "Um paradigma para organizar e utilizar capacidades distribuídas por serviços, que oferecem meios de interação entre provedores e consumidores."
+    },
+    {
+      "front": "Quem é o provedor de serviço?",
+      "back": "A entidade que oferece o uso de capacidades por meio de um serviço."
+    },
+    {
+      "front": "Quem é o consumidor de serviço?",
+      "back": "A entidade que procura atender uma necessidade usando capacidades oferecidas pelo serviço."
+    },
+    {
+      "front": "Para que serve a descrição do serviço?",
+      "back": "Fornece a informação necessária para avaliar ou usar o serviço, incluindo interfaces e expectativas relevantes."
+    },
+    {
+      "front": "O que o contrato de API deve esclarecer?",
+      "back": "Operações, mensagens, semântica, regras, autenticação e respostas esperadas, inclusive falhas relevantes."
+    },
+    {
+      "front": "O que é baixo acoplamento entre serviços?",
+      "back": "Reduzir dependências sobre detalhes internos e manter dependências explícitas no contrato publicado."
+    },
+    {
+      "front": "O que é orquestração?",
+      "back": "Coordenação em que um componente central controla a sequência de interações do processo."
+    },
+    {
+      "front": "O que é coreografia?",
+      "back": "Coordenação distribuída em que participantes reagem a eventos e regras compartilhadas."
+    },
+    {
+      "front": "Por que retry pode duplicar uma operação?",
+      "back": "A solicitação pode ter sido processada e somente a resposta ter se perdido antes de chegar ao consumidor."
+    },
+    {
+      "front": "O que significa idempotência?",
+      "back": "Repetir uma solicitação produz o mesmo efeito observável sob as condições definidas pela operação."
+    },
+    {
+      "front": "O que um timeout garante?",
+      "back": "Limita quanto o consumidor espera; não prova que o provedor interrompeu o processamento."
+    },
+    {
+      "front": "O que verifica um teste unitário?",
+      "back": "Uma unidade pequena, como função ou classe, frequentemente isolada de infraestrutura externa."
+    },
+    {
+      "front": "O que verifica um teste de integração?",
+      "back": "Se componentes ou sistemas colaboram e trocam dados como esperado."
+    },
+    {
+      "front": "Qual é o foco de teste de aceitação?",
+      "back": "Avaliar se a solução atende necessidades e critérios acordados com usuários ou negócio."
+    },
+    {
+      "front": "Confirmação e regressão: qual a diferença?",
+      "back": "Confirmação verifica a correção específica; regressão procura efeitos adversos em comportamentos existentes."
+    },
+    {
+      "front": "O que mede teste não funcional?",
+      "back": "Atributos de qualidade como desempenho, segurança, usabilidade, confiabilidade ou acessibilidade."
+    },
+    {
+      "front": "Como funciona partição de equivalência?",
+      "back": "Agrupa entradas que se espera que recebam tratamento semelhante e seleciona representantes dos grupos."
+    },
+    {
+      "front": "O que é teste de valor-limite?",
+      "back": "Exercita valores nas fronteiras de partições, onde erros de comparação e faixa são frequentes."
+    },
+    {
+      "front": "Caixa-preta versus caixa-branca?",
+      "back": "Caixa-preta deriva casos do comportamento especificado; caixa-branca usa a estrutura interna do código."
+    },
+    {
+      "front": "O que é mock?",
+      "back": "Substituto controlado de uma dependência, configurado para respostas ou interações específicas durante um teste."
+    },
+    {
+      "front": "Qual é a sequência central do TDD?",
+      "back": "Escrever teste que falha, implementar para passar e refatorar preservando os testes."
+    },
+    {
+      "front": "O que significa Arrange–Act–Assert?",
+      "back": "Preparar dados e contexto, executar a ação e verificar o resultado observado."
+    },
+    {
+      "front": "O que cobre teste de contrato entre serviços?",
+      "back": "Se mensagens e comportamentos esperados por consumidor e provedor são compatíveis."
+    },
+    {
+      "front": "Por que usar teste de ponta a ponta com parcimônia?",
+      "back": "Ele valida jornada integrada, mas tende a ser mais lento e sensível a ambiente e dependências."
+    }
+  ],
+  "tips": [
+    "Memorize o trio do modelo OASIS: provedor oferece, consumidor usa, descrição explica como interagir.",
+    "Classifique primeiro o escopo do teste (nível) e depois o atributo avaliado (tipo).",
+    "Em chamadas remotas, pergunte se uma repetição pode produzir efeito duplicado antes de recomendar retry.",
+    "Use exemplos de fronteira: para intervalo fechado de 18 a 65, verifique 17, 18, 65 e 66.",
+    "Associe confirmação à falha corrigida e regressão às áreas que podem ter sido afetadas pela mudança.",
+    "Combine testes rápidos isolados com verificações reais de contratos e integrações críticas."
+  ],
+  "traps": [
+    "SOA não é um protocolo único: protocolos são escolhas concretas de uma arquitetura.",
+    "Um timeout encerra a espera do consumidor, mas não desfaz uma operação já iniciada no provedor.",
+    "Orquestração tem coordenador; coreografia não exige um controlador central do fluxo inteiro.",
+    "Cobertura de linhas ou decisões não prova que os requisitos estão corretos nem que as assertivas são boas.",
+    "Um mock pode validar a lógica do consumidor e ainda esconder incompatibilidade com o provedor real.",
+    "Teste funcional e teste de integração respondem perguntas diferentes: comportamento e escopo de colaboração."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o percurso entre uma necessidade do consumidor e a capacidade publicada pelo provedor.",
+      "answer": "O consumidor identifica uma necessidade, consulta a descrição/contrato, acessa a interface e troca mensagens com o provedor segundo regras e expectativas definidas."
+    },
+    {
+      "question": "Por que a mudança de um campo de API pode quebrar consumidores mesmo se o JSON continuar válido?",
+      "answer": "O campo pode mudar de significado, unidade, obrigatoriedade ou regra de erro, alterando a semântica que os consumidores esperam."
+    },
+    {
+      "question": "Compare orquestração e coreografia em um fluxo de compra.",
+      "answer": "Na orquestração um coordenador chama estoque, pagamento e entrega; na coreografia cada participante reage a eventos publicados pelos demais."
+    },
+    {
+      "question": "Como lidar com pagamento possivelmente processado quando a resposta se perde?",
+      "answer": "Não repetir cegamente; usar chave de idempotência ou consultar o estado da operação antes de tentar novamente."
+    },
+    {
+      "question": "Explique a diferença entre nível e tipo de teste.",
+      "answer": "Nível identifica escopo (unidade, integração, sistema ou aceitação); tipo identifica objetivo/aspecto (funcional, desempenho, segurança etc.)."
+    },
+    {
+      "question": "Que casos representam as fronteiras de uma faixa inclusiva de 18 a 65?",
+      "answer": "17 e 66, imediatamente fora, e 18 e 65, nas fronteiras válidas."
+    },
+    {
+      "question": "Por que mocks não bastam para testar uma integração?",
+      "answer": "Eles isolam a colaboração, mas podem não reproduzir protocolo, configuração, semântica ou comportamento real do serviço."
+    },
+    {
+      "question": "O que o ciclo TDD faz e o que não substitui?",
+      "answer": "Escreve teste antes, implementa até passar e refatora; não substitui validação de requisitos, integração ou aceitação do sistema."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre provedor e consumidor",
+      "summary": "O provedor oferece capacidades pelo serviço; o consumidor busca usá-las. A descrição dá informação para avaliar e interagir."
+    },
+    {
+      "key": "e2",
+      "title": "Orquestração confundida com coreografia",
+      "summary": "Orquestração centraliza o controle do processo; coreografia coordena participantes por eventos e regras distribuídas."
+    },
+    {
+      "key": "e3",
+      "title": "Retry sem considerar efeito remoto",
+      "summary": "A resposta pode se perder após o processamento. Retry pode duplicar efeito; timeout não é cancelamento e idempotência deve ser considerada."
+    },
+    {
+      "key": "e4",
+      "title": "Níveis confundidos com tipos de teste",
+      "summary": "Unidade, integração, sistema e aceitação são níveis de escopo. Funcional, desempenho, segurança e regressão indicam objetivos ou tipos."
+    },
+    {
+      "key": "e5",
+      "title": "Mock e cobertura tratados como prova total",
+      "summary": "Mocks e métricas de cobertura ajudam, mas não provam compatibilidade real, qualidade de requisitos ou ausência de defeitos."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em uma SOA, qual papel corresponde à entidade que oferece uma capacidade por meio de um serviço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O consumidor, que publica a operação para outros sistemas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O provedor oferece a capacidade por meio de um serviço.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O testador, que define a necessidade de negócio atendida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O orquestrador, que necessariamente implementa todos os serviços.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O registro, que executa a lógica interna em nome do usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "O provedor é a entidade que disponibiliza uma capacidade por meio do serviço. O consumidor procura utilizá-la; descrição e interface ajudam a descobrir e acessar a capacidade, mas não são seu provedor.",
+      "section": "1. O que significa organizar software como serviços",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que informação é especialmente pertinente à descrição de um serviço para que um consumidor avalie seu uso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O histórico salarial dos desenvolvedores que mantêm o provedor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A lista completa de tabelas internas e índices do banco do provedor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O provedor deixou automaticamente de ser um serviço distribuído.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ordem de execução dos testes unitários privados do provedor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Operações disponíveis, mensagens aceitas e respostas esperadas.",
+          "correct": true
+        }
+      ],
+      "explanation": "A descrição deve trazer informações necessárias para considerar ou usar o serviço, como interface, mensagens e expectativas de resposta. Detalhes internos de implementação não são requisito para o consumidor interagir pelo contrato.",
+      "section": "1. O que significa organizar software como serviços",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual decisão tende a reduzir o acoplamento entre consumidor e provedor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fazer o consumidor consultar diretamente as tabelas privadas do provedor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Compartilhar classes internas do provedor e importá-las no consumidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permitir que cada consumidor altere o esquema interno do provedor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Duplicar no consumidor as credenciais administrativas do provedor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Acessar capacidades pela interface e pelo contrato publicados.",
+          "correct": true
+        }
+      ],
+      "explanation": "A interface e o contrato isolam o consumidor dos detalhes internos, reduzindo dependências sobre banco e implementação. A estabilidade do contrato continua importante, mas mudanças internas podem ocorrer sem exigir acesso direto do consumidor.",
+      "section": "1. O que significa organizar software como serviços",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe chama SOA de protocolo de comunicação específico. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Correta: SOA exige HTTP e não pode usar mensagens assíncronas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Correta: SOA é o nome dado ao formato XML dos contratos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Correta: SOA define exclusivamente serviços publicados na internet.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Incorreta: SOA é um paradigma de arquitetura, não um protocolo específico.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Incorreta: SOA só descreve testes e não organização de capacidades.",
+          "correct": false
+        }
+      ],
+      "explanation": "SOA organiza e utiliza capacidades distribuídas por serviços. HTTP, XML e outros protocolos ou formatos podem ser escolhas de uma implementação, mas nenhum deles define sozinho o paradigma.",
+      "section": "1. O que significa organizar software como serviços",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API continua aceitando JSON válido, mas o campo `valor` passa de reais para centavos sem aviso. Qual é o problema principal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A sintaxe JSON é inválida porque números não podem mudar de unidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A integração não pode ser testada enquanto houver mensagens numéricas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O provedor deixou automaticamente de ser um serviço distribuído.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A API tornou-se idempotente por ter mantido o nome do campo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A mudança de semântica pode quebrar consumidores da API.",
+          "correct": true
+        }
+      ],
+      "explanation": "Consumidores interpretam significado, unidade e regras, não apenas a sintaxe do documento. Alterar reais para centavos muda a semântica do contrato e pode produzir valores incorretos sem qualquer erro de parsing.",
+      "section": "2. Contratos, composição e falhas em serviços",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição identifica uma orquestração de serviços?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todos os serviços compartilham uma única classe e memória local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cada serviço reage a eventos sem coordenador do fluxo inteiro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O consumidor consulta as tabelas dos provedores em ordem alfabética.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os testes definem automaticamente a sequência real em produção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um coordenador controla a sequência e trata os resultados das chamadas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Orquestração usa um coordenador explícito que conduz a ordem de interações e trata resultados. Na coreografia, os participantes reagem a eventos segundo regras distribuídas, sem esse controlador central.",
+      "section": "2. Contratos, composição e falhas em serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma coreografia, como participantes costumam coordenar etapas de um processo distribuído?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um banco central executa os métodos privados de cada serviço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um coordenador único mantém toda a sequência em memória.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Participantes reagem a eventos segundo regras compartilhadas no processo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Cada consumidor contorna APIs e grava nos bancos dos provedores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A equipe remove os contratos para evitar dependências entre partes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Coreografia coordena participantes por eventos e regras compartilhadas: cada serviço reage a acontecimentos relevantes e pode publicar novos eventos. Isso distribui o controle, mas torna importante rastrear o fluxo global.",
+      "section": "2. Contratos, composição e falhas em serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um consumidor atingiu timeout ao solicitar uma cobrança. O que ele pode concluir com segurança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Que o provedor cancelou a cobrança antes de processá-la.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Que a cobrança falhou e pode ser repetida sem verificar estado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que o provedor ficou indisponível para todos os demais consumidores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que o consumidor parou de esperar ao atingir o limite configurado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Que a rede reverteu qualquer efeito já confirmado no banco.",
+          "correct": false
+        }
+      ],
+      "explanation": "Timeout limita a espera do consumidor. A solicitação pode ainda estar sendo processada ou ter sido concluída com resposta perdida; portanto, timeout não cancela nem reverte o efeito remoto.",
+      "section": "2. Contratos, composição e falhas em serviços",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A resposta de uma solicitação de pagamento se perdeu após o provedor concluir a operação. Que recurso reduz o risco de uma repetição duplicar a cobrança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma cópia local do banco do provedor mantida pelo consumidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um timeout menor, que força a rede a desfazer a primeira chamada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um nome de rota diferente a cada nova tentativa do consumidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma espera ilimitada, que garante a entrega da resposta original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma chave reconhecida pelo provedor para deduplicar a mesma operação.",
+          "correct": true
+        }
+      ],
+      "explanation": "Com uma chave de idempotência, o provedor pode reconhecer repetições da mesma operação e evitar executar novamente o efeito. Timeout e espera não desfazem uma cobrança; mudar a rota pode criar operações distintas.",
+      "section": "2. Contratos, composição e falhas em serviços",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma reserva de estoque foi concluída, mas o pagamento falhou depois. Em um processo sem transação distribuída única, qual resposta arquitetural pode ser apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Assumir que a transação local do estoque reverte o pagamento remoto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ignorar a falha porque uma reserva equivale a uma venda liquidada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Compensar a etapa concluída, como liberar a reserva de estoque.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Repetir todas as etapas indefinidamente até que nenhuma falhe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover os eventos de falha do log para ocultar estado parcial.",
+          "correct": false
+        }
+      ],
+      "explanation": "Chamadas a serviços distintos não ficam atomicamente cobertas por uma transação local. Uma ação compensatória pode desfazer o efeito de negócio já ocorrido, por exemplo liberando a reserva, se essa compensação for válida e executável.",
+      "section": "2. Contratos, composição e falhas em serviços",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma retentativa automática deve ser limitada e considerar o tipo da operação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque qualquer segunda chamada altera o contrato publicado pelo serviço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque chamadas remotas nunca podem ser repetidas com segurança.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque retentativas substituem autenticação e validação de entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Repetições podem duplicar efeitos ou sobrecarregar o provedor.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Porque um timeout automaticamente impede o consumidor de reenviar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Retentativas ajudam em falhas transitórias, mas precisam de limites e estratégia de espera. Em operações não idempotentes, repetir pode duplicar efeitos; retentar sem limite também aumenta carga sobre um provedor já degradado.",
+      "section": "2. Contratos, composição e falhas em serviços",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual mudança de contrato tende a ser menos disruptiva para consumidores existentes, supondo que o formato permita ignorar campos desconhecidos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover uma operação usada e alterar a rota de todos os recursos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Renomear um campo obrigatório e inverter sua unidade de medida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar o significado de sucesso sem alterar o código de resposta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar a autenticação sem publicar instruções aos consumidores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar campo opcional sem mudar dados existentes.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma mudança aditiva que mantém semântica e permite ignorar o novo campo tende a preservar consumidores antigos. Remoções, renomeações, mudança de unidade ou autenticação podem quebrar tanto a interpretação quanto a comunicação.",
+      "section": "2. Contratos, composição e falhas em serviços",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que é mais importante proteger ao expor um serviço que trata dados de clientes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autenticar, autorizar e proteger dados em trânsito.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Permitir acesso anônimo e confiar no nome informado pelo consumidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gravar segredos e tokens de acesso em logs para facilitar suporte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar a mesma credencial administrativa em todos os consumidores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Publicar dados de produção em mensagens de erro para depuração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Serviços expostos precisam identificar consumidores, limitar suas permissões e proteger dados nas comunicações. Segredos em logs, credenciais compartilhadas e divulgação de dados sensíveis elevam o risco de acesso indevido.",
+      "section": "2. Contratos, composição e falhas em serviços",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função isolada calcula corretamente a alíquota para entradas comuns. Qual teste é mais diretamente apropriado para verificar várias entradas e resultados dessa função sem depender da rede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Teste unitário com entradas e resultados verificados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um teste de aceitação conduzido por usuários em produção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um teste de carga entre provedores em ambiente distribuído.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um teste de usabilidade da tela que exibe a alíquota.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um teste de integração com todos os sistemas externos reais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Teste unitário exercita unidade pequena e pode validar rapidamente resultados para entradas diversas. Testes de integração e sistema têm escopo mais amplo; aceitação avalia necessidades do usuário, e desempenho ou usabilidade observam outros atributos.",
+      "section": "3. Objetivos, níveis e tipos de teste",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste verifica se o serviço de pedidos e o banco de dados real colaboram para persistir uma compra. Qual é o nível mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Teste unitário, pois a compra tem apenas um identificador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Teste de integração entre serviço e banco.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Teste de aceitação, pois todo banco representa um usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Teste de regressão, pois qualquer banco é uma mudança anterior.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Teste exploratório, pois nenhuma assertiva pode ser automatizada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O foco é a interação entre o serviço e o banco, portanto trata-se de integração. O teste pode também ser de regressão se for executado após uma mudança, mas isso descreve seu propósito temporal, não o escopo de colaboração.",
+      "section": "3. Objetivos, níveis e tipos de teste",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe percorre desde a tela de compra até a confirmação enviada pelo serviço de entrega. Que nível descreve melhor o escopo principal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Teste de componente, pois a tela contém funções locais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Teste unitário, pois há uma entrada de usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Teste de sistema da solução integrada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Teste estático, pois a confirmação é um dado textual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Teste de caixa-branca, pois necessariamente conhece toda implementação.",
+          "correct": false
+        }
+      ],
+      "explanation": "O cenário percorre uma jornada integrada por diversos componentes, característica de teste de sistema ou ponta a ponta. A presença de tela ou texto não o torna teste unitário nem estático.",
+      "section": "3. Objetivos, níveis e tipos de teste",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Representantes do negócio verificam se o fluxo de fechamento de caixa atende aos critérios definidos para uso. Qual objetivo é central?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aceitação: verificar necessidades e critérios de uso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Integração: medir apenas o tempo de consulta do banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Caixa-branca: confirmar que cada linha foi executada uma vez.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Unidade: testar isoladamente todos os componentes internos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Carga: verificar se um operador aprova a disposição da tela.",
+          "correct": false
+        }
+      ],
+      "explanation": "Teste de aceitação avalia se a solução atende necessidades dos usuários ou do negócio e aos critérios acordados. Cobertura interna, integração e carga são preocupações distintas, embora possam integrar outras partes da estratégia.",
+      "section": "3. Objetivos, níveis e tipos de teste",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após corrigir uma falha no arredondamento, a equipe executa o caso que antes falhava e também verifica cálculos já existentes. Como se classificam os objetivos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambos são somente testes de desempenho por envolverem cálculo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O caso antigo é regressão e os cálculos existentes são confirmação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Confirmação verifica a correção; regressão procura efeitos colaterais.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ambos são testes unitários porque foram repetidos após uma mudança.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A correção dispensa teste porque a causa já foi localizada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O teste que reproduzia o defeito verifica sua correção, ou confirmação. Os demais procuram efeitos adversos introduzidos pela alteração, isto é, regressões; esses objetivos podem ser automatizados em diferentes níveis.",
+      "section": "3. Objetivos, níveis e tipos de teste",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma avaliação mede latência e taxa de respostas corretas enquanto aumenta o número de usuários simultâneos. Qual atributo está em foco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usabilidade, porque usuários participam da medição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desempenho sob carga e concorrência.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aceitação, porque uma taxa de respostas é um requisito de negócio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Teste unitário, porque cada usuário envia uma solicitação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Teste estático, porque a latência é calculada depois da execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "A medição de latência e capacidade sob usuários simultâneos é teste de desempenho, em particular de carga. Usabilidade trata da facilidade de uso; aceitação verifica adequação a critérios de negócio.",
+      "section": "3. Objetivos, níveis e tipos de teste",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório de testes informa que toda linha do código foi executada, mas uma regra de negócio importante não foi verificada. Qual conclusão é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cobertura de linhas prova que a regra de negócio está correta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cobertura não garante assertivas adequadas nem requisitos completos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O código não pode conter defeitos quando todas as linhas são executadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O relatório prova compatibilidade de todos os contratos remotos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A equipe deve remover a regra do requisito por falta de cobertura.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cobertura mostra quais partes estruturais foram exercitadas, não se os resultados certos foram verificados nem se os requisitos foram interpretados corretamente. Uma linha pode rodar sem que o teste detecte saída incorreta.",
+      "section": "3. Objetivos, níveis e tipos de teste",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um provedor e seus consumidores acordam estrutura de mensagens e respostas. Que teste pode verificar essa compatibilidade de maneira focalizada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Teste de contrato entre consumidor e provedor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Teste de usabilidade conduzido com protótipo visual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Teste unitário que executa somente uma função aritmética.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Teste de carga que ignora o formato das respostas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Teste de aceitação que substitui todos os testes de integração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Teste de contrato focaliza as expectativas de comunicação entre consumidor e provedor, incluindo mensagens e comportamentos acordados. Ele complementa testes unitários e de integração, mas não substitui toda validação do sistema.",
+      "section": "3. Objetivos, níveis e tipos de teste",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um validador aceita idade inteira entre 18 e 65, inclusive. Quais entradas melhor exploram as fronteiras e a vizinhança imediata?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "18, 30, 50 e 65, sem observar valores externos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "17, 18, 65 e 66, cobrindo lados e limites da faixa.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "1, 2, 3 e 4, todos dentro da faixa informada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "18, 18, 65 e 65, repetindo apenas extremos válidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "30, 31, 32 e 33, valores centrais consecutivos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os valores 17 e 66 ficam imediatamente fora da faixa, e 18 e 65 são os limites válidos. Esse conjunto detecta erros comuns de comparação estrita e inclusão indevida de valores fora do intervalo.",
+      "section": "4. Técnicas, automação e estratégia de qualidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra permite pagamento por cartão ou transferência, e exige confirmação adicional apenas para transferência acima de um limite. Que técnica ajuda a cobrir combinações de condições e ações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Partição de equivalência baseada somente no nome da tela.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Medição de cobertura de linhas sem observar combinações de entrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tabela de decisão relacionando condições às ações esperadas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Teste de carga que aumenta usuários sem variar os dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Teste exploratório sem registrar objetivo ou resultado observado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tabela de decisão organiza combinações de condições e associa cada combinação à ação esperada. Isso ajuda a encontrar combinações omitidas, como o caso específico de transferência acima do limite.",
+      "section": "4. Técnicas, automação e estratégia de qualidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fluxo de pedido admite os estados criado, pago e enviado. Qual abordagem favorece testes de sequências válidas e transições proibidas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Partição de equivalência de endereços sem considerar estados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Técnica de transição de estados para verificar eventos e mudanças.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Teste de carga que mede apenas requisições por segundo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Teste unitário que executa o sistema completo com usuários reais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Revisão estática que executa cada transição no ambiente produtivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A técnica de transição de estados modela estados, eventos e mudanças permitidas, permitindo testar tanto sequências válidas quanto tentativas inválidas, como enviar um pedido que ainda não foi pago.",
+      "section": "4. Técnicas, automação e estratégia de qualidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste é derivado das entradas e saídas requeridas, sem consultar a estrutura interna do código. Que abordagem ele utiliza?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Caixa-preta, baseada no comportamento especificado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Caixa-branca, baseada em caminhos internos obrigatórios.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Teste de carga, baseado em número de instâncias do código.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Teste estático, pois não precisa de uma especificação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Teste de integração, pois entradas e saídas nunca são unitárias.",
+          "correct": false
+        }
+      ],
+      "explanation": "Caixa-preta deriva condições e casos do comportamento esperado ou especificação, sem depender de como a implementação foi escrita. Caixa-branca usa a estrutura interna para selecionar caminhos ou decisões.",
+      "section": "4. Técnicas, automação e estratégia de qualidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa inspeciona decisões do código para garantir que cada resultado verdadeiro e falso foi exercitado. Qual perspectiva orienta esse critério?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Caixa-preta, pois considera apenas o contrato público da API.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aceitação, pois depende da aprovação de um usuário final.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Caixa-branca, pois usa a estrutura interna das decisões.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Teste de carga, pois conta respostas da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Regressão, pois qualquer cobertura interna verifica uma correção.",
+          "correct": false
+        }
+      ],
+      "explanation": "A cobertura de decisões examina a estrutura interna e procura exercitar resultados de decisões, por isso é uma técnica de caixa-branca. Ela não garante que requisitos estejam completos nem que cada assertiva seja eficaz.",
+      "section": "4. Técnicas, automação e estratégia de qualidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência representa o ciclo essencial de desenvolvimento orientado a testes (TDD)?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Implementar tudo, apagar os testes e revisar depois da entrega.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escrever teste que falha, implementar para passar e refatorar.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Publicar em produção, observar reclamações e dispensar repetição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar mocks, remover assertivas e medir somente cobertura de linhas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar teste de carga, alterar requisitos e ignorar a falha inicial.",
+          "correct": false
+        }
+      ],
+      "explanation": "No ciclo TDD, primeiro se escreve um teste para o comportamento desejado e observa-se que falha; depois se implementa até passar e refatora mantendo os testes aprovados.",
+      "section": "4. Técnicas, automação e estratégia de qualidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é uma vantagem e um risco de usar mocks em testes de consumidores de API?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A vantagem é evitar lógica local; o risco é a API não aceitar JSON.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A vantagem é aumentar cobertura real; o risco é mascarar qualquer defeito local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A vantagem é dispensar contratos; o risco é exigir bancos de produção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A vantagem é controlar respostas e falhas; o risco é não detectar incompatibilidade real com o provedor.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A vantagem é garantir desempenho; o risco é reduzir autenticação do serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mocks deixam o teste previsível e permitem simular respostas difíceis ou falhas. Porém, se usados sozinhos, podem apenas reproduzir as expectativas do consumidor e não revelar diferenças no contrato ou configuração do provedor real.",
+      "section": "4. Técnicas, automação e estratégia de qualidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Arrange–Act–Assert, o que corresponde à etapa Assert?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar se o resultado observado atende ao resultado esperado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar todos os serviços externos de produção dentro do teste.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar a operação que está sendo examinada pelo caso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Preparar dados, estado inicial e dependências necessários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Escolher os requisitos sem definir entradas ou resultados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Assert compara resultado observado com o esperado e determina se o caso passou. Arrange prepara contexto e dados; Act executa a ação sob teste.",
+      "section": "4. Técnicas, automação e estratégia de qualidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma estratégia costuma manter muitos testes rápidos de unidade e reservar uma quantidade menor de testes ponta a ponta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque testes unitários provam requisitos e dispensam qualquer verificação integrada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque testes ponta a ponta não conseguem avaliar jornadas de usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque testes rápidos dão feedback frequente e jornadas amplas custam mais para manter.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Porque integração nunca pode ser executada automaticamente em uma esteira.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque testes unitários acessam melhor serviços reais que os testes de sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "Testes unitários são normalmente rápidos e localizam defeitos com feedback frequente. Testes ponta a ponta cobrem jornadas valiosas, mas tendem a envolver mais ambiente e dependências, elevando tempo e custo de manutenção; a proporção depende do contexto.",
+      "section": "4. Técnicas, automação e estratégia de qualidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe automatizou centenas de casos, mas nenhum verifica o valor efetivamente retornado. Qual problema persiste?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A automação está completa, pois executar casos basta para detectar falhas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sem assertivas relevantes, os testes podem passar sem verificar o comportamento esperado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O número de casos transforma automaticamente testes funcionais em aceitação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A execução automática impede que qualquer teste use dados previsíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O problema só existe quando o software tem código aberto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um teste precisa observar e comparar resultados com expectativas. A execução sem assertivas relevantes pode não sinalizar comportamento incorreto, independentemente da quantidade de casos automatizados.",
+      "section": "4. Técnicas, automação e estratégia de qualidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um roteiro de integração testa cadastro, leitura, atualização e remoção usando um banco isolado de teste. Qual é uma razão válida para limitar o número de combinações desse tipo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A integração não verifica componentes reais e por isso nunca encontra defeitos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os testes de banco devem rodar sempre diretamente em produção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada combinação adicional reduz obrigatoriamente a segurança do banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Integrações cobrem colaboração real, mas tendem a custar mais tempo que testes isolados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma vez validada uma escrita, nenhuma leitura pode apresentar defeito.",
+          "correct": false
+        }
+      ],
+      "explanation": "Testes de integração exercitam componentes e infraestrutura mais reais e costumam exigir mais preparação e processamento que testes unitários. Um conjunto focado de cenários críticos pode dar evidência útil sem multiplicar combinações redundantes.",
+      "section": "3. Objetivos, níveis e tipos de teste",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste unitário substitui o serviço de cobrança por um mock e verifica como o consumidor trata uma resposta de indisponibilidade. A que serve o mock nesse caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Isolar a colaboração e produzir de modo controlado a resposta de falha.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Provar que a infraestrutura do provedor real está disponível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Confirmar que a rede entrega mensagens exatamente uma vez.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir o teste de contrato e garantir compatibilidade futura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Medir a latência de produção sem executar requisições reais.",
+          "correct": false
+        }
+      ],
+      "explanation": "O mock controla a dependência externa para testar a reação local do consumidor a uma falha específica. Ele não demonstra disponibilidade, entrega de rede ou compatibilidade real com o provedor.",
+      "section": "4. Técnicas, automação e estratégia de qualidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em SOA, a mesma descrição de serviço pode ser usada para orientar diferentes consumidores sem revelar o código privado do provedor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A descrição informa como considerar ou usar o serviço por sua interface e contrato. O provedor pode manter privada a implementação, desde que cumpra as expectativas publicadas.",
+      "section": "1. O que significa organizar software como serviços",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O consumidor de um serviço é a entidade que oferece capacidades a outros sistemas por meio de uma interface.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Quem oferece a capacidade é o provedor. O consumidor procura atender uma necessidade usando capacidades oferecidas pelo serviço.",
+      "section": "1. O que significa organizar software como serviços",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um contrato de serviço pode definir mensagens, regras de uso e respostas sem expor a estrutura interna do banco do provedor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O contrato descreve a interação observável. A implementação interna, inclusive esquema e organização do banco, pode permanecer encapsulada desde que o serviço cumpra o contrato.",
+      "section": "1. O que significa organizar software como serviços",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como SOA é um paradigma arquitetural, todas as implementações SOA precisam usar o mesmo protocolo e formato de mensagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. SOA fornece conceitos para organizar capacidades distribuídas, mas não fixa uma tecnologia única. Protocolos e formatos são decisões da arquitetura concreta e precisam atender aos contratos e requisitos do ambiente.",
+      "section": "1. O que significa organizar software como serviços",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma descrição de serviço pode incluir informação necessária para que um consumidor decida se deve utilizar aquela capacidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A descrição do serviço não serve somente durante a chamada; ela também pode permitir avaliar se o serviço atende à necessidade do consumidor e sob quais condições.",
+      "section": "1. O que significa organizar software como serviços",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na orquestração, um coordenador pode controlar a sequência de chamadas e tratar resultados de cada serviço participante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Orquestração representa o fluxo sob controle explícito de um componente coordenador, que decide quais interações realizar conforme as respostas obtidas.",
+      "section": "2. Contratos, composição e falhas em serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na coreografia, um único orquestrador central precisa iniciar e dirigir toda mensagem entre os participantes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Na coreografia, os participantes reagem a eventos e regras distribuídas sem exigir um controlador central do processo inteiro. Ainda é necessário compreender e observar o fluxo coletivo.",
+      "section": "2. Contratos, composição e falhas em serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma solicitação remota termina em timeout, o provedor certamente não executou a operação solicitada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O processamento pode ter ocorrido e apenas a resposta ter se perdido ou chegado tarde. O consumidor deixou de esperar dentro do limite, mas não sabe somente por isso se houve efeito remoto.",
+      "section": "2. Contratos, composição e falhas em serviços",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Operações idempotentes ajudam a tornar mais seguro repetir uma solicitação após uma falha de comunicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Se repetida sob as condições definidas, a operação mantém o mesmo efeito observável, reduzindo risco de duplicação. É preciso que a semântica de idempotência seja implementada e compreendida pelo consumidor.",
+      "section": "2. Contratos, composição e falhas em serviços",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma compensação em processo distribuído é necessariamente um rollback técnico que apaga toda alteração já confirmada em cada serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Compensação é uma ação de negócio que busca neutralizar um efeito anterior, quando possível, como cancelar uma reserva. Ela não equivale necessariamente a rollback atômico nem apaga todos os registros já confirmados.",
+      "section": "2. Contratos, composição e falhas em serviços",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Teste de integração pode verificar se dois componentes trabalham juntos, inclusive quando a interação envolve banco de dados ou rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Testes de integração verificam a colaboração de componentes e podem incluir infraestrutura, como banco, sistema de arquivos, rede ou pipeline de requisição e resposta.",
+      "section": "3. Objetivos, níveis e tipos de teste",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Teste de sistema e teste de aceitação têm escopo e critério necessariamente idênticos, pois ambos usam a aplicação completa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Teste de sistema avalia o sistema integrado contra requisitos; aceitação enfatiza se a solução atende necessidades e critérios dos interessados. Podem compartilhar ambiente ou automação, mas seus objetivos não são idênticos.",
+      "section": "3. Objetivos, níveis e tipos de teste",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Testes funcionais verificam comportamentos que o sistema deve executar, enquanto testes não funcionais podem avaliar desempenho ou segurança.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Funcional descreve o comportamento ou serviço oferecido; não funcional avalia atributos de qualidade como desempenho, segurança, usabilidade e confiabilidade.",
+      "section": "3. Objetivos, níveis e tipos de teste",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de corrigir um defeito, a equipe pode executar confirmação para verificar a correção e regressão para procurar efeitos colaterais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Confirmação mira o defeito corrigido; regressão procura problemas introduzidos ou revelados pela mudança em funcionalidades que antes funcionavam.",
+      "section": "3. Objetivos, níveis e tipos de teste",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste de unidade que substitui a rede por um mock comprova, por si só, que o serviço remoto respeita o contrato publicado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O mock permite exercitar a reação local do consumidor sob respostas controladas; ele não executa o provedor real e pode não refletir diferenças de contrato, protocolo ou configuração.",
+      "section": "4. Técnicas, automação e estratégia de qualidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Cobertura de decisões pode ajudar a localizar ramos não exercitados, mas não prova sozinha que os resultados esperados foram corretamente assertados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Métricas de caixa-branca indicam partes da estrutura exercitadas. Mesmo todas as decisões cobertas, testes podem usar expectativas erradas, omitir requisitos ou não detectar resultados incorretos.",
+      "section": "4. Técnicas, automação e estratégia de qualidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "TDD substitui a necessidade de testes de integração e aceitação porque cada teste é escrito antes da implementação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. TDD orienta o ciclo de desenvolvimento de testes e código, muitas vezes no nível unitário, mas não verifica por si só todas as integrações nem a adequação do sistema às necessidades dos usuários.",
+      "section": "4. Técnicas, automação e estratégia de qualidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Partições de equivalência selecionam grupos de entradas que se espera que recebam tratamento semelhante, reduzindo a necessidade de testar cada valor possível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A técnica divide o domínio em classes relevantes e escolhe representantes. Ela reduz casos, mas precisa de partições corretas e deve ser combinada com outras técnicas, como análise de limites.",
+      "section": "4. Técnicas, automação e estratégia de qualidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os valores-limite de uma faixa válida merecem atenção porque erros de fronteira podem aceitar valores inválidos ou rejeitar valores válidos adjacentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Comparações inclusivas e exclusivas podem ser implementadas incorretamente nas bordas do domínio. Casos dentro, exatamente no limite e imediatamente fora ajudam a revelar esses defeitos.",
+      "section": "4. Técnicas, automação e estratégia de qualidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Automação de testes elimina a necessidade de revisar dados, assertivas e manutenção dos casos automatizados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Automação facilita repetição e feedback, mas casos precisam ter dados adequados, assertivas relevantes e manutenção quando comportamento ou ambiente mudam. Automatizar um teste inadequado apenas repete a inadequação.",
+      "section": "4. Técnicas, automação e estratégia de qualidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Reference Model for Service Oriented Architecture v1.0",
+      "publisher": "OASIS",
+      "reference": "Definições de SOA, serviço, provedor, consumidor, descrição, visibilidade e modelos de ação e processo.",
+      "url": "https://docs.oasis-open.org/soa-rm/v1.0/soa-rm.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Certified Tester Foundation Level (CTFL) v4.0 Overview",
+      "publisher": "ISTQB",
+      "reference": "Fundamentos de teste, níveis e tipos, técnicas, gestão, ferramentas e automação conforme o programa CTFL.",
+      "url": "https://istqb.org/certifications/certified-tester-foundation-level-ctfl-v4-0/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Testing in .NET",
+      "publisher": "Microsoft Learn",
+      "reference": "Escopo de testes unitários, testes de integração, testes de carga, TDD e distinção entre plataforma e framework de testes.",
+      "url": "https://learn.microsoft.com/en-us/dotnet/core/testing/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Integration tests in ASP.NET Core",
+      "publisher": "Microsoft Learn",
+      "reference": "Uso de componentes reais, infraestrutura, servidor de teste, sequência Arrange–Act–Assert e escopo de testes de integração.",
+      "url": "https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

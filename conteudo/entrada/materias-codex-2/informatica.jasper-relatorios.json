@@ -1,0 +1,1128 @@
+{
+  "id": "informatica.jasper-relatorios",
+  "subject": "Informática",
+  "title": "Jasper: relatórios com JasperReports",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Jasper e JasperReports",
+    "JasperReports Library",
+    "Jaspersoft Studio e relatórios",
+    "Criação de relatórios Jasper",
+    "JRXML e arquivos Jasper",
+    "Preenchimento de relatórios Jasper",
+    "Exportação de relatórios Jasper",
+    "Campos parâmetros e variáveis Jasper",
+    "Sub-relatórios no JasperReports",
+    "Datasets e gráficos JasperReports"
+  ],
+  "scope": {
+    "covers": "Fundamentos do JasperReports e do Jaspersoft Studio; estrutura JRXML e arquivo compilado Jasper; ciclo de desenho, compilação, preenchimento e exportação; fontes de dados e consultas; campos, parâmetros, variáveis, expressões e grupos; bandas e elementos de relatório; subdatasets, tabelas, listas, gráficos e crosstabs; sub-relatórios; formatos de saída e publicação no JasperReports Server.",
+    "excludes": "Configuração de infraestrutura de servidores, administração avançada e segurança do JasperReports Server, licenciamento, detalhes específicos de versões antigas e programação avançada de extensões."
+  },
+  "theoryTitle": "JasperReports: do modelo JRXML ao relatório entregue",
+  "chapters": [
+    {
+      "title": "1. JasperReports, Studio e ciclo do relatório",
+      "markdown": "### O problema que este assunto resolve\n\nJasperReports é uma biblioteca Java para produzir relatórios a partir de dados. O Jaspersoft Studio é o ambiente visual usado para desenhar, configurar, testar e exportar esses relatórios. O desenho descreve como os dados serão organizados e exibidos; ele não é, por si só, o relatório preenchido.\n\n> **Siglas e termos deste capítulo**\n> - **JasperReports Library**: motor que interpreta o modelo, percorre os dados e cria a representação imprimível do relatório.\n> - **Jaspersoft Studio**: ferramenta de autoria que oferece editor visual, editor JRXML, configuração de dados e visualização.\n> - **JRXML**: documento XML com a definição do relatório, incluindo layout, campos, parâmetros, consultas e expressões.\n> - **Jasper**: arquivo compilado a partir do JRXML, pronto para ser carregado pelo mecanismo.\n> - **JasperPrint**: objeto que representa o relatório preenchido e paginado antes da exportação.\n\n### As etapas e seus artefatos\n\nO fluxo tem quatro etapas distintas. Primeiro, o autor desenha o relatório e salva sua definição em JRXML. Em seguida, o motor compila esse XML e produz um arquivo Jasper. Na execução, o Jasper compilado é preenchido com uma conexão ou fonte de dados e com os parâmetros recebidos, gerando um JasperPrint. Por fim, um exportador transforma esse objeto em PDF, HTML, XLSX ou outro formato suportado.\n\n| Etapa | Entrada principal | Resultado |\n| --- | --- | --- |\n| Desenho | Campos, layout e regras | Modelo JRXML |\n| Compilação | JRXML e expressões válidas | Arquivo Jasper compilado |\n| Preenchimento | Jasper, parâmetros e dados | JasperPrint com páginas e conteúdo |\n| Exportação | JasperPrint e formato escolhido | Arquivo ou fluxo de saída |\n\nA compilação verifica a estrutura e compila as expressões. Ela não consulta automaticamente os dados de produção nem cria o PDF final. Erros de sintaxe ou de posicionamento podem impedir essa etapa. No preenchimento, problemas como conexão indisponível, consulta inválida ou valor nulo inesperado podem causar falha mesmo que o JRXML tenha compilado.\n\n### Como os dados chegam ao relatório\n\nO relatório pode receber dados por consulta associada a uma conexão JDBC já aberta ou por uma fonte que implemente JRDataSource. O motor percorre os registros da fonte principal. Também se pode executar um relatório sem dados de negócio, por exemplo com JREmptyDataSource para mostrar conteúdo estático. Parâmetros são valores de entrada individuais; não substituem a coleção de registros percorrida como fonte de dados.\n\nUma consulta SQL pode ser declarada no relatório e executada usando a conexão fornecida. A ferramenta pode ler o resultado da consulta e sugerir campos com nomes e tipos compatíveis. Se a fonte for CSV, JSON, uma coleção de JavaBeans ou outra fonte não JDBC, o preenchimento usa a fonte apropriada em vez de presumir uma conexão SQL.\n\n### Como cai na prova\n\n- JRXML é a definição XML editável; Jasper é o artefato compilado; JasperPrint é o resultado preenchido antes da exportação.\n- Compilar, preencher e exportar são operações diferentes e podem falhar por razões diferentes.\n- Uma conexão JDBC já aberta ou um JRDataSource fornece registros; um parâmetro fornece um valor de entrada.\n- A lista de formatos depende dos exportadores disponíveis; PDF, HTML e XLSX são exemplos de saída."
+    },
+    {
+      "title": "2. Estrutura, expressões e ciclo dos dados",
+      "markdown": "### O problema que este assunto resolve\n\nO JRXML precisa indicar quais valores podem ser usados e em que momento cada cálculo ocorre. O JasperReports organiza esses valores em campos, parâmetros e variáveis. Expressões combinam esses objetos para compor textos, condições, cálculos ou agrupamentos.\n\n> **Siglas e termos deste capítulo**\n> - **Campo (field)**: valor associado às colunas ou propriedades de cada registro percorrido pelo dataset.\n> - **Parâmetro (parameter)**: valor de entrada entregue pelo chamador, usado em expressões, consultas e configurações.\n> - **Variável (variable)**: valor calculado pelo relatório, frequentemente acumulado durante a leitura dos registros.\n> - **Expressão**: fórmula que retorna um valor; pode alimentar texto, condição de impressão ou cálculo.\n> - **Dataset principal**: conjunto que percorre os registros centrais e mantém os campos, variáveis, grupos e parâmetros declarados no relatório.\n\n### Campos, parâmetros e variáveis\n\nNo padrão de expressões Java, um campo aparece como $F{nome}, um parâmetro como $P{nome} e uma variável como $V{nome}. O tipo declarado importa: a expressão e o valor passado pelo programa precisam ser compatíveis com o tipo do objeto. O Studio pode inferir campos da consulta, mas eles também podem ser declarados no relatório.\n\nParâmetros são declarados no modelo e recebem valor durante a execução. Um parâmetro pode ter uma expressão de valor padrão; o motor a avalia quando o chamador não forneceu um valor para aquele parâmetro. Parâmetros podem filtrar uma consulta, controlar uma expressão ou levar um título ao relatório. Alguns parâmetros, como REPORT_CONNECTION, são fornecidos pelo próprio motor e representam contexto da execução.\n\nVariáveis têm expressão de cálculo e podem usar cálculos como soma, contagem, média, maior ou menor valor. Seu ciclo de reinicialização e avaliação pode acompanhar o relatório inteiro, um grupo ou outro escopo definido. Por isso uma soma por cliente deve reiniciar quando muda o grupo do cliente, enquanto um total geral deve continuar acumulando até o fim.\n\n### Expressões no contexto certo\n\nA linguagem padrão de expressão é Java. O relatório também pode ser configurado para usar Groovy ou JavaScript quando suportado pelo ambiente. Uma expressão de texto pode concatenar dois campos; uma expressão de impressão condicional pode retornar verdadeiro ou falso; a expressão de grupo identifica quando o agrupamento muda. Erros de tipo e referências a objetos inexistentes podem impedir compilação ou execução.\n\nNa consulta, parâmetros podem representar valores passados com segurança à execução. A sintaxe especial de cláusulas dinâmicas $X{} é diferente da referência usual a parâmetro $P{}; ela auxilia a montar condições como listas ou intervalos conforme os recursos do mecanismo. Ao usar valores de entrada, é preciso manter a distinção entre parâmetro tipado e texto concatenado manualmente na consulta.\n\n### Grupos e bandas\n\nUm grupo separa registros quando o resultado de sua expressão de agrupamento muda. Um grupo possui cabeçalho e rodapé próprios, úteis para imprimir o nome do grupo e um subtotal. A ordenação da origem deve ser compatível com o agrupamento pretendido: se registros do mesmo grupo aparecem intercalados, podem surgir ocorrências separadas daquele grupo.\n\nAs bandas são seções do relatório com funções distintas. Title aparece como título do relatório; Page Header e Page Footer se repetem por página; Column Header e Detail organizam cabeçalhos e linhas; Summary costuma aparecer ao fim; Group Header e Group Footer delimitam grupos. A banda Detail é avaliada para cada registro do dataset principal, enquanto bandas de página e resumo têm frequência diferente.\n\n### Como cai na prova\n\n- $F, $P e $V identificam campo, parâmetro e variável, respectivamente, em expressões Java.\n- Campo vem do registro atual; parâmetro entra do ambiente chamador; variável é calculada pelo relatório.\n- Cabeçalho e rodapé de grupo acompanham a mudança do valor da expressão de agrupamento.\n- Detail acompanha os registros; cabeçalhos e rodapés de página se repetem de acordo com a paginação."
+    },
+    {
+      "title": "3. Elementos avançados: datasets, tabelas, gráficos e sub-relatórios",
+      "markdown": "### O problema que este assunto resolve\n\nUma página pode precisar de uma tabela secundária, um gráfico ou detalhes associados a cada registro principal. Para isso, o JasperReports permite que certos elementos executem um subdataset e que um relatório principal incorpore outros relatórios como sub-relatórios. Esses recursos têm configuração própria de dados.\n\n> **Siglas e termos deste capítulo**\n> - **Subdataset**: definição secundária de campos, parâmetros, variáveis e grupos, sem layout visual próprio.\n> - **Dataset run**: configuração no elemento que associa um subdataset a uma conexão ou fonte de dados e fornece os parâmetros.\n> - **Sub-relatório**: relatório independente incorporado em outro relatório durante o preenchimento.\n> - **JRDataSource**: interface de fonte de registros que pode alimentar o relatório ou um elemento secundário.\n> - **Crosstab**: tabela cruzada que agrupa dados em linhas e colunas para resumir medidas.\n\n### Subdatasets e componentes\n\nUm subdataset descreve metadados e cálculos, mas não contém bandas ou disposição visual próprias. Para utilizá-lo, um elemento como tabela, lista, gráfico ou crosstab declara um dataset run. Essa configuração indica a fonte/conexão e transfere parâmetros ao subdataset. Os objetos do dataset principal não ficam automaticamente disponíveis dentro do subdataset: devem ser declarados como parâmetros secundários e receber valores no dataset run.\n\nTabelas e listas utilizam subdataset; não percorrem diretamente o dataset principal. Um gráfico usa seu dataset para obter categorias e séries; uma crosstab agrupa linhas e colunas e calcula medidas. A configuração do conjunto de dados é ligada ao elemento que o apresenta, permitindo que um mesmo subdataset seja usado por mais de um componente com uma execução própria.\n\n### Sub-relatórios: relatório dentro de relatório\n\nUm sub-relatório é um relatório normal incorporado ao relatório principal. É útil para separar layouts reutilizáveis, combinar consultas ou fontes diferentes e exibir detalhes relacionados a cada linha principal. Ao preencher o principal, quando o mecanismo alcança o elemento de sub-relatório, executa esse relatório e incorpora o conteúdo resultante.\n\nO elemento de sub-relatório precisa de uma expressão que resolva o objeto Jasper a carregar, de uma conexão JDBC ou JRDataSource para alimentar os registros e de parâmetros quando houver dados de contexto a passar. A expressão pode apontar para objeto Jasper ou para uma localização resolvida como URL, caminho físico ou recurso do classpath. Parâmetros do principal devem ter nomes correspondentes no sub-relatório; nomes diferenciam maiúsculas de minúsculas.\n\nSe o mesmo sub-relatório consulta o banco, pode receber a conexão JDBC principal por REPORT_CONNECTION. Se recebe outra fonte, a expressão de fonte de dados deve devolver um JRDataSource adequado. Uma fonte consumível que já foi percorrida pelo relatório principal não deve ser reutilizada como se estivesse no início para cada registro; para cada execução secundária é necessária uma fonte apropriada. O componente também pode devolver valores calculados no sub-relatório para variáveis do principal.\n\n### Como cai na prova\n\n- Subdataset não tem bandas nem layout; dataset run fornece dados e parâmetros ao componente que o usa.\n- Campos do dataset principal não atravessam automaticamente para tabela, gráfico ou crosstab baseado em outro dataset.\n- Um sub-relatório requer expressão para localizar/carregar o relatório e conexão ou fonte de dados para preenchê-lo.\n- REPORT_CONNECTION pode compartilhar a conexão JDBC principal; um JRDataSource é uma alternativa de dados, não a mesma conexão."
+    },
+    {
+      "title": "4. Layout, saída e publicação",
+      "markdown": "### O problema que este assunto resolve\n\nUm relatório precisa manter o posicionamento de seus elementos, paginar o conteúdo e entregar um arquivo no formato adequado. O desenho define a disposição em páginas e bandas; o exportador transforma o JasperPrint em um formato final. A visualização do Studio percorre essas etapas e mostra erros de compilação e preenchimento.\n\n> **Siglas e termos deste capítulo**\n> - **Bandas**: faixas do relatório que determinam onde e quando os elementos são impressos.\n> - **Overflow**: expansão de elemento ou conteúdo que não cabe na altura originalmente reservada.\n> - **Exporter**: componente que converte JasperPrint para PDF, planilha, HTML ou outro formato.\n> - **Adaptador de dados**: configuração do Studio que facilita a conexão do relatório a uma fonte durante o desenvolvimento e teste.\n> - **Recurso de relatório**: arquivo ou conteúdo referenciado pelo modelo, como imagem, sub-relatório, estilo ou bundle de mensagens.\n\n### Layout e paginação\n\nA página possui dimensões e margens; as bandas definem alturas e posições. Elementos posicionados fora da área permitida, sobrepostos de modo inválido ou que excedam as regras de layout podem gerar erro de compilação. Textos e sub-relatórios podem crescer para acomodar conteúdo, e propriedades de overflow influenciam como esse crescimento afeta os elementos seguintes.\n\nO relatório possui seções acionadas em momentos diferentes: Title, cabeçalho e rodapé de página, cabeçalho de coluna, Detail, seções de grupo e Summary. A visualização pode ser refeita em outro formato ou com outra fonte. Mudanças na fonte de dados podem levar à recompilação automática na ferramenta, mas a recompilação não resolve falhas de conexão, consulta ou valores de execução.\n\n### Formatos e limites\n\nO JasperPrint pode ser exportado, entre outros, para PDF, XLSX, HTML, CSV, XML, RTF, ODT e texto, conforme exportadores e dependências disponíveis. Cada formato representa conteúdo de forma diferente: PDF preserva paginação para leitura/impressão; XLSX organiza dados em células; HTML entrega marcação para navegador. Uma disposição visual fiel em PDF pode não resultar em planilha tabular limpa sem ajustes de desenho e configuração.\n\nA exportação ocorre depois do preenchimento. Um erro do exportador ou particularidade do formato pode gerar saída diferente da visualização esperada, mesmo que o modelo compile. Imagens, fontes, bundles, estilos externos e outros recursos usados pelo modelo precisam estar disponíveis à aplicação quando ela executar o relatório; o arquivo Jasper compilado não necessariamente embute esses recursos.\n\n### Publicação no JasperReports Server\n\nO Jaspersoft Studio pode publicar um relatório no repositório de um JasperReports Server conectado. O processo pode carregar o JRXML e os recursos necessários, como imagens e recursos de consulta, e requer configurar a fonte de dados no servidor. A publicação não transforma automaticamente uma conexão local de desenvolvimento em uma fonte já disponível no servidor; esse vínculo precisa existir no ambiente de destino.\n\nJasperReports Library, Jaspersoft Studio e JasperReports Server são componentes relacionados, mas diferentes: a biblioteca executa relatórios, o Studio é ferramenta de autoria e o Server oferece repositório e execução centralizada. A existência de um relatório no Studio não significa que ele já esteja publicado ou acessível no Server.\n\n### Como cai na prova\n\n- JasperPrint é exportado; o formato final não é o mesmo que o JRXML nem que o arquivo compilado Jasper.\n- Um erro de expressão/layout pode ocorrer na compilação; conexão e consulta podem falhar durante o preenchimento.\n- A mesma visualização pode exportar com diferenças entre PDF, planilha e HTML.\n- Ao publicar no Server, recursos e fonte de dados do ambiente de destino precisam estar disponíveis."
+    }
+  ],
+  "summary": "JasperReports Library é o motor Java de relatórios; Jaspersoft Studio é a ferramenta de autoria; JasperReports Server centraliza repositório e execução. O desenho é salvo em JRXML e compilado para arquivo Jasper. O preenchimento fornece parâmetros e conexão JDBC ou JRDataSource e produz JasperPrint, que então pode ser exportado para PDF, HTML, XLSX e outros formatos suportados. Expressões Java usam $F para campos, $P para parâmetros e $V para variáveis. Campos pertencem ao registro, parâmetros vêm do chamador e variáveis são calculadas pelo relatório. Bandas como Detail, cabeçalhos, rodapés, grupos e Summary têm momentos de impressão diferentes. Tabelas, listas, gráficos e crosstabs podem usar subdatasets, ligados por dataset run; objetos do dataset principal precisam ser passados como parâmetros. Sub-relatórios são relatórios independentes incorporados no principal e recebem expressão de carregamento, dados e parâmetros. Compilar valida modelo e expressões; preencher acessa os dados; exportar converte o JasperPrint. A publicação no JasperReports Server também exige disponibilizar recursos e configurar a fonte de dados no servidor.",
+  "flashcards": [
+    { "front": "O que é um arquivo JRXML?", "back": "O documento XML que define o relatório: dimensões, bandas, elementos, consultas, campos, parâmetros, variáveis e expressões." },
+    { "front": "O que é produzido ao compilar o JRXML?", "back": "Um arquivo Jasper compilado, que pode ser carregado pelo motor para preencher o relatório." },
+    { "front": "O que representa JasperPrint?", "back": "O relatório já preenchido e paginado, que ainda pode ser enviado a um exportador para gerar o arquivo final." },
+    { "front": "Qual a função do Jaspersoft Studio?", "back": "Desenhar e configurar relatórios, testar fontes de dados, visualizar a saída e exportar ou publicar relatórios." },
+    { "front": "Quais são as quatro etapas típicas do ciclo?", "back": "Desenhar JRXML, compilar para Jasper, preencher com parâmetros e dados para obter JasperPrint e exportar para o formato final." },
+    { "front": "Qual a diferença entre parâmetro e campo?", "back": "Parâmetro é valor de entrada fornecido ao relatório; campo é valor de um registro da fonte de dados." },
+    { "front": "Qual a diferença entre variável e campo?", "back": "Variável é calculada/acumulada pelo relatório; campo lê um valor do registro atual." },
+    { "front": "O que significam $F, $P e $V em expressões Java?", "back": "$F identifica campo, $P identifica parâmetro e $V identifica variável." },
+    { "front": "Quando uma expressão padrão de parâmetro é avaliada?", "back": "Quando o chamador não fornece valor para aquele parâmetro na execução." },
+    { "front": "O que dispara um grupo?", "back": "A mudança no valor da expressão de agrupamento ao percorrer os registros." },
+    { "front": "Para que serve a banda Detail?", "back": "Para imprimir elementos associados a cada registro do dataset principal." },
+    { "front": "O que é subdataset?", "back": "Uma estrutura secundária de metadados e cálculos, sem seções nem layout visual próprio." },
+    { "front": "O que configura um dataset run?", "back": "Associa um subdataset a uma conexão ou JRDataSource e atribui os parâmetros daquela execução." },
+    { "front": "Uma tabela pode percorrer diretamente o dataset principal?", "back": "Não; tabela e lista precisam de subdataset e dataset run próprios." },
+    { "front": "O que é um sub-relatório?", "back": "Um relatório normal incorporado em outro durante seu preenchimento, útil para detalhes, modularidade e fontes distintas." },
+    { "front": "Que dados um sub-relatório pode receber?", "back": "Uma conexão JDBC ou um JRDataSource para os registros e parâmetros para receber contexto do relatório principal." },
+    { "front": "Para que serve REPORT_CONNECTION?", "back": "É o parâmetro interno que contém a conexão JDBC usada no relatório, podendo ser passada a um sub-relatório ou dataset run." },
+    { "front": "O que é JREmptyDataSource?", "back": "Uma fonte vazia especial que pode simular registros sem dados de negócio, útil para conteúdo estático." },
+    { "front": "Em qual etapa uma consulta ou conexão indisponível tende a falhar?", "back": "No preenchimento, quando o mecanismo tenta executar a consulta e ler os registros." },
+    { "front": "Qual é o papel do exportador?", "back": "Converter JasperPrint preenchido para um formato como PDF, XLSX, HTML ou CSV." },
+    { "front": "O Jasper compilado embute sempre imagens e outros recursos externos?", "back": "Não necessariamente; imagens, bundles, estilos externos e demais recursos devem estar disponíveis no ambiente de execução." },
+    { "front": "O que precisa ser preparado ao publicar no JasperReports Server?", "back": "Publicar JRXML e recursos necessários e configurar no servidor uma fonte de dados válida para o relatório." }
+  ],
+  "tips": [
+    "Memorize a sequência pelo artefato: JRXML é fonte, Jasper é compilado, JasperPrint é preenchido e o exportador cria o arquivo final.",
+    "Em expressões, associe $F ao dado do registro, $P ao valor recebido e $V ao cálculo acumulado.",
+    "Se um elemento visual usa subdataset, procure o dataset run que liga o conjunto de dados à fonte e aos parâmetros.",
+    "Quando o enunciado fala em detalhe repetido para cada linha principal, pense em Detail ou em sub-relatório parametrizado pela chave daquela linha.",
+    "Diferencie motor, autoria e serviço centralizado: Library executa, Studio desenha e Server publica/centraliza.",
+    "Para localizar um erro, pergunte em qual fase ocorre: compilação verifica modelo e expressões; preenchimento acessa dados; exportação gera o formato."
+  ],
+  "traps": [
+    "Confundir JRXML com arquivo Jasper: o primeiro é o modelo XML, o segundo é o resultado compilado.",
+    "Dizer que compilar já executa a consulta ou gera PDF: preenchimento e exportação são fases próprias.",
+    "Tratar parâmetro como uma linha da consulta: parâmetros são valores de entrada; registros são percorridos pela fonte.",
+    "Assumir que subdataset herda campos do dataset principal sem mapeamento: o contexto precisa ser declarado e passado.",
+    "Reutilizar uma fonte consumida como se ela pudesse ser percorrida desde o começo outra vez para cada sub-relatório.",
+    "Afirmar que PDF, planilha e HTML sempre preservam exatamente o mesmo arranjo visual e comportamento."
+  ],
+  "activeRecall": [
+    { "question": "Descreva os quatro artefatos/etapas entre o desenho do relatório e o arquivo PDF.", "answer": "O desenho vira JRXML; a compilação cria o arquivo Jasper; o preenchimento usa dados e parâmetros e produz JasperPrint; o exportador converte esse objeto em PDF." },
+    { "question": "Como diferenciar campo, parâmetro e variável numa expressão?", "answer": "Campo é dado do registro e usa $F; parâmetro é valor fornecido na chamada e usa $P; variável é calculada pelo relatório e usa $V." },
+    { "question": "Por que uma tabela precisa de dataset run?", "answer": "A tabela usa subdataset, e o dataset run informa de onde vêm os dados e quais parâmetros serão entregues a esse conjunto secundário." },
+    { "question": "Quais são as três configurações fundamentais de um sub-relatório?", "answer": "Expressão para obter o objeto Jasper, conexão ou fonte de dados para preenchê-lo e parâmetros que fornecem os valores esperados." },
+    { "question": "O que pode causar falha em cada fase de compilação, preenchimento e exportação?", "answer": "Expressão ou posicionamento inválido pode falhar na compilação; conexão, consulta ou valor de dados pode falhar no preenchimento; incompatibilidade ou problema do exportador pode falhar na saída final." },
+    { "question": "O que ocorre quando a expressão de agrupamento muda durante a leitura?", "answer": "O grupo anterior termina, seu rodapé pode ser impresso e começa uma nova ocorrência do grupo com seu cabeçalho." },
+    { "question": "Por que REPORT_DATASOURCE do principal não serve automaticamente a cada sub-relatório?", "answer": "A fonte de dados é consumível; o dataset principal já pode tê-la percorrido, então reutilizá-la não reinicia os registros para as execuções secundárias." },
+    { "question": "O que é necessário para executar no JasperReports Server um relatório testado localmente?", "answer": "Publicar o JRXML e seus recursos e fornecer no servidor uma fonte de dados configurada e acessível." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "JRXML, Jasper e JasperPrint confundidos", "summary": "JRXML é a definição XML; Jasper é o relatório compilado; JasperPrint é o relatório preenchido e paginado antes da exportação." },
+    { "key": "e2", "title": "Fases do ciclo confundidas", "summary": "Compilar não equivale a preencher nem exportar. Cada fase tem entradas e tipos próprios de erro." },
+    { "key": "e3", "title": "Campos, parâmetros e variáveis trocados", "summary": "$F referencia campo do registro, $P referencia parâmetro de entrada e $V referencia variável calculada." },
+    { "key": "e4", "title": "Dataset secundário sem vínculo", "summary": "Subdataset precisa de dataset run com fonte/conexão e parâmetros; campos do principal não ficam disponíveis automaticamente." },
+    { "key": "e5", "title": "Sub-relatório tratado como mero elemento gráfico", "summary": "É relatório independente que precisa ser carregado por expressão e preenchido por conexão ou JRDataSource, com parâmetros quando necessário." }
+  ],
+  "questions": [
+    {
+      "statement": "O JRXML descreve a estrutura e o desenho do relatório, enquanto o arquivo Jasper corresponde à forma compilada que pode ser carregada para execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "O JRXML é a fonte XML com layout, dados e expressões. A compilação transforma essa definição em arquivo Jasper, que o mecanismo carrega para preencher com dados.",
+      "section": "1. JasperReports, Studio e ciclo do relatório",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao compilar um JRXML, o JasperReports necessariamente executa a consulta de banco e já produz o PDF definitivo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Compilação verifica e transforma a definição do relatório. A consulta ocorre no preenchimento e a criação do PDF ocorre depois, por meio de um exportador.",
+      "section": "1. JasperReports, Studio e ciclo do relatório",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O objeto JasperPrint representa o relatório preenchido, que pode ser encaminhado a um exportador para produzir um formato de saída.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "JasperPrint contém a representação do relatório já preenchido e paginado. O exportador recebe essa representação e a transforma em PDF, HTML, XLSX ou outra saída.",
+      "section": "1. JasperReports, Studio e ciclo do relatório",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um parâmetro de relatório e um JRDataSource são equivalentes, pois ambos representam uma sequência de linhas que o mecanismo percorre.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "O parâmetro fornece um valor de entrada individual, como uma data inicial. JRDataSource fornece registros que o relatório percorre para preencher campos e detalhes.",
+      "section": "1. JasperReports, Studio e ciclo do relatório",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em expressões Java, $F, $P e $V indicam, respectivamente, campo, parâmetro e variável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Esses marcadores referenciam objetos distintos do relatório. O campo se relaciona ao registro atual; o parâmetro recebe valor externo; a variável é calculada no relatório.",
+      "section": "2. Estrutura, expressões e ciclo dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O valor padrão definido para um parâmetro é avaliado mesmo quando o chamador já forneceu um valor explícito para esse parâmetro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "A expressão padrão serve de alternativa quando não foi entregue valor para aquele parâmetro. Um valor recebido em tempo de execução tem precedência sobre o padrão.",
+      "section": "2. Estrutura, expressões e ciclo dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A banda Detail é associada à iteração dos registros do dataset principal e costuma imprimir os dados de cada linha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "O dataset principal percorre os registros, e a banda Detail é avaliada para cada um deles. Cabeçalhos e rodapés de página ou de grupo seguem outras frequências.",
+      "section": "2. Estrutura, expressões e ciclo dos dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um grupo do JasperReports é disparado quando a expressão de agrupamento passa a produzir um valor diferente durante a leitura dos dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "O mecanismo compara a expressão de grupo entre registros consecutivos. A mudança encerra a ocorrência anterior e inicia outra, permitindo cabeçalho e rodapé para cada grupo.",
+      "section": "2. Estrutura, expressões e ciclo dos dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Subdatasets possuem suas próprias definições de campos, parâmetros, variáveis e grupos, mas não têm bandas de layout próprias.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "O subdataset descreve metadados e cálculos sem conteúdo visual. Um componente que usa o dataset, como tabela ou gráfico, define a execução e apresenta os resultados no layout.",
+      "section": "3. Elementos avançados: datasets, tabelas, gráficos e sub-relatórios",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela do relatório pode usar diretamente os campos do dataset principal sem declarar subdataset ou dataset run.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Tabelas e listas usam subdataset. O dataset run associa esse conjunto a uma fonte ou conexão e passa os parâmetros necessários; objetos do principal não são herdados diretamente.",
+      "section": "3. Elementos avançados: datasets, tabelas, gráficos e sub-relatórios",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um dataset run pode definir a fonte de dados de um subdataset e atribuir valores a parâmetros desse conjunto secundário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Dataset run faz a ligação entre o subdataset e sua execução concreta. Nele se determina conexão ou JRDataSource e se mapeiam parâmetros do relatório principal para o secundário.",
+      "section": "3. Elementos avançados: datasets, tabelas, gráficos e sub-relatórios",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "REPORT_CONNECTION pode fornecer ao sub-relatório a conexão JDBC usada para preencher o relatório principal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "REPORT_CONNECTION é o parâmetro interno associado à conexão JDBC da execução. Compartilhá-la permite que o sub-relatório execute sua própria consulta usando a mesma conexão.",
+      "section": "3. Elementos avançados: datasets, tabelas, gráficos e sub-relatórios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como JRDataSource é consumível, uma fonte já percorrida no dataset principal pode não começar novamente do primeiro registro quando reutilizada por um sub-relatório.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "O mecanismo avança a fonte à medida que lê os registros. Reutilizar o mesmo objeto consumido não cria automaticamente uma nova iteração; cada execução secundária precisa de uma fonte apropriada.",
+      "section": "3. Elementos avançados: datasets, tabelas, gráficos e sub-relatórios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A exportação para XLSX ocorre antes do preenchimento, pois os dados são inseridos diretamente nas células durante a compilação do JRXML.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "O relatório deve ser preenchido para produzir JasperPrint antes de ser exportado. A compilação cria o arquivo Jasper a partir da definição, sem gravar os registros finais em uma planilha.",
+      "section": "4. Layout, saída e publicação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Jasper compilado necessariamente contém todos os arquivos de imagem, bundles de mensagens e estilos externos referenciados pelo relatório.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "O arquivo compilado não incorpora necessariamente recursos externos. Imagens, bundles, estilos e outros arquivos referenciados precisam ser disponibilizados ao ambiente que executará o relatório.",
+      "section": "4. Layout, saída e publicação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para publicar no JasperReports Server um relatório que usa imagens externas, basta enviar somente o arquivo Jasper compilado, mesmo que os arquivos de imagem não existam no servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "A publicação deve disponibilizar os recursos de que o relatório depende e configurar uma fonte de dados acessível no servidor. Um relatório que aponta para imagens ausentes não consegue renderizá-las no destino.",
+      "section": "4. Layout, saída e publicação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência descreve corretamente a transformação do desenho até um arquivo PDF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Seguir a ordem JRXML, Jasper compilado, JasperPrint e exportação PDF.", "correct": true },
+        { "key": "B", "text": "JasperPrint, exportador PDF, JRXML e Jasper compilado no servidor.", "correct": false },
+        { "key": "C", "text": "Arquivo PDF, parâmetros, JRXML e JasperPrint como fonte de dados.", "correct": false },
+        { "key": "D", "text": "Jasper compilado, JRXML, exportador e preenchimento depois do PDF.", "correct": false },
+        { "key": "E", "text": "JRDataSource, PDF, JRXML e JasperPrint compilado no ambiente.", "correct": false }
+      ],
+      "explanation": "A definição JRXML é compilada; o arquivo Jasper é preenchido com dados e parâmetros para formar JasperPrint; então um exportador converte o resultado para PDF.",
+      "section": "1. JasperReports, Studio e ciclo do relatório",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma expressão de texto precisa exibir o nome contido no registro atual. Qual referência corresponde a esse dado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "$P{nome}", "correct": false },
+        { "key": "B", "text": "$V{nome}", "correct": false },
+        { "key": "C", "text": "$R{nome}", "correct": false },
+        { "key": "D", "text": "$F{nome}", "correct": true },
+        { "key": "E", "text": "$G{nome}", "correct": false }
+      ],
+      "explanation": "Campos representam valores do registro que o dataset está percorrendo e são referenciados com $F em expressões Java. $P indica parâmetro e $V indica variável.",
+      "section": "2. Estrutura, expressões e ciclo dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O chamador entrega uma data inicial que deve restringir a consulta do relatório. Que categoria de objeto é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Uma banda de grupo, porque cabeçalhos filtram as linhas consultadas.", "correct": false },
+        { "key": "B", "text": "Declarar um parâmetro de entrada com data inicial para a consulta.", "correct": true },
+        { "key": "C", "text": "Uma variável de soma, acumulada antes da conexão com o banco.", "correct": false },
+        { "key": "D", "text": "Um campo inventado, sem correspondência com a fonte de dados.", "correct": false },
+        { "key": "E", "text": "Uma banda Detail, pois cada data deve formar uma linha.", "correct": false }
+      ],
+      "explanation": "Parâmetros são valores de entrada fornecidos pelo chamador e podem participar de expressões e consultas. Campo vem de um registro e variável é calculada durante a execução.",
+      "section": "2. Estrutura, expressões e ciclo dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja imprimir subtotal por departamento e total geral. Qual configuração diferencia adequadamente esses cálculos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Usar apenas campos de valor, que reiniciam sozinhos a cada página.", "correct": false },
+        { "key": "B", "text": "Usar o mesmo parâmetro como contador de linhas e subtotal.", "correct": false },
+        { "key": "C", "text": "Criar variáveis com reinício por grupo e no escopo total.", "correct": true },
+        { "key": "D", "text": "Inserir uma tabela sem dataset run e deixar o Studio somar.", "correct": false },
+        { "key": "E", "text": "Mover a consulta para Page Footer para reiniciar o total.", "correct": false }
+      ],
+      "explanation": "Variáveis calculam valores durante a iteração. Uma pode reiniciar a cada grupo para obter subtotal, enquanto outra usa escopo do relatório para manter o acumulado global.",
+      "section": "2. Estrutura, expressões e ciclo dos dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O relatório deve imprimir o cabeçalho de uma categoria e um subtotal quando os registros mudarem de categoria. Qual recurso é o mais direto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Agrupar pela categoria, com cabeçalho e totalização por grupo.", "correct": true },
+        { "key": "B", "text": "Um parâmetro de entrada com o valor de cada categoria.", "correct": false },
+        { "key": "C", "text": "Uma banda Summary repetida para cada registro lido.", "correct": false },
+        { "key": "D", "text": "Um JasperPrint separado para cada campo do resultado.", "correct": false },
+        { "key": "E", "text": "Um exportador PDF configurado para alterar a consulta SQL.", "correct": false }
+      ],
+      "explanation": "O grupo detecta mudanças no resultado de sua expressão. Seu cabeçalho pode exibir a categoria e seu rodapé pode apresentar o subtotal calculado no escopo do grupo.",
+      "section": "2. Estrutura, expressões e ciclo dos dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gráfico precisa usar registros de uma consulta secundária enquanto o relatório principal apresenta uma listagem de clientes. Como configurar a consulta secundária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Atribuir os campos do principal ao gráfico sem declarar dataset para ele.", "correct": false },
+        { "key": "B", "text": "Inserir a consulta no exportador depois que JasperPrint estiver pronto.", "correct": false },
+        { "key": "C", "text": "Vincular o subdataset ao gráfico e informar sua fonte no dataset run.", "correct": true },
+        { "key": "D", "text": "Transformar o gráfico em parâmetro para que ele leia linhas.", "correct": false },
+        { "key": "E", "text": "Criar uma banda Detail adicional dentro do dataset secundário.", "correct": false }
+      ],
+      "explanation": "O subdataset contém os campos e a consulta secundária, enquanto o dataset run do gráfico define a fonte e os parâmetros usados naquela execução do componente.",
+      "section": "3. Elementos avançados: datasets, tabelas, gráficos e sub-relatórios",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela incorporada deve exibir pedidos ligados ao cliente da linha atual do relatório principal. Qual vínculo fornece a chave do cliente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Referenciar diretamente qualquer $F do principal no subdataset, sem declaração.", "correct": false },
+        { "key": "B", "text": "Declarar a chave como parâmetro e mapeá-la no dataset run da tabela.", "correct": true },
+        { "key": "C", "text": "Usar a banda Page Footer para transferir o identificador ao gráfico.", "correct": false },
+        { "key": "D", "text": "Configurar um valor padrão no exportador para cada pedido encontrado.", "correct": false },
+        { "key": "E", "text": "Reutilizar REPORT_DATA_SOURCE sem reinicialização para todas as linhas.", "correct": false }
+      ],
+      "explanation": "Um subdataset não acessa diretamente os objetos do dataset principal. A chave deve ser declarada como parâmetro secundário e receber o campo da linha no dataset run.",
+      "section": "3. Elementos avançados: datasets, tabelas, gráficos e sub-relatórios",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sub-relatório recebe a chave do cliente para executar uma consulta de contatos. Qual configuração atende a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Passar a chave por parâmetro e fornecer uma fonte própria aos pedidos.", "correct": true },
+        { "key": "B", "text": "Inserir a chave no nome da banda Detail sem criar parâmetro.", "correct": false },
+        { "key": "C", "text": "Exportar primeiro o principal e filtrar as páginas do PDF.", "correct": false },
+        { "key": "D", "text": "Declarar um grupo no principal e esperar que o sub-relatório herde seus campos.", "correct": false },
+        { "key": "E", "text": "Usar JasperPrint como se fosse uma conexão JDBC pronta.", "correct": false }
+      ],
+      "explanation": "O principal fornece contexto por parâmetro, e o sub-relatório usa esse valor na consulta que executa. Ele também precisa de conexão JDBC ou de JRDataSource para recuperar os contatos.",
+      "section": "3. Elementos avançados: datasets, tabelas, gráficos e sub-relatórios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma expressão do elemento de sub-relatório é uma das configurações necessárias para que o mecanismo localize ou obtenha o relatório filho.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Não; a expressão apenas define a orientação da página principal.", "correct": false },
+        { "key": "B", "text": "Sim; a expressão indica qual objeto Jasper deve preencher o sub-relatório.", "correct": true },
+        { "key": "C", "text": "Não; somente uma variável global pode localizar arquivos Jasper.", "correct": false },
+        { "key": "D", "text": "Sim; ela substitui simultaneamente fonte de dados e parâmetros.", "correct": false },
+        { "key": "E", "text": "Não; o exportador PDF carrega o relatório filho após a saída e cria o JasperPrint principal.", "correct": false }
+      ],
+      "explanation": "A expressão é avaliada durante a execução para fornecer o objeto Jasper do sub-relatório. Dados e parâmetros são configurações separadas que também precisam ser considerados.",
+      "section": "3. Elementos avançados: datasets, tabelas, gráficos e sub-relatórios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois elementos usam o mesmo subdataset, mas precisam de fontes de dados distintas. É possível configurar uma execução própria para cada elemento.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Não; cada definição de subdataset só pode ser executada uma vez em todo relatório.", "correct": false },
+        { "key": "B", "text": "Não; subdatasets não admitem conexão nem fonte de dados.", "correct": false },
+        { "key": "C", "text": "Sim; cada elemento define um dataset run com sua fonte e parâmetros.", "correct": true },
+        { "key": "D", "text": "Sim, mas só se ambos os componentes forem exportados para PDF.", "correct": false },
+        { "key": "E", "text": "Não; o subdataset deve ser convertido em um sub-relatório para ser reutilizado.", "correct": false }
+      ],
+      "explanation": "A definição secundária pode ser reutilizada por diferentes elementos. Cada elemento tem seu dataset run, que informa conexão ou fonte e os valores de parâmetros daquela execução.",
+      "section": "3. Elementos avançados: datasets, tabelas, gráficos e sub-relatórios",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em qual fase é mais provável encontrar a falha de uma consulta SQL inválida ou de uma conexão com banco indisponível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Durante o preenchimento, quando o motor tenta executar a consulta.", "correct": true },
+        { "key": "B", "text": "Na exportação, antes de qualquer chamada à fonte de dados.", "correct": false },
+        { "key": "C", "text": "No desenho visual, antes de existir uma definição JRXML.", "correct": false },
+        { "key": "D", "text": "Na paginação do PDF, quando a conexão é compilada em células.", "correct": false },
+        { "key": "E", "text": "No salvamento do JasperPrint, sem interação com o banco.", "correct": false }
+      ],
+      "explanation": "O preenchimento carrega o arquivo compilado, executa consulta ou percorre a fonte e associa os registros aos campos. Por isso uma conexão indisponível aparece normalmente nessa etapa.",
+      "section": "1. JasperReports, Studio e ciclo do relatório",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma expressão referencia um campo inexistente e o JRXML falha ao ser verificado. Em qual fase a falha apareceu?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Na exportação para HTML, depois do documento estar pronto.", "correct": false },
+        { "key": "B", "text": "Na publicação no Server, pois o Studio não compila expressões.", "correct": false },
+        { "key": "C", "text": "No preenchimento, depois de todos os registros já terem sido exportados.", "correct": false },
+        { "key": "D", "text": "Na compilação, que valida o JRXML e suas expressões antes do preenchimento.", "correct": true },
+        { "key": "E", "text": "Na conexão JDBC, pois todo campo é uma conexão.", "correct": false }
+      ],
+      "explanation": "A compilação processa o JRXML e suas expressões e pode rejeitar referências inválidas. Falhas de conexão e leitura de dados pertencem ao preenchimento, posterior à compilação.",
+      "section": "1. JasperReports, Studio e ciclo do relatório",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição diferencia corretamente JasperReports Library, Jaspersoft Studio e JasperReports Server?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Library desenha visualmente; Studio é o servidor central; Server compila expressões Java.", "correct": false },
+        { "key": "B", "text": "Library executa relatórios, Studio cria-os e Server os centraliza.", "correct": true },
+        { "key": "C", "text": "Library armazena planilhas; Studio fornece banco de dados; Server cria arquivos JRXML.", "correct": false },
+        { "key": "D", "text": "Os três nomes indicam exclusivamente formatos diferentes de arquivo de saída.", "correct": false },
+        { "key": "E", "text": "Studio é a fonte de dados; Server é um exportador; Library é um editor XML.", "correct": false }
+      ],
+      "explanation": "A biblioteca é o motor programático, o Studio facilita o desenho e teste, e o Server hospeda recursos e relatórios para execução centralizada. São componentes relacionados, com papéis distintos.",
+      "section": "4. Layout, saída e publicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Studio pode configurar uma consulta SQL e auxiliar a registrar no relatório os campos retornados pela fonte JDBC.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Não; os campos são criados somente pelo exportador de planilhas.", "correct": false },
+        { "key": "B", "text": "Não; JRXML não pode declarar campos nem consultas.", "correct": false },
+        { "key": "C", "text": "Sim; a consulta JDBC pode sugerir nomes e tipos dos campos do resultado.", "correct": true },
+        { "key": "D", "text": "Sim, mas apenas quando se remove a conexão antes de consultar.", "correct": false },
+        { "key": "E", "text": "Não; somente o JasperReports Server permite consultar uma fonte JDBC.", "correct": false }
+      ],
+      "explanation": "O Studio oferece ferramentas para configurar consulta SQL e registrar metadados derivados do resultado, facilitando a declaração de campos usados depois em expressões e elementos.",
+      "section": "1. JasperReports, Studio e ciclo do relatório",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório precisa exibir apenas um título fixo sem registros de negócio. Qual fonte é apropriada para alimentar essa execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Uma fonte JRDataSource com milhares de linhas obrigatórias.", "correct": false },
+        { "key": "B", "text": "Uma consulta SQL que retorna todos os registros de cada tabela.", "correct": false },
+        { "key": "C", "text": "Um JasperPrint vazio enviado como conexão JDBC.", "correct": false },
+        { "key": "D", "text": "Uma expressão de grupo que fabrica os registros de saída.", "correct": false },
+        { "key": "E", "text": "JREmptyDataSource, usada para conteúdo estático sem dados de negócio.", "correct": true }
+      ],
+      "explanation": "JREmptyDataSource é uma fonte especial útil quando o relatório precisa apresentar conteúdo estático sem consultar uma tabela de negócio. Ela não substitui uma consulta quando há registros reais a percorrer.",
+      "section": "1. JasperReports, Studio e ciclo do relatório",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório tem vários registros e deve repetir um cabeçalho de coluna em cada página. Qual banda atende diretamente a essa finalidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Summary, que aparece ao final do relatório.", "correct": false },
+        { "key": "B", "text": "Detail, que aparece uma vez no início de cada página.", "correct": false },
+        { "key": "C", "text": "Group Footer, que delimita todas as páginas.", "correct": false },
+        { "key": "D", "text": "Column Header, banda usada para títulos das colunas do relatório.", "correct": true },
+        { "key": "E", "text": "Title, que se repete necessariamente para toda coluna.", "correct": false }
+      ],
+      "explanation": "Column Header é a banda destinada a títulos de colunas e se integra à estrutura de página/colunas do relatório. Detail é a área dos registros, e Summary costuma encerrar o documento.",
+      "section": "2. Estrutura, expressões e ciclo dos dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre grupos e ordenação da fonte de dados está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A expressão identifica mudanças, e os registros ordenados evitam grupos repetidos.", "correct": true },
+        { "key": "B", "text": "O grupo reorganiza sempre os registros por conta própria, independentemente da consulta.", "correct": false },
+        { "key": "C", "text": "A expressão de grupo só pode ser um parâmetro constante sem relação com dados.", "correct": false },
+        { "key": "D", "text": "O rodapé do grupo é impresso antes de seu cabeçalho para cada linha.", "correct": false },
+        { "key": "E", "text": "O agrupamento elimina a necessidade de dataset principal e de registros.", "correct": false }
+      ],
+      "explanation": "O grupo reage a mudanças de sua expressão enquanto os registros são lidos; ele não necessariamente ordena os dados. Se valores do mesmo grupo estão intercalados, eles podem iniciar novas ocorrências separadas.",
+      "section": "2. Estrutura, expressões e ciclo dos dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma variável calculada em um sub-relatório deve contribuir com um acumulado no relatório principal. Qual recurso corresponde a esse intercâmbio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O cabeçalho de página copia automaticamente campos e variáveis do filho para o principal, sem mapeamento.", "correct": false },
+        { "key": "B", "text": "A expressão do exportador altera o JRXML depois da exportação.", "correct": false },
+        { "key": "C", "text": "Mapear retorno calculado no filho para uma variável do relatório principal.", "correct": true },
+        { "key": "D", "text": "Uma banda Detail é convertida em parâmetro global pelo servidor.", "correct": false },
+        { "key": "E", "text": "A consulta principal relê o JasperPrint como uma tabela SQL.", "correct": false }
+      ],
+      "explanation": "O elemento de sub-relatório permite definir valores de retorno que transportam resultados calculados no relatório filho para variáveis locais do principal após a execução do conteúdo.",
+      "section": "3. Elementos avançados: datasets, tabelas, gráficos e sub-relatórios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A mesma definição de subdataset pode ser usada em mais de um elemento, cada qual com uma configuração de execução apropriada.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Não; ao criar uma tabela, a definição é destruída para os demais elementos.", "correct": false },
+        { "key": "B", "text": "Sim; cada elemento usa dataset run para vincular a fonte de sua execução.", "correct": true },
+        { "key": "C", "text": "Não; datasets só podem alimentar um relatório externo.", "correct": false },
+        { "key": "D", "text": "Sim, mas somente se a definição tiver layout de bandas próprio.", "correct": false },
+        { "key": "E", "text": "Não; subdatasets não podem ser associados a elementos visuais.", "correct": false }
+      ],
+      "explanation": "A definição descreve o conjunto de metadados, enquanto o dataset run é ligado ao elemento que o utiliza. Assim, a mesma definição pode alimentar elementos com configurações próprias.",
+      "section": "3. Elementos avançados: datasets, tabelas, gráficos e sub-relatórios",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Studio, a etapa de visualização pode compilar o JRXML, preencher o resultado com a fonte ativa e mostrar o relatório gerado.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Não; a visualização ignora o motor e exibe somente a árvore XML, sem executar ou preencher o relatório.", "correct": false },
+        { "key": "B", "text": "Não; o Studio só permite editar arquivos PDF existentes.", "correct": false },
+        { "key": "C", "text": "Sim, e a conexão nunca pode causar erro nessa etapa.", "correct": false },
+        { "key": "D", "text": "Sim; a visualização compila, preenche o relatório e mostra o resultado obtido.", "correct": true },
+        { "key": "E", "text": "Não; é necessário publicar no Server antes de qualquer visualização.", "correct": false }
+      ],
+      "explanation": "A visualização do Studio exercita o ciclo do relatório usando a fonte configurada. A compilação pode falhar por estrutura ou expressão; o preenchimento pode falhar por dados, conexão ou consulta.",
+      "section": "1. JasperReports, Studio e ciclo do relatório",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A exportação de JasperPrint para planilha e sua exportação para PDF podem produzir disposições diferentes porque os formatos organizam conteúdo de maneiras distintas.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Não; todo exportador é obrigado a desenhar pixels idênticos às páginas PDF.", "correct": false },
+        { "key": "B", "text": "Sim; PDF prioriza páginas e XLSX organiza valores em células e colunas.", "correct": true },
+        { "key": "C", "text": "Não; uma planilha é criada antes de JasperPrint existir.", "correct": false },
+        { "key": "D", "text": "Sim, porque o JRXML desaparece e deixa de definir layout.", "correct": false },
+        { "key": "E", "text": "Não; o Studio sempre converte XLSX em uma cópia do PDF.", "correct": false }
+      ],
+      "explanation": "PDF privilegia páginas e impressão, enquanto XLSX estrutura valores em células. O desenho e as opções de exportação podem gerar resultados visuais e tabulares diferentes.",
+      "section": "4. Layout, saída e publicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao publicar no JasperReports Server um relatório com fonte JDBC local do Studio, a conexão local passa a existir automaticamente no servidor.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Sim; a publicação copia todas as credenciais e instala o banco automaticamente.", "correct": false },
+        { "key": "B", "text": "Sim; o JasperPrint contém a conexão configurada no computador do autor.", "correct": false },
+        { "key": "C", "text": "Não; o servidor requer fonte de dados e recursos configurados no próprio ambiente.", "correct": true },
+        { "key": "D", "text": "Não; relatórios publicados não podem executar consultas em banco.", "correct": false },
+        { "key": "E", "text": "Sim; o arquivo JRXML transforma uma conexão em recurso universal.", "correct": false }
+      ],
+      "explanation": "A conexão usada no Studio pertence ao ambiente local. No destino, o servidor precisa de uma fonte de dados configurada e acessível, além dos recursos referenciados pelo relatório.",
+      "section": "4. Layout, saída e publicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma banda não contém detalhes variáveis e o relatório deve exibir conteúdo estático, é possível preencher a execução usando uma fonte vazia apropriada.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Sim; JREmptyDataSource permite preencher conteúdo estático sem consulta.", "correct": true },
+        { "key": "B", "text": "Não; toda execução requer consulta SQL a uma tabela física para iniciar o preenchimento do relatório.", "correct": false },
+        { "key": "C", "text": "Não; conteúdo estático só é aceito em subdatasets de gráfico.", "correct": false },
+        { "key": "D", "text": "Sim; mas somente se o exportador gerar arquivo CSV.", "correct": false },
+        { "key": "E", "text": "Não; JRXML não aceita elementos sem campo de banco.", "correct": false }
+      ],
+      "explanation": "JREmptyDataSource fornece registros sem valores de campos de negócio e é indicada para elementos estáticos. O uso de uma fonte vazia não impede a impressão de conteúdo fixo do relatório.",
+      "section": "1. JasperReports, Studio e ciclo do relatório",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sub-relatório deve ser localizado pelo elemento principal e receber registros para sua consulta. Qual combinação descreve as configurações centrais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Expressão para carregar o filho, fonte de dados e parâmetros necessários.", "correct": true },
+        { "key": "B", "text": "Somente banda Summary e um exportador CSV.", "correct": false },
+        { "key": "C", "text": "Apenas o nome de um campo do dataset principal.", "correct": false },
+        { "key": "D", "text": "JRXML compilado e JasperPrint usados como duas conexões JDBC.", "correct": false },
+        { "key": "E", "text": "Somente os estilos externos e uma expressão de página.", "correct": false }
+      ],
+      "explanation": "A expressão resolve o relatório filho; conexão JDBC ou fonte JRDataSource o alimenta; parâmetros fornecem valores de contexto. Nenhuma dessas partes substitui automaticamente as demais.",
+      "section": "3. Elementos avançados: datasets, tabelas, gráficos e sub-relatórios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A tabela de um relatório pode ser desenhada no principal e usar registros de um subdataset ligado no próprio elemento de tabela.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Não; tabelas só podem ser arquivos Jasper independentes.", "correct": false },
+        { "key": "B", "text": "Sim; a tabela apresenta o subdataset ligado por dataset run próprio.", "correct": true },
+        { "key": "C", "text": "Não; tabelas não têm acesso a fontes de dados.", "correct": false },
+        { "key": "D", "text": "Sim, mas o subdataset precisa conter bandas de página e layout.", "correct": false },
+        { "key": "E", "text": "Não; só a banda Summary pode apresentar linhas tabulares.", "correct": false }
+      ],
+      "explanation": "O componente de tabela tem um dataset run que liga o subdataset a uma fonte e parâmetros. O subdataset contém metadados e cálculos, enquanto o componente mantém a apresentação visual.",
+      "section": "3. Elementos avançados: datasets, tabelas, gráficos e sub-relatórios",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O motor pode usar parâmetros em expressões e consultas, e os valores passados pelo programa devem ser compatíveis com o tipo declarado.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Não; parâmetros são sempre texto e não precisam ser declarados.", "correct": false },
+        { "key": "B", "text": "Não; parâmetros só podem ser definidos depois da exportação.", "correct": false },
+        { "key": "C", "text": "Sim; o programa fornece valores tipados aos parâmetros declarados.", "correct": true },
+        { "key": "D", "text": "Sim; mas eles substituem automaticamente todos os campos da consulta.", "correct": false },
+        { "key": "E", "text": "Não; o Studio remove parâmetros antes de compilar o JRXML.", "correct": false }
+      ],
+      "explanation": "Parâmetros são declarados no modelo, tipados e fornecidos pela aplicação em tempo de execução. A incompatibilidade entre tipo esperado e valor recebido pode levar a erro no preenchimento.",
+      "section": "2. Estrutura, expressões e ciclo dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um campo do subdataset pode ser referenciado diretamente como se fosse campo do dataset principal, mesmo sem existir no subdataset.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Sim; todos os campos são globais por padrão em qualquer componente.", "correct": false },
+        { "key": "B", "text": "Sim; subdataset consulta qualquer variável de qualquer relatório.", "correct": false },
+        { "key": "C", "text": "Não; campos principais devem ser mapeados a parâmetros do subdataset.", "correct": true },
+        { "key": "D", "text": "Não; pois subdatasets não podem declarar nenhum campo.", "correct": false },
+        { "key": "E", "text": "Sim; basta criar uma banda Page Header no subdataset.", "correct": false }
+      ],
+      "explanation": "Cada dataset tem seus próprios objetos. Para levar informação do principal ao subdataset, declare um parâmetro secundário e atribua seu valor no dataset run.",
+      "section": "3. Elementos avançados: datasets, tabelas, gráficos e sub-relatórios",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer que uma consulta secundária use a mesma conexão JDBC aberta para o relatório principal. Qual recurso interno é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Usar REPORT_CONNECTION como conexão JDBC da execução principal.", "correct": true },
+        { "key": "B", "text": "REPORT_LOCALE, que representa a conexão com o banco.", "correct": false },
+        { "key": "C", "text": "REPORT_PAGE_NUMBER, que contém a sessão JDBC ativa.", "correct": false },
+        { "key": "D", "text": "REPORT_PARAMETERS_MAP, que substitui a conexão e executa SQL por si.", "correct": false },
+        { "key": "E", "text": "REPORT_DATA_SOURCE, que é sempre a mesma conexão JDBC.", "correct": false }
+      ],
+      "explanation": "REPORT_CONNECTION guarda a conexão usada no preenchimento de um relatório JDBC. REPORT_DATA_SOURCE representa uma fonte de registros e não deve ser confundido com uma conexão reutilizável.",
+      "section": "3. Elementos avançados: datasets, tabelas, gráficos e sub-relatórios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório foi compilado com êxito, mas falha ao ser preenchido porque o banco não está acessível. O resultado é compatível com o ciclo do JasperReports.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Não; compilação bem-sucedida garante que todas as conexões funcionarão.", "correct": false },
+        { "key": "B", "text": "Sim; compilar valida o modelo e o preenchimento usa a conexão.", "correct": true },
+        { "key": "C", "text": "Não; JasperReports abre a conexão apenas ao exportar para PDF.", "correct": false },
+        { "key": "D", "text": "Não; nenhum relatório Jasper pode depender de uma conexão externa.", "correct": false },
+        { "key": "E", "text": "Sim; mas a falha será corrigida automaticamente pelo arquivo Jasper.", "correct": false }
+      ],
+      "explanation": "O arquivo Jasper pode ser compilado sem acessar a base efetiva de execução. Durante o preenchimento o motor utiliza a conexão e a consulta, que podem falhar independentemente.",
+      "section": "1. JasperReports, Studio e ciclo do relatório",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A banda Summary serve normalmente para apresentar conteúdo de resumo associado ao fim do relatório, e não uma linha para cada registro.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Não; Summary é a banda que sempre substitui o dataset principal.", "correct": false },
+        { "key": "B", "text": "Sim; Summary reúne conteúdo de síntese, normalmente ao final.", "correct": true },
+        { "key": "C", "text": "Não; Summary é executada somente antes de a primeira página começar.", "correct": false },
+        { "key": "D", "text": "Sim; ela se repete para cada campo da consulta.", "correct": false },
+        { "key": "E", "text": "Não; ela serve apenas para enviar parâmetros a subdatasets.", "correct": false }
+      ],
+      "explanation": "Summary é a seção de resumo do relatório e normalmente aparece ao final. A banda Detail, em contraste, é a seção associada à repetição dos registros principais.",
+      "section": "2. Estrutura, expressões e ciclo dos dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de um parâmetro em consulta e sua referência em uma expressão são funções possíveis desse tipo de objeto.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Não; parâmetro só pode definir a altura de uma banda e não participa de consultas SQL.", "correct": false },
+        { "key": "B", "text": "Não; consultas não podem receber valores do relatório.", "correct": false },
+        { "key": "C", "text": "Sim; parâmetros podem ser usados em consultas e expressões de relatório.", "correct": true },
+        { "key": "D", "text": "Sim; mas apenas quando é uma variável de soma.", "correct": false },
+        { "key": "E", "text": "Não; parâmetro é outro nome para fonte JDBC.", "correct": false }
+      ],
+      "explanation": "Parâmetros conectam a aplicação ao relatório e podem ser referenciados por expressões ou consultas. Eles não equivalem à conexão nem à fonte de linhas.",
+      "section": "2. Estrutura, expressões e ciclo dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo Jasper compilado pode ser executado mesmo que uma imagem referenciada pelo JRXML original tenha sido removida do ambiente.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Sim; todo recurso referenciado é incorporado obrigatoriamente no arquivo compilado.", "correct": false },
+        { "key": "B", "text": "Não necessariamente; imagens externas precisam estar disponíveis no ambiente.", "correct": true },
+        { "key": "C", "text": "Sim; imagens são sempre substituídas por campos vazios sem qualquer efeito.", "correct": false },
+        { "key": "D", "text": "Não; o arquivo Jasper é apenas um caminho relativo à imagem.", "correct": false },
+        { "key": "E", "text": "Sim; o JasperPrint recupera automaticamente qualquer arquivo excluído.", "correct": false }
+      ],
+      "explanation": "O arquivo compilado não contém necessariamente os recursos externos. Imagens e outros arquivos referenciados devem ser resolvidos no classpath, caminho ou repositório acessível à aplicação.",
+      "section": "4. Layout, saída e publicação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório foi testado localmente no Studio. Para executá-lo em um servidor, os recursos e a fonte de dados daquele ambiente precisam estar configurados.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Não; publicar o JRXML converte automaticamente qualquer conexão local em serviço remoto.", "correct": false },
+        { "key": "B", "text": "Sim; servidor precisa de fonte e recursos configurados para execução.", "correct": true },
+        { "key": "C", "text": "Não; o servidor ignora as fontes de dados e sempre usa CSV.", "correct": false },
+        { "key": "D", "text": "Não; todo relatório executado em servidor precisa ser redesenhado como PDF.", "correct": false },
+        { "key": "E", "text": "Sim; mas somente se remover todas as expressões do relatório.", "correct": false }
+      ],
+      "explanation": "A publicação pode carregar o JRXML e recursos necessários, mas a fonte de dados precisa existir e ser configurada no servidor. A configuração local não se transfere como conexão ativa.",
+      "section": "4. Layout, saída e publicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma expressão de impressão condicional pode decidir se um elemento deve aparecer, retornando um resultado booleano.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Não; expressões são usadas exclusivamente para escolher o banco de dados.", "correct": false },
+        { "key": "B", "text": "Não; a condição só pode ser definida pela extensão do arquivo final.", "correct": false },
+        { "key": "C", "text": "Sim; expressão pode controlar a impressão conforme um valor booleano.", "correct": true },
+        { "key": "D", "text": "Sim; ela substitui a definição de campo e a consulta da fonte.", "correct": false },
+        { "key": "E", "text": "Não; qualquer elemento sem condição é ocultado por padrão.", "correct": false }
+      ],
+      "explanation": "Expressões são usadas em várias propriedades, inclusive condições de impressão. O valor retornado permite decidir se um elemento será apresentado em determinado contexto.",
+      "section": "2. Estrutura, expressões e ciclo dos dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Jaspersoft Studio User Guide 10.1.0 — JRXML Sources and Jasper Files",
+      "publisher": "Jaspersoft Community",
+      "reference": "Ciclo de desenvolvimento e execução; JRXML, compilação, preenchimento e exportação",
+      "url": "https://community.jaspersoft.com/documentation/jaspersoft%C2%AE-studio/jaspersoft%C2%AE-studio-user-guide/v1010/jss-user-_-jrxml_sources_and_jasper_files/",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Jaspersoft Studio User Guide 10.1.0 — Data Sources and Print Formats",
+      "publisher": "Jaspersoft Community",
+      "reference": "JRDataSource, conexões JDBC, JasperPrint e formatos de saída",
+      "url": "https://community.jaspersoft.com/documentation/jaspersoft%C2%AE-studio/jaspersoft%C2%AE-studio-user-guide/v1010/jss-user-_-data-sources-print-formats/",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Jaspersoft Studio User Guide 10.1.0 — Expressions",
+      "publisher": "Jaspersoft Community",
+      "reference": "Linguagens de expressão, campos, parâmetros, variáveis e fórmulas",
+      "url": "https://community.jaspersoft.com/documentation/jaspersoft%C2%AE-studio/jaspersoft%C2%AE-studio-user-guide/v1010/jss-user-_-expressions-_-expressions/",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Jaspersoft Studio User Guide 10.1.0 — Working With Parameters",
+      "publisher": "Jaspersoft Community",
+      "reference": "Declaração, valores padrão e uso de parâmetros no relatório",
+      "url": "https://community.jaspersoft.com/documentation/jaspersoft%C2%AE-studio/jaspersoft%C2%AE-studio-user-guide/v1010/jss-user-_-parameters-_-parameters_managing/",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Jaspersoft Studio User Guide 10.1.0 — Datasets and Subdatasets",
+      "publisher": "Jaspersoft Community",
+      "reference": "Dataset principal, subdataset, dataset run, fontes, parâmetros e componentes",
+      "url": "https://community.jaspersoft.com/documentation/jaspersoft%C2%AE-studio/jaspersoft%C2%AE-studio-user-guide/v1010/jss-user-_-datasets-_-datasets/",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Jaspersoft Studio User Guide 10.1.0 — Working with Subreports",
+      "publisher": "Jaspersoft Community",
+      "reference": "Uso, expressão, conexão, fonte de dados e parâmetros de sub-relatórios",
+      "url": "https://community.jaspersoft.com/documentation/jaspersoft%C2%AE-studio/jaspersoft%C2%AE-studio-user-guide/v1010/jss-user-_-subreports-intro/",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Jaspersoft Studio User Guide 10.1.0 — Understanding Subreports",
+      "publisher": "Jaspersoft Community",
+      "reference": "Expressão do relatório filho, dados, mapas de parâmetros, retorno de valores e fonte consumível",
+      "url": "https://community.jaspersoft.com/documentation/jaspersoft%C2%AE-studio/jaspersoft%C2%AE-studio-user-guide/v1010/jss-user-_-subreports-reference/",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Jaspersoft Studio User Guide 10.1.0 — Exporting Reports with Jaspersoft Studio",
+      "publisher": "Jaspersoft Community",
+      "reference": "Compilação, preenchimento, preview e exportação",
+      "url": "https://community.jaspersoft.com/documentation/jaspersoft%C2%AE-studio/jaspersoft%C2%AE-studio-user-guide/v1010/jss-user-_-simple-report-_-reports-exporting/",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Jaspersoft Studio User Guide 10.1.0 — Publishing a Report to JasperReports Server",
+      "publisher": "Jaspersoft Community",
+      "reference": "Publicação do relatório, recursos e configuração da fonte de dados do servidor",
+      "url": "https://community.jaspersoft.com/documentation/jaspersoft%C2%AE-studio/jaspersoft%C2%AE-studio-user-guide/v1010/jss-user-_-jrs-server-_-jss2jrs-publishing/",
+      "accessedAt": "2026-10-30"
+    }
+  ]
+}

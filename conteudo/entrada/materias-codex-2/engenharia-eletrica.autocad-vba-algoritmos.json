@@ -1,0 +1,1821 @@
+{
+  "id": "engenharia-eletrica.autocad-vba-algoritmos",
+  "subject": "Engenharia Elétrica",
+  "title": "Conhecimentos em AutoCAD, VBA e algoritmos",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Conhecimentos em AutoCAD, linguagem VBA e algoritmos",
+    "AutoCAD para engenharia elétrica e desenho técnico",
+    "Automação de desenhos técnicos com VBA no AutoCAD",
+    "Programação VBA aplicada ao AutoCAD e seus objetos",
+    "Algoritmos e lógica de programação em projetos CAD",
+    "Desenho assistido por computador com AutoCAD e VBA",
+    "ModelSpace e objetos gráficos do AutoCAD por VBA",
+    "Rotinas de desenho e automação usando VBA no AutoCAD",
+    "Fundamentos de algoritmos para automação de desenhos",
+    "VBA ActiveX e criação de entidades no AutoCAD"
+  ],
+  "scope": {
+    "covers": "Fundamentos de desenho assistido por computador no AutoCAD; geometria e organização de desenhos por camadas, coordenadas e espaços; automação por VBA/ActiveX, projetos DVB, macros, hierarquia ThisDrawing-ModelSpace e métodos de criação de entidades; tipos, variáveis, expressões, decisões, repetições, arrays, procedimentos, depuração e decomposição de algoritmos; aplicação de lógica e validação em rotinas de desenho técnico.",
+    "excludes": "Comandos avançados de cálculo elétrico, dimensionamento de instalações, normas técnicas de instalações, programação .NET/AutoLISP, modelagem 3D avançada e recursos exclusivos de versões específicas não documentados aqui."
+  },
+  "theoryTitle": "Da geometria ao algoritmo: AutoCAD e VBA",
+  "chapters": [
+    {
+      "title": "1. O desenho CAD como modelo geométrico",
+      "markdown": "### O problema que este assunto resolve\n\nO AutoCAD representa elementos gráficos por entidades com propriedades e coordenadas. Uma linha não é apenas um traço na tela: ela tem pontos inicial e final, pertence a um espaço e pode carregar propriedades como camada, cor e tipo de linha. Essa representação permite medir, editar, reutilizar e automatizar desenhos técnicos.\n\n> **Siglas e termos deste capítulo**\n> - **CAD**: desenho ou projeto assistido por computador.\n> - **DWG**: formato nativo de desenho do AutoCAD.\n> - **Entidade**: objeto gráfico armazenado no desenho, como linha, arco, círculo ou polilinha.\n> - **WCS**: sistema mundial de coordenadas, referencial global do desenho.\n> - **UCS**: sistema de coordenadas do usuário, referencial de trabalho que pode ser deslocado ou girado.\n> - **ModelSpace**: espaço principal para construir a geometria do modelo.\n> - **PaperSpace**: espaço associado à composição de folhas e vistas de impressão.\n\n### Coordenadas, geometria e organização\n\nUma coordenada cartesiana 2D é um par (x,y); em 3D, acrescenta-se z. No AutoCAD, a API ActiveX documenta pontos 3D WCS para métodos como `AddLine`. Uma linha é definida por dois pontos distintos; se início e fim coincidirem, não há segmento de comprimento positivo. Para pontos P1=(x1,y1) e P2=(x2,y2), a distância plana é a raiz de (x2−x1)²+(y2−y1)².\n\nO WCS mantém um referencial global. O UCS permite desenhar com eixos locais convenientes, mas não significa que os dados deixem de ter relação com o sistema mundial. É preciso identificar qual referencial uma operação espera: a documentação ActiveX de `AddLine` especifica coordenadas WCS, enquanto determinadas entidades e métodos de polilinha usam OCS (sistema de coordenadas do objeto).\n\nCamadas agrupam entidades por função e permitem controlar visibilidade, cor e tipo de linha de maneira coerente. Camada não altera a geometria: ocultar uma camada não apaga seus objetos. Blocos permitem reutilizar um conjunto de entidades como uma definição inserida no desenho; referências externas mantêm conteúdo vindo de outro arquivo vinculado.\n\n| Conceito | Uso típico | O que não significa |\n| --- | --- | --- |\n| ModelSpace | Construir o modelo em escala real | Uma folha pronta para impressão |\n| PaperSpace | Montar folhas e vistas de apresentação | Outro arquivo independente necessariamente |\n| Camada | Agrupar e controlar propriedades/visibilidade | Tipo de entidade geométrica |\n| Bloco | Reutilizar uma definição de objetos | Cópia sem relação com a definição |\n| UCS | Facilitar trabalho em eixos escolhidos | Substituição do WCS global |\n\n### Medidas e precisão\n\nUnidades e precisão precisam ser definidas de modo consistente com o projeto. Coordenadas numéricas não carregam, por si sós, uma unidade física universal: o mesmo número pode representar milímetros ou metros conforme convenção e configuração do desenho. A distância euclidiana permite conferir comprimentos, mas não substitui a verificação de escala, unidades e referencial. A captura por objeto (object snap) ajuda a selecionar pontos geométricos precisos, como extremidades e centros, em vez de clicar aproximadamente na tela.\n\n### Como cai na prova\n\n- Se o enunciado descreve uma linha criada com `ModelSpace.AddLine`, os pontos são vetores de três doubles e representam coordenadas WCS.\n- ModelSpace e PaperSpace têm funções diferentes; não confunda geometria do modelo com composição de folhas.\n- Camadas organizam e controlam apresentação; desligar uma camada não equivale a excluir suas entidades.\n- Um valor de coordenada isolado não determina unidade física sem convenção/configuração do desenho."
+    },
+    {
+      "title": "2. AutoCAD ActiveX e a hierarquia de objetos VBA",
+      "markdown": "### O problema que este assunto resolve\n\nUma rotina precisa alcançar o desenho ativo, escolher o espaço apropriado e chamar o método da entidade. A hierarquia da API organiza esses objetos; entender a sequência evita chamar um método no objeto errado ou perder a referência retornada.\n\n> **Siglas e termos deste capítulo**\n> - **VBA**: Visual Basic for Applications, linguagem de automação incorporada a aplicativos.\n> - **ActiveX**: interface de automação por objetos, propriedades e métodos exposta pelo AutoCAD no Windows.\n> - **DVB**: arquivo de projeto VBA do AutoCAD.\n> - **Método**: operação oferecida por um objeto, como `AddLine`.\n> - **Propriedade**: dado consultável ou configurável de um objeto, como nome ou camada.\n> - **Variant**: tipo que pode transportar diferentes valores, inclusive arrays usados por alguns métodos.\n\n### Do desenho à entidade\n\nNa automação VBA documentada pela Autodesk, `ThisDrawing` representa o desenho associado ao código. A partir dele, `ThisDrawing.ModelSpace` dá acesso às entidades do espaço do modelo; `ThisDrawing.PaperSpace` dá acesso às entidades de papel. Uma chamada como `ThisDrawing.ModelSpace.AddLine(p1, p2)` cria uma linha e retorna um objeto `Line`, que pode ser guardado numa variável de objeto com `Set`. A palavra `Set` é usada para atribuir referências a objetos; atribuir números ou textos usa atribuição comum.\n\n`AddLine` recebe ponto inicial e ponto final como Variant contendo array de três doubles, em coordenadas 3D WCS. O retorno é uma entidade Line. A documentação também mostra a possibilidade de armazenar `ThisDrawing.ModelSpace` numa variável tipada e chamar o método por essa variável. Isso melhora a leitura quando vários objetos serão criados no mesmo espaço.\n\nOutros métodos têm contratos próprios. `AddPolyline` recebe uma lista de coordenadas OCS representada por array de doubles; a documentação da Autodesk informa que cada vértice usa três elementos, que a terceira coordenada é ignorada nessa polilinha e que são necessários ao menos dois pontos. Não se deve transferir automaticamente o contrato de `AddLine` para todos os métodos.\n\n### Carregar e proteger um projeto\n\nA ajuda do AutoCAD descreve o comando `VBAMAN` para abrir o VBA Manager, carregar um arquivo DVB, habilitar macros quando solicitado e fechar o gerenciador. Para carregamento automático, a documentação descreve o arquivo `acad.dvb` em caminho de suporte e uma macro chamada `AcadStartup`. Em modo seguro, o `SECURELOAD` e `TRUSTEDPATHS` limitam de onde código executável pode ser carregado. Caminhos confiáveis devem ser controlados; projeto desconhecido não deve ser habilitado sem inspeção.\n\nA disponibilidade do VBA é dependente do produto e da plataforma; a referência ActiveX citada é para Windows, e a documentação da Autodesk informa que AutoCAD LT não executa VBA. Em ambiente de prova, leia a premissa: VBA/ActiveX não significa API multiplataforma.\n\n### Exemplo conceitual\n\nUma rotina que desenha um segmento pode declarar `startPoint(0 To 2)` e `endPoint(0 To 2)` como `Double`, preencher x, y e z e executar `Set linha = ThisDrawing.ModelSpace.AddLine(startPoint, endPoint)`. Para criar no plano XY, z costuma ser zero, desde que o referencial e a intenção do desenho sejam esses.\n\n### Como cai na prova\n\n- `ThisDrawing` → espaço (`ModelSpace`/`PaperSpace`) → método da entidade é a cadeia de acesso.\n- `AddLine` devolve um objeto linha; para guardar a referência, usa-se variável de objeto e `Set`.\n- Arrays de pontos e sistemas de coordenadas variam por método: leia o contrato da operação específica.\n- `TRUSTEDPATHS` controla caminhos autorizados; não é uma lista de desenhos já abertos."
+    },
+    {
+      "title": "3. VBA: dados, decisões, repetições e procedimentos",
+      "markdown": "### O problema que este assunto resolve\n\nA automação transforma instruções repetidas em operações reproduzíveis. Para isso, o algoritmo precisa armazenar dados, escolher caminhos, repetir tarefas e dividir responsabilidades em procedimentos compreensíveis.\n\n> **Siglas e termos deste capítulo**\n> - **Algoritmo**: sequência finita e ordenada de passos para resolver um problema.\n> - **Variável**: nome associado a um valor que pode ser consultado ou alterado.\n> - **Tipo**: classe de valores e operações válidas, como `Long`, `Double`, `String` ou `Boolean`.\n> - **Array**: coleção indexada de elementos.\n> - **Sub**: procedimento que executa ações sem retornar valor como função.\n> - **Function**: procedimento que calcula e devolve um valor.\n> - **Depuração**: execução/inspeção do programa para localizar defeitos.\n\n### Tipos, declarações e expressões\n\nEm VBA, `Dim comprimento As Double` declara uma variável numérica de ponto flutuante; `Dim indice As Long` é apropriado para contadores inteiros; `String` guarda texto; `Boolean` guarda `True` ou `False`; tipos de objeto guardam referências e exigem `Set` na atribuição. `Option Explicit` força declaração explícita das variáveis e ajuda a detectar nomes digitados incorretamente. Para dados numéricos de engenharia, escolher tipo adequado reduz conversões inesperadas; não use texto para fazer cálculos sem conversão consciente.\n\nExpressões combinam valores, operadores aritméticos e comparações. Uma comparação como `comprimento > 0` produz condição lógica. Parênteses tornam a precedência explícita. Divisão inteira e divisão real têm comportamentos distintos; em cálculos geométricos deve-se preservar a precisão necessária.\n\n### Decisões e repetição\n\nO bloco `If...Then...Else` executa uma sequência quando a condição é verdadeira e outra quando é falsa. `ElseIf` permite testar condições adicionais; o bloco termina em `End If`. `Select Case` costuma ser mais claro quando uma mesma expressão é comparada com várias alternativas.\n\n`For...Next` repete com contador inicial e final; `Step` informa o incremento e, se omitido, vale um. Step negativo permite contagem decrescente. `Exit For` encerra antecipadamente quando uma condição de saída é satisfeita. `Do While` repete enquanto condição verdadeira; `Do Until` repete até que a condição se torne verdadeira. Todo laço precisa de progresso ou saída para evitar repetição infinita.\n\n### Arrays e procedimentos\n\nArrays armazenam sequências indexadas. `Array(10,20,30)` retorna Variant contendo array; por padrão comum, os índices são 0 a 2, mas `Option Base` pode afetar o limite inferior. Por isso, `LBound` e `UBound` consultam limites em vez de presumir índices. `ReDim` redimensiona arrays dinâmicos; `ReDim Preserve` preserva os dados existentes ao aumentar a dimensão permitida.\n\nUma `Sub` pode receber argumentos e executar uma ação, como desenhar uma entidade. Uma `Function` é adequada para cálculo reutilizável, como devolver a distância entre dois pontos. Separar leitura/validação, cálculo e criação do desenho torna testes e correções mais localizados. Nome descritivo, indentação e comentários que explicam intenção melhoram manutenção.\n\n### Como cai na prova\n\n- Em `For i = 1 To 5`, o passo implícito é um e o corpo executa para os valores de 1 a 5.\n- Um `If` em bloco precisa fechar com `End If`; cada ramo representa uma decisão mutuamente condicionada.\n- Arrays são indexados; use limites reais quando a base puder variar.\n- `Set` atribui objetos, não valores numéricos; `Option Explicit` não escolhe o tipo por você."
+    },
+    {
+      "title": "4. Projetar, testar e depurar algoritmos de desenho",
+      "markdown": "### O problema que este assunto resolve\n\nAutomatizar sem especificar a tarefa pode produzir um desenho visualmente convincente, porém incorreto. Um algoritmo confiável começa pelo resultado esperado, explicita entradas e restrições, transforma a solução em etapas e testa casos normais, limites e entradas inválidas.\n\n> **Siglas e termos deste capítulo**\n> - **Entrada**: dados fornecidos ao algoritmo.\n> - **Saída**: resultado produzido.\n> - **Invariante**: condição que deve permanecer verdadeira durante um processamento.\n> - **Caso de teste**: entrada e resultado esperado usados para verificar comportamento.\n> - **Erro de sintaxe**: violação das regras formais da linguagem.\n> - **Erro lógico**: programa executa, mas calcula ou desenha resultado incorreto.\n\n### Decompor o problema\n\nConsidere desenhar uma sequência de segmentos a partir de uma lista de pontos. Primeiro valide que há ao menos dois pontos e que os valores são numéricos. Depois percorra pares consecutivos, formando uma linha entre o ponto i e o ponto i+1. Por fim, confirme quantidade, coordenadas e camada das entidades criadas. A validação antes da criação evita parte de um desenho quando a entrada está incompleta.\n\nUma especificação deve definir unidade, plano, sistema de coordenadas, espaço de destino, camada e tolerância. Um critério verificável pode ser: para n pontos válidos, criar n−1 segmentos entre pontos consecutivos, sem fechar automaticamente o último ao primeiro. Se o requisito for contorno fechado, incluir explicitamente o segmento entre o último e o primeiro.\n\n### Rastrear e depurar\n\nA depuração acompanha valores intermediários e fluxo de execução. Testes de mesa ajudam a verificar contadores, condições e resultados sem executar o CAD. No ambiente VBA, pontos de interrupção permitem pausar; execução passo a passo mostra qual ramo ou iteração está ativo. Inspecione índices antes de acessar arrays, principalmente `LBound`/`UBound`, e verifique referências `Nothing` antes de usar objetos opcionais.\n\nErros comuns incluem: confundir graus e radianos em funções trigonométricas; trocar x por y; usar UCS quando o método espera WCS; omitir o último ponto do laço; dividir por zero; atribuir objeto sem `Set`; e executar macro de origem desconhecida. A mensagem de erro pode indicar sintaxe, tipo incompatível ou referência inválida, mas um algoritmo também pode terminar normalmente e ainda estar errado.\n\n### Como cai na prova\n\n- O teste precisa comparar o resultado com o requisito, não apenas verificar se o programa terminou.\n- Para n pontos em cadeia aberta, existem n−1 segmentos; num contorno fechado, há mais um segmento de fechamento.\n- Dados de entrada devem ser validados antes de alterar o desenho.\n- Separar cálculo geométrico da criação de entidades facilita isolar o defeito."
+    }
+  ],
+  "summary": "O AutoCAD armazena entidades geométricas em espaços e sistemas de coordenadas. Em VBA/ActiveX no Windows, a cadeia `ThisDrawing.ModelSpace.AddLine` cria uma linha a partir de dois arrays de coordenadas WCS e devolve um objeto. Algoritmos confiáveis especificam entradas, resultados, unidades e referencial; usam variáveis tipadas, decisões, laços, arrays e procedimentos; validam dados e testam casos-limite. Projetos DVB devem ser carregados por caminhos controlados, e macros desconhecidas não devem ser executadas sem inspeção.",
+  "flashcards": [
+    {
+      "front": "O que representa uma entidade no AutoCAD?",
+      "back": "Um objeto gráfico armazenado no desenho, como linha, círculo, arco ou polilinha, com geometria e propriedades."
+    },
+    {
+      "front": "Para que serve o ModelSpace?",
+      "back": "É o espaço principal para construir a geometria do modelo, normalmente em escala real."
+    },
+    {
+      "front": "Qual a função usual do PaperSpace?",
+      "back": "Compor folhas e vistas de apresentação/plotagem, mantendo distinção em relação à construção do modelo."
+    },
+    {
+      "front": "O que uma camada controla?",
+      "back": "Agrupa entidades e permite controlar propriedades como visibilidade, cor e tipo de linha; não muda a geometria por si só."
+    },
+    {
+      "front": "O que diferencia WCS de UCS?",
+      "back": "WCS é o referencial mundial; UCS é um referencial de trabalho que o usuário pode deslocar ou girar."
+    },
+    {
+      "front": "Que coordenadas espera AddLine na API ActiveX?",
+      "back": "Dois arrays Variant de três doubles com coordenadas 3D no WCS: início e fim."
+    },
+    {
+      "front": "O que retorna ModelSpace.AddLine?",
+      "back": "O objeto Line recém-criado, que pode ser guardado numa variável de objeto usando Set."
+    },
+    {
+      "front": "Qual cadeia típica alcança o espaço do modelo em VBA?",
+      "back": "ThisDrawing.ModelSpace, a partir do desenho associado ao código."
+    },
+    {
+      "front": "Como AddPolyline difere de AddLine quanto às coordenadas?",
+      "back": "A documentação especifica lista de doubles em OCS para AddPolyline; contratos de métodos não devem ser presumidos iguais."
+    },
+    {
+      "front": "O que é um arquivo DVB?",
+      "back": "Um arquivo de projeto VBA usado pelo AutoCAD."
+    },
+    {
+      "front": "Como a Autodesk descreve carregar projeto VBA pela interface?",
+      "back": "Executar VBAMAN, escolher Load, selecionar o DVB, habilitar macros quando solicitado e fechar o gerenciador."
+    },
+    {
+      "front": "O que controla TRUSTEDPATHS?",
+      "back": "As pastas das quais o AutoCAD pode carregar e executar arquivos com código, incluindo macros DVB."
+    },
+    {
+      "front": "Para que serve Option Explicit?",
+      "back": "Exigir declaração explícita de variáveis, ajudando a detectar nomes incorretos e variáveis não declaradas."
+    },
+    {
+      "front": "O que faz If...Then...Else?",
+      "back": "Executa blocos distintos conforme uma condição lógica seja verdadeira ou falsa."
+    },
+    {
+      "front": "Qual é o Step padrão em For...Next?",
+      "back": "Um, quando Step é omitido."
+    },
+    {
+      "front": "Quando Step negativo é útil?",
+      "back": "Em contagem decrescente; o laço prossegue enquanto o contador não ultrapassa o limite na direção definida."
+    },
+    {
+      "front": "O que faz Exit For?",
+      "back": "Transfere a execução para depois do Next correspondente, encerrando o laço antes do limite normal."
+    },
+    {
+      "front": "O que retorna Array(10,20,30)?",
+      "back": "Um Variant que contém array; seus elementos são acessados por índices."
+    },
+    {
+      "front": "Por que usar LBound e UBound?",
+      "back": "Para obter limites efetivos do array sem presumir a base ou o tamanho."
+    },
+    {
+      "front": "Quando usar Set em VBA?",
+      "back": "Ao atribuir ou associar uma referência a objeto, como a linha retornada por AddLine."
+    },
+    {
+      "front": "O que uma Function oferece que uma Sub não oferece diretamente?",
+      "back": "A Function devolve um valor como resultado; a Sub executa ações sem retornar um valor de função."
+    },
+    {
+      "front": "Como calcular distância plana entre dois pontos?",
+      "back": "Raiz quadrada de (x2−x1)²+(y2−y1)², desde que se use o mesmo plano e unidade."
+    },
+    {
+      "front": "Quantos segmentos ligam n pontos consecutivos em cadeia aberta?",
+      "back": "n−1 segmentos, para n pontos válidos e n pelo menos igual a dois."
+    },
+    {
+      "front": "O que caracteriza erro lógico?",
+      "back": "O código executa, mas o cálculo ou desenho produzido não atende ao resultado esperado."
+    },
+    {
+      "front": "Por que testar entrada antes de desenhar?",
+      "back": "Para impedir criação parcial ou inválida quando faltam pontos, unidades coerentes ou valores numéricos."
+    }
+  ],
+  "tips": [
+    "Leia a assinatura de cada método CAD: ela define tipo, sistema de coordenadas e quantidade de valores esperados.",
+    "Separe variáveis de objeto das variáveis numéricas; a atribuição de referência de objeto usa Set.",
+    "Use Option Explicit e nomes como pontoInicial, indice e comprimento para reduzir erros de digitação.",
+    "Em laços, confira valor inicial, limite, Step e condição de saída; teste a primeira e a última iteração.",
+    "Quando a base de um array não estiver garantida, percorra de LBound até UBound.",
+    "Teste geometria e unidade num caso pequeno conhecido antes de aplicar a rotina a um desenho inteiro."
+  ],
+  "traps": [
+    "Achar que desligar uma camada apaga as entidades; a camada controla visibilidade, não exclusão.",
+    "Tratar coordenadas de AddLine como OCS; a referência documenta os pontos do método em WCS.",
+    "Atribuir o retorno de AddLine sem Set a uma variável de objeto; isso confunde referências e valores.",
+    "Supor que todo array VBA começa em zero; Option Base e a forma de criação podem alterar o limite inferior.",
+    "Presumir que um programa sem erro de execução está correto; erro lógico pode produzir desenho errado.",
+    "Executar macros DVB recebidas sem verificar origem e caminho confiável; macros podem conter código malicioso."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o caminho de objetos usado para inserir uma linha no espaço do modelo.",
+      "answer": "A partir de ThisDrawing, acessar ModelSpace e chamar AddLine com arrays de coordenadas de início e fim; guardar o objeto retornado com Set se necessário."
+    },
+    {
+      "question": "Explique por que WCS e UCS não são sinônimos.",
+      "answer": "WCS é o referencial global do desenho; UCS é um referencial local de trabalho configurável. Um método pode exigir coordenadas em um referencial específico."
+    },
+    {
+      "question": "Qual validação antecede uma rotina que liga pontos consecutivos?",
+      "answer": "Confirmar pelo menos dois pontos, valores numéricos válidos, unidade e referencial coerentes e índices dentro dos limites do array."
+    },
+    {
+      "question": "Como determinar quantas linhas são criadas ao conectar pontos em sequência aberta?",
+      "answer": "Com n pontos são criadas n−1 linhas; só se acrescenta a linha de fechamento quando o requisito explicitamente fecha o contorno."
+    },
+    {
+      "question": "Compare If...Then...Else e For...Next.",
+      "answer": "If escolhe um ramo conforme uma condição; For repete um bloco com contador, limite e passo determinados."
+    },
+    {
+      "question": "Por que Option Explicit ajuda na manutenção?",
+      "answer": "Obriga declarar variáveis e expõe nomes digitados incorretamente em vez de criar variáveis implícitas."
+    },
+    {
+      "question": "Como carregar um projeto DVB pelo VBA Manager segundo a ajuda do AutoCAD?",
+      "answer": "Executar VBAMAN, escolher Load, selecionar o arquivo DVB, habilitar as macros se solicitado e encerrar o gerenciador."
+    },
+    {
+      "question": "Dê um exemplo de teste de limite para AddPolyline.",
+      "answer": "Verificar que a lista tem pelo menos dois vértices e que a quantidade de elementos segue o formato esperado antes de chamar o método."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Referencial e coordenadas do método",
+      "summary": "WCS, UCS e OCS são referenciais distintos. AddLine documenta pontos 3D WCS; AddPolyline possui contrato próprio com coordenadas OCS."
+    },
+    {
+      "key": "e2",
+      "title": "Hierarquia e referência de objeto",
+      "summary": "O acesso percorre ThisDrawing até ModelSpace ou PaperSpace e então chama o método. Objetos retornados são atribuídos com Set."
+    },
+    {
+      "key": "e3",
+      "title": "Controle de fluxo e limites",
+      "summary": "If escolhe ramos; For/Do repetem. Erros de limite, passo, condição de parada e índices podem omitir ou duplicar entidades."
+    },
+    {
+      "key": "e4",
+      "title": "Dados, arrays e tipos",
+      "summary": "Declare tipos coerentes, consulte LBound/UBound e valide entradas. Não presuma base zero nem misture texto, números e referências."
+    },
+    {
+      "key": "e5",
+      "title": "Validação, teste e segurança",
+      "summary": "Um algoritmo pode terminar com resultado incorreto. Teste casos conhecidos, unidade e coordenadas; carregue macros somente de origem confiável."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Na API ActiveX do AutoCAD, `ThisDrawing.ModelSpace.AddLine` recebe dois pontos definidos por arrays de três valores Double em coordenadas 3D WCS e devolve uma entidade Line.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A referência oficial descreve StartPoint e EndPoint como Variant com três doubles, especifica coordenadas WCS e informa que o retorno é o objeto Line criado.",
+      "section": "2. AutoCAD ActiveX e a hierarquia de objetos VBA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O ModelSpace serve principalmente para montar a folha de impressão, enquanto o PaperSpace é o espaço destinado à construção da geometria do modelo em escala real.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A função usual é inversa: ModelSpace recebe a geometria do modelo; PaperSpace é usado na composição de folhas e vistas de apresentação.",
+      "section": "1. O desenho CAD como modelo geométrico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Desligar a visibilidade de uma camada remove definitivamente do arquivo todas as entidades que pertencem a ela.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A camada organiza propriedades e controla visibilidade, mas ocultar não equivale a apagar. As entidades continuam armazenadas no desenho.",
+      "section": "1. O desenho CAD como modelo geométrico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em VBA, `Set linha = ThisDrawing.ModelSpace.AddLine(p1, p2)` é uma forma coerente de guardar a referência ao objeto linha devolvido pelo método.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. AddLine devolve uma entidade, que é um objeto. VBA usa Set para associar uma variável de objeto à referência retornada.",
+      "section": "2. AutoCAD ActiveX e a hierarquia de objetos VBA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um `For i = 1 To 5` sem `Step`, o contador avança de cinco em cinco e o corpo é executado uma vez.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Quando omitido, Step vale um; o corpo é executado para os valores de 1 a 5, inclusive, salvo saída antecipada. A documentação também alerta que alterar o contador dentro do bloco dificulta leitura e depuração.",
+      "section": "3. VBA: dados, decisões, repetições e procedimentos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A instrução `If...Then...Else` permite executar blocos diferentes conforme a condição seja verdadeira ou falsa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A condição seleciona o bloco Then quando verdadeira; se nenhuma condição anterior for atendida, o ramo Else pode tratar o caso restante.",
+      "section": "3. VBA: dados, decisões, repetições e procedimentos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`Option Explicit` faz o VBA inferir automaticamente o tipo ideal de cada variável e dispensa sua declaração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Option Explicit exige declaração explícita de variáveis; não escolhe tipos por conta própria e ajuda a revelar nomes não declarados.",
+      "section": "3. VBA: dados, decisões, repetições e procedimentos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O limite inferior de um array VBA pode variar conforme sua forma de criação e configurações como Option Base; por isso LBound pode ser mais seguro que presumir zero.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação de Array explica a influência de Option Base em certos casos. LBound consulta o limite inferior real do array em uso.",
+      "section": "3. VBA: dados, decisões, repetições e procedimentos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma macro termina sem mensagem de erro, está demonstrado que a geometria atende ao requisito e usa o referencial correto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Um erro lógico pode produzir resultado incorreto sem interromper a execução. É preciso comparar saída, coordenadas, unidades e referencial com critérios esperados.",
+      "section": "4. Projetar, testar e depurar algoritmos de desenho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma cadeia aberta que conecta cada ponto ao seguinte, n pontos válidos geram n−1 segmentos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Há uma ligação entre cada par consecutivo: de 1 para 2 até de n−1 para n, totalizando n−1. Fechar o contorno acrescenta um segmento separado.",
+      "section": "4. Projetar, testar e depurar algoritmos de desenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A documentação de `AddPolyline` especifica lista de coordenadas OCS, com ao menos dois vértices e número de elementos múltiplo de três.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação ActiveX especifica array de doubles em OCS, três elementos por vértice, exige no mínimo seis elementos e informa que o tamanho deve ser múltiplo de três.",
+      "section": "2. AutoCAD ActiveX e a hierarquia de objetos VBA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No `For...Next`, um Step negativo é compatível com contagem decrescente, desde que o teste do limite permita que o contador alcance o valor final.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação descreve Step negativo e o teste contador maior ou igual ao limite final. Uma condição inicial incompatível pode fazer o corpo não executar.",
+      "section": "3. VBA: dados, decisões, repetições e procedimentos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Coordenadas numéricas no DWG sempre representam milímetros, independentemente das unidades e convenções do projeto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Um número de coordenada não determina sozinho uma unidade física; configuração e convenção do desenho definem sua interpretação. É necessário manter coerência de escala e unidade.",
+      "section": "1. O desenho CAD como modelo geométrico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modo seguro, caminhos confiáveis podem limitar o carregamento de projetos DVB; portanto a origem e a localização de macros devem ser controladas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação da Autodesk relaciona SECURELOAD e TRUSTEDPATHS ao carregamento de código, incluindo macros VBA DVB, e recomenda locais confiáveis e controlados.",
+      "section": "2. AutoCAD ActiveX e a hierarquia de objetos VBA",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para criar uma cadeia aberta com quatro pontos, uma rotina que liga cada par consecutivo deve gerar quatro segmentos, incluindo automaticamente o fechamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Quatro pontos em cadeia aberta geram três segmentos. Um quarto segmento só aparece se o requisito fechar explicitamente o último ponto ao primeiro.",
+      "section": "4. Projetar, testar e depurar algoritmos de desenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A referência ActiveX de AutoCAD citada para VBA documenta `AddLine` como método disponível em Block, ModelSpace e PaperSpace, com suporte indicado para Windows.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A página oficial lista esses objetos como aplicáveis e assinala Windows como plataforma suportada. Isso impede presumir disponibilidade equivalente em qualquer plataforma CAD.",
+      "section": "2. AutoCAD ActiveX e a hierarquia de objetos VBA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma função que percorre pontos de um array cujo limite inferior não é conhecido, usar `For i = 0 To UBound(pontos)` garante que nenhum índice inválido será acessado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Se o limite inferior for diferente de zero, iniciar em zero pode acessar posição inválida. O algoritmo deve considerar LBound e UBound do array concreto.",
+      "section": "4. Projetar, testar e depurar algoritmos de desenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+
+    {
+      "statement": "Uma rotina precisa criar um segmento entre dois pontos no modelo e guardar a entidade para alterar sua camada em seguida. Qual chamada atende a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`Set linha = ThisDrawing.ModelSpace.AddLine(inicio, fim)`, com pontos WCS em arrays de três doubles.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`linha = ThisDrawing.ModelSpace.AddLine(inicio, fim)`, com os pontos armazenados como textos separados por vírgula.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`Set linha = ThisDrawing.PaperSpace.AddLine(inicio)`, fornecendo só o ponto inicial para o método completar o segmento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`ThisDrawing.AddLine inicio, fim`, chamando o método diretamente no desenho sem escolher um espaço de destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`Set linha = ThisDrawing.ModelSpace.AddCircle(inicio, fim)`, usando o método circular para retornar uma linha reta.",
+          "correct": false
+        }
+      ],
+      "explanation": "AddLine é chamado no objeto de espaço e recebe início e fim; a referência documenta arrays de três doubles WCS. A variável guarda objeto e requer Set. As demais alternativas omitem parâmetros, usam tipo incompatível ou método/hierarquia inadequados.",
+      "section": "2. AutoCAD ActiveX e a hierarquia de objetos VBA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um desenho, a equipe quer ocultar cotas sem excluir os objetos, mantendo geometria do modelo em escala real. Qual configuração conceitual atende melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar as entidades de cota do ModelSpace e recriá-las sempre que forem necessárias durante a edição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Guardar o modelo no PaperSpace e usar uma camada para converter automaticamente as cotas em vistas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Separar cotas em uma camada e controlar sua visibilidade, mantendo a geometria do modelo no ModelSpace.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar o UCS para um sistema local, pois a orientação dos eixos determina quais objetos ficam visíveis.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Converter as cotas em bloco externo, pois somente referências externas podem ser temporariamente ocultadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Camadas permitem agrupar entidades e controlar visibilidade sem apagar a geometria. ModelSpace permanece apropriado à construção do modelo; UCS muda o referencial de trabalho, não controla visibilidade.",
+      "section": "1. O desenho CAD como modelo geométrico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual tipo VBA é mais apropriado para armazenar um comprimento numérico que pode conter parte fracionária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`Long`, que é o tipo indicado para preservar qualquer quantidade de casas decimais de uma medida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`Boolean`, que representa o comprimento como uma das duas condições lógicas disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`String`, que armazena texto e realiza automaticamente todas as operações métricas sem conversão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`Object`, que representa números decimais e não pode guardar referências a entidades do desenho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`Double`, que representa valores numéricos com parte fracionária para cálculos geométricos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Double é adequado a valores numéricos com fração. Boolean representa verdadeiro/falso; String é texto; Object guarda referências; Long é inteiro e não preserva parte fracionária como finalidade principal.",
+      "section": "3. VBA: dados, decisões, repetições e procedimentos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma macro deve executar uma ação apenas quando a distância calculada for positiva. Qual estrutura expressa diretamente essa decisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`If distancia > 0 Then` seguido das instruções que só devem ocorrer quando o teste for verdadeiro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`For distancia = 0 To 1` seguido das instruções, pois todo teste condicional exige contador de laço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`Set distancia = True`, que compara automaticamente a medida com zero e seleciona o ramo verdadeiro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`Array(distancia > 0)`, que executa apenas as instruções associadas à condição armazenada no array.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`Next distancia`, que testa valores positivos e negativos e substitui a estrutura If no VBA.",
+          "correct": false
+        }
+      ],
+      "explanation": "If...Then executa as instruções vinculadas quando a expressão relacional é verdadeira. For repete, Set atribui referência a objeto e Array cria uma coleção, não um ramo condicional.",
+      "section": "3. VBA: dados, decisões, repetições e procedimentos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A documentação da Autodesk indica o comando para abrir o gerenciador de projetos VBA do AutoCAD. Qual alternativa descreve esse procedimento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar `VBAMAN`, escolher Load, selecionar o arquivo DVB e habilitar macros quando solicitado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar `MODELSPACE`, selecionar um DWG e convertê-lo diretamente em um módulo VBA executável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar `TRUSTEDPATHS`, que abre o gerenciador e importa todos os projetos existentes no computador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar `ADDLINE`, informar o nome do arquivo DVB e usar o retorno para carregar suas macros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar `PAPERSPACE`, clicar em Enable Macros e salvar o arquivo como biblioteca ActiveX do desenho.",
+          "correct": true
+        }
+      ],
+      "explanation": "A ajuda oficial descreve VBAMAN e a sequência Load, selecionar DVB, habilitar macros se solicitado e fechar. Outros nomes são espaços, métodos ou variáveis de configuração, não o procedimento descrito.",
+      "section": "2. AutoCAD ActiveX e a hierarquia de objetos VBA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma lista de cinco pontos deve ser ligada em cadeia aberta. Quantas chamadas de criação de linha são necessárias?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma chamada, pois AddLine recebe a coleção inteira e conecta todos os pontos em ordem por padrão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cinco chamadas, pois cada ponto sempre inicia uma linha e o fechamento ocorre automaticamente no ModelSpace.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Três chamadas, porque o ponto central não participa de nenhum segmento quando a cadeia é aberta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Seis chamadas, incluindo obrigatoriamente duas linhas para a primeira coordenada armazenada no array.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Quatro chamadas, uma para cada par de pontos consecutivos da lista, sem ligar o último de volta ao primeiro.",
+          "correct": true
+        }
+      ],
+      "explanation": "Em uma cadeia aberta, cada um dos quatro intervalos entre pontos consecutivos gera uma linha: n−1 para n pontos. AddLine recebe somente dois pontos por chamada e não fecha automaticamente a cadeia.",
+      "section": "4. Projetar, testar e depurar algoritmos de desenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja determinar se uma variável nomeada foi declarada antes do uso e evitar que erros de digitação criem nomes implícitos. Qual recurso VBA deve adotar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`ThisDrawing`, que ativa validação de nomes e declara todas as variáveis no desenho atual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`Option Base`, que declara automaticamente cada variável e escolhe seu tipo numérico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`Exit For`, que impede a execução de nomes de variável que ainda não foram inicializados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`ReDim Preserve`, que cria declaração implícita para qualquer variável mencionada no código.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`Option Explicit`, que exige declaração explícita das variáveis usadas no módulo.",
+          "correct": true
+        }
+      ],
+      "explanation": "Option Explicit exige declaração explícita e ajuda a revelar erros de grafia. Option Base diz respeito à base de certos arrays; os demais itens não declaram variáveis.",
+      "section": "3. VBA: dados, decisões, repetições e procedimentos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O requisito é percorrer todos os elementos de um array cuja base pode variar. Qual estratégia evita assumir um índice inicial incorreto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Percorrer desde `UBound(array)` até zero, sem definir Step, para que VBA inverta a direção sozinho.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Percorrer sempre de zero até `UBound(array)`, pois arrays VBA começam invariavelmente em zero.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Percorrer desde `LBound(array)` até `UBound(array)`, consultando os limites efetivos da coleção.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar apenas `Option Explicit`, que define a base inferior e o tamanho de cada array declarado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `Set array = Nothing`, que percorre e devolve todos os índices sem acessar elementos inválidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "LBound e UBound consultam os limites reais. Option Explicit cuida de declaração, não da base; presumir zero ou direção automática pode produzir erro de índice ou omissão.",
+      "section": "3. VBA: dados, decisões, repetições e procedimentos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No desenho, um segmento parece correto, mas seus pontos foram passados no referencial errado. Qual prática de projeto previne melhor esse defeito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar sempre as coordenadas atualmente exibidas na tela, pois qualquer método ActiveX interpreta pixels como WCS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Especificar o sistema esperado por cada método e converter ou preparar os pontos no referencial exigido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar todos os valores de z por zero, pois isso converte automaticamente coordenadas UCS e OCS para WCS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar a camada da linha, pois propriedades de camada transformam coordenadas locais em coordenadas globais.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Substituir AddLine por AddPolyline, já que qualquer polilinha recebe os mesmos pontos e referenciais sem adaptação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A assinatura e a documentação do método definem o referencial de entrada. É necessário fornecer ou converter coordenadas adequadas. Z zero e camada não convertem sistemas, e métodos distintos podem esperar referenciais diferentes.",
+      "section": "1. O desenho CAD como modelo geométrico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina recebe três valores de coordenadas por vértice, mas o usuário fornece somente um ponto. Qual é a validação mais adequada antes de invocar AddPolyline?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Completar o array com coordenadas arbitrárias e executar o método, pois ele ignora qualquer quantidade insuficiente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter a lista em String e chamar AddPolyline, que separa automaticamente texto e cria vértices ausentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Rejeitar ou solicitar mais dados, pois a referência exige pelo menos dois pontos e array no formato esperado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar duas linhas sem verificar entrada, pois AddPolyline exige exatamente um vértice para cada entidade criada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o UCS e repetir a chamada, pois uma mudança de eixos aumenta a quantidade de vértices recebidos.",
+          "correct": true
+        }
+      ],
+      "explanation": "A referência oficial requer ao menos dois pontos, com array de tamanho múltiplo de três. Inventar coordenadas ou mudar UCS não corrige a insuficiência dos dados de entrada.",
+      "section": "2. AutoCAD ActiveX e a hierarquia de objetos VBA",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma cadeia de pontos, a especificação exige fechamento. Qual alteração lógica em relação à cadeia aberta completa a geometria?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar linhas entre cada par consecutivo e acrescentar uma ligação do último ponto ao primeiro.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover a ligação entre os dois primeiros pontos e manter o último sem conexão para representar o contorno.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Duplicar cada ponto antes do laço, pois entidades duplicadas fecham a forma sem novas linhas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar `ZoomAll` após o último ponto, pois o enquadramento fecha a geometria na tela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar ModelSpace por PaperSpace, pois o espaço de papel conecta automaticamente as extremidades.",
+          "correct": false
+        }
+      ],
+      "explanation": "O fechamento é uma conexão geométrica explícita entre último e primeiro pontos (ou operação de fechamento equivalente). Zoom, espaço e duplicação não criam essa aresta.",
+      "section": "4. Projetar, testar e depurar algoritmos de desenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante a depuração, o código executa todas as iterações, mas desloca cada linha para leste em vez de norte. Qual categoria descreve melhor o defeito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Erro de instalação, porque toda troca de eixo decorre da ausência do VBA Runtime no AutoCAD.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Erro lógico, pois a execução ocorre, mas o resultado geométrico não corresponde ao requisito definido.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Erro de sintaxe, pois qualquer coordenada numericamente válida impede o compilador de reconhecer a chamada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Erro de carregamento DVB, pois o projeto não foi reconhecido mesmo tendo executado seu laço completo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Erro de camada, pois mudar a camada corrige a troca entre coordenadas x e y no cálculo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O algoritmo executa, porém usa valores/eixos que produzem saída incompatível; isso é erro lógico. O teste deve verificar coordenadas esperadas, não só a conclusão do laço.",
+      "section": "4. Projetar, testar e depurar algoritmos de desenho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa deve contar de 10 até 2, diminuindo dois a cada repetição. Qual forma de laço expressa corretamente esse percurso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`For i = 10 To 2 Step -2`, verificando que o limite e o passo permitem a contagem decrescente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`For i = 10 To 2 Step 2`, pois passo positivo sempre reduz o contador quando o limite é menor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`For i = 2 To 10 Step -2`, pois o VBA inverte o início e o fim ao perceber que Step é negativo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`If i = 10 To 2`, pois a instrução condicional substitui contador, passo e fechamento do laço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`Next i Step -2`, pois o incremento deve aparecer após Next e não na declaração inicial do For.",
+          "correct": false
+        }
+      ],
+      "explanation": "For define início, limite e Step. O passo negativo diminui o contador; com início 10 e final 2, os valores esperados são 10, 8, 6, 4 e 2.",
+      "section": "3. VBA: dados, decisões, repetições e procedimentos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O time deve selecionar uma ação entre várias faixas de código, segundo o valor de uma mesma variável, e deseja código legível. Qual construção pode ser apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`Select Case`, quando se avalia uma expressão com várias alternativas de ação possíveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`Set Case`, que transforma qualquer valor numérico em referência de objeto antes de compará-lo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`ReDim Preserve`, que seleciona instruções conforme o intervalo de valores de uma variável escalar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`LBound`, que escolhe uma ramificação de execução e encerra todas as demais condições lógicas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`AddLine`, que compara o valor e executa a opção geométrica mais próxima do caso informado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Select Case pode ser mais claro quando uma expressão tem várias ações possíveis. Os demais recursos têm funções diferentes: objeto, array, limite de array ou criação de linha.",
+      "section": "3. VBA: dados, decisões, repetições e procedimentos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe encontrou macro DVB recebida por e-mail e deseja minimizar execução de código malicioso no AutoCAD. Qual conduta combina com a orientação oficial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Habilitar todas as macros e adicionar a pasta de downloads aos caminhos confiáveis para evitar avisos futuros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Inspecionar a origem e o código, usar caminhos confiáveis controlados e manter as proteções de carregamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Copiar o arquivo para PaperSpace, porque arquivos armazenados em folhas não podem executar rotinas VBA.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Renomear o DVB como DWG, pois essa extensão remove instruções executáveis sem alterar a macro original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar TRUSTEDPATHS e SECURELOAD, pois esses recursos servem apenas para impedir a abertura de desenhos grandes.",
+          "correct": true
+        }
+      ],
+      "explanation": "A Autodesk recomenda não executar código desconhecido sem inspeção e controlar pastas confiáveis; SECURELOAD/TRUSTEDPATHS participam das restrições de carregamento. As demais ações não oferecem proteção válida.",
+      "section": "2. AutoCAD ActiveX e a hierarquia de objetos VBA",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função de cálculo deve devolver a distância entre pontos e outra rotina deve criar as linhas no AutoCAD. Qual organização favorece reutilização e teste?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Calcular a medida em uma Function e manter a criação de entidades em uma Sub que usa o resultado validado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Guardar todo o cálculo como nome de camada e usar ModelSpace para interpretar o texto como distância.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fazer a Function carregar o DVB e usar a Sub como array, pois os nomes definem a função automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Combinar cálculo e desenho numa única expressão If, dispensando parâmetros, variáveis e resultado verificável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar apenas um comentário para devolver a distância, deixando a geometria ser deduzida pela documentação do projeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Function é apropriada para produzir um valor reutilizável, como distância; Sub pode executar a ação de desenho. A separação facilita testar o cálculo sem criar entidades.",
+      "section": "3. VBA: dados, decisões, repetições e procedimentos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina calcula distância plana entre (1,2) e (4,6), no mesmo plano e unidade. Qual valor deve obter?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "5 unidades, pois as diferenças são 3 e 4 e a raiz de 3² mais 4² é 5.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "7 unidades, pois a distância é sempre a soma simples dos módulos das diferenças de coordenadas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "12 unidades, pois a distância é o produto entre as duas diferenças observadas nos eixos do plano.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "25 unidades, pois a soma dos quadrados é usada sem aplicar a raiz quadrada ao resultado final.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "1 unidade, pois a distância depende somente da diferença entre as coordenadas x dos pontos informados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A distância euclidiana plana é √((4−1)²+(6−2)²)=√(9+16)=5. A soma simples é distância Manhattan, o produto ignora o conceito e 25 é o quadrado da distância.",
+      "section": "1. O desenho CAD como modelo geométrico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma linha deve ser inserida em uma camada específica, e o script precisa confirmar que o espaço de destino está definido. Qual sequência de projeto é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar a entidade como texto e trocar seu nome para Line, pois a camada converte texto em geometria linear.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar a linha sem selecionar espaço, pois a camada escolhida determina automaticamente ModelSpace e PaperSpace.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir o UCS para o nome da camada e chamar AddLine no objeto Application, que escolhe o espaço pelo eixo ativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir/descrever a camada, escolher ModelSpace ou PaperSpace conforme o requisito, criar a entidade e então validar suas propriedades.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Selecionar PaperSpace em todos os casos, pois ele é o espaço padrão para qualquer entidade geométrica do modelo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Camada e espaço cumprem papéis diferentes: a camada organiza propriedades; o espaço define onde a entidade reside. A rotina deve determinar o destino pelo requisito e verificar a entidade produzida.",
+      "section": "1. O desenho CAD como modelo geométrico",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma polilinha que representa vértices 2D no contrato documentado de AddPolyline, qual entendimento sobre o array de entrada é correto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada vértice ocupa apenas um elemento WCS e a lista não pode conter coordenadas repetidas em nenhum caso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cada vértice ocupa três elementos no array OCS; para essa polilinha, a terceira coordenada é ignorada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O array contém texto com nomes de camadas, e o AutoCAD extrai os pares x e y de cada palavra.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "AddPolyline recebe exatamente dois arrays de três doubles, um de início e outro de fim, como AddLine.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A lista aceita quantidade arbitrária de elementos, inclusive um único valor, e sempre cria uma polilinha fechada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A Autodesk documenta VerticesList como array de doubles OCS, três valores por vértice, com o terceiro ignorado para a polilinha descrita; exige ao menos dois pontos e tamanho múltiplo de três.",
+      "section": "2. AutoCAD ActiveX e a hierarquia de objetos VBA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O desenho deve usar um arco com ângulo informado em graus, mas a função trigonométrica empregada espera radianos. Qual procedimento evita o erro de cálculo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar o valor por uma camada chamada RADIANOS, pois propriedades gráficas convertem unidades matemáticas automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter conscientemente o valor angular para a unidade esperada pela função antes do cálculo e validar um caso conhecido.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Arredondar o ângulo para inteiro e omitir a conversão, pois graus e radianos têm os mesmos valores numéricos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar PaperSpace em vez de ModelSpace, pois a folha interpreta ângulos em graus sem alterar o cálculo VBA.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar `Set` ao ângulo numérico, pois atribuição de objeto converte automaticamente medidas angulares.",
+          "correct": false
+        }
+      ],
+      "explanation": "Unidades angulares são parte do contrato do cálculo. Deve-se converter para a unidade que a função espera e validar com um exemplo conhecido; camada, espaço e Set não fazem essa conversão.",
+      "section": "4. Projetar, testar e depurar algoritmos de desenho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina encontra uma entidade que pode não existir e precisa evitar erro ao tentar acessar suas propriedades. Que estratégia geral é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar `Option Base` ao objeto, pois esse comando inicializa as referências ausentes do desenho.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar `Set entidade = Nothing` imediatamente antes de acessar a propriedade para ativar a referência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `UBound(entidade)` para testar qualquer referência, pois UBound consulta existência de objetos CAD.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificar se a referência do objeto foi obtida e não está Nothing antes de chamar seus métodos ou propriedades.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desligar a camada da entidade, pois uma entidade invisível sempre passa a ter referência válida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma referência opcional deve ser verificada antes do uso; Nothing representa ausência de objeto associado. Limites de array e configurações de base não validam entidades CAD.",
+      "section": "4. Projetar, testar e depurar algoritmos de desenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe quer percorrer objetos de ModelSpace sem tentar acessar Item(0) quando não há entidades. Qual controle evita esse acesso inválido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar ZoomAll antes de Item(0), pois o enquadramento cria um objeto geométrico inicial no espaço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Acessar Item(0) sempre, pois a coleção cria uma entidade temporária quando está vazia.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `Set entidade = Nothing` e então ler ObjectName para obter a primeira entidade disponível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mudar para PaperSpace, porque a coleção de modelo vazia é preenchida automaticamente pela coleção de papel.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Testar se a coleção tem contagem diferente de zero antes de obter o item, tratando separadamente o caso vazio.",
+          "correct": true
+        }
+      ],
+      "explanation": "A documentação da Autodesk exemplifica testar `ModelSpace.Count <> 0` antes de obter Item(0), e tratar a coleção vazia à parte. Zoom ou troca de espaço não cria entidade para consulta.",
+      "section": "2. AutoCAD ActiveX e a hierarquia de objetos VBA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um laço percorre pontos de `LBound` a `UBound`, mas cria a linha usando o próximo índice também na última iteração. Qual correção elimina o acesso além do fim?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Limitar o índice inicial da ligação até `UBound(pontos) - 1`, pois cada segmento acessa também o elemento seguinte.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter o limite e acrescentar `On Error Resume Next`, para ignorar qualquer ponto final ausente sem revisão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o array com valores aleatórios até o erro deixar de aparecer durante a execução da macro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar `UBound` por `Option Explicit`, que reduz o limite máximo em uma posição automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar PaperSpace na última iteração, pois a mudança de espaço reinicia os índices do array de pontos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ligação usa pontos i e i+1. Para que i+1 continue dentro do array, i deve parar uma posição antes do limite superior. Suprimir erro esconde o defeito em vez de corrigir o limite.",
+      "section": "4. Projetar, testar e depurar algoritmos de desenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O usuário recebe coordenadas em metros, mas o desenho adota convenção em milímetros. Qual decisão deve anteceder a criação geométrica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter os valores conforme a escala de unidade definida no projeto e registrar essa premissa na validação da rotina.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Enviar os números sem conversão, pois AutoCAD identifica a unidade física pela quantidade de casas decimais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar o sistema WCS pelo UCS, pois a orientação local converte automaticamente metros em milímetros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar uma camada com nome MILIMETROS, pois o nome da camada altera a unidade de cada coordenada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Arredondar todas as coordenadas para inteiros, pois isso converte qualquer unidade de origem para a unidade do desenho.",
+          "correct": false
+        }
+      ],
+      "explanation": "Coordenadas não carregam uma unidade física universal. A rotina deve converter segundo a convenção definida e validar o resultado; UCS, camada e arredondamento não realizam conversão dimensional.",
+      "section": "1. O desenho CAD como modelo geométrico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma macro deve criar diversos objetos e continuar permitindo depuração. Qual prática favorece manutenção sem alterar a geometria requerida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Separar validação, cálculo e inserção em procedimentos com responsabilidades claras, nomes descritivos e casos de teste conhecidos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Concentrar todo o programa numa linha, ocultar variáveis e remover testes para reduzir o número de comandos visíveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar nomes de variáveis aleatórios e desativar Option Explicit para que erros de digitação sejam resolvidos automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar objetos diretamente durante a leitura, antes de validar entrada, e confiar que a rotina sempre será executada até o fim.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir verificações por comentários, pois o VBA usa o texto dos comentários para impedir valores inconsistentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "A decomposição permite testar e corrigir cada etapa: validar dados, calcular resultados e criar entidades. Nomes claros e casos conhecidos apoiam depuração; comentários não executam validação e código comprimido dificulta manutenção.",
+      "section": "4. Projetar, testar e depurar algoritmos de desenho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+
+    {
+      "statement": "Qual combinação descreve corretamente o papel de WCS, UCS e camada no trabalho CAD?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "WCS é o referencial global, UCS é um referencial de trabalho ajustável e camada organiza propriedades/visibilidade das entidades.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "WCS controla visibilidade, UCS armazena o nome das entidades e camada converte coordenadas locais em unidades físicas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "WCS é exclusivo da impressão, UCS apaga objetos fora dos eixos e camada determina o sistema mundial de coordenadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "WCS e UCS são formatos de arquivo, enquanto camada é um método ActiveX que retorna uma linha recém-criada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "WCS e UCS indicam unidades de medida, e a camada seleciona automaticamente ModelSpace ou PaperSpace para cada objeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "São conceitos diferentes: WCS/UCS dizem respeito a referenciais; camada agrupa entidades e controla propriedades como visibilidade. Nenhum deles substitui o espaço de destino nem define sozinho unidade física.",
+      "section": "1. O desenho CAD como modelo geométrico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para modelar um algoritmo que valida comprimento antes de desenhar, qual sequência é mais robusta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ler a entrada, verificar tipo e faixa válida, calcular o resultado, criar entidade e comparar a saída com o esperado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar a entidade primeiro, converter qualquer entrada para zero se houver falha e informar sucesso sem conferir o desenho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mudar a camada conforme o texto digitado, ignorar a unidade e deixar o AutoCAD inferir o comprimento desejado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar um laço infinito até o usuário fechar o desenho, pois repetição substitui qualquer regra de validação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenar o comprimento em Boolean, executar AddLine com um único ponto e usar o retorno como medida calculada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Validar antes de alterar o desenho evita objetos parciais ou sem sentido. Cálculo e saída devem ser testáveis e comparados ao requisito. Conversão silenciosa, laço infinito e tipos/métodos incompatíveis não são validação.",
+      "section": "4. Projetar, testar e depurar algoritmos de desenho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual enunciado sobre VBA/ActiveX no AutoCAD é mais preciso para avaliar compatibilidade de uma rotina?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A API ActiveX documentada para os métodos citados é indicada para Windows, e disponibilidade depende do produto usado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todo produto CAD executa VBA de modo idêntico, pois a linguagem garante as mesmas interfaces em qualquer sistema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "AutoCAD LT executa necessariamente os mesmos projetos VBA e ActiveX do AutoCAD completo em todas as versões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma macro VBA é um formato DWG e por isso não depende de gerenciador, plataforma ou configuração de segurança.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ActiveX designa um sistema de coordenadas, portanto a compatibilidade não depende de sistema operacional ou produto.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação de AddLine assinala Windows como plataforma suportada, e a ajuda Autodesk distingue capacidades de produtos, informando que AutoCAD LT não executa VBA. Deve-se conferir o ambiente alvo.",
+      "section": "2. AutoCAD ActiveX e a hierarquia de objetos VBA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um algoritmo cria entidades corretas para coordenadas simples, mas falha quando os pontos estão em ordem decrescente. Qual investigação inicial é mais útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Revisar início, limite, direção do Step e condição de término do laço com um teste de mesa dos índices.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Alterar todas as camadas do desenho, porque a ordem dos pontos é controlada pela cor da entidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir todos os arrays por texto, pois strings são percorridas automaticamente em qualquer direção de coordenadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar o limite final e usar `On Error Resume Next`, pois índices inválidos tornam a sequência decrescente correta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar ZoomAll em cada iteração, pois o enquadramento corrige contador que avança no sentido oposto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Falha associada à direção aponta para controle de fluxo: início, limite e Step devem permitir a contagem desejada. Teste de mesa revela sequência dos índices; apresentação gráfica e supressão de erro não corrigem o laço.",
+      "section": "4. Projetar, testar e depurar algoritmos de desenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista quer reutilizar uma definição gráfica de símbolo em vários pontos do projeto sem redesenhar manualmente cada componente. Qual conceito CAD é pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Bloco, que agrupa uma definição de entidades reutilizável por inserções no desenho.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "UCS, que transforma automaticamente coordenadas em uma biblioteca de símbolos gráficos nomeados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PaperSpace, que converte qualquer linha isolada em definição reutilizável sem criar referência de bloco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "TRUSTEDPATHS, que armazena símbolos e desenha cópias em todas as camadas confiáveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Option Explicit, que declara cada entidade geométrica como um símbolo reutilizável no arquivo DWG.",
+          "correct": false
+        }
+      ],
+      "explanation": "Blocos permitem reutilizar uma definição composta por entidades por meio de inserções. UCS é referencial, PaperSpace é espaço de apresentação, TRUSTEDPATHS controla código e Option Explicit cuida de declarações VBA.",
+      "section": "1. O desenho CAD como modelo geométrico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual bateria de testes oferece evidência mais adequada para uma rotina que desenha segmentos a partir de pontos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Testar entrada mínima e inválida, coordenadas conhecidas, limites do array, unidade/referencial e quantidade esperada de entidades.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar uma vez com muitos pontos aleatórios e considerar aprovado se o AutoCAD não fechar durante a macro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conferir apenas o nome do arquivo, pois um DWG salvo prova que cada coordenada e segmento está correto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificar somente a cor da camada, pois aparência colorida garante cálculo, escala e conectividade geométrica corretos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pular testes de limite e executar diretamente em produção, pois os arrays VBA impedem automaticamente toda posição inválida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma boa bateria cobre casos normais, limites e entradas inválidas e compara resultado mensurável: coordenadas, referencial, unidade e quantidade. Ausência de travamento ou aparência não prova correção geométrica.",
+      "section": "4. Projetar, testar e depurar algoritmos de desenho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "AddLine Method (ActiveX)",
+      "publisher": "Autodesk Help",
+      "reference": "Assinatura VBA, pontos 3D WCS, objetos aplicáveis, retorno Line e exemplo ModelSpace.AddLine",
+      "url": "https://help.autodesk.com/cloudhelp/2020/ENU/AutoCAD-ActiveX-Reference/files/GUID-26C95029-14BB-40B9-9987-49EFC980CB9D.htm",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "About Referencing Objects in the Object Hierarchy (VBA/ActiveX)",
+      "publisher": "Autodesk Help",
+      "reference": "Hierarquia ThisDrawing-ModelSpace, referência a objetos e consulta de entidades",
+      "url": "https://help.autodesk.com/cloudhelp/2021/ENU/AutoCAD-ActiveX/files/GUID-D4FF317D-16DA-42D8-8309-8260B7427E55.htm",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "AddPolyline Method (ActiveX)",
+      "publisher": "Autodesk Help",
+      "reference": "Array de vértices OCS, formato e quantidade mínima de elementos",
+      "url": "https://help.autodesk.com/cloudhelp/2026/ENU/AutoCAD-ActiveX-Reference/files/GUID-ED02917C-D1D6-46B8-95C6-736163C31362.htm",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "To Load or Unload a VBA Project",
+      "publisher": "Autodesk Help",
+      "reference": "Procedimento VBAMAN, carregamento de DVB, AcadStartup e modo seguro",
+      "url": "https://help.autodesk.com/cloudhelp/2024/ENU/AutoCAD-Customization/files/GUID-30F06535-7FB5-4F03-A0EE-96973836E231.htm",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "TRUSTEDPATHS (System Variable)",
+      "publisher": "Autodesk Help",
+      "reference": "Pastas autorizadas para carregamento de código, inclusive macros DVB",
+      "url": "https://help.autodesk.com/cloudhelp/2026/ENU/AutoCAD-LT/files/GUID-2FB4611D-F141-48D5-9B6E-460EB59351AF.htm",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "For...Next statement (VBA)",
+      "publisher": "Microsoft Learn",
+      "reference": "Sintaxe, contador, Step, saída antecipada e laços aninhados",
+      "url": "https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/fornext-statement",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "If...Then...Else statement (VBA)",
+      "publisher": "Microsoft Learn",
+      "reference": "Formas de decisão, ElseIf, bloco e execução condicional",
+      "url": "https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/ifthenelse-statement",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Array function (Visual Basic for Applications)",
+      "publisher": "Microsoft Learn",
+      "reference": "Arrays em Variant, indexação, Option Base, LBound, UBound e ReDim Preserve",
+      "url": "https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/array-function",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

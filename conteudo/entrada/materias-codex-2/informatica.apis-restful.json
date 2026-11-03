@@ -1,0 +1,1432 @@
+{
+  "id": "informatica.apis-restful",
+  "subject": "Informática",
+  "title": "APIs RESTful",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "APIs RESTful e HTTP",
+    "Interface REST para serviços web",
+    "Arquitetura REST de APIs",
+    "Serviços REST sobre HTTP",
+    "Transferência representacional de estado",
+    "Recursos e representações em REST",
+    "Métodos HTTP em APIs RESTful",
+    "Respostas e status em REST",
+    "API REST com recursos identificáveis",
+    "REST e hipermídia na Web"
+  ],
+  "scope": {
+    "covers": "Estilo arquitetural REST e suas restrições; recursos, identificadores URI e representações; interface uniforme e hipermídia; comunicação sem estado, cache e camadas; métodos HTTP, segurança e idempotência; códigos de status, cabeçalhos, formatos, paginação, erros, versionamento e boas práticas de desenho de APIs RESTful.",
+    "excludes": "Implementação em framework específico, especificação OpenAPI detalhada, GraphQL, SOAP, configuração de infraestrutura de nuvem e segurança criptográfica aprofundada."
+  },
+  "theoryTitle": "Desenhando APIs com o estilo REST",
+  "chapters": [
+    {
+      "title": "1. REST, recursos e representações",
+      "markdown": "### O problema que este assunto resolve\n\nUma API permite que sistemas diferentes troquem informações e solicitem operações por uma interface previsível. REST (Representational State Transfer, transferência representacional de estado) é um estilo arquitetural descrito por Roy Fielding para sistemas distribuídos de hipermídia. Não é uma biblioteca, um formato de arquivo nem um protocolo que obrigue toda API a usar JSON. HTTP é um protocolo frequentemente usado para concretizar as interações REST na Web.\n\n> **Siglas e termos deste capítulo**\n> - **API**: interface pela qual um programa solicita capacidades ou dados de outro.\n> - **Recurso**: conceito identificável, como cliente, pedido ou coleção de pedidos.\n> - **URI**: identificador uniforme de recurso; localiza ou identifica o alvo da interação.\n> - **Representação**: dados que descrevem o estado de um recurso em determinado formato.\n> - **Hipermídia**: informação que inclui controles, como links e ações disponíveis.\n\n### O recurso não é o arquivo JSON\n\nEm `/clientes/42`, o servidor identifica o cliente de identificador 42. Uma resposta JSON como `{\"id\":42,\"nome\":\"Lia\"}` é uma representação desse recurso, não o recurso em si. O mesmo recurso pode ter representações diferentes, por exemplo JSON ou XML, escolhidas por negociação de conteúdo. Um recurso pode também representar algo não físico, como uma pesquisa, uma fatura ou o resultado de uma consulta.\n\nURIs devem apontar para recursos estáveis e usar nomes claros. Coleções são comumente substantivos no plural (`/clientes`); um item pode ser endereçado como `/clientes/42`; uma relação subordinada pode ser `/clientes/42/pedidos`. Verbos nos caminhos (`/buscarCliente`, `/criarPedido`) tendem a embutir a operação no identificador e duplicar a semântica que o método HTTP já fornece. Consultas e filtros podem ser expressos na query string, como `/pedidos?estado=aberto&pagina=2`.\n\n### Estado do recurso e estado da aplicação\n\nO servidor mantém o estado persistente dos recursos. O cliente percorre a aplicação por interações e controles recebidos, em vez de depender de caminhos internos não publicados. Uma resposta pode trazer links para ações possíveis, por exemplo um pedido aberto com link para cancelamento. Essa ideia de hipermídia como motor do estado da aplicação é associada à restrição HATEOAS. Ela ajuda clientes a descobrir transições oferecidas pelo serviço.\n\nREST não significa simplesmente “retornar JSON por HTTP”. Uma API que usa HTTP e JSON pode ignorar as restrições REST, por exemplo mantendo sessão obrigatória no servidor ou escondendo todas as ações em endpoints específicos. A avaliação é arquitetural: observa-se o conjunto de restrições e o efeito sobre a interação entre componentes.\n\n### Como cai na prova\n\n- O recurso é identificado pelo URI; JSON, XML ou outro conteúdo é uma representação dele.\n- REST é estilo arquitetural; HTTP é um protocolo e JSON é um formato de representação.\n- A interface deve expor recursos e semântica compreensíveis, não somente verbos arbitrários nos caminhos.\n- Hyperlinks ou controles na representação podem indicar transições válidas para o cliente."
+    },
+    {
+      "title": "2. Restrições arquiteturais REST",
+      "markdown": "### O problema que este assunto resolve\n\nAs restrições REST definem como os componentes devem interagir para que o sistema possa crescer, evoluir e admitir intermediários. Fielding deriva REST a partir de estilos arquiteturais anteriores e adiciona uma interface uniforme. As restrições são cumulativas: retirar uma delas pode afastar a arquitetura do estilo, ainda que a API continue funcionando.\n\n> **Siglas e termos deste capítulo**\n> - **Cliente-servidor**: separa a interface do usuário e a apresentação do armazenamento e processamento de recursos.\n> - **Stateless**: cada solicitação contém o necessário para ser entendida sem contexto de sessão guardado no servidor.\n> - **Cache**: armazenamento temporário de respostas que podem ser reutilizadas segundo regras explícitas.\n> - **Camada**: componente intermediário entre cliente e servidor, como proxy, gateway ou balanceador.\n> - **Code-on-demand**: possibilidade de transferir código executável ao cliente; restrição opcional em REST.\n\n### Restrições e efeitos\n\n| Restrição | Efeito prático |\n| --- | --- |\n| Cliente-servidor | Separação de responsabilidades e evolução independente dos lados |\n| Sem estado de sessão no servidor | Cada requisição é autossuficiente; facilita escalabilidade e recuperação |\n| Cache | Resposta reutilizável reduz latência e tráfego quando a política permite |\n| Interface uniforme | Interações seguem semântica genérica e visível entre componentes |\n| Sistema em camadas | Cliente não precisa conhecer se fala com servidor final ou intermediário |\n| Código sob demanda | Cliente pode receber código executável; é opcional e reduz visibilidade |\n\nSem estado não quer dizer que o sistema não guarde dados. O servidor pode armazenar clientes, pedidos e outros estados persistentes. O que a restrição evita é depender de contexto conversacional guardado entre uma requisição e outra, como uma sessão implícita necessária para interpretar o próximo pedido. Credenciais ou tokens podem ser enviados a cada chamada; a autenticação não contradiz por si só a ausência de estado.\n\nRespostas precisam indicar se podem ser armazenadas e por quanto tempo ou sob quais condições. Não se deve presumir que toda resposta é cacheável. Dados personalizados, mutáveis ou sensíveis podem exigir diretivas que impeçam armazenamento ou revalidação antes do uso. Intermediários podem cachear, encaminhar ou transformar mensagens conforme as semânticas e políticas aplicáveis.\n\nA interface uniforme reduz acoplamento porque padroniza identificação de recursos, manipulação por representações, mensagens autodescritivas e hipermídia. Camadas permitem inserir gateway ou proxy sem que o cliente precise conhecer a topologia interna. Isso melhora escalabilidade e permite encapsular sistemas legados, mas cada salto pode acrescentar latência.\n\n### Como cai na prova\n\n- Stateless trata do contexto de interação, não da inexistência de banco de dados.\n- Cache é uma restrição REST e depende de política explícita da resposta.\n- Código sob demanda é opcional, diferentemente das demais restrições centrais.\n- Camadas ocultam detalhes topológicos do cliente; não significam que não haja intermediários."
+    },
+    {
+      "title": "3. Métodos HTTP e semântica das operações",
+      "markdown": "### O problema que este assunto resolve\n\nUma API previsível combina o URI do recurso com o método HTTP apropriado. O método expressa a intenção genérica da solicitação; não deve ser escolhido somente pelo verbo do nome de uma função interna. HTTP define propriedades como segurança (efeito pretendido essencialmente de leitura) e idempotência (repetir a chamada tem o mesmo efeito pretendido que executá-la uma vez).\n\n> **Siglas e termos deste capítulo**\n> - **GET**: obtém uma representação atual ou selecionada do recurso.\n> - **HEAD**: equivalente a GET quanto aos metadados, sem conteúdo de resposta.\n> - **POST**: solicita que o recurso processe o conteúdo segundo sua própria semântica.\n> - **PUT**: cria ou substitui o estado do recurso-alvo conforme a representação enviada.\n> - **PATCH**: aplica modificações parciais de acordo com um formato definido.\n> - **Idempotente**: repetições têm o mesmo efeito pretendido no servidor.\n\n### Métodos em uso comum\n\n| Método | Uso frequente em APIs | Propriedade HTTP essencial |\n| --- | --- | --- |\n| GET | Consultar coleção ou item | Seguro e idempotente |\n| HEAD | Consultar metadados sem conteúdo | Seguro e idempotente |\n| POST | Criar subordinado ou executar processamento | Não é idempotente por definição |\n| PUT | Substituir ou criar estado no URI conhecido | Idempotente, não seguro |\n| PATCH | Alterar parte do recurso | Idempotência depende da semântica definida |\n| DELETE | Remover associação/estado do recurso-alvo | Idempotente, não seguro |\n| OPTIONS | Descobrir comunicação permitida para o alvo | Seguro e idempotente |\n\n“Seguro” não significa ausência absoluta de efeitos incidentais, como registrar acesso; significa que o cliente não pediu nem espera mudança de estado do recurso. PUT e DELETE são idempotentes, embora a primeira e a segunda resposta possam diferir. Excluir duas vezes pode produzir sucesso na primeira chamada e recurso ausente na seguinte; o efeito pretendido continua equivalente. POST geralmente não é idempotente, pois repeti-lo pode criar dois pedidos. Uma chave de idempotência definida pela aplicação pode reduzir duplicações em operações de criação, mas não altera a definição genérica do método.\n\nPUT costuma representar a substituição da representação do recurso no URI-alvo. PATCH descreve uma alteração parcial, conforme o formato acordado. POST pode enviar dados a uma coleção para criação subordinada, ou pedir processamento que não se encaixe em outra semântica. A escolha precisa ser documentada e consistente.\n\n### Como cai na prova\n\n- GET é seguro; PUT e DELETE são idempotentes, mas não seguros.\n- POST não é automaticamente seguro para repetição após falha de comunicação.\n- Idempotência compara o efeito pretendido, não exige respostas byte a byte iguais.\n- PATCH não é automaticamente idempotente; depende das operações especificadas."
+    },
+    {
+      "title": "4. Respostas, erros e desenho de contrato",
+      "markdown": "### O problema que este assunto resolve\n\nO cliente precisa distinguir sucesso, ausência de representação, erro de entrada, falta de autorização e indisponibilidade temporária sem interpretar mensagens improvisadas. O código de status sinaliza a classe do resultado; cabeçalhos e conteúdo completam a resposta. Os códigos HTTP válidos pertencem às classes 1xx a 5xx.\n\n> **Siglas e termos deste capítulo**\n> - **2xx**: solicitação recebida, entendida e aceita com sucesso.\n> - **3xx**: requer ação adicional, frequentemente seguir outro URI.\n> - **4xx**: problema na solicitação ou impossibilidade de atendê-la por motivo atribuível ao cliente.\n> - **5xx**: servidor ou gateway falhou ao cumprir uma solicitação aparentemente válida.\n> - **Content-Type**: formato da representação enviada na mensagem.\n> - **Accept**: formatos de resposta que o cliente prefere receber.\n\n### Escolher códigos com significado\n\n`200 OK` indica sucesso com resposta; `201 Created` informa criação e normalmente identifica o recurso criado, frequentemente com `Location`; `202 Accepted` indica que o processamento foi aceito, mas ainda não terminou; `204 No Content` confirma sucesso sem conteúdo de resposta. `304 Not Modified` permite reutilizar representação armazenada sob validação condicional.\n\nEntre erros, `400 Bad Request` cobre solicitação inválida; `401 Unauthorized` significa que faltam credenciais válidas ou elas são inválidas (apesar do nome histórico); `403 Forbidden` indica recusa de acesso; `404 Not Found` indica que o alvo não foi encontrado ou não é revelado; `409 Conflict` indica conflito com o estado atual; `422 Unprocessable Content` aponta conteúdo entendido sintaticamente, mas cujas instruções não podem ser processadas; `429 Too Many Requests` sinaliza limitação de requisições; `500 Internal Server Error` é falha interna; `503 Service Unavailable` indica incapacidade temporária, possivelmente acompanhada de `Retry-After`. O código escolhido deve corresponder ao caso e não servir como rótulo genérico.\n\nRepresentações de erro devem ser consistentes e úteis: identificador estável, mensagem segura para o consumidor e, quando apropriado, detalhes de validação por campo. Não exponha stack trace, segredo ou dado interno. A API deve documentar campos obrigatórios, tipos, formatos aceitos, códigos, cabeçalhos, paginação e ordenação. `Content-Type` descreve o corpo enviado; `Accept` expressa preferência do cliente.\n\nPaginação evita respostas ilimitadas: limite e cursor ou número de página devem ter semântica documentada, e a resposta pode informar próximo link ou cursor. Versionamento deve ser pensado para compatibilidade; mudanças incompatíveis precisam de estratégia explícita e período de transição quando aplicável. Segurança inclui TLS, autenticação e autorização por recurso, validação de entrada, limites de uso e cuidado com dados pessoais.\n\n### Como cai na prova\n\n- `201` comunica criação; `202` aceitação ainda pendente; `204` sucesso sem corpo.\n- `401` se relaciona a autenticação; `403`, a recusa de acesso.\n- `503` é indisponibilidade temporária; `Retry-After` pode orientar nova tentativa.\n- Um contrato claro especifica formatos, campos, erros, paginação e regras de compatibilidade."
+    }
+  ],
+  "summary": "REST é um estilo arquitetural para sistemas distribuídos, composto por restrições como cliente-servidor, comunicação sem estado de sessão, cache, interface uniforme e camadas; código sob demanda é opcional. Uma API RESTful identifica recursos por URI e transfere representações, normalmente por HTTP. O método HTTP define semântica genérica: GET é seguro; PUT e DELETE são idempotentes; POST normalmente não é. Códigos de status, cabeçalhos e representações formam o contrato da API. Boas APIs documentam recursos, validação, erros, formatos, paginação, segurança e compatibilidade.",
+  "flashcards": [
+    {
+      "front": "O que é REST?",
+      "back": "Estilo arquitetural para sistemas distribuídos de hipermídia, definido por um conjunto de restrições de interação."
+    },
+    {
+      "front": "O que é um recurso em REST?",
+      "back": "Qualquer conceito identificável sobre o qual se pode transmitir uma representação, como cliente, pedido ou pesquisa."
+    },
+    {
+      "front": "URI identifica o quê?",
+      "back": "O alvo ou recurso da interação; não é a própria representação JSON transferida."
+    },
+    {
+      "front": "O que significa representação?",
+      "back": "Dados que descrevem um recurso em um formato como JSON ou XML."
+    },
+    {
+      "front": "REST exige JSON?",
+      "back": "Não. JSON é comum, mas REST não impõe um formato específico de representação."
+    },
+    {
+      "front": "Para que serve a separação cliente-servidor?",
+      "back": "Separa apresentação e interação do cliente das responsabilidades de armazenamento e processamento do servidor."
+    },
+    {
+      "front": "O que significa stateless em REST?",
+      "back": "Cada requisição contém o necessário para ser entendida, sem depender de contexto de sessão guardado no servidor."
+    },
+    {
+      "front": "Stateless proíbe guardar recursos no banco?",
+      "back": "Não. Proíbe dependência de contexto conversacional entre requisições; dados persistentes podem ser armazenados."
+    },
+    {
+      "front": "Qual é o papel do cache?",
+      "back": "Reutilizar respostas permitidas por política para reduzir latência e tráfego."
+    },
+    {
+      "front": "Código sob demanda é obrigatório?",
+      "back": "Não. É uma restrição opcional que permite transferir código executável ao cliente."
+    },
+    {
+      "front": "O que GET comunica?",
+      "back": "Solicita obter uma representação do recurso-alvo; é seguro e idempotente."
+    },
+    {
+      "front": "O que é método seguro?",
+      "back": "Método cujo efeito pretendido é essencialmente somente leitura, sem mudança pedida pelo cliente."
+    },
+    {
+      "front": "O que é idempotência HTTP?",
+      "back": "Repetir requisições idênticas produz o mesmo efeito pretendido que uma execução."
+    },
+    {
+      "front": "PUT é idempotente?",
+      "back": "Sim, pela semântica HTTP, embora respostas sucessivas possam ser diferentes."
+    },
+    {
+      "front": "DELETE é seguro?",
+      "back": "Não. É idempotente, mas solicita mudança no estado do recurso."
+    },
+    {
+      "front": "POST é idempotente por padrão?",
+      "back": "Não. Repeti-lo pode, por exemplo, criar mais de um recurso subordinado."
+    },
+    {
+      "front": "Para que serve PATCH?",
+      "back": "Solicita modificação parcial conforme o formato de patch acordado."
+    },
+    {
+      "front": "O que sinaliza 201 Created?",
+      "back": "Que a solicitação criou recurso; a resposta costuma indicar seu URI, por exemplo em Location."
+    },
+    {
+      "front": "Quando usar 202 Accepted?",
+      "back": "Quando a solicitação foi aceita para processamento, mas a operação ainda não terminou."
+    },
+    {
+      "front": "O que diferencia 401 de 403?",
+      "back": "401 indica credenciais ausentes ou inválidas; 403 indica que o acesso foi recusado."
+    },
+    {
+      "front": "O que faz o cabeçalho Accept?",
+      "back": "Expressa quais formatos de representação o cliente prefere receber."
+    },
+    {
+      "front": "O que descreve Content-Type?",
+      "back": "O tipo de mídia do conteúdo enviado na mensagem."
+    },
+    {
+      "front": "Para que serve 304 Not Modified?",
+      "back": "Informa que a representação validada não mudou e pode ser reutilizada do cache."
+    },
+    {
+      "front": "Quando 503 é apropriado?",
+      "back": "Quando o servidor está temporariamente incapaz de atender, possivelmente com Retry-After."
+    }
+  ],
+  "tips": [
+    "Associe URI ao recurso e JSON/XML à representação transferida.",
+    "Decore seguro versus idempotente: GET é ambos; PUT e DELETE são idempotentes, não seguros.",
+    "Leia o código de status como classe e depois confirme o significado específico.",
+    "Em desenho de caminhos, prefira substantivos e deixe a operação para o método HTTP.",
+    "Stateless não elimina persistência de dados; elimina dependência de sessão guardada entre chamadas.",
+    "POST pode criar um recurso, mas não é automaticamente seguro para repetição."
+  ],
+  "traps": [
+    "A prova diz que REST é sinônimo de JSON sobre HTTP. Errado: REST é estilo arquitetural e não exige formato único.",
+    "A prova diz que stateless impede banco de dados e estado persistente. Errado: a restrição se refere ao contexto de sessão entre solicitações.",
+    "A prova diz que idempotência exige respostas idênticas. Errado: compara o efeito pretendido no servidor.",
+    "A prova troca 401 e 403. Lembre: credencial ausente ou inválida versus acesso recusado.",
+    "A prova diz que todo método idempotente é seguro. Errado: PUT e DELETE são idempotentes e alteram recursos.",
+    "A prova trata code-on-demand como obrigatório. Fielding o descreve como restrição opcional."
+  ],
+  "activeRecall": [
+    {
+      "question": "Quais são as restrições principais associadas ao estilo REST?",
+      "answer": "Cliente-servidor, ausência de estado de sessão no servidor, cache, interface uniforme, sistema em camadas e code-on-demand opcional."
+    },
+    {
+      "question": "Diferencie recurso e representação.",
+      "answer": "Recurso é o conceito identificado; representação são os dados que descrevem seu estado em um formato transferido."
+    },
+    {
+      "question": "Por que POST costuma exigir cautela em retentativas automáticas?",
+      "answer": "Porque não é idempotente por definição; a repetição pode executar a ação ou criar um recurso novamente."
+    },
+    {
+      "question": "Como GET difere de PUT quanto a segurança e idempotência?",
+      "answer": "GET é seguro e idempotente; PUT não é seguro, mas é idempotente."
+    },
+    {
+      "question": "Quando escolher 201, 202 e 204?",
+      "answer": "201 para criação concluída; 202 para processamento aceito ainda não concluído; 204 para sucesso sem conteúdo de resposta."
+    },
+    {
+      "question": "Como stateless pode coexistir com autenticação?",
+      "answer": "O cliente pode apresentar credenciais ou token em cada solicitação, sem exigir sessão conversacional armazenada no servidor."
+    },
+    {
+      "question": "Qual a diferença entre Accept e Content-Type?",
+      "answer": "Accept indica formatos que o cliente aceita receber; Content-Type descreve o formato do conteúdo presente na mensagem."
+    },
+    {
+      "question": "O que uma resposta de erro bem projetada deve oferecer?",
+      "answer": "Status correto, formato consistente, mensagem segura e detalhes úteis para corrigir a solicitação sem expor dados internos."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Recurso confundido com representação",
+      "summary": "O URI identifica o recurso-alvo; o JSON ou XML é uma representação transferível do estado desse recurso."
+    },
+    {
+      "key": "e2",
+      "title": "Stateless confundido com ausência de persistência",
+      "summary": "REST evita depender de sessão conversacional guardada no servidor, mas permite persistir recursos e enviar credenciais em cada chamada."
+    },
+    {
+      "key": "e3",
+      "title": "Segurança confundida com idempotência",
+      "summary": "Seguro trata do efeito pretendido somente de leitura; idempotente compara efeitos de uma e várias chamadas."
+    },
+    {
+      "key": "e4",
+      "title": "Métodos HTTP intercambiados",
+      "summary": "GET consulta; POST solicita processamento; PUT substitui ou cria no URI-alvo; PATCH aplica alteração parcial; DELETE remove o alvo."
+    },
+    {
+      "key": "e5",
+      "title": "Códigos de resposta trocados",
+      "summary": "401 indica problema de autenticação, 403 recusa de acesso, 404 alvo não encontrado, 409 conflito e 503 indisponibilidade temporária."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No estilo REST, o cliente acessa `/livros/8` e recebe uma estrutura JSON com título e autor. Qual elemento o caminho identifica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A representação JSON exata armazenada na rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O recurso que representa o livro de identificador 8.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O método HTTP que o servidor escolheu executar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A sessão de usuário que mantém o estado da chamada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O formato de serialização negociado pelo cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O URI identifica o recurso-alvo. O conteúdo JSON é uma representação transferida desse livro e poderia haver outra representação para o mesmo recurso.",
+      "section": "1. REST, recursos e representações",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API usa HTTP e devolve JSON, mas depende de sessão armazenada no servidor para interpretar cada nova chamada. Qual conclusão é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela é RESTful por usar JSON como formato principal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela é RESTful sempre que o transporte for HTTP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A sessão viola a restrição stateless.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ela satisfaz REST porque o servidor mantém dados persistentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela satisfaz REST se o cliente repetir o mesmo caminho.",
+          "correct": false
+        }
+      ],
+      "explanation": "A restrição stateless requer que cada requisição traga o necessário para ser entendida sem contexto de sessão armazenado no servidor. HTTP e JSON, isoladamente, não tornam uma API RESTful.",
+      "section": "2. Restrições arquiteturais REST",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual desenho de URI representa mais diretamente uma coleção de pedidos e um pedido individual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`/listarPedidos` e `/mostrarPedido?id=8`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`/pedido/novo` e `/pedido/alterar/8`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`/pedidos/criar` e `/pedidos/remover/8`.",
+          "correct": false
+        },
+        { "key": "D", "text": "`/pedidos` e `/pedidos/8`.", "correct": true },
+        {
+          "key": "E",
+          "text": "`/executarPedidos` e `/executarPedido/8`.",
+          "correct": false
+        }
+      ],
+      "explanation": "A coleção pode ser identificada por `/pedidos` e um membro por `/pedidos/8`. O método HTTP expressa a operação; o caminho identifica os recursos.",
+      "section": "1. REST, recursos e representações",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente o papel do code-on-demand no REST?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Opcional: permite código executável vindo do servidor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É obrigatório e exige que toda resposta contenha JavaScript.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É outro nome para a separação entre cliente e servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É uma regra que proíbe respostas com conteúdo executável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É a técnica de manter sessão no servidor para cada cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Fielding descreve code-on-demand como restrição opcional: o cliente pode receber e executar código, o que amplia funcionalidades, mas reduz a visibilidade da interação.",
+      "section": "2. Restrições arquiteturais REST",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente envia Accept: application/json e recebe Content-Type: application/json. O que esses cabeçalhos indicam, respectivamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Formato enviado e formato preferido pelo servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Credencial do cliente e tipo de recurso solicitado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Método aceito e código de resposta escolhido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Versão da API e identificador do recurso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Preferência de resposta e formato do corpo.",
+          "correct": true
+        }
+      ],
+      "explanation": "Accept permite ao cliente declarar formatos que aceita receber; Content-Type descreve o tipo de mídia do conteúdo presente na mensagem. A negociação pode resultar em outro formato compatível.",
+      "section": "4. Respostas, erros e desenho de contrato",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada GET bem-sucedida é repetida e ambas as respostas retornam cópias idênticas de uma representação. Qual propriedade de GET explica a possibilidade de cache, se a política permitir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ser um método inseguro que sempre bloqueia intermediários.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ser seguro e idempotente; cache depende das diretivas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ser o único método HTTP definido como idempotente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ser uma operação que substitui integralmente o recurso-alvo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ser uma requisição que exige sessão persistida no servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "GET é seguro e idempotente e tem semântica de recuperação de representação. Reutilizar uma resposta depende das regras de cache e das diretivas aplicáveis, não é automático para qualquer resposta.",
+      "section": "3. Métodos HTTP e semântica das operações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um formulário cria um novo pedido na coleção e cada envio repetido pode criar outro pedido. Qual método costuma se ajustar melhor a esse processamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "HEAD, que retorna os metadados do recurso criado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "GET, que obtém a representação do novo pedido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "OPTIONS, que declara o conteúdo do formulário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "POST, que solicita processamento pela coleção-alvo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "DELETE, que cria um pedido subordinado à coleção.",
+          "correct": false
+        }
+      ],
+      "explanation": "POST é apropriado quando a coleção processa os dados e cria um recurso subordinado. Como repetições podem criar duplicatas, POST não é idempotente por definição.",
+      "section": "3. Métodos HTTP e semântica das operações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente envia a representação completa de um perfil para `/perfis/42`, que já é o URI conhecido do alvo. Qual método normalmente expressa essa substituição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "PATCH, para alterar somente um campo selecionado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "POST, para pedir uma consulta sem mudança de estado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PUT, para substituir a representação no URI-alvo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "HEAD, para enviar o corpo como nova representação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "OPTIONS, para gravar o perfil no servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "PUT normalmente substitui o estado do recurso no URI-alvo ou cria o recurso nesse URI, conforme o contrato. Repetir a mesma solicitação tem o mesmo efeito pretendido.",
+      "section": "3. Métodos HTTP e semântica das operações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente deseja alterar apenas o telefone de um cadastro, seguindo um formato documentado de alterações parciais. Qual método é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "GET, porque a alteração deve ser tratada como leitura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "POST, porque todo corpo HTTP é criação de recurso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PUT, porque sempre significa alterar um único campo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "HEAD, porque elimina campos omitidos da representação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PATCH, porque aplica uma modificação parcial definida.",
+          "correct": true
+        }
+      ],
+      "explanation": "PATCH é usado para solicitar modificação parcial segundo uma semântica documentada. Seu efeito de repetição depende da operação descrita no formato adotado.",
+      "section": "3. Métodos HTTP e semântica das operações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada DELETE já removeu o vínculo do recurso. Repeti-la não remove outro recurso nem muda adicionalmente o estado pretendido. Qual propriedade se aplica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Segurança, pois DELETE é somente leitura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Idempotência; respostas podem diferir.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Negociação, pois o cliente escolhe o código HTTP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cacheabilidade obrigatória de qualquer resposta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Stateless, pois o servidor não persiste recursos.",
+          "correct": false
+        }
+      ],
+      "explanation": "DELETE é idempotente: chamadas repetidas têm o mesmo efeito pretendido. Isso não torna o método seguro e não exige respostas idênticas; uma repetição pode informar que o alvo já não existe.",
+      "section": "3. Métodos HTTP e semântica das operações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma solicitação foi aceita para processamento em fila, mas a operação ainda está em andamento. Qual status comunica melhor a situação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "204 No Content, que confirma sucesso final sem corpo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "201 Created, mesmo sem criação concluída.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "404 Not Found, porque o resultado ainda não existe.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "202 Accepted, pois o processamento não terminou.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "304 Not Modified, porque a fila preserva o pedido.",
+          "correct": false
+        }
+      ],
+      "explanation": "202 indica que a solicitação foi aceita para processamento, mas o processamento não foi concluído. O contrato pode fornecer um URI para acompanhar seu resultado.",
+      "section": "4. Respostas, erros e desenho de contrato",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação concluiu a criação de um novo recurso e o serviço pode informar o URI dele em Location. Qual status é o mais específico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "200 OK, que sempre significa criação de recurso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "202 Accepted, que indica criação já concluída.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "204 No Content, que exige URI em Location.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "301 Moved Permanently, que registra novo recurso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "201 Created, que informa a criação concluída.",
+          "correct": true
+        }
+      ],
+      "explanation": "201 Created é o status específico para uma solicitação que criou recurso. Location pode indicar o URI do recurso criado, conforme a resposta e o contrato.",
+      "section": "4. Respostas, erros e desenho de contrato",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário apresenta credenciais válidas, mas a política do serviço nega acesso ao relatório solicitado. Qual código melhor representa a recusa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "403 Forbidden, pois a requisição autenticada foi recusada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "401 Unauthorized, pois o recurso foi encontrado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "201 Created, pois o acesso foi registrado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "304 Not Modified, pois o relatório não mudou.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "503 Service Unavailable, pois a política é temporária.",
+          "correct": false
+        }
+      ],
+      "explanation": "403 indica que o servidor entendeu a solicitação, mas recusa atendê-la. 401 se relaciona a credenciais ausentes ou inválidas, não a uma autorização negada após autenticação válida.",
+      "section": "4. Respostas, erros e desenho de contrato",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço fica temporariamente indisponível durante manutenção e informa quando o cliente deve tentar novamente. Qual resposta é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "404 Not Found com o cabeçalho Accept obrigatório.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "409 Conflict com um novo URI permanente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "503 Service Unavailable, podendo incluir Retry-After.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "401 Unauthorized com indicação de próxima tentativa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "204 No Content com o corpo de erro detalhado.",
+          "correct": false
+        }
+      ],
+      "explanation": "503 representa incapacidade temporária do servidor para atender. Retry-After pode sugerir quanto o cliente deve aguardar antes de tentar de novo.",
+      "section": "4. Respostas, erros e desenho de contrato",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O servidor recebeu uma condição válida de cache e confirma que a representação não mudou desde a versão armazenada pelo cliente. Qual status pode ser usado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "200 OK, exigindo retransmissão completa do conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "304 Not Modified; reutilize a cópia validada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "202 Accepted, mantendo o resultado ainda em processamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "409 Conflict, indicando versões concorrentes do recurso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "301 Moved Permanently, apontando para a mesma cópia.",
+          "correct": false
+        }
+      ],
+      "explanation": "304 Not Modified é usado em respostas condicionais quando a representação não mudou. O cliente pode reutilizar a representação armazenada, observadas as regras de cache.",
+      "section": "4. Respostas, erros e desenho de contrato",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gateway recebe resposta inválida do servidor upstream ao tentar concluir uma solicitação. Qual classe de status representa uma falha do gateway?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "2xx, pois o gateway aceitou encaminhar a solicitação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "3xx, pois o gateway pode redirecionar o cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "4xx, pois o cliente sempre causou a resposta inválida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "5xx sinaliza falha do servidor ou gateway.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "1xx, pois intermediários só emitem respostas provisórias.",
+          "correct": false
+        }
+      ],
+      "explanation": "A classe 5xx indica falha do servidor ao cumprir uma solicitação aparentemente válida; 502 Bad Gateway é específico para resposta inválida recebida pelo gateway de um servidor upstream.",
+      "section": "4. Respostas, erros e desenho de contrato",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API apresenta respostas de erro com um código estável e lista de campos inválidos, mas omite stack trace e credenciais. Qual avaliação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É ruim, pois erros devem revelar detalhes de implementação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É ruim, pois só respostas 2xx podem conter representações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É adequada, pois informa o consumidor sem expor dados internos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "É inválida, pois toda falha deve retornar status 500.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É inválida, pois erros não podem indicar campos específicos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma resposta consistente pode ajudar o consumidor a corrigir dados inválidos e deve evitar revelar stack trace, segredos ou detalhes internos. O status precisa refletir a natureza do erro.",
+      "section": "4. Respostas, erros e desenho de contrato",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O servidor não mantém sessão entre chamadas, mas persiste clientes e pedidos no banco e recebe um token em cada requisição. Isso contradiz stateless?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Não contradiz. Stateless impede depender de contexto conversacional guardado entre requisições; não proíbe dados persistentes nem o envio de credenciais em cada chamada.",
+      "section": "2. Restrições arquiteturais REST",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como REST não exige um formato específico, uma API RESTful pode transferir representações em JSON, XML ou outro formato negociado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "REST não impõe JSON. A representação pode usar diferentes formatos, e a negociação de conteúdo pode considerar as preferências comunicadas pelo cliente.",
+      "section": "1. REST, recursos e representações",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se dois GETs retornarem respostas com corpo diferente por causa de uma atualização concorrente, o método GET deixa automaticamente de ser idempotente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Idempotência compara o efeito pretendido no servidor, não exige corpos de resposta idênticos. GET é definido como seguro e idempotente, mesmo que o estado observado possa mudar entre chamadas.",
+      "section": "3. Métodos HTTP e semântica das operações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Pela semântica HTTP, PUT é idempotente, embora não seja um método seguro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "PUT solicita mudança ou criação no URI-alvo e, portanto, não é seguro. Seu efeito pretendido é idempotente: repetir a mesma representação não deve acrescentar novas mudanças pretendidas.",
+      "section": "3. Métodos HTTP e semântica das operações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "DELETE deve ser considerado seguro porque sua repetição tem o mesmo efeito pretendido no servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "DELETE é idempotente, mas não seguro: o cliente solicita remover o recurso. Segurança significa efeito pretendido essencialmente de leitura, não repetibilidade.",
+      "section": "3. Métodos HTTP e semântica das operações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O status 202 Accepted informa que a operação solicitada terminou com sucesso e que não resta processamento pendente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "202 indica aceitação para processamento, sem assegurar que a operação já tenha terminado. Um contrato pode disponibilizar meios para consultar o resultado posteriormente.",
+      "section": "4. Respostas, erros e desenho de contrato",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A classe 4xx de status HTTP indica, em geral, erro ou impossibilidade de atendimento relacionada à solicitação do cliente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "A primeira casa classifica a resposta: 4xx é erro do cliente, enquanto 5xx indica falha do servidor ao atender solicitação aparentemente válida.",
+      "section": "4. Respostas, erros e desenho de contrato",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta 401 Unauthorized significa necessariamente que o cliente está autenticado, mas não tem autorização para acessar o recurso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "401 indica ausência ou invalidade de credenciais válidas; a recusa de acesso apesar de autenticação válida é normalmente representada por 403 Forbidden.",
+      "section": "4. Respostas, erros e desenho de contrato",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A restrição de cache em REST permite reutilizar qualquer resposta sem verificar diretivas ou condições de validade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Cache depende das semânticas do método, da resposta e das diretivas de controle. Dados personalizados ou sensíveis podem impedir armazenamento ou exigir revalidação.",
+      "section": "2. Restrições arquiteturais REST",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O estilo REST inclui uma interface uniforme que torna mais visíveis e genéricas as interações entre componentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "A interface uniforme é uma restrição central do REST. Ela simplifica a arquitetura e favorece a evolução independente, embora imponha padronização às interações.",
+      "section": "2. Restrições arquiteturais REST",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para obedecer à restrição stateless, uma API precisa eliminar qualquer token de autenticação enviado pelo cliente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "O cliente pode enviar token ou credenciais em cada requisição. O requisito é que a interpretação não dependa de contexto de sessão mantido entre solicitações.",
+      "section": "2. Restrições arquiteturais REST",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O código de status 201 Created pode acompanhar a criação de recurso e uma indicação de seu URI por meio do cabeçalho Location.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "201 é apropriado para criação concluída. Location pode identificar o recurso criado, tornando explícito ao consumidor onde ele pode ser consultado.",
+      "section": "4. Respostas, erros e desenho de contrato",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um status 503 pode informar indisponibilidade temporária, e Retry-After pode sugerir quando tentar novamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "503 representa incapacidade temporária de atender, inclusive por sobrecarga ou manutenção. Retry-After pode indicar ao cliente um intervalo ou momento de nova tentativa.",
+      "section": "4. Respostas, erros e desenho de contrato",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura REST em camadas, o cliente precisa conhecer todo proxy e gateway pelo qual cada mensagem passa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "A restrição de camadas permite intermediários e oculta a topologia interna do cliente. Cada camada pode encaminhar ou processar mensagens sem expor todos os detalhes ao consumidor.",
+      "section": "2. Restrições arquiteturais REST",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O método POST é idempotente por definição sempre que o recurso-alvo for uma coleção identificada por URI estável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "POST não é idempotente por definição. Repetir uma solicitação à coleção pode criar recursos adicionais, a menos que a aplicação defina mecanismos próprios para tratar duplicatas.",
+      "section": "3. Métodos HTTP e semântica das operações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O método HEAD é usado para obter metadados associados a uma resposta GET sem transferir conteúdo de resposta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "HEAD tem semântica semelhante a GET, mas o servidor não envia conteúdo na resposta. Pode ser útil para inspecionar metadados sem baixar a representação inteira.",
+      "section": "3. Métodos HTTP e semântica das operações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A classe 5xx descreve respostas em que o servidor reconhece falha ou incapacidade de atender a uma solicitação aparentemente válida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Códigos 5xx indicam falha no lado servidor. Um gateway que recebe resposta inválida de um servidor upstream também pode produzir status dessa classe.",
+      "section": "4. Respostas, erros e desenho de contrato",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um status 204 No Content comunica sucesso com uma representação JSON obrigatória no corpo da resposta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "204 indica sucesso sem conteúdo de resposta. Se o servidor precisa devolver uma representação, deve escolher uma resposta compatível com corpo, como 200.",
+      "section": "4. Respostas, erros e desenho de contrato",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de substantivos nos caminhos e métodos HTTP para expressar a operação ajuda a evitar endpoints que codificam verbos redundantes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Um caminho como `/pedidos/8` identifica o recurso, enquanto GET, PUT ou DELETE comunica a semântica da interação. Isso torna o contrato mais uniforme e previsível.",
+      "section": "1. REST, recursos e representações",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API RESTful não pode usar recursos virtuais, como pesquisas, relatórios ou resultados calculados, porque somente objetos físicos são recursos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Um recurso é um conceito identificável, não necessariamente um objeto físico. Relatórios, pesquisas e resultados calculados podem ser recursos se o serviço lhes atribuir identificação e representações.",
+      "section": "1. REST, recursos e representações",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O status 409 Conflict pode indicar que a solicitação não pôde ser concluída por conflito com o estado atual do recurso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "409 é apropriado quando há conflito com o estado atual do recurso, por exemplo uma tentativa de alteração incompatível com uma versão concorrente.",
+      "section": "4. Respostas, erros e desenho de contrato",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta que identifica o formato de seu próprio conteúdo por Content-Type contribui para mensagens autodescritivas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Content-Type informa ao destinatário como interpretar o conteúdo da mensagem. Mensagens autodescritivas e semânticas visíveis também ajudam intermediários a processá-las.",
+      "section": "4. Respostas, erros e desenho de contrato",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O status 400 Bad Request é uma escolha geral para toda falha de autenticação, conflito de estado e indisponibilidade do servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "400 se aplica a solicitação inválida, mas autenticação, conflito e indisponibilidade têm códigos mais específicos, como 401, 409 e 503. O código deve refletir a condição real.",
+      "section": "4. Respostas, erros e desenho de contrato",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O cache pode reduzir tráfego e latência porque uma resposta reutilizável pode evitar chamadas repetidas ao servidor de origem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "A restrição de cache permite armazenar e reutilizar respostas conforme suas regras. Isso reduz interações quando o conteúdo permanece válido ou pode ser validado adequadamente.",
+      "section": "2. Restrições arquiteturais REST",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em REST, cada recurso precisa ter exatamente uma única URI durante toda a vida do sistema e só pode ser representado em um formato.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Um recurso pode ter identificadores conforme o desenho do sistema e pode possuir representações em diferentes formatos. O contrato precisa manter as referências e semânticas compreensíveis.",
+      "section": "1. REST, recursos e representações",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API que separa responsabilidades de apresentação no cliente e armazenamento no servidor adota a restrição cliente-servidor do estilo REST.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Cliente-servidor separa preocupações de interface e armazenamento, permitindo evolução independente dos componentes e simplificando responsabilidades do servidor.",
+      "section": "2. Restrições arquiteturais REST",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada GET pode provocar registros de auditoria sem perder sua propriedade de método seguro, pois o cliente não solicitou a mudança do recurso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "A definição de seguro se refere ao efeito pretendido pelo cliente sobre o recurso. Efeitos incidentais do servidor, como logs de acesso, não transformam por si só GET em método inseguro.",
+      "section": "3. Métodos HTTP e semântica das operações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O status 404 sempre prova que o recurso nunca existiu e proíbe o servidor de ocultar sua existência por razões de segurança.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "404 indica que o alvo não foi encontrado; serviços também podem escolher não revelar a existência de um recurso protegido. O código não prova que ele nunca existiu.",
+      "section": "4. Respostas, erros e desenho de contrato",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API pode paginar uma coleção com limite e cursor documentados para evitar enviar uma lista ilimitada em uma única resposta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Paginação limita o volume de cada resposta e permite percorrer coleções extensas. Contratos devem documentar parâmetros, limites e como obter a página ou cursor seguinte.",
+      "section": "4. Respostas, erros e desenho de contrato",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta 200 OK é obrigatória para toda criação, inclusive quando o serviço quer distinguir explicitamente o recurso criado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "200 pode representar sucesso, mas 201 Created comunica especificamente criação concluída e pode indicar o URI do novo recurso. A escolha deve refletir o resultado da operação.",
+      "section": "4. Respostas, erros e desenho de contrato",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Architectural Styles and the Design of Network-based Software Architectures, capítulo 5: REST",
+      "publisher": "University of California, Irvine",
+      "reference": "Definição e restrições arquiteturais do estilo REST, recursos, interface uniforme, camadas e code-on-demand",
+      "url": "https://ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 9110: HTTP Semantics",
+      "publisher": "IETF",
+      "reference": "Semântica dos métodos HTTP, propriedades seguro e idempotente, códigos de status e cabeçalhos",
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 9111: HTTP Caching",
+      "publisher": "IETF",
+      "reference": "Armazenamento, validação e reutilização de respostas HTTP em cache",
+      "url": "https://www.rfc-editor.org/rfc/rfc9111.html",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

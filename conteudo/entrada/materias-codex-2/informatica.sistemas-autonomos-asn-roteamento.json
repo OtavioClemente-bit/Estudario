@@ -1,0 +1,1863 @@
+{
+  "id": "informatica.sistemas-autonomos-asn-roteamento",
+  "subject": "Informática",
+  "title": "Sistemas autônomos (ASN) e roteamento",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Sistemas autônomos (ASN)",
+    "Sistema autônomo e número ASN",
+    "Autonomous System Number (ASN)",
+    "Autonomous System (AS) na Internet",
+    "Número de sistema autônomo",
+    "ASN de 16 e 32 bits",
+    "Atribuição de números de sistema autônomo",
+    "Roteamento entre sistemas autônomos",
+    "BGP e sistemas autônomos",
+    "AS_PATH no protocolo BGP",
+    "ASN privado e ASN público",
+    "Roteamento interdomínio da Internet"
+  ],
+  "scope": {
+    "covers": "Conceito de sistema autônomo como domínio de roteamento e unidade de política; diferença entre AS e ASN; relações entre roteamento interno e interdomínio; alocação e registro de ASN por IANA e RIRs; ASNs de 16 e 32 bits, representação e faixas reservadas relevantes; BGP e seus pares externos/internos; anúncio de prefixos, AS_PATH, prevenção de loops e decisões de política; uso de ASN privado, documentação e erros comuns.",
+    "excludes": "Configuração detalhada de fabricantes, sintaxe de CLI, cálculo de endereçamento IP, protocolos IGP em profundidade, políticas específicas de cada RIR não explicitadas nas fontes e operação de RPKI além de sua relação geral com validação de origem."
+  },
+  "theoryTitle": "Sistemas autônomos e identidade do roteamento interdomínio",
+  "chapters": [
+    {
+      "title": "1. O que é um sistema autônomo",
+      "markdown": "### O problema que este assunto resolve\n\nA Internet conecta redes administradas por organizações diferentes. Para trocar rotas sem exigir que todas compartilhem a mesma administração, cada conjunto de redes sob uma administração técnica comum e uma política de roteamento coerente pode ser tratado como um **sistema autônomo** (AS). Um AS toma decisões próprias sobre quais rotas aceita, prefere e anuncia aos vizinhos.\n\nO AS é uma unidade lógica de roteamento, não necessariamente uma empresa inteira, um roteador ou um bloco de endereços. Uma organização pode operar mais de um AS; inversamente, várias redes e roteadores podem participar do mesmo AS. O identificador numérico é o **ASN**. Não confunda o sistema (domínio/política) com o número que o identifica.\n\n> **Siglas e termos deste capítulo**\n> - **AS**: Autonomous System, sistema autônomo.\n> - **ASN**: Autonomous System Number, número que identifica um AS no roteamento.\n> - **Prefixo**: bloco de endereços IP anunciado como destino alcançável.\n> - **IGP**: protocolo de roteamento usado dentro de um AS, como OSPF ou IS-IS.\n> - **EGP/interdomínio**: roteamento entre AS; hoje o protocolo de uso geral é BGP.\n\n### AS como fronteira administrativa e de política\n\nA ideia central é a política. Dentro do mesmo AS, os roteadores podem distribuir rotas com IGP e seguir a administração daquela rede. Entre organizações, o BGP permite anunciar alcançabilidade e aplicar regras próprias: um provedor pode preferir um enlace, limitar o que anuncia a um cliente ou não aceitar certas rotas. O número ASN fornece uma identidade comum para essas trocas.\n\n| Conceito | Pergunta que responde | Exemplo\n| --- | --- | ---\n| AS | Qual domínio administra a política de roteamento? | Rede de um provedor com vários roteadores e enlaces\n| ASN | Qual número identifica esse domínio no intercâmbio? | O valor usado no campo de sistema autônomo do BGP\n| Prefixo IP | Quais destinos podem ser alcançados? | Um bloco de endereços anunciado por um AS\n| Rota BGP | Por qual caminho e sob quais atributos chegar ao prefixo? | Prefixo acompanhado de AS_PATH e NEXT_HOP\n\nUm AS não é criado só porque há vários roteadores ou porque uma rede usa BGP. Se a organização tem um único caminho para a Internet e não precisa de política independente nem de multihoming, normalmente não precisa anunciar um AS próprio globalmente; o provedor pode anunciar os endereços em seu nome. A necessidade concreta depende do desenho e das políticas de roteamento.\n\n### Como cai na prova\n\n- AS é domínio de roteamento e unidade de política; ASN é o número identificador.\n- BGP é usado entre AS, enquanto IGPs operam tipicamente dentro de um AS.\n- Um ASN não codifica endereço, localização ou velocidade da rede.\n- Vários roteadores podem compartilhar um ASN; um único roteador não é, por isso, um AS."
+    },
+    {
+      "title": "2. Alocação, registro e tamanho dos ASNs",
+      "markdown": "### O problema que este assunto resolve\n\nOs números usados no roteamento global precisam ser únicos e coordenados. A IANA mantém o registro e aloca blocos de ASNs aos **registros regionais da Internet** (RIRs). Os RIRs fazem alocações ou atribuições a operadores de rede conforme suas políticas. Os cinco RIRs são AFRINIC, APNIC, ARIN, LACNIC e RIPE NCC. Portanto, a organização normalmente solicita o ASN ao RIR da região, não escolhe qualquer número por conta própria.\n\n> **Siglas e termos deste capítulo**\n> - **IANA**: função de coordenação de identificadores globais da Internet.\n> - **RIR**: Regional Internet Registry, registro regional de recursos numéricos.\n> - **LACNIC**: RIR para América Latina e Caribe.\n> - **AS_TRANS**: valor de compatibilidade usado na transição de BGP de dois para quatro octetos.\n> - **Octeto**: grupo de oito bits.\n\n### Espaço de números e representação\n\nA especificação original do BGP carregava o ASN em dois octetos (16 bits). A extensão definida para o espaço de quatro octetos (32 bits) ampliou muito a quantidade de números disponíveis. Operadores podem ver a forma decimal simples, como `64512`, ou a forma **asplain** de 32 bits, como `4200000001`; a notação asdot representa o valor de 32 bits em dois campos separados por ponto, por exemplo `1.10`. Essas formas representam valores, não são endereços IP.\n\nNa transição, o BGP anuncia uma capacidade de suporte a quatro octetos. A especificação também define AS4_PATH e AS4_AGGREGATOR para transportar informação de quatro octetos através de falantes antigos que não compreendem a extensão. O valor 23456, chamado AS_TRANS, é reservado para compatibilidade em cenários de interoperação; ele não é um ASN privado.\n\n| Faixa/valor | Uso indicado pelo registro especial da IANA |\n| --- | --- |\n| 0 | Reservado\n| 112 | Usado pelo projeto AS112 para absorver consultas DNS mal direcionadas\n| 23456 | AS_TRANS, compatibilidade de quatro octetos\n| 64496–64511 e 65536–65551 | Documentação e exemplos\n| 64512–65534 e 4200000000–4294967294 | Uso privado\n| 65535 e 4294967295 | Reservados\n\nNúmeros privados servem a redes privadas e laboratórios; não devem ser tratados como identidade global exclusiva para anúncios na Internet pública. Antes de usar números em produção, o operador consulta o registro atualizado e a política do RIR: o registro é a fonte para atribuições e reservas vigentes.\n\n### Como cai na prova\n\n- IANA aloca blocos aos RIRs; os RIRs atendem operadores de acordo com políticas regionais.\n- Um ASN de 32 bits não é um endereço IPv4 nem um prefixo.\n- AS_TRANS (23456) e os espaços privados têm funções diferentes.\n- Números privados e faixas de documentação não substituem uma atribuição pública."
+    },
+    {
+      "title": "3. BGP entre AS e atributos de caminho",
+      "markdown": "### O problema que este assunto resolve\n\nUm roteador precisa saber quais prefixos estão alcançáveis e por quais vizinhos. O BGP troca informações de alcançabilidade entre sistemas e carrega atributos associados às rotas. O protocolo não escolhe simplesmente o caminho geograficamente menor: o operador aplica políticas e atributos para decidir que rota prefere e o que anuncia.\n\n> **Siglas e termos deste capítulo**\n> - **BGP**: Border Gateway Protocol; BGP-4 é o protocolo interdomínio descrito na especificação consultada.\n> - **eBGP**: sessão BGP entre sistemas autônomos diferentes.\n> - **iBGP**: sessão BGP entre falantes do mesmo AS.\n> - **AS_PATH**: atributo com os AS atravessados pela informação de rota.\n> - **NEXT_HOP**: endereço do próximo roteador a usar para chegar ao destino.\n> - **NLRI**: informação de alcançabilidade de camada de rede, como os prefixos anunciados.\n\n### Como o anúncio se propaga\n\nQuando um falante BGP origina uma rota para um vizinho externo, inclui seu próprio ASN no AS_PATH. Ao propagar para outro vizinho externo, acrescenta o ASN local ao caminho. Em uma sessão interna, o AS_PATH não é alterado pelo falante apenas por anunciar a rota ao par interno. Assim, ao observar uma rota com caminho `64510 64520 64530`, o operador pode interpretar a sequência de sistemas pela qual o anúncio passou, conforme a direção convencionada pelo protocolo.\n\nSe um AS recebe uma rota cujo AS_PATH já contém seu próprio ASN, detecta uma possível volta da rota a ele. O mecanismo padrão de prevenção é rejeitar esse anúncio como loop, embora existam configurações para casos especiais. Isso reduz loops de roteamento interdomínio; não é prova criptográfica de que cada anúncio é legítimo.\n\nO NEXT_HOP identifica o próximo roteador para encaminhar pacotes. Ele não é a lista de AS no caminho e pode ter regras de propagação próprias. O AS_PATH também não informa por si só latência, capacidade do enlace ou caminho físico. A escolha BGP considera política local e critérios do protocolo, e duas redes podem preferir caminhos diferentes para o mesmo prefixo.\n\n### Roteamento interno e externo\n\n| Sessão | Participantes | Tratamento típico do AS_PATH\n| --- | --- | ---\n| eBGP | Falantes em AS diferentes | ASN local é acrescentado ao propagar a rota\n| iBGP | Falantes do mesmo AS | O AS_PATH recebido não é aumentado só por repasse interno\n| IGP | Roteadores do domínio interno | Calcula caminhos internos; não substitui a troca interdomínio do BGP\n\n### Como cai na prova\n\n- AS_PATH acompanha o anúncio e ajuda a identificar loops; NEXT_HOP indica o próximo salto de encaminhamento.\n- Uma sessão BGP não implica necessariamente que os dois pares pertencem a AS diferentes: pode ser iBGP.\n- O menor número de AS no caminho não é regra universal de preferência; políticas locais influenciam a decisão."
+    },
+    {
+      "title": "4. Uso privado, anúncio e erros de interpretação",
+      "markdown": "### O problema que este assunto resolve\n\nO ASN pode organizar roteamento em uma rede privada ou identificar um domínio em anúncios públicos. A distinção evita que números destinados a laboratório sejam confundidos com recursos globais e que a presença de um ASN seja tomada como autorização automática para anunciar qualquer prefixo. A atribuição do ASN e a autorização para originar prefixos são questões relacionadas, mas distintas.\n\n> **Siglas e termos deste capítulo**\n> - **Multihoming**: conexão de uma rede a mais de um provedor ou caminho externo.\n> - **Origem do prefixo**: AS que aparece como origem do anúncio de um prefixo.\n> - **RPKI/ROV**: infraestrutura de chaves públicas de recursos e validação de origem de rotas.\n> - **Agregação**: anúncio de um prefixo mais abrangente que representa rotas menores.\n\n### ASN próprio não é sinônimo de multihoming funcional\n\nUm ASN público pode ser necessário quando a rede deseja participar do roteamento interdomínio sob política própria, por exemplo em certas arquiteturas multihomed. Mas receber um ASN não cria conectividade, não atribui endereços IP, não instala BGP e não obriga provedores a aceitar anúncios. A rede ainda precisa de conectividade, configuração, filtros e acordos aplicáveis.\n\nO anúncio de prefixos deve refletir recursos que o operador está autorizado a originar e políticas acertadas com os pares. Um ASN válido, sozinho, não prova a titularidade de um prefixo. Mecanismos como RPKI Route Origin Validation podem ajudar redes receptoras a avaliar se o AS de origem está autorizado por um ROA; não substituem filtragem, desenho correto ou políticas de interconexão.\n\nASNs privados são apropriados para identificação em redes não conectadas ao roteamento público ou em contextos controlados. Em cenários de trânsito, o operador deve impedir vazamento de caminhos privados, normalmente removendo ou substituindo esses valores conforme o desenho e o acordo. Não se deve presumir que todo provedor remove automaticamente ASN privado ou que qualquer uso privado possa ser anunciado globalmente sem tratamento.\n\nAgregação reduz a quantidade de anúncios, mas requer cuidado para não anunciar um bloco que inclua destinos não alcançáveis. Um AS também pode originar diversos prefixos e um prefixo pode ter origens observadas diferentes em situações de engenharia de tráfego ou falha; isso não muda a definição de ASN. As regras concretas dependem da política e da configuração.\n\n### Como cai na prova\n\n- Ter ASN não concede automaticamente direito de anunciar endereços de terceiros.\n- ASN privado é para uso privado; o vazamento para a tabela pública precisa ser evitado ou tratado segundo a política.\n- BGP troca rotas e atributos; não é serviço de atribuição de endereços nem mecanismo de autenticação completo.\n- Um AS é uma unidade de política, não uma garantia de caminho curto, seguro ou disponível."
+    }
+  ],
+  "summary": "Sistema autônomo é um domínio de roteamento sob administração técnica e política comum; ASN é seu identificador numérico. A IANA aloca blocos a cinco RIRs, que atendem operadores conforme políticas regionais. BGP troca prefixos e atributos entre domínios: o AS_PATH registra os AS atravessados e ajuda a detectar loops, enquanto o NEXT_HOP indica o próximo roteador. Há ASNs de 16 e 32 bits, faixas privadas e reservadas; obter ASN não equivale a receber endereços nem autoriza automaticamente a originar prefixos.",
+  "flashcards": [
+    {
+      "front": "O que é um sistema autônomo?",
+      "back": "Domínio de roteamento administrado sob uma política comum, tratado como unidade de roteamento interdomínio."
+    },
+    {
+      "front": "O que significa ASN?",
+      "back": "Autonomous System Number: número que identifica um sistema autônomo."
+    },
+    {
+      "front": "AS e ASN são a mesma coisa?",
+      "back": "Não. AS é o domínio/política; ASN é o número identificador."
+    },
+    {
+      "front": "Qual é o protocolo de roteamento interdomínio de uso geral na Internet?",
+      "back": "BGP, Border Gateway Protocol."
+    },
+    {
+      "front": "O que é eBGP?",
+      "back": "Sessão BGP entre falantes pertencentes a AS diferentes."
+    },
+    {
+      "front": "O que é iBGP?",
+      "back": "Sessão BGP entre falantes do mesmo AS."
+    },
+    {
+      "front": "Para que serve um IGP?",
+      "back": "Distribui rotas dentro de um domínio administrativo, tipicamente dentro de um AS."
+    },
+    {
+      "front": "O que o AS_PATH registra?",
+      "back": "Os sistemas autônomos pelos quais a informação de rota passou."
+    },
+    {
+      "front": "Como o AS_PATH ajuda a evitar loops?",
+      "back": "Um AS pode detectar seu ASN no caminho recebido e rejeitar a rota como retorno em loop."
+    },
+    {
+      "front": "O que indica NEXT_HOP?",
+      "back": "O endereço do próximo roteador a usar para alcançar os destinos anunciados."
+    },
+    {
+      "front": "O que é um prefixo anunciado no BGP?",
+      "back": "Bloco de endereços IP divulgado como alcançável."
+    },
+    {
+      "front": "Qual o papel da IANA na distribuição de ASNs?",
+      "back": "Aloca blocos de números aos registros regionais da Internet (RIRs)."
+    },
+    {
+      "front": "Quais são os cinco RIRs?",
+      "back": "AFRINIC, APNIC, ARIN, LACNIC e RIPE NCC."
+    },
+    {
+      "front": "Quem normalmente atende o operador que precisa de ASN?",
+      "back": "O RIR da região, conforme suas políticas de alocação ou atribuição."
+    },
+    {
+      "front": "Qual limitação histórica tinham ASNs no BGP base?",
+      "back": "Eram carregados em dois octetos (16 bits)."
+    },
+    {
+      "front": "O que ampliou o espaço de ASNs?",
+      "back": "A extensão BGP para números de quatro octetos (32 bits), definida na RFC 6793."
+    },
+    {
+      "front": "O que é AS_TRANS?",
+      "back": "Valor 23456 reservado para compatibilidade na transição entre BGP de 2 e 4 octetos."
+    },
+    {
+      "front": "Que faixa exemplifica ASN privado de 16 bits?",
+      "back": "64512 a 65534, reservada para uso privado."
+    },
+    {
+      "front": "Que faixa exemplifica ASN privado de 32 bits?",
+      "back": "4200000000 a 4294967294, reservada para uso privado."
+    },
+    {
+      "front": "Quais faixas são destinadas a exemplos e documentação?",
+      "back": "64496–64511 e 65536–65551."
+    },
+    {
+      "front": "ASN atribuído dá direito a anunciar qualquer prefixo?",
+      "back": "Não. ASN e autorização/origem de prefixos são coisas distintas."
+    },
+    {
+      "front": "Obter um ASN instala conectividade BGP automaticamente?",
+      "back": "Não. São necessários conectividade, configuração e políticas com os pares."
+    },
+    {
+      "front": "O que faz um falante BGP ao anunciar externamente uma rota originada localmente?",
+      "back": "Inclui seu próprio ASN no AS_PATH."
+    },
+    {
+      "front": "O AS_PATH mede latência?",
+      "back": "Não. Ele informa AS atravessados; não mede latência ou caminho físico."
+    },
+    {
+      "front": "Para que serve RPKI-ROV em termos gerais?",
+      "back": "Ajuda a avaliar se o AS de origem de um anúncio está autorizado por informação de ROA."
+    }
+  ],
+  "tips": [
+    "Memorize a distinção: AS é o domínio de política; ASN é o número que o identifica.",
+    "Associe eBGP a AS diferentes e iBGP a falantes do mesmo AS.",
+    "AS_PATH é o histórico de AS no anúncio; NEXT_HOP é o próximo roteador.",
+    "A hierarquia de alocação é IANA → RIR → operador, segundo políticas aplicáveis.",
+    "ASN privado não é ASN global e AS_TRANS é um mecanismo de compatibilidade.",
+    "ASN não é endereço IP e não prova autorização para originar um prefixo."
+  ],
+  "traps": [
+    "Trocar o sistema autônomo (domínio) pelo ASN (identificador numérico).",
+    "Afirmar que toda sessão BGP é eBGP: iBGP ocorre dentro do mesmo AS.",
+    "Confundir AS_PATH, que acompanha a rota, com NEXT_HOP, que indica encaminhamento imediato.",
+    "Tratar a atribuição de ASN como alocação de endereços IP ou autorização irrestrita de anúncio.",
+    "Usar ASN privado como se fosse identificador global para trânsito público sem controle de vazamento.",
+    "Supor que BGP escolhe sempre o caminho com menos AS ou com menor distância física."
+  ],
+  "activeRecall": [
+    "Explique com suas palavras por que um AS é uma unidade de política e não apenas um conjunto de roteadores.",
+    "Desenhe o caminho IANA, RIR e operador e explique o papel de cada nível.",
+    "Compare um ASN de dois octetos com o espaço de quatro octetos e explique a função de AS_TRANS.",
+    "Diferencie eBGP, iBGP e IGP pelo escopo dos participantes.",
+    "Descreva o que acontece com AS_PATH quando uma rota é anunciada a um vizinho externo.",
+    "Explique como detectar o próprio ASN no AS_PATH pode indicar loop.",
+    "Compare as funções de AS_PATH e NEXT_HOP em uma rota BGP.",
+    "Explique por que um ASN não autoriza automaticamente a origem de qualquer prefixo IP."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre AS e ASN",
+      "summary": "AS é o domínio administrativo e de política de roteamento; ASN é o número identificador. O número não descreve localização, faixa IP ou quantidade de roteadores."
+    },
+    {
+      "key": "e2",
+      "title": "Confusão entre BGP interno e externo",
+      "summary": "eBGP conecta AS diferentes; iBGP conecta falantes do mesmo AS. IGP distribui rotas dentro do domínio e não substitui BGP interdomínio."
+    },
+    {
+      "key": "e3",
+      "title": "Atributos de caminho trocados",
+      "summary": "AS_PATH registra AS atravessados e ajuda a prevenir loops; NEXT_HOP aponta o próximo roteador. Nenhum deles mede latência ou garante legitimidade."
+    },
+    {
+      "key": "e4",
+      "title": "Alocação e tamanho dos números",
+      "summary": "IANA aloca blocos aos RIRs e estes atendem operadores segundo políticas. Espaço de 32 bits ampliou o original de 16 bits; AS_TRANS é compatibilidade, não ASN privado."
+    },
+    {
+      "key": "e5",
+      "title": "ASN como autorização de anúncio",
+      "summary": "Ter ASN não atribui endereços nem comprova autorização para originar prefixos. ASNs privados devem ser controlados para não vazar como identidade pública."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe de rede quer representar sob política própria os anúncios e caminhos de seu domínio de roteamento. Qual conceito descreve esse domínio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um sistema autônomo administrado como unidade de política de roteamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um prefixo IP, que identifica a organização que opera todos os roteadores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma sessão iBGP, que por si só define a fronteira administrativa pública.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um endereço NEXT_HOP, que identifica o conjunto de redes de uma empresa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um registro DNS reverso, que contém a política de roteamento dos provedores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sistema autônomo é um domínio de roteamento sujeito a administração e política comuns. Prefixo é bloco de endereços; iBGP é uma sessão entre falantes; NEXT_HOP é um atributo de encaminhamento; DNS reverso não define essa unidade.",
+      "section": "1. O que é um sistema autônomo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O ASN de um operador é uma sequência de endereços IPv4 que o BGP anuncia aos provedores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. ASN é um número identificador de um sistema autônomo. Endereços são anunciados em prefixos IP, que podem ser associados a rotas BGP; o ASN não codifica nem contém esses endereços.",
+      "section": "1. O que é um sistema autônomo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede com vários roteadores sempre precisa de um ASN público próprio, mesmo quando usa um único provedor e não aplica política externa independente. Essa conclusão está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim, porque cada roteador conectado à Internet exige um ASN exclusivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim, porque qualquer IGP depende de um ASN público registrado na IANA.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não necessariamente; a necessidade depende de política e desenho de conectividade.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Não, pois ASN só é usado por redes acadêmicas que operam IPv6.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não, porque provedores não trocam rotas por sistemas autônomos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A existência de vários roteadores não cria por si só a necessidade de um ASN público. Uma rede com caminho único e sem política externa própria pode usar o anúncio do provedor; a decisão depende do desenho e dos requisitos de roteamento.",
+      "section": "1. O que é um sistema autônomo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um AS pode conter vários roteadores e redes, desde que componha um domínio sob administração e política de roteamento coerentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. AS é uma unidade lógica de roteamento e política, não sinônimo de um roteador. Muitos equipamentos podem participar do mesmo domínio e compartilhar sua identidade ASN nas trocas interdomínio.",
+      "section": "1. O que é um sistema autônomo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa diferencia corretamente AS e ASN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "AS é um número de 32 bits, enquanto ASN é o protocolo usado dentro da rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "AS é o domínio de roteamento; ASN é o número que o identifica.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "AS é um prefixo de endereços; ASN é o endereço do roteador de borda.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "AS é a sessão eBGP; ASN é o atributo que identifica o próximo salto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "AS é o registro regional; ASN é a política definida pela IANA.",
+          "correct": false
+        }
+      ],
+      "explanation": "O sistema autônomo é o domínio administrativo e de política. O ASN é sua identidade numérica nos protocolos de roteamento; ele não é protocolo, prefixo, sessão nem next hop.",
+      "section": "1. O que é um sistema autônomo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ASN identifica a velocidade do enlace principal e a localização geográfica do sistema autônomo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O ASN identifica numericamente o domínio de roteamento. Velocidade, topologia e localização não são codificadas no número e podem mudar sem que isso altere o conceito do AS.",
+      "section": "1. O que é um sistema autônomo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual protocolo é descrito como protocolo de roteamento inter-AS usado para trocar informações de alcançabilidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DNS, que publica a sequência de AS antes de resolver cada nome de host.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "OSPF, que foi concebido para anunciar políticas entre todos os provedores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DHCP, que atribui ASN e prefixos aos vizinhos durante a sessão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "BGP, que troca alcançabilidade e atributos entre falantes de roteamento.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "ARP, que mantém a tabela global de prefixos e sistemas autônomos.",
+          "correct": false
+        }
+      ],
+      "explanation": "BGP é o protocolo de roteamento interdomínio; troca alcançabilidade e lista de AS percorridos, permitindo políticas no nível de AS. DNS, DHCP e ARP atendem outras funções, e OSPF é um IGP.",
+      "section": "1. O que é um sistema autônomo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação diferencia melhor a função típica de um IGP da função do BGP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "IGP resolve nomes; BGP traduz endereços privados em endereços públicos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "IGP faz roteamento interno; BGP faz troca interdomínio.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "IGP atribui ASN; BGP calcula automaticamente o plano de endereços IP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "IGP autentica anúncios externos; BGP opera somente em enlaces locais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "IGP transporta quadros Ethernet; BGP negocia a velocidade das interfaces.",
+          "correct": false
+        }
+      ],
+      "explanation": "IGPs como OSPF e IS-IS distribuem rotas dentro de um domínio. BGP é usado para troca interdomínio e permite políticas entre AS; nenhum dos dois resolve nomes ou atribui endereços.",
+      "section": "1. O que é um sistema autônomo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Toda sessão BGP conecta necessariamente roteadores de AS distintos, porque BGP não opera dentro de um único sistema autônomo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. eBGP conecta falantes de AS distintos, mas iBGP estabelece sessões entre falantes do mesmo AS para distribuir rotas internamente. A existência da sessão, portanto, não basta para concluir que os pares são de AS diferentes.",
+      "section": "1. O que é um sistema autônomo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na hierarquia de distribuição global, qual descrição da IANA e dos RIRs está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada operador escolhe um ASN livre e a IANA só registra o endereço de contato.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os RIRs criam os números globais e a IANA recebe cópias para consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A IANA delega blocos aos RIRs; eles atendem operadores.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A IANA instala sessões BGP dos RIRs para os roteadores de cada operador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os provedores locais delegam números à IANA depois do primeiro anúncio.",
+          "correct": false
+        }
+      ],
+      "explanation": "O registro da IANA descreve a alocação de blocos aos cinco RIRs; eles alocam ou atribuem ASNs a operadores conforme as políticas regionais. O operador não escolhe arbitrariamente um número global livre.",
+      "section": "2. Alocação, registro e tamanho dos ASNs",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa lista somente registros regionais da Internet (RIRs) citados pela IANA?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "AFRINIC, APNIC, ARIN, LACNIC e RIPE NCC.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "AFRINIC, ICANN, IETF, LACNIC e RIPE NCC.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "APNIC, ARIN, IANA, LACNIC e NRO.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "AFRINIC, APNIC, BGP, ARIN e RIPE NCC.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "APNIC, ICANN, LACNIC, RPKI e RIPE NCC.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os cinco RIRs são AFRINIC, APNIC, ARIN, LACNIC e RIPE NCC. IANA, ICANN, IETF, NRO, BGP e RPKI têm outros papéis e não completam a lista de registros regionais.",
+      "section": "2. Alocação, registro e tamanho dos ASNs",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O RIR da região pode atribuir ou alocar ASNs a operadores conforme políticas regionais, enquanto a IANA coordena a alocação de blocos aos RIRs.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A IANA coordena a alocação de blocos aos registros regionais; os RIRs tratam os pedidos de operadores de acordo com suas políticas. A atribuição não é feita por escolha arbitrária do solicitante.",
+      "section": "2. Alocação, registro e tamanho dos ASNs",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o principal motivo técnico para a extensão BGP a ASNs de quatro octetos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir endereços IPv4 por números de protocolo mais curtos nas rotas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Permitir que um ASN passe a identificar o prefixo IPv6 anunciado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Evitar que roteadores precisem trocar qualquer atributo de caminho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o espaço de números disponível além do limite de dois octetos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Converter cada endereço NEXT_HOP em nome atribuído pelo RIR.",
+          "correct": false
+        }
+      ],
+      "explanation": "A especificação base carregava o ASN em dois octetos; a extensão de quatro octetos foi criada para ampliar o espaço de números diante do esgotamento previsto do espaço de dois octetos. Ela não substitui endereços IP nem remove atributos BGP.",
+      "section": "2. Alocação, registro e tamanho dos ASNs",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A forma decimal de um ASN de quatro octetos é um endereço IPv4 compacto usado no campo AS_PATH.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. ASN e endereço IPv4 são espaços identificadores distintos. A representação decimal de quatro octetos continua sendo um número de sistema autônomo, não um endereço de rede ou host.",
+      "section": "2. Alocação, registro e tamanho dos ASNs",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um operador encontra o valor 23456 em material sobre interoperabilidade entre BGP antigo e BGP com ASN de quatro octetos. Que significado deve reconhecer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É o ASN privado padrão que todo roteador usa antes de receber um número regional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É AS_TRANS, reservado para compatibilidade.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "É o código numérico do atributo NEXT_HOP em anúncios externos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É um prefixo IPv4 reservado para transportar o AS_PATH em túneis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É o número que identifica o RIR responsável pela região de origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "O registro especial da IANA indica 23456 como AS_TRANS, reservado pela extensão de quatro octetos para compatibilidade. Faixas privadas são outras; o valor não é atributo, prefixo IP nem identificador de RIR.",
+      "section": "2. Alocação, registro e tamanho dos ASNs",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A faixa 64512–65534 está reservada para uso privado no registro especial da IANA.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A IANA lista 64512 a 65534 como espaço privado de 16 bits. O registro também aponta um intervalo privado no espaço de 32 bits, distinto das faixas de documentação e de valores reservados.",
+      "section": "2. Alocação, registro e tamanho dos ASNs",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que uso a IANA associa às faixas 64496–64511 e 65536–65551?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Números exclusivos de roteadores de borda usados em trânsito comercial.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Valores privados para qualquer anúncio de prefixo no backbone público.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Faixas que identificam os RIRs e seus servidores de registro regionais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Valores de documentação e exemplos, reservados para esse propósito.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Números atribuídos a operadoras sem necessidade de política ou registro.",
+          "correct": false
+        }
+      ],
+      "explanation": "O registro especial lista ambas as faixas para documentação e exemplos. Elas não servem como números globais de operação comercial nem como espaços privados de uso geral.",
+      "section": "2. Alocação, registro e tamanho dos ASNs",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A faixa privada de ASN de 32 bits é 4200000000–4294967294, conforme o registro especial da IANA.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A faixa indicada pela IANA para uso privado no espaço de quatro octetos vai de 4200000000 a 4294967294. O último valor 4294967295 está reservado, não pertence à faixa privada.",
+      "section": "2. Alocação, registro e tamanho dos ASNs",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma rede de laboratório deve evitar apresentar ASN de documentação como identidade pública de produção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque é uma faixa reservada para exemplos e documentação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Porque qualquer ASN abaixo de 65536 é necessariamente inválido em BGP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque o RIR converte automaticamente cada ASN de exemplo em endereço IPv6.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque ASN de documentação só pode aparecer em cabeçalhos de pacotes DNS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque números de documentação são atribuídos a clientes por todos os provedores.",
+          "correct": false
+        }
+      ],
+      "explanation": "As faixas reservadas para documentação e exemplos são adequadas para material ilustrativo e testes controlados, não como identidade global de produção. Valores menores não são todos inválidos; o registro distingue usos e reservas específicos.",
+      "section": "2. Alocação, registro e tamanho dos ASNs",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A existência do espaço de quatro octetos tornou desnecessário que o BGP anuncie a capacidade dos pares para suportá-lo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A extensão define uma capacidade BGP para o falante indicar suporte a ASN de quatro octetos. Também especifica atributos de compatibilidade para transportar informação através de falantes antigos; o suporte precisa ser tratado no protocolo.",
+      "section": "2. Alocação, registro e tamanho dos ASNs",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual atributo BGP carrega a lista de sistemas autônomos percorridos pela informação de rota?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ORIGIN, que enumera em ordem todos os roteadores de trânsito usados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "NEXT_HOP, que contém a cadeia dos sistemas autônomos visitados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "AS_PATH registra os AS percorridos pelo anúncio.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "LOCAL_PREF, que identifica o endereço do próximo AS no caminho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MED, que armazena os prefixos IP que cada AS aceitou do vizinho.",
+          "correct": false
+        }
+      ],
+      "explanation": "AS_PATH identifica os sistemas autônomos pelos quais passou a informação de rota. NEXT_HOP indica o próximo roteador; ORIGIN, LOCAL_PREF e MED têm outras semânticas e não substituem essa lista.",
+      "section": "3. BGP entre AS e atributos de caminho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando um falante anuncia a um par externo uma rota que ele próprio originou, qual informação inclui no AS_PATH?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O endereço IPv4 do cliente, convertido em número de AS pelo protocolo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O ASN local, como primeiro elemento da sequência do caminho anunciado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O ASN do vizinho externo, mesmo antes de receber qualquer anúncio dele.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O NEXT_HOP da rota, codificado no lugar da sequência de AS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O número do prefixo, somado ao identificador BGP do roteador de origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ao originar uma rota e enviá-la externamente, o falante inclui o próprio ASN no AS_PATH. Endereço do cliente, ASN do vizinho e NEXT_HOP são informações distintas e não substituem essa operação.",
+      "section": "3. BGP entre AS e atributos de caminho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um AS recebe uma rota com seu próprio ASN já presente no AS_PATH. Qual interpretação explica o mecanismo usual do BGP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A rota está autenticada e deve ser preferida por ter voltado ao AS de origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O número no caminho representa o NEXT_HOP e deve ser resolvido por DNS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O anúncio pode ter retornado ao AS e ser rejeitado para evitar loop.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O prefixo tornou-se privado e deve ser anunciado a todos os pares internos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O BGP deve remover todos os números do caminho e manter apenas a rota local.",
+          "correct": false
+        }
+      ],
+      "explanation": "Encontrar o próprio ASN no AS_PATH é indício de que a rota retornou ao domínio. O mecanismo usual rejeita esse anúncio para impedir loop; não autentica a rota nem altera o significado do NEXT_HOP.",
+      "section": "3. BGP entre AS e atributos de caminho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No funcionamento usual descrito para o BGP, o ASN local é acrescentado ao AS_PATH ao propagar uma rota para um vizinho externo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Quando propaga a rota a um par externo, o falante inclui seu próprio ASN no AS_PATH. Essa sequência permite que outros AS acompanhem o caminho do anúncio e detectem alguns loops.",
+      "section": "3. BGP entre AS e atributos de caminho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual atributo indica o roteador que deve servir como próximo salto para destinos anunciados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "AS_PATH, que contém o endereço IP do primeiro roteador em cada AS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ORIGIN, que aponta a interface de saída do vizinho para o prefixo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "LOCAL_PREF, que nomeia o roteador de trânsito escolhido pelo RIR.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "NEXT_HOP, que informa o endereço do próximo roteador de encaminhamento.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "AS_TRANS, que identifica o salto seguinte em sessões de quatro octetos.",
+          "correct": false
+        }
+      ],
+      "explanation": "NEXT_HOP define o endereço IP do roteador que deve ser usado como próximo salto. AS_PATH é a sequência de AS, ORIGIN descreve origem da informação e LOCAL_PREF é preferência local; AS_TRANS é valor de compatibilidade.",
+      "section": "3. BGP entre AS e atributos de caminho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O AS_PATH é uma medição da latência física entre redes, de modo que o caminho com menos AS sempre tem menor atraso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. AS_PATH mostra os AS atravessados, não latência nem distância geográfica. Políticas locais também influenciam seleção de rotas, portanto a quantidade de AS não garante menor atraso nem preferência universal.",
+      "section": "3. BGP entre AS e atributos de caminho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma sessão iBGP, o falante aumenta o AS_PATH com o mesmo ASN local simplesmente por encaminhar a rota a outro roteador do próprio AS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Ao anunciar a um par interno, o falante não altera o AS_PATH da rota apenas por essa propagação. O acréscimo do ASN local ocorre na propagação para um vizinho externo, conforme a semântica padrão.",
+      "section": "3. BGP entre AS e atributos de caminho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista vê NEXT_HOP preenchido e conclui que isso prova quais sistemas autônomos a rota atravessou. A conclusão procede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim, pois NEXT_HOP enumera os AS em ordem até o destino anunciado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim, desde que o prefixo tenha sido recebido por uma sessão eBGP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sim, pois o primeiro salto contém a lista de AS em formato compacto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não; NEXT_HOP é o salto, AS_PATH lista os AS.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Não, pois BGP não transporta informação de próximo salto entre vizinhos.",
+          "correct": false
+        }
+      ],
+      "explanation": "NEXT_HOP aponta o endereço IP de encaminhamento imediato. A lista de AS atravessados está no AS_PATH; confundir esses atributos troca informação de camada e função.",
+      "section": "3. BGP entre AS e atributos de caminho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao receber seu ASN no AS_PATH, um AS consegue sempre provar criptograficamente que o anúncio é legítimo ou ilegítimo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A ocorrência do próprio ASN no caminho é um mecanismo de detecção de possível loop, não uma prova criptográfica de legitimidade. Validação de origem e autenticação envolvem mecanismos e políticas adicionais.",
+      "section": "3. BGP entre AS e atributos de caminho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição do uso de ASN privado está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É reservado a redes privadas, não à identidade pública global.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É a forma preferida de identificar redes comerciais em todos os pontos de troca públicos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É um número globalmente único que dispensa consulta ao RIR e pode ser reutilizado na Internet.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É um endereço IP de gerenciamento que o BGP converte em ASN público automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É o valor de compatibilidade que substitui qualquer ASN de quatro octetos antigo.",
+          "correct": false
+        }
+      ],
+      "explanation": "As faixas privadas destinam-se a contextos privados e não constituem identidade global exclusiva para anúncios públicos. O uso em redes conectadas ao trânsito exige tratamento de vazamento conforme o desenho e os acordos.",
+      "section": "4. Uso privado, anúncio e erros de interpretação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O ASN público atribuído a uma empresa prova que ela está autorizada a originar qualquer prefixo IPv4 anunciado em seu nome.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A atribuição do ASN não atribui endereços nem comprova autorização para originar prefixos. A origem precisa respeitar titularidade, acordos e filtros; mecanismos como RPKI-ROV podem auxiliar na avaliação de autorização.",
+      "section": "4. Uso privado, anúncio e erros de interpretação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa recebeu ASN e concluiu que agora possui conectividade multihomed, prefixos IP e sessões BGP operacionais. Qual avaliação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Correta, pois a atribuição do ASN instala automaticamente sessões com os cinco RIRs.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Correta, se o ASN tiver 32 bits e for usado como endereço do roteador de borda.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Incorreta; ASN não cria conectividade, não atribui prefixos nem configura sessões.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Incorreta apenas porque multihoming funciona sem nenhum protocolo de roteamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Correta, pois os RIRs anunciam os prefixos do operador assim que aprovam o número.",
+          "correct": false
+        }
+      ],
+      "explanation": "ASN é identificador numérico. Conectividade, endereços, sessões BGP, filtros e acordos são requisitos separados; a atribuição do número não os instala nem garante que provedores aceitem rotas.",
+      "section": "4. Uso privado, anúncio e erros de interpretação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede com ASN privado anuncia a rota a um provedor de trânsito. Qual cuidado operacional é pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Anunciar sem filtros, pois números privados são automaticamente globais após o primeiro salto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Controlar o vazamento e tratar/remover o ASN privado conforme desenho e acordo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Converter o ASN em endereço IPv6 e publicá-lo como prefixo de origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Acrescentar AS_TRANS em todos os saltos para ocultar o ASN privado do vizinho.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir o NEXT_HOP pelo número privado e desativar o AS_PATH externo.",
+          "correct": false
+        }
+      ],
+      "explanation": "ASN privado não é identidade global. Ao conectar a rede a trânsito público, o operador deve impedir vazamento ou aplicar a remoção/substituição prevista no desenho e no acordo com o provedor, sem presumir tratamento automático.",
+      "section": "4. Uso privado, anúncio e erros de interpretação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A validação de origem RPKI-ROV pode ajudar um receptor a avaliar se o AS de origem está autorizado por um ROA, mas não substitui todo o desenho de roteamento e os filtros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. RPKI-ROV fornece uma avaliação relacionada à autorização da origem do prefixo. Ela não instala conectividade, não substitui filtros e políticas, nem prova todos os aspectos da legitimidade do caminho percorrido.",
+      "section": "4. Uso privado, anúncio e erros de interpretação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação distingue corretamente prefixo anunciado e ASN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Prefixo identifica o próximo salto; ASN indica o tamanho do bloco IPv4.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Prefixo é um bloco de endereços alcançável; ASN identifica o domínio que participa do roteamento.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Prefixo e ASN são duas grafias equivalentes do endereço do roteador de borda.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Prefixo é o nome de um RIR; ASN é a faixa pública que ele delega ao operador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Prefixo é uma política BGP; ASN é o atributo que define o atraso do enlace.",
+          "correct": false
+        }
+      ],
+      "explanation": "O prefixo descreve destinos IP anunciados como alcançáveis; ASN identifica o AS relacionado ao anúncio e ao caminho. São recursos distintos e um não substitui o outro.",
+      "section": "4. Uso privado, anúncio e erros de interpretação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O fato de um AS originar um prefixo significa que o seu ASN contém numericamente todos os endereços desse bloco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. ASN e prefixo pertencem a espaços diferentes. O anúncio relaciona um domínio de roteamento a destinos alcançáveis, mas o valor numérico do ASN não contém nem codifica os endereços do prefixo.",
+      "section": "4. Uso privado, anúncio e erros de interpretação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um operador quer reduzir anúncios BGP e pretende agregar vários prefixos menores em um anúncio abrangente. Qual princípio deve orientar a decisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Anunciar qualquer bloco maior, mesmo que inclua destinos que a rede não alcança.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar o ASN privado como máscara para ocultar prefixos que não estão ativos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garantir que o anúncio agregado represente destinos realmente alcançáveis e autorizados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Remover o AS_PATH, pois agregação converte a política em roteamento interno.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Agregação só é possível quando todos os prefixos pertencem a RIRs distintos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Agregação pode reduzir o volume de anúncios, mas o bloco anunciado precisa representar destinos que o AS realmente consegue alcançar e tem autorização para originar. Um anúncio abrangente incorreto pode atrair tráfego para destinos indisponíveis.",
+      "section": "4. Uso privado, anúncio e erros de interpretação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um AS recebe um anúncio com menos sistemas no AS_PATH, ele sempre deve preferi-lo, independentemente das políticas locais e dos atributos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O AS_PATH é um atributo relevante, mas a seleção BGP aplica política local e outros critérios. Não existe regra universal que obrigue a preferência pelo menor número de AS ignorando o restante da decisão.",
+      "section": "4. Uso privado, anúncio e erros de interpretação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa explica corretamente a relação entre obtenção de ASN e aceitação de anúncios por provedores?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A atribuição obriga todos os provedores a aceitar qualquer prefixo do titular.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A atribuição elimina a necessidade de acordos, filtros e conectividade externa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O número comprova que todos os prefixos anunciados estão cobertos por um ROA.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ASN identifica o sistema; anúncio depende de conectividade e política.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A concessão do ASN faz a IANA originar as rotas em nome da organização.",
+          "correct": false
+        }
+      ],
+      "explanation": "A atribuição fornece um identificador, não obriga redes a aceitar anúncios nem substitui conectividade, acordos, filtros ou validação de origem. A política de cada rede receptora continua influenciando o tratamento da rota.",
+      "section": "4. Uso privado, anúncio e erros de interpretação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O projeto AS112 utiliza o ASN 112 para absorver consultas DNS mal direcionadas, conforme a reserva indicada no registro especial da IANA.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A tabela de ASNs especiais da IANA associa o valor 112 ao projeto AS112, que recebe consultas DNS mal direcionadas. É um uso especial documentado, distinto do espaço privado e de AS_TRANS.",
+      "section": "2. Alocação, registro e tamanho dos ASNs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O registro global de ASN é dispensável, pois cada RIR pode atribuir independentemente o mesmo bloco numérico sem coordenação com a IANA.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A IANA mantém a coordenação do espaço global e aloca blocos aos RIRs; os registros regionais então atendem operadores conforme políticas. Coordenação evita tratar o espaço global como pools independentes duplicados.",
+      "section": "2. Alocação, registro e tamanho dos ASNs",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que o BGP carrega informação sobre os AS atravessados além do prefixo de destino?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para substituir o encaminhamento por endereço IP e dispensar NEXT_HOP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Para formar informação de conectividade entre AS, apoiar detecção de loops e políticas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Para permitir que a IANA calcule a localização física de cada pacote.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para decidir o nome DNS que deve ser associado ao prefixo anunciado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para codificar a largura de banda dos enlaces em um identificador numérico global.",
+          "correct": false
+        }
+      ],
+      "explanation": "A lista de AS no caminho ajuda a construir relações de conectividade, permite podar loops e oferece base para decisões de política no nível de AS. Ela não substitui o próximo salto nem codifica localização, DNS ou largura de banda.",
+      "section": "3. BGP entre AS e atributos de caminho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao anunciar uma rota para um par interno, um falante BGP normalmente preserva o AS_PATH recebido em vez de acrescentar seu ASN apenas por esse repasse.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A regra especificada para anúncio a par interno é não modificar o AS_PATH da rota recebida. O acréscimo do ASN local caracteriza a propagação para vizinho externo, ressalvadas configurações específicas previstas pelo protocolo.",
+      "section": "3. BGP entre AS e atributos de caminho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção descreve melhor o significado de uma sessão eBGP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma sessão entre falantes de AS diferentes para trocar informação de roteamento externa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma sessão entre processos DNS que resolvem os nomes dos RIRs envolvidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma sessão interna de um único AS que distribui rotas por um IGP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma conexão de gerenciamento que atribui endereço IP ao NEXT_HOP remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma troca entre clientes de um mesmo AS que remove o atributo AS_PATH.",
+          "correct": false
+        }
+      ],
+      "explanation": "eBGP é a relação BGP entre sistemas autônomos distintos. iBGP distribui informação entre falantes do mesmo AS; DNS e gerenciamento não definem esse tipo de sessão.",
+      "section": "3. BGP entre AS e atributos de caminho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A IANA lista os valores 65535 e 4294967295 como reservados, e não como faixas privadas comuns.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O registro especial marca ambos os valores como reservados. As faixas privadas adjacentes têm limites próprios e não incluem esses valores finais reservados.",
+      "section": "2. Alocação, registro e tamanho dos ASNs",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que leitura de um caminho anunciado como `64510 64520 64530` é mais compatível com a função do AS_PATH?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É uma lista de prefixos que o roteador usará como endereços NEXT_HOP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É uma sequência de AS que a informação de rota atravessou, sujeita à direção do atributo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "É uma coordenada geográfica codificada para escolher o enlace mais curto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É a identificação dos três RIRs que aprovaram o prefixo anunciado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É a máscara de rede aplicada sucessivamente ao endereço de destino.",
+          "correct": false
+        }
+      ],
+      "explanation": "AS_PATH contém segmentos com os números de AS atravessados pela informação de rota. Não é lista de prefixos, next hops, coordenadas, RIRs ou máscaras; a interpretação da ordem segue a codificação do atributo BGP.",
+      "section": "3. BGP entre AS e atributos de caminho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rota BGP pode ser aceita por política local mesmo que não seja a de menor quantidade de AS, desde que os critérios e políticas da rede a favoreçam.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. BGP é orientado por políticas, e a preferência local pode determinar a escolha. A contagem de AS não é regra universal absoluta e não representa necessariamente distância física ou qualidade do enlace.",
+      "section": "4. Uso privado, anúncio e erros de interpretação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que torna o ASN uma identidade útil em roteamento interdomínio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele substitui os prefixos e permite alcançar destinos sem rotas IP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele fornece um identificador comum para domínio e políticas nas trocas BGP.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ele descreve todos os endereços de usuário existentes no sistema autônomo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele indica ao DNS qual provedor deve resolver nomes externos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele mede a distância entre o roteador local e o servidor remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "O ASN permite identificar o AS em anúncios e caminhos BGP, apoiando políticas e interpretação de conectividade interdomínio. A alcançabilidade ainda depende de prefixos e rotas; o número não substitui endereçamento ou DNS.",
+      "section": "1. O que é um sistema autônomo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O registro da IANA define que os ASNs são usados por vários protocolos de roteamento, não exclusivamente por um único protocolo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A página de registro da IANA afirma que números de AS são usados por vários protocolos de roteamento. BGP é o caso central de roteamento interdomínio da Internet, mas o conceito de número não é definido como exclusivo a um único protocolo.",
+      "section": "2. Alocação, registro e tamanho dos ASNs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conclusão sobre um prefixo anunciado e seu ASN de origem deve ser evitada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O prefixo representa destinos IP que a rota declara alcançáveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O ASN participa da identidade do domínio que anuncia a rota.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um mecanismo de validação pode ajudar a conferir a autorização de origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A atribuição do ASN prova, por si só, a titularidade de todo prefixo anunciado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Filtros e políticas dos pares influenciam a aceitação da rota anunciada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A atribuição do ASN não transfere endereços nem comprova autorização para originar qualquer prefixo. Prefixo, ASN, validação de origem e filtros são dimensões distintas que precisam ser tratadas adequadamente.",
+      "section": "4. Uso privado, anúncio e erros de interpretação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A extensão de quatro octetos define mecanismos de transição gradual que incluem anunciar capacidade e carregar informação de caminho estendida através de falantes antigos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A extensão define capacidade BGP de suporte a quatro octetos e atributos AS4_PATH e AS4_AGGREGATOR para transportar informação por falantes sem suporte à extensão, permitindo transição gradual.",
+      "section": "2. Alocação, registro e tamanho dos ASNs",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede privada anuncia ASN privado ao exterior e assume que todos os vizinhos o removerão automaticamente. Qual é a falha nessa premissa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não há falha; o registro especial obriga qualquer vizinho a remover o ASN.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A premissa ignora que o operador precisa controlar o vazamento segundo desenho e acordos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A falha é usar BGP, pois números privados só podem aparecer em IGPs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A premissa falha porque ASN privado é convertido em NEXT_HOP por padrão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A falha é que todo ASN privado precisa ser substituído por AS_TRANS.",
+          "correct": false
+        }
+      ],
+      "explanation": "Não se deve presumir comportamento automático de todos os vizinhos. O operador precisa controlar anúncios e combinar a remoção ou substituição do ASN privado conforme arquitetura e acordos de trânsito ou peering.",
+      "section": "4. Uso privado, anúncio e erros de interpretação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A IANA aloca ASNs diretamente a todos os roteadores individuais de cada rede, enquanto os RIRs mantêm apenas cópias históricas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A IANA aloca blocos aos RIRs, e estes alocam ou atribuem números a operadores conforme políticas. Um ASN identifica um sistema autônomo, não é atribuído pela IANA a cada roteador individual.",
+      "section": "2. Alocação, registro e tamanho dos ASNs",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma administradora precisa explicar por que o AS_PATH pode ajudar a evitar loops sem garantir segurança total dos anúncios. Qual formulação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A lista permite reconhecer o próprio ASN no caminho, mas não autentica por si só todo anúncio.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A lista é assinada pela IANA e prova titularidade, capacidade e autorização de cada prefixo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A lista substitui os filtros de prefixo e garante que todos os roteadores são confiáveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A lista contém somente endereços IP e impede qualquer alteração feita por um vizinho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A lista indica a localização física exata e permite bloquear tráfego malicioso automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O AS_PATH oferece a um AS a possibilidade de detectar seu próprio número em uma rota retornada e evitar um loop. Isso não é autenticação criptográfica nem prova de propriedade de prefixo; filtros e mecanismos de validação continuam relevantes.",
+      "section": "3. BGP entre AS e atributos de caminho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A IANA é a autoridade que coordena identificadores globais, e a página de ASN encaminha operadores ao registro regional para obter números.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A IANA coordena o espaço de números e informa que ASNs são obtidos no registro da região. Os RIRs atendem operadores segundo políticas próprias dentro da coordenação global.",
+      "section": "2. Alocação, registro e tamanho dos ASNs",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma implementação BGP estabelece conexões usando TCP na porta 179 para sessões com vizinhos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A especificação BGP determina que a implementação conecte e escute na porta TCP 179 para conexões entrantes. UDP não é o transporte da sessão BGP descrita.",
+      "section": "3. BGP entre AS e atributos de caminho",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 1930 — Guidelines for creation, selection, and registration of an Autonomous System (AS)",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Definições, motivação, critérios e erros comuns na criação e uso de ASNs.",
+      "url": "https://www.rfc-editor.org/rfc/rfc1930.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 4271 — A Border Gateway Protocol 4 (BGP-4)",
+      "publisher": "IETF / RFC Editor",
+      "reference": "BGP inter-AS, operação, AS_PATH, NEXT_HOP e propagação de rotas para pares internos e externos.",
+      "url": "https://www.rfc-editor.org/rfc/rfc4271.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 6793 — BGP Support for Four-Octet AS Number Space",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Extensão a quatro octetos, capacidade BGP, AS4_PATH, AS4_AGGREGATOR e AS_TRANS.",
+      "url": "https://www.rfc-editor.org/rfc/rfc6793.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Autonomous System (AS) Numbers",
+      "publisher": "IANA",
+      "reference": "Alocação da IANA aos cinco RIRs, registro de ASNs de 16 e 32 bits e referências normativas.",
+      "url": "https://www.iana.org/assignments/as-numbers",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Special-Purpose Autonomous System (AS) Numbers",
+      "publisher": "IANA",
+      "reference": "Valores reservados, AS112, AS_TRANS e faixas de documentação e uso privado.",
+      "url": "https://www.iana.org/assignments/iana-as-numbers-special-registry",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

@@ -1,0 +1,2038 @@
+{
+  "id": "infra-ti.acesso-conexoes-bancos-dados-pools-seguranca",
+  "subject": "Infraestrutura de TI",
+  "title": "Acesso a bancos de dados: conexões, pools e segurança",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Configuração de acesso a bancos de dados",
+    "Conexões com bancos de dados e seus parâmetros",
+    "Pools de conexão com bancos de dados",
+    "Segurança de conexões com bancos de dados",
+    "Parâmetros de acesso a bancos de dados",
+    "Configuração de conexão com SGBD relacional",
+    "Gerenciamento de conexões de banco de dados",
+    "Pool de conexões JDBC e configuração segura",
+    "Segurança de credenciais para bancos de dados",
+    "Parâmetros básicos de segurança do banco de dados"
+  ],
+  "scope": {
+    "covers": "Configuração de acesso a bancos relacionais: driver, endereço, porta, banco, usuário, autenticação, parâmetros e timeouts; finalidade e operação de pools, limites, ciclo de empréstimo e devolução, dimensionamento e métricas; proteção de credenciais, privilégio mínimo, separação de contas e ambientes, restrição de rede, TLS e validação de certificado, cuidados com logs.",
+    "excludes": "SQL avançado, modelagem, administração física, backup, replicação e detalhes de produto além dos exemplos necessários aos conceitos gerais."
+  },
+  "theoryTitle": "Conexões, pools e segurança no acesso a bancos de dados",
+  "chapters": [
+    {
+      "title": "1. Como uma aplicação chega ao banco",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação precisa saber com qual protocolo falar, onde está o servidor, qual base selecionar e qual identidade apresentar. Esses elementos compõem a configuração de acesso. Uma falha pode impedir a inicialização, apontar para o ambiente errado ou transmitir dados sem proteção.\n\n> **Siglas e termos deste capítulo**\n> - **SGBD**: sistema gerenciador de banco, como PostgreSQL, MySQL ou SQL Server.\n> - **Driver**: componente que implementa o protocolo do SGBD para a plataforma.\n> - **DSN/URL**: cadeia de conexão que reúne destino e parâmetros do driver.\n> - **DataSource**: abstração que fornece conexões; pode delegar a criação a um pool.\n> - **TLS**: protocolo que cifra o tráfego e permite autenticar o servidor por certificado.\n\n### Peças básicas da conexão\n\nUma conexão costuma informar **driver**, **host**, **porta**, nome do banco ou serviço, usuário e forma de autenticação. O host é nome DNS ou endereço do servidor; a porta seleciona o serviço nesse host; `dbname` escolhe a base lógica; `user` identifica a conta. Alguns SGBDs também pedem instância, catálogo ou esquema. Porta padrão varia conforme produto e instalação, e pode ser substituída.\n\nNo JDBC, a URL começa com `jdbc:` e segue o formato do driver. No PostgreSQL libpq, parâmetros como `host`, `port`, `dbname`, `user`, `connect_timeout` e `sslmode` podem ser configurados na conexão. A URL aponta para o destino, mas não concede autorização: o SGBD autentica a conta e verifica suas permissões.\n\n| Parâmetro | Função | Falha possível\n| --- | --- | ---\n| Driver | Fala o protocolo do SGBD | Driver ausente ou incompatível\n| Host e porta | Localizam o serviço | DNS, rota, firewall ou porta incorreta\n| Banco/serviço | Seleciona o destino lógico | Nome diferente entre ambientes\n| Usuário e autenticação | Identificam a conta | Senha expirada ou método incompatível\n| Timeout de conexão | Limita a espera pelo handshake | Cliente fica aguardando durante uma falha de rede\n\n### Três esperas diferentes\n\nTimeout para **estabelecer conexão** limita a tentativa de DNS, rede, negociação e autenticação, conforme o driver. Timeout de **aquisição do pool** limita quanto se espera por uma conexão livre. Timeout de **consulta** limita uma operação SQL. Ajustar um não configura automaticamente os outros. No PostgreSQL libpq, `connect_timeout` trata do estabelecimento da conexão.\n\nO parâmetro `sslmode` controla o uso de TLS. No libpq, `prefer` tenta SSL e pode recuar para conexão sem SSL. `verify-ca` exige TLS e verifica a autoridade certificadora; `verify-full` acrescenta a conferência do nome do host contra o certificado. Cifrar sem verificar o destino pode permitir aceitar um servidor impostor.\n\n### Conexão, transação e liberação\n\nUma sessão conserva estado, como transação aberta, isolamento e opções de sessão. O código confirma ou desfaz a transação conforme o resultado e libera a conexão mesmo ao ocorrer exceção. Em um pool, fechar a conexão lógica normalmente devolve a sessão física ao gerenciador; não significa necessariamente desconectá-la do servidor.\n\n### Como cai na prova\n\n- Host e porta localizam o serviço; banco escolhe a base; credenciais identificam a conta.\n- Timeout de conexão, espera no pool e duração de consulta são limites distintos.\n- `verify-full` exige TLS, verifica CA confiável e confere o nome do host.\n- Autenticar não concede automaticamente permissão administrativa."
+    },
+    {
+      "title": "2. Pools: reutilização, limites e ciclo de uso",
+      "markdown": "### O problema que este assunto resolve\n\nAbrir uma conexão física exige rede, negociação e autenticação. Repetir isso para cada consulta acrescenta latência e trabalho ao SGBD. Um **pool** mantém um conjunto limitado de conexões e as empresta temporariamente à aplicação para reutilização.\n\n> **Siglas e termos deste capítulo**\n> - **Pool**: conjunto gerenciado de conexões prontas ou em uso.\n> - **Conexão física**: sessão aberta entre cliente e servidor.\n> - **Conexão lógica**: empréstimo temporário entregue à aplicação.\n> - **Vazamento**: conexão emprestada e não devolvida após o uso.\n> - **Concorrência**: operações que tentam acessar o banco simultaneamente.\n\n### Empréstimo e devolução\n\nA aplicação solicita conexão ao `DataSource`. Se houver uma livre, recebe-a; se o pool estiver no limite, espera ou falha ao expirar o timeout. Terminada a operação, fecha ou libera a conexão lógica. Em Java, `try-with-resources` ajuda a garantir a liberação mesmo com exceção. Transação aberta ou estado de sessão inesperado não deve vazar para o próximo uso.\n\n### Parâmetros frequentes\n\n| Parâmetro | Efeito | Cuidado\n| --- | --- | ---\n| `maximumPoolSize` | Máximo total: ociosas mais emprestadas | Excesso pressiona o servidor; pouco gera fila\n| `minimumIdle` | Ociosas que o pool tenta manter | Valor alto reserva sessões sem demanda\n| `connectionTimeout` | Espera por conexão do pool | Longo pode esconder saturação\n| `idleTimeout` | Retirada de conexões ociosas | Depende do mínimo que se mantém\n| `maxLifetime` | Vida máxima de conexão física | Deve considerar limites externos\n| `validationTimeout` | Prazo de teste de disponibilidade | Checagem demorada atrasa entrega\n\nNo HikariCP, `maximumPoolSize` conta conexões livres e em uso. Se o pool chegou ao máximo sem conexão ociosa, `getConnection()` espera até `connectionTimeout` e então falha. `idleTimeout` só retira ociosas acima do mínimo. `maxLifetime` deve ficar alguns segundos abaixo de limites impostos pelo banco ou infraestrutura; conexão emprestada só é removida depois da devolução. Os padrões da biblioteca não são valores universais.\n\n### Dimensionamento e métricas\n\nMais conexões não garantem maior vazão: cada sessão consome recursos e pode aumentar contenção. Considere o limite do banco, outras aplicações e o número de instâncias. Dez réplicas com pool máximo vinte podem abrir até duzentas sessões. Monitore conexões ativas e ociosas, fila, tempo de aquisição, timeouts e duração das operações. Fila crescente pode indicar consultas lentas, transações abertas, vazamento ou dimensionamento inadequado.\n\n### Como cai na prova\n\n- Pool reutiliza sessões físicas e limita concorrência; não é cache de resultados SQL.\n- O máximo inclui conexões livres e ocupadas.\n- Timeout de aquisição não cancela automaticamente consulta em andamento.\n- Conexão não devolvida ocupa vaga e pode bloquear novas operações."
+    },
+    {
+      "title": "3. Segurança das credenciais e autorizações",
+      "markdown": "### O problema que este assunto resolve\n\nUma conexão funcional pode conceder acesso excessivo ou expor senha. Se a aplicação usar conta administrativa, uma falha pode afetar dados e objetos fora de sua função. Se a senha estiver em código ou log, poderá ser reutilizada por quem obtenha acesso a essas cópias.\n\n> **Siglas e termos deste capítulo**\n> - **Autenticação**: comprovação da identidade que tenta conectar.\n> - **Autorização**: operações e objetos liberados para a identidade.\n> - **Privilégio mínimo**: conceder somente os acessos necessários à função.\n> - **Segredo**: senha, token ou chave que permite autenticação.\n> - **Rotação**: substituição controlada de uma credencial.\n\n### Contas dedicadas e privilégio mínimo\n\nA OWASP recomenda não usar contas administrativas internas como `root`, `sa` ou `SYS` pela aplicação. Crie identidade por serviço e conceda acesso apenas às bases, tabelas e operações exigidas. Um serviço que consulta dados pode ter leitura; um processo de implantação que executa DDL pode receber permissão distinta e restrita ao momento de implantação.\n\nSepare contas e bases de desenvolvimento, teste e produção. Restrinja hosts de origem a servidores e redes necessários. Conforme os recursos do SGBD, permissões podem se limitar por base, esquema, tabela, coluna ou linha. A conta da aplicação não deve ser proprietária ou administradora da instância sem necessidade operacional justificada.\n\n### Armazenar e rotacionar segredos\n\nNão grave credenciais no código, imagem de contêiner, arquivo público ou histórico de versão. Use configuração protegida ou serviço de segredos fora do repositório, com acesso apenas à identidade do processo. Variáveis de ambiente podem entregar configuração, mas não criptografam o valor automaticamente; proteja também logs e acesso ao processo.\n\nUse credencial forte e única por serviço. Ao suspeitar de exposição, troque o segredo e revogue o anterior. Apagar um commit não elimina clones nem histórico. Logs devem registrar detalhes úteis sem senha, token, string de conexão completa ou dados pessoais.\n\n### Rede e canal protegido\n\nMantenha o banco em rede interna e restrinja portas de firewall aos hosts autorizados. A OWASP orienta exigir conexões cifradas, instalar certificado confiável e verificar o certificado no cliente. No libpq, `verify-ca` valida a autoridade certificadora; `verify-full` também confere o nome do servidor. O parâmetro `require` exige SSL, mas não equivale em qualquer configuração à validação completa da identidade.\n\n### Como cai na prova\n\n- Login identifica a conta; privilégios definem o que ela pode fazer.\n- Conta administrativa compartilhada amplia o impacto de uma falha.\n- Segredo fora do código ainda precisa de proteção de acesso e rotação.\n- TLS cifra o canal; validação de certificado e nome verifica o destino.\n- Firewall e restrição de hosts complementam autenticação e autorização."
+    },
+    {
+      "title": "4. Configuração segura e diagnóstico",
+      "markdown": "### O problema que este assunto resolve\n\nO acesso reúne driver, parâmetros, rede, TLS, autenticação, autorização e pool. Uma falha em qualquer camada pode parecer apenas “o banco não conecta”. Separar as etapas evita soluções improvisadas, como expor a porta publicamente ou dar privilégios administrativos à aplicação.\n\n> **Siglas e termos deste capítulo**\n> - **Handshake**: negociação inicial de protocolo, autenticação e TLS.\n> - **CA**: autoridade certificadora que assina certificados confiáveis.\n> - **Saturação**: falta de capacidade livre no pool ou servidor.\n> - **Health check**: verificação controlada de disponibilidade.\n> - **Fail closed**: recusar conexão quando requisito de segurança falha.\n\n### Ordem de diagnóstico\n\nConfira se o driver existe e se a URL usa o formato correto; depois teste DNS, rota, firewall e porta a partir do ambiente da aplicação. Verifique nome da base, credencial e permissão de conexão. Se TLS falhar, confirme exigência do servidor, CA confiável e correspondência do nome certificado. Por fim, diferencie falha de conexão física, timeout de aquisição do pool, timeout de consulta e recusa de autorização.\n\nErro de certificado não deve ser “corrigido” desativando validação em produção. Corrija DNS, endpoint ou certificado. Timeout de aquisição com pool cheio pode vir de consulta lenta, transação aberta ou vazamento; elevar o máximo sem olhar capacidade do banco pode aumentar contenção.\n\n### Configuração por ambiente\n\nSepare endpoint, banco e credenciais por ambiente. O mesmo binário pode receber configuração operacional diferente. Uma credencial de teste não deve acessar dados reais. Se viável, separe contas de leitura, gravação e migração conforme funções distintas. Registre métricas de conexões e filas; remova credenciais de URLs que forem incluídas em logs.\n\n### Como cai na prova\n\n- Investigue driver, DNS/rede/porta, base, autenticação, TLS, autorização e pool.\n- Não abra o banco a qualquer origem como primeiro passo de diagnóstico.\n- Falha de TLS pede corrigir cadeia ou nome, não enfraquecer a verificação.\n- Uma consulta de health check não dimensiona sozinha a capacidade sob carga."
+    }
+  ],
+  "summary": "A aplicação precisa de driver, host, porta, banco ou serviço, identidade, autenticação e parâmetros de rede e segurança. Timeout de conexão física, espera por vaga no pool e execução de consulta são limites distintos. O pool reutiliza conexões, empresta uma conexão lógica por operação, limita o total e exige devolução; seu dimensionamento considera réplicas e capacidade do banco. No HikariCP maximumPoolSize inclui conexões livres e em uso e connectionTimeout limita a espera por vaga. Para segurança, use conta por serviço e ambiente, privilégio mínimo, hosts restritos, TLS com certificado e nome validados, segredos fora do código e logs sem credenciais. Autenticação identifica; autorização limita ações.",
+  "flashcards": [
+    {
+      "front": "Quais dados localizam uma conexão?",
+      "back": "Driver, host, porta, banco ou serviço, usuário e mecanismo de autenticação; o formato varia por driver."
+    },
+    {
+      "front": "Host e porta têm a mesma função?",
+      "back": "Não. Host localiza o servidor; porta seleciona o serviço nesse host."
+    },
+    {
+      "front": "O que limita connect_timeout no libpq?",
+      "back": "A tentativa de estabelecer a conexão, não a duração de uma consulta já iniciada."
+    },
+    {
+      "front": "Autenticação e autorização: qual a diferença?",
+      "back": "Autenticação comprova identidade; autorização define bases, objetos e operações permitidos."
+    },
+    {
+      "front": "O que é pool de conexões?",
+      "back": "Conjunto gerenciado de conexões físicas emprestadas temporariamente à aplicação e reutilizadas."
+    },
+    {
+      "front": "O que acontece ao fechar conexão lógica do pool?",
+      "back": "Normalmente ela é devolvida para reutilização; não necessariamente encerra a sessão física."
+    },
+    {
+      "front": "Como liberar uma conexão Java mesmo com exceção?",
+      "back": "Usar liberação garantida como try-with-resources e concluir a transação adequadamente."
+    },
+    {
+      "front": "O que inclui maximumPoolSize no HikariCP?",
+      "back": "Conexões ociosas e emprestadas, isto é, o total de sessões físicas do pool."
+    },
+    {
+      "front": "O que mede connectionTimeout do HikariCP?",
+      "back": "Quanto tempo a chamada espera por conexão livre no pool antes de falhar."
+    },
+    {
+      "front": "Qual a finalidade de idleTimeout?",
+      "back": "Retirar conexões que ficaram ociosas, respeitando o mínimo que o pool mantém."
+    },
+    {
+      "front": "Uma sessão em uso é removida imediatamente por maxLifetime?",
+      "back": "Não; no HikariCP ela só é retirada depois de devolvida ao pool."
+    },
+    {
+      "front": "Por que somar os máximos dos pools das réplicas?",
+      "back": "Cada instância tem limite próprio; o total potencial deve caber no orçamento do banco."
+    },
+    {
+      "front": "O que é vazamento de conexão?",
+      "back": "Empréstimo não devolvido, que reduz vagas disponíveis para outras operações."
+    },
+    {
+      "front": "Por que evitar conta root na aplicação?",
+      "back": "Ela daria poderes desnecessários e ampliaria o impacto de falha ou invasão."
+    },
+    {
+      "front": "O que determina privilégio mínimo?",
+      "back": "Conceder somente permissões e objetos necessários à função do serviço."
+    },
+    {
+      "front": "Onde guardar senha de banco?",
+      "back": "Em configuração ou serviço de segredos protegido, fora do repositório e acessível ao processo necessário."
+    },
+    {
+      "front": "O que verifica sslmode verify-ca?",
+      "back": "Exige TLS e valida que o certificado do servidor foi assinado por CA confiável."
+    },
+    {
+      "front": "O que verify-full acrescenta?",
+      "back": "Compara o nome solicitado do servidor com o nome coberto pelo certificado."
+    },
+    {
+      "front": "O que revisar ao investigar falha de conexão?",
+      "back": "Driver, URL, DNS e rede, porta, base, autenticação, TLS, autorização e disponibilidade do pool."
+    },
+    {
+      "front": "Quais métricas ajudam a diagnosticar pool saturado?",
+      "back": "Conexões ativas e ociosas, fila, tempo de aquisição, timeouts e duração das operações."
+    }
+  ],
+  "tips": [
+    "Separe timeout de conexão física, espera por vaga no pool e execução da consulta.",
+    "Multiplique o máximo por pool pelo número de réplicas ao estimar sessões totais.",
+    "Libere conexões em bloco garantido e finalize cada transação com commit ou rollback.",
+    "Use conta dedicada a cada serviço e ambiente, com permissões específicas.",
+    "TLS requer validação da CA e do nome do servidor, além de cifrar o canal.",
+    "Investigue fila e métricas antes de elevar o tamanho do pool."
+  ],
+  "traps": [
+    "Timeout de aquisição do pool não é timeout da consulta SQL.",
+    "No HikariCP, o máximo conta conexões livres e ocupadas.",
+    "Fechar conexão lógica normalmente devolve a sessão física ao pool.",
+    "Criptografia TLS sem validação não prova que o destino é o servidor legítimo.",
+    "Conta administrativa aumenta o impacto de comprometimento e viola privilégio mínimo.",
+    "Repositório privado ainda guarda cópias, clones e histórico da credencial."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o caminho da aplicação até a base.",
+      "answer": "Driver fala o protocolo; host e porta localizam o serviço; banco escolhe destino; usuário autentica e autorização limita operações. TLS protege o canal e pode verificar o servidor."
+    },
+    {
+      "question": "Por que os três timeouts não são intercambiáveis?",
+      "answer": "Um cobre estabelecer conexão física, outro esperar por conexão no pool, e o terceiro executar SQL. Cada um controla etapa distinta."
+    },
+    {
+      "question": "Descreva empréstimo e devolução do pool.",
+      "answer": "A aplicação solicita DataSource, recebe conexão livre ou aguarda/cria dentro do limite, executa e encerra a transação e libera o recurso para reutilização ou descarte."
+    },
+    {
+      "question": "Oito réplicas têm máximo de doze conexões cada. Qual capacidade potencial?",
+      "answer": "Até 96 conexões desses pools, mais outros clientes e reservas necessárias ao servidor."
+    },
+    {
+      "question": "Por que vazamento de conexão causa falha?",
+      "answer": "Conexões retidas consomem as vagas do pool até atingir o máximo; novas operações esperam ou falham."
+    },
+    {
+      "question": "Compare verify-ca e verify-full.",
+      "answer": "Ambos exigem TLS e validam a CA; verify-full também confere o nome do host no certificado."
+    },
+    {
+      "question": "Quais controles reduzem dano de credencial vazada?",
+      "answer": "Conta exclusiva, privilégio mínimo, segredo protegido e rotacionável, ambientes segregados, origens restritas, TLS e monitoramento."
+    },
+    {
+      "question": "Pool cheio e fila crescente: o que investigar?",
+      "answer": "Consultas lentas, transações abertas, vazamentos, concorrência, capacidade do SGBD e total de réplicas multiplicado pelo máximo."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Parâmetros e timeouts confundidos",
+      "summary": "Host e porta localizam; banco seleciona destino; credenciais identificam. Timeout de conexão, pool e consulta são diferentes."
+    },
+    {
+      "key": "e2",
+      "title": "Ciclo de empréstimo ignorado",
+      "summary": "Conexão emprestada deve ser devolvida. Vazamento ocupa vagas; maximumPoolSize inclui conexões livres e usadas."
+    },
+    {
+      "key": "e3",
+      "title": "Pool sem dimensionamento global",
+      "summary": "O máximo se multiplica pelo número de instâncias. Mais sessões podem elevar contenção; avalie fila e capacidade do SGBD."
+    },
+    {
+      "key": "e4",
+      "title": "Autenticação confundida com autorização",
+      "summary": "Credencial identifica conta, mas privilégios definem ações. Use conta exclusiva com acesso mínimo."
+    },
+    {
+      "key": "e5",
+      "title": "TLS e segredos mal protegidos",
+      "summary": "Valide CA e nome do servidor. Mantenha credenciais fora de código e logs, proteja acesso e planeje rotação."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Qual combinação contém os elementos básicos para identificar um acesso a uma base relacional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porta e conta administrativa, sem escolher uma base.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente host e senha, pois o banco é sempre inferido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Endereço IP e consulta SQL, sem driver compatível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Nome do processo e diretório dos arquivos de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Driver, host e porta, banco, usuário e autenticação.",
+          "correct": true
+        }
+      ],
+      "explanation": "O cliente precisa do protocolo implementado pelo driver, do destino de rede, da base lógica e de uma identidade autenticada. Cada campo tem função própria.",
+      "section": "1. Como uma aplicação chega ao banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual parâmetro do libpq limita o tempo para estabelecer conexão com o PostgreSQL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`dbname`, que limita a duração do handshake.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`connect_timeout`, que limita a conexão inicial.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`idleTimeout`, que encerra consultas em execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`maximumPoolSize`, que limita o tempo do DNS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`sslmode`, que define o prazo para autenticar usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "`connect_timeout` limita a tentativa de estabelecer conexão. Aquisição de conexão do pool e duração de SQL têm configurações distintas.",
+      "section": "1. Como uma aplicação chega ao banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma configuração HikariCP, o que limita `connectionTimeout`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A duração de cada consulta no servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A vida máxima da conexão física.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A espera para obter uma conexão do pool.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O tempo de validade da senha da conta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O intervalo entre verificações de DNS.",
+          "correct": false
+        }
+      ],
+      "explanation": "HikariCP usa `connectionTimeout` para limitar quanto o cliente aguarda uma conexão livre do pool. A consulta em si requer timeout próprio.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição caracteriza corretamente um pool de conexões?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cache de resultados que dispensa consultar o banco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Fila persistente de comandos SQL para execução posterior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Serviço de autenticação de usuários finais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conjunto gerenciado de sessões físicas reutilizadas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Cópia de tabelas dividida entre os servidores da aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "O pool conserva conexões físicas e as empresta temporariamente à aplicação, evitando criar uma sessão nova para cada operação.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No HikariCP, qual conjunto compõe `maximumPoolSize`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conexões ociosas e conexões em uso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente conexões livres para empréstimo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usuários que podem autenticar no SGBD.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Consultas simultâneas por tabela do banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sessões administrativas abertas por operadores.",
+          "correct": false
+        }
+      ],
+      "explanation": "O limite inclui as conexões ociosas e as que estão sendo usadas, representando o máximo de conexões daquele pool ao servidor.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como evitar reter uma conexão Java se uma consulta lança exceção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardar a conexão num campo global para inspeção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter a sessão aberta até reiniciar a aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar conexão adicional antes de liberar a primeira.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar autenticação durante o tratamento do erro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar liberação garantida, como try-with-resources.",
+          "correct": true
+        }
+      ],
+      "explanation": "O fechamento garantido devolve a conexão mesmo com exceção. Em um pool, fechar a conexão lógica normalmente devolve a sessão para reutilização.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual desenho reduz os privilégios da aplicação e separa impactos entre ambientes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma conta administrativa para todas as aplicações.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conta própria por serviço, com acesso mínimo necessário.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Conta compartilhada com privilégio de instância completo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma senha em comum para desenvolvimento e produção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conexão anônima local para evitar armazenar credenciais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Identidades próprias permitem privilégio mínimo, segregação de ambientes e revogação isolada. A OWASP desaconselha contas administrativas pela aplicação.",
+      "section": "3. Segurança das credenciais e autorizações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática protege melhor as credenciais usadas pelo serviço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardar a senha em comentário no arquivo versionado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Imprimir a URL completa no log de inicialização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Colocar senha em repositório privado da equipe.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Guardar segredo em serviço protegido, fora do código.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Codificar a senha em Base64 dentro da aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Segredos não devem ficar no código ou repositório. Armazene-os em configuração protegida, limite quem pode lê-los e não os registre em logs.",
+      "section": "3. Segurança das credenciais e autorizações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que `sslmode=verify-full` verifica no PostgreSQL libpq?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas se a porta está aberta antes do login.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente se o usuário possui senha cadastrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "TLS, confiança da CA e correspondência do nome do host.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Apenas o certificado de cliente e sua chave privada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A existência de pool e o limite de conexões livres.",
+          "correct": false
+        }
+      ],
+      "explanation": "`verify-full` exige TLS, verifica o certificado por CA confiável e compara o nome solicitado com o certificado do servidor.",
+      "section": "1. Como uma aplicação chega ao banco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação tem doze instâncias, cada qual com máximo de quinze conexões. Qual é o total potencial desses pools?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quinze sessões compartilhadas pelas instâncias.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Vinte e sete sessões, somando processos e limite.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cento e vinte conexões para as instâncias pares.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cento e oitenta conexões potenciais no conjunto.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Doze conexões, uma por processo da aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada instância tem seu pool; doze vezes quinze resulta em 180 conexões potenciais. Some também outros clientes ao verificar o limite do SGBD.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PostgreSQL, qual diferença prática existe entre `verify-ca` e `verify-full`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os dois modos têm validação idêntica e nomes intercambiáveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`verify-ca` permite texto claro; `verify-full` exige senha forte.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`verify-ca` autentica o usuário; `verify-full` valida a autorização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`verify-ca` limita o pool; `verify-full` define conexão ociosa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`verify-full` também confere o hostname solicitado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Ambos verificam certificado por CA confiável, mas `verify-full` acrescenta correspondência do nome do host solicitado. Essa diferença protege contra destino com identidade divergente.",
+      "section": "1. Como uma aplicação chega ao banco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pool HikariCP está cheio, sem conexão ociosa. Que efeito tem uma nova aquisição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Abre conexões sem limite até a consulta terminar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Espera pelo prazo de aquisição e falha sem vaga livre.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Interrompe todas as transações já em andamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignora autorização e usa a conta administradora.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executa a consulta em modo assíncrono automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando o total atinge o máximo e não há conexão livre, a chamada espera até o limite configurado e então lança falha de aquisição.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O pool está saturado. Qual análise é mais apropriada antes de aumentar seu máximo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desabilitar autenticação para reduzir o custo das sessões.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Abrir a porta do SGBD a qualquer endereço de origem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar todo timeout para esconder a fila de espera.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Analisar vazamentos, SQL lento e capacidade do SGBD.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Deixar conexões abertas depois das operações concluídas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Fila e pool cheios podem resultar de vazamentos, transações ou consultas lentas e falta de capacidade. Mais sessões podem agravar contenção se o SGBD já estiver sobrecarregado.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual concessão atende a um serviço que lê duas tabelas e atualiza uma terceira?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Propriedade administrativa de toda a instância.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Permissões limitadas às operações e objetos usados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Acesso de escrita irrestrito a todas as bases.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma conta compartilhada por todas as aplicações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permissões de DDL permanentes para cada requisição.",
+          "correct": false
+        }
+      ],
+      "explanation": "Privilégio mínimo restringe leitura e gravação aos objetos e operações exigidos. Propriedade da instância ou acesso global amplia desnecessariamente o impacto de falha.",
+      "section": "3. Segurança das credenciais e autorizações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A aplicação registra erros de conexão. Qual informação oferece contexto sem revelar credenciais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Senha completa e URL integral da conexão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conteúdo de variáveis de ambiente no log geral.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Chave privada TLS copiada no alerta operacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Token da conta junto com o stack trace público.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Etapa, host não sensível e código de erro sem segredo.",
+          "correct": true
+        }
+      ],
+      "explanation": "Logs devem conter contexto útil, mas omitir senhas, tokens e chaves. Também se deve restringir acesso aos detalhes internos de diagnóstico.",
+      "section": "4. Configuração segura e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação identifica e protege a conexão sem confundir localização e privilégio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Host indica conta, senha indica porta e TLS concede escrita.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porta escolhe a base e DNS autentica o usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Host e porta localizam; credencial autentica; ACL autoriza.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Driver concede permissões e banco define certificado do cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "URL valida a identidade e substitui controles do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Host e porta indicam o serviço; credenciais comprovam identidade; privilégios do SGBD autorizam ações. TLS pode proteger o canal, mas não substitui os controles de acesso.",
+      "section": "1. Como uma aplicação chega ao banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual decisão protege melhor um banco acessado por aplicação móvel em dispositivo não confiável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conectar o aplicativo diretamente com uma conta só de leitura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Embutir senha rotativa na configuração distribuída ao cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Expor o serviço do banco apenas durante a autenticação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar uma API intermediária com controles de acesso.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Liberar a porta pública e confiar no endereço IP do telefone.",
+          "correct": false
+        }
+      ],
+      "explanation": "A OWASP recomenda que aplicações executadas em sistemas não confiáveis acessem o backend por uma API capaz de impor controles, sem conexão direta ao banco.",
+      "section": "3. Segurança das credenciais e autorizações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um certificado não corresponde ao hostname configurado. Qual medida preserva melhor a segurança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alterar o tamanho do pool até o erro desaparecer.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar toda validação para aceitar qualquer servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar a senha por uma conta de maior privilégio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o timeout de aquisição do pool.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ajustar DNS ou certificado ao hostname esperado.",
+          "correct": true
+        }
+      ],
+      "explanation": "A validação do nome confirma a identidade do servidor esperado. Corrigir DNS, endpoint ou certificado mantém essa garantia; desligar a verificação aceitaria destinos indevidos.",
+      "section": "4. Configuração segura e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que credenciais distintas entre teste e produção são recomendadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Elas permitem que testes usem automaticamente privilégios administrativos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Elas evitam configurar host e porta de cada ambiente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Elas fazem o pool compartilhar a mesma sessão física.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Elas substituem autenticação por autorização na aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Elas limitam o alcance de exposição e separam os acessos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Credenciais separadas impedem que uma conta de teste tenha acesso automático a dados reais e permitem revogação e auditoria mais isoladas.",
+      "section": "3. Segurança das credenciais e autorizações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe vê aumento da fila e do tempo de aquisição. Que métricas ajudam a separar saturação de outros problemas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente tamanho das tabelas e quantidade de colunas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Medir atividade, ociosidade, fila, timeout e duração.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apenas versão do driver e nome do arquivo de configuração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quantidade de usuários finais cadastrados na aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tempo desde a última rotação do certificado do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Métricas de ocupação, espera e duração revelam se o pool está cheio, se conexões não retornam ou se operações prolongadas retêm recursos.",
+      "section": "4. Configuração segura e diagnóstico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual razão técnica justifica manter `maxLifetime` abaixo de certos limites externos de sessão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Evita reutilizar sessão encerrada por banco ou rede.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Permite que a aplicação ignore a política de autenticação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garante que toda consulta termine dentro do tempo configurado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumenta o número de conexões acima do máximo declarado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativa a necessidade de devolver conexões ao pool.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação do HikariCP recomenda vida alguns segundos menor que o limite de banco ou infraestrutura, reduzindo chance de manter uma sessão que o sistema externo já encerrou.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve melhor o uso de uma credencial separada para migração de esquema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conceder DDL permanente a cada conexão de negócio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar conta administrativa em toda requisição da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Separar a conta de migração da conta de runtime.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar autenticação enquanto o esquema é atualizado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Compartilhar a senha de migração com todos os desenvolvedores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Separar credencial de implantação e de execução evita que permissões DDL fiquem disponíveis em todas as conexões normais. A conta privilegiada fica restrita ao processo autorizado.",
+      "section": "3. Segurança das credenciais e autorizações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conexão falha porque a senha foi rotacionada no servidor, mas o segredo do serviço não foi atualizado. Qual camada deve ser conferida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O tamanho máximo configurado para o pool.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O timeout de execução de consultas SQL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A validação do hostname no certificado TLS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A validade e sincronização da credencial de autenticação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A quantidade de conexões ociosas mínima.",
+          "correct": false
+        }
+      ],
+      "explanation": "A senha divergente causa rejeição durante autenticação. A configuração segura exige sincronizar rotação e revogação entre servidor e mecanismo de segredos usado pela aplicação.",
+      "section": "3. Segurança das credenciais e autorizações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conexão usa TLS, mas o cliente aceita qualquer certificado sem validação. Qual risco permanece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O pool passa a ignorar o máximo de conexões configurado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um destino impostor pode ser aceito apesar da cifragem.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O usuário deixa de ser autenticado pelo SGBD.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A aplicação perde a capacidade de executar consultas SQL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A senha se torna automaticamente inválida após o handshake.",
+          "correct": false
+        }
+      ],
+      "explanation": "TLS cifra o canal, mas a validação de certificado e nome confirma que o cliente chegou ao servidor esperado. Sem ela, um servidor impostor pode receber a conexão cifrada.",
+      "section": "3. Segurança das credenciais e autorizações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conexão é obtida do pool, mas o programa mantém uma transação aberta após terminar o trabalho. Qual risco operacional decorre disso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O servidor converte a transação em uma nova credencial.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O pool aumenta o máximo sem verificar a capacidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A transação pode reter recursos e estado da sessão.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "TLS deixa de cifrar as conexões já abertas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O timeout de consulta substitui a necessidade de commit.",
+          "correct": false
+        }
+      ],
+      "explanation": "Transação não finalizada pode manter locks ou recursos e, se a sessão for reutilizada sem estado limpo, afetar o próximo empréstimo. A aplicação deve confirmar ou desfazer antes de devolver.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual regra se aplica a conexões físicas mantidas no pool diante de uma falha de rede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Testar e substituir sessão física encerrada pela rede.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conexões abertas nunca são encerradas pela rede intermediária.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A conexão deve ser compartilhada por todas as threads.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A senha da conta será renovada por cada consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O pool substitui automaticamente as permissões no servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Banco, proxy ou rede podem encerrar sessões ociosas. Pools validam conexões conforme suporte/configuração e descartam sessões inválidas para evitar entregá-las como saudáveis.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual configuração é mais consistente com o isolamento de uma base acessível por um único serviço interno?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Expor a porta e controlar o acesso somente por senha.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Restringir rede e firewall aos hosts autorizados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Compartilhar credencial administrativa entre ambientes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir conexões anônimas a partir da intranet inteira.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desligar TLS porque a rede fica atrás do firewall.",
+          "correct": false
+        }
+      ],
+      "explanation": "Isolamento e restrição das origens reduzem quem consegue alcançar o serviço. Firewall complementa, mas não substitui, autenticação, privilégios mínimos e TLS.",
+      "section": "3. Segurança das credenciais e autorizações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática permite usar o mesmo artefato da aplicação em homologação e produção com destinos diferentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Compilar a senha de produção dentro do arquivo executável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Publicar um binário com ambas as senhas em texto claro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar a conta de homologação com acesso às duas bases.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Injetar endpoint e segredo protegidos por ambiente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Manter URL fixa e trocar manualmente a base em cada consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "A configuração operacional pode variar por ambiente sem recompilar o artefato. Endpoint e segredos devem ser injetados de forma protegida e as contas devem permanecer segregadas.",
+      "section": "4. Configuração segura e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a resposta mais adequada quando uma credencial aparece em commit que já foi compartilhado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar o arquivo mais recente e manter a credencial ativa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tornar o repositório privado sem trocar a senha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Rotacionar o segredo divulgado e revogar o anterior.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desativar logs e esperar que ninguém tenha clonado o projeto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Renomear a variável local sem alterar a conta do banco.",
+          "correct": false
+        }
+      ],
+      "explanation": "A exposição deve ser tratada como comprometimento. Revogar e trocar a credencial reduz a janela de abuso; apagar o texto não remove clones ou histórico existentes.",
+      "section": "3. Segurança das credenciais e autorizações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conclusão se pode tirar de um health check simples que conseguiu consultar o banco uma vez?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O pool suportará qualquer carga de produção sem fila.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Todas as consultas da aplicação terão latência baixa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O limite de conexões do servidor nunca será alcançado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apenas aquela verificação funcionou naquele instante.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "As permissões de escrita e administração estão corretas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um health check demonstra conectividade naquele momento, não capacidade sob carga nem correção de todos os privilégios. Dimensionamento exige métricas e teste representativo.",
+      "section": "4. Configuração segura e diagnóstico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que parâmetros não devem ser confundidos ao investigar conexão lenta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Banco selecionado e usuário autenticado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Timeout de conexão, aquisição do pool e consulta SQL.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Driver JDBC e extensão SQL usada no servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Certificado de cliente e nome do esquema lógico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porta TCP e privilégio de leitura da tabela.",
+          "correct": false
+        }
+      ],
+      "explanation": "Estabelecer conexão, aguardar vaga no pool e executar SQL são etapas diferentes. Identificar em qual delas ocorre a espera orienta a configuração e o diagnóstico.",
+      "section": "1. Como uma aplicação chega ao banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma conta limitada da aplicação, qual afirmação sobre privilégios é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Restringir permissões a objetos específicos conforme o SGBD.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Toda conta autenticada recebe automaticamente a propriedade da base.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Privilégio mínimo exige acesso de escrita a toda a instância.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permissões se aplicam somente ao host, nunca aos objetos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma conta sem papel administrativo não pode executar leitura.",
+          "correct": false
+        }
+      ],
+      "explanation": "A granularidade de autorização depende do SGBD e pode chegar a tabelas, colunas ou linhas. A conta deve receber somente o conjunto necessário à função.",
+      "section": "3. Segurança das credenciais e autorizações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um firewall interno torna desnecessário validar o certificado TLS do servidor de banco.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim, pois a rede interna garante a identidade criptográfica do servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim, desde que a senha usada pelo serviço seja longa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não; firewall reduz alcance, mas certificado confirma destino e canal.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Não, mas só se o pool tiver mais de uma conexão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim, porque TLS serve apenas para redes públicas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Firewall e TLS cobrem riscos diferentes. Restringir rede reduz origens; TLS cifra o tráfego e a validação do certificado confirma a identidade do servidor esperado.",
+      "section": "3. Segurança das credenciais e autorizações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual fator de dimensionamento é essencial se o banco é compartilhado por vários serviços?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somar pools e demais clientes contra o limite do SGBD.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar somente a quantidade de conexões ociosas de uma réplica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar conexões administrativas porque não usam SQL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Configurar máximo igual ao total de usuários cadastrados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o máximo até que o servidor rejeite novas sessões.",
+          "correct": false
+        }
+      ],
+      "explanation": "A capacidade total inclui cada instância e os demais consumidores, como tarefas operacionais. Aproximar-se do limite bruto do banco deixa sem margem outros usos necessários.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No libpq, `sslmode=prefer` tenta primeiro uma conexão protegida por SSL, mas pode aceitar uma sem SSL se a tentativa segura falhar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Esse modo dá prioridade à conexão SSL, mas permite recuo sem SSL. Para exigir canal criptografado, a política deve usar modo que não autorize fallback em texto claro.",
+      "section": "1. Como uma aplicação chega ao banco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No HikariCP, `validationTimeout` deve ser inferior ao `connectionTimeout`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação da biblioteca estabelece essa relação para que a verificação de disponibilidade não exceda o prazo máximo de aquisição da conexão.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No libpq, o modo `verify-ca` exige SSL e verifica a autoridade certificadora, mas não faz a mesma comparação do nome do host que `verify-full`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. `verify-ca` autentica a cadeia até CA confiável; `verify-full` soma a correspondência entre o nome solicitado e o nome no certificado do servidor.",
+      "section": "1. Como uma aplicação chega ao banco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No HikariCP, `idleTimeout` pode encerrar uma conexão ainda emprestada quando ela ultrapassa o tempo ocioso configurado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O parâmetro trata de conexões ociosas que excedem o tempo, respeitando o mínimo do pool. Uma conexão em uso não é considerada ociosa para essa retirada.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PostgreSQL libpq, `sslmode=require` recusa a tentativa quando o servidor não aceita conexão SSL.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. `sslmode=require` faz o libpq usar uma conexão SSL e recusa a conexão se o servidor não aceitar SSL. Isso difere de `prefer`, que pode tentar sem SSL após falha da tentativa protegida.",
+      "section": "1. Como uma aplicação chega ao banco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O HikariCP recomenda configurar um `connectionTestQuery` mesmo quando o driver implementa a API JDBC4 `Connection.isValid()`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A documentação recomenda não definir essa consulta quando o driver suporta JDBC4; ela é destinada a drivers legados sem `Connection.isValid()`.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No HikariCP, o `keepaliveTime` deve ser menor que `maxLifetime` e opera sobre uma conexão ociosa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O keepalive verifica periodicamente conexão ociosa para evitar expiração por banco ou rede, e a documentação exige que seu intervalo seja menor que a vida máxima.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O HikariCP pode suspender as chamadas de aquisição sem timeout enquanto o pool está suspenso, até que seja retomado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Quando a suspensão do pool é habilitada e ele é suspenso, chamadas a `getConnection()` ficam retidas até a retomada, sem expirar pelo timeout usual.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No HikariCP, um `leakDetectionThreshold` igual a zero habilita avisos após qualquer conexão permanecer emprestada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Zero desativa a detecção de vazamento. Com valor positivo habilitado, o pool registra aviso quando a conexão fica fora do pool pelo tempo configurado; o alerta não devolve o recurso automaticamente.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A OWASP recomenda revisar contas e permissões de banco e remover contas de uma aplicação desativada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Revisões periódicas identificam contas sem necessidade e privilégios que cresceram além da função atual. Contas de serviços descontinuados devem ser removidas.",
+      "section": "3. Segurança das credenciais e autorizações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A OWASP recomenda que contas de banco de aplicações sejam reutilizadas por vários serviços para reduzir a quantidade de senhas gerenciadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A orientação é usar contas por aplicação ou serviço. Identidades separadas permitem conceder privilégios próprios e revogar um componente sem afetar todos os outros.",
+      "section": "3. Segurança das credenciais e autorizações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A documentação HikariCP descreve `minimumIdle` como o número mínimo de conexões ociosas que o pool tenta manter.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Quando ociosas ficam abaixo desse valor e o total ainda está abaixo do máximo, o pool tenta repor conexões. O parâmetro não é um limite máximo concorrente.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A OWASP recomenda expor a porta administrativa do banco para toda a internet se a interface web exigir senha forte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Ferramentas administrativas precisam de autenticação, HTTPS e restrição de rede; a recomendação geral é isolar o banco e limitar os hosts que o alcançam.",
+      "section": "3. Segurança das credenciais e autorizações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A OWASP recomenda que o banco exija autenticação inclusive para conexões originadas no próprio servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A orientação da folha de segurança é exigir autenticação também em conexões locais, além de proteger as credenciais e limitar permissões.",
+      "section": "3. Segurança das credenciais e autorizações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A OWASP considera preferível que a conta de aplicação seja proprietária do banco, pois isso impede elevação de privilégios.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A OWASP alerta que ser proprietário pode criar risco de elevação de privilégios. A aplicação deve receber as permissões requeridas sem assumir propriedade ou administração da base.",
+      "section": "3. Segurança das credenciais e autorizações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A OWASP orienta que o cliente verifique se o certificado TLS do banco é correto, além de configurar conexões criptografadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Criptografia protege o tráfego; verificar o certificado permite validar que o cliente está falando com o servidor esperado, conforme a configuração do protocolo.",
+      "section": "3. Segurança das credenciais e autorizações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na configuração HikariCP, `connectionTestQuery` é recomendada como consulta obrigatória para todo driver JDBC4.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O projeto recomenda deixar essa propriedade sem configuração quando o driver implementa `Connection.isValid()`; a consulta serve para drivers legados sem essa API.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O modo `verify-full` do libpq é ignorado para conexão por socket de domínio Unix, pois `sslmode` trata conexões TCP/IP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação do libpq informa que `sslmode` não se aplica à comunicação por socket de domínio Unix; o parâmetro regula negociação SSL sobre TCP/IP.",
+      "section": "1. Como uma aplicação chega ao banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No HikariCP, um valor zero para `leakDetectionThreshold` desativa o mecanismo de detecção de conexões possivelmente vazadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O limite igual a zero desliga os avisos de possível vazamento. Um aviso ajuda no diagnóstico, mas não substitui a liberação garantida no código.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A OWASP recomenda desabilitar toda conexão TCP do banco em qualquer arquitetura, inclusive quando a aplicação precisa acessá-lo por rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A OWASP apresenta socket local como opção quando adequada, mas também descreve firewall e rede interna como controles possíveis conforme arquitetura. A regra é reduzir e proteger o acesso necessário.",
+      "section": "3. Segurança das credenciais e autorizações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A aplicação deve tratar um aviso de possível vazamento do pool como prova de que a conexão foi automaticamente devolvida ao conjunto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Detecção de vazamento registra uma conexão que permaneceu fora do pool por tempo acima do limite; o aviso não fecha nem devolve automaticamente o recurso da aplicação.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No HikariCP, uma conexão que ainda está em uso pode ser encerrada pelo `idleTimeout` mesmo sem ter sido devolvida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. `idleTimeout` trata conexões ociosas, não empréstimos ativos. A aplicação precisa liberar a conexão e finalizar a transação para que ela volte ao gerenciamento do pool.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PostgreSQL, o modo `sslmode=allow` tenta primeiro conexão SSL e depois conexão sem SSL se a primeira falhar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. `allow` começa tentando conexão sem SSL e tenta SSL se essa falhar; quem prefere SSL primeiro e pode recuar sem criptografia é `prefer`.",
+      "section": "1. Como uma aplicação chega ao banco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No HikariCP, a propriedade `readOnly` define que todas as consultas executadas no banco serão automaticamente convertidas em operações de leitura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A propriedade configura as conexões obtidas em modo somente leitura quando o banco suporta esse conceito; ela não reescreve consultas nem substitui os privilégios concedidos pelo SGBD.",
+      "section": "2. Pools: reutilização, limites e ciclo de uso",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um funcionário deixa a equipe e conhecia uma senha de banco compartilhada por vários serviços. Qual prática recomendada reduz o risco remanescente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Revisar contas e trocar credenciais que possam ter sido comprometidas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter a senha até o próximo ciclo de manutenção anual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar o nome do funcionário do código-fonte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar logs de acesso para evitar alertas falsos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o número de conexões ociosas em cada pool.",
+          "correct": false
+        }
+      ],
+      "explanation": "A OWASP recomenda revisão de contas e mudança de senhas quando funcionários saem ou há suspeita de comprometimento. Contas compartilhadas dificultam atribuição e devem ser substituídas por identidades dedicadas.",
+      "section": "3. Segurança das credenciais e autorizações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL — Database Connection Control Functions",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Parâmetros libpq, connect_timeout e modos sslmode, incluindo verify-ca e verify-full",
+      "url": "https://www.postgresql.org/docs/current/libpq-connect.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "HikariCP — configuração oficial do pool",
+      "publisher": "HikariCP",
+      "reference": "maximumPoolSize, connectionTimeout, idleTimeout, maxLifetime, validationTimeout, keepalive e ciclo de conexão",
+      "url": "https://github.com/brettwooldridge/HikariCP",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OWASP Database Security Cheat Sheet",
+      "publisher": "OWASP Cheat Sheet Series",
+      "reference": "Isolamento de rede, TLS, autenticação, credenciais, privilégio mínimo e revisão de contas",
+      "url": "https://cheatsheetseries.owasp.org/cheatsheets/Database_Security_Cheat_Sheet.html",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

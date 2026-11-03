@@ -11,6 +11,7 @@ const RES = `${ROOT}work/amostra-codex-res`;
 const POR_LOTE = 25, POR_MATERIA = 6;
 type Json = Record<string, any>;
 const destino = (id: string) => id.includes(".") ? `${ROOT}conteudo/materias/${id.split(".")[0]}/${id.split(".").slice(1).join(".")}.json` : null;
+const existe = (id: string) => { try { Deno.statSync(`${PASTA}/${id}.json`); return true; } catch { return false; } };
 const publicada = (id: string) => { const d = destino(id); if (!d) return false; try { Deno.statSync(d); return true; } catch { return false; } };
 const aprovada = (arquivo: string) => {
   const o = new Deno.Command("deno", { args: ["run", "--allow-read", "--allow-env", `${ROOT}scripts/biblioteca/conferir-materia.ts`, arquivo, "--estrito"], stdout: "piped", stderr: "null" }).outputSync();
@@ -54,7 +55,7 @@ if (Deno.args.includes("--montar")) {
   try { duplicadas = new Set(Deno.readTextFileSync(`${ROOT}work/duplicadas.txt`).split(/\s+/).filter(Boolean)); } catch { /* nenhuma */ }
   for (const e of Deno.readDirSync(RES)) {
     if (!e.name.endsWith(".json")) continue;
-    for (const id of JSON.parse(Deno.readTextFileSync(`${RES}/${e.name}`)).ok ?? []) if (!publicada(id) && destino(id) && !duplicadas.has(id)) ok.push(id);
+    for (const id of JSON.parse(Deno.readTextFileSync(`${RES}/${e.name}`)).ok ?? []) if (!publicada(id) && destino(id) && !duplicadas.has(id) && existe(id)) ok.push(id);
   }
   for (const id of ok) {
     const m = JSON.parse(Deno.readTextFileSync(`${PASTA}/${id}.json`));

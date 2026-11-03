@@ -1,0 +1,1693 @@
+{
+  "id": "engenharia-software.principios-projeto-tdd-bdd",
+  "subject": "Engenharia de Software",
+  "title": "Princípios de projeto: SOLID, GRASP, TDD e BDD",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Princípios SOLID e GRASP, TDD e BDD",
+    "Princípios SOLID de projeto orientado a objetos",
+    "Princípios GRASP de atribuição de responsabilidades",
+    "Desenvolvimento orientado a testes TDD",
+    "Desenvolvimento orientado a comportamento BDD",
+    "Projeto orientado a objetos com SOLID e GRASP",
+    "Ciclo vermelho verde refatoração do TDD",
+    "Especificação executável com BDD e Gherkin",
+    "Princípios de projeto e testes de software",
+    "SOLID GRASP TDD e BDD em engenharia de software"
+  ],
+  "scope": {
+    "covers": "Princípios SOLID (responsabilidade única, aberto-fechado, substituição de Liskov, segregação de interfaces e inversão de dependência); padrões GRASP (Information Expert, Creator, Controller, Low Coupling, High Cohesion, Polymorphism, Pure Fabrication, Indirection e Protected Variations); TDD, ciclo red-green-refactor, testes de unidade e refatoração; BDD, colaboração, exemplos, critérios de aceitação, cenários Given-When-Then e relação entre BDD e TDD.",
+    "excludes": "Catálogos completos de padrões GoF, sintaxe específica de frameworks de teste, comandos de ferramentas e metodologias ágeis que não sejam necessárias para compreender TDD e BDD."
+  },
+  "theoryTitle": "Projetar responsabilidades e desenvolver a partir de exemplos",
+  "chapters": [
+    {
+      "title": "1. SOLID",
+      "markdown": "### O problema que este assunto resolve\n\nQuando uma regra de negócio muda, um projeto rígido obriga a alterar vários módulos sem relação direta, quebra funcionalidades vizinhas ou exige reescrever clientes. SOLID reúne cinco princípios de projeto orientado a objetos que ajudam a organizar responsabilidades e dependências. São diretrizes para avaliar decisões, não uma receita que obriga a criar uma classe por método.\n\n> **Siglas e termos deste capítulo**\n> - **SOLID**: iniciais de Single Responsibility, Open-Closed, Liskov Substitution, Interface Segregation e Dependency Inversion.\n> - **Abstração**: contrato que expressa o que um componente oferece sem expor sua implementação concreta.\n> - **Subtipo**: implementação que pode ocupar o lugar de um tipo mais geral respeitando seu contrato.\n> - **Cliente**: módulo que depende de uma interface ou serviço.\n\n| Princípio | Pergunta prática | Consequência de violá-lo |\n| --- | --- | --- |\n| SRP — responsabilidade única | Que ator ou motivo de mudança deve afetar este módulo? | Regras de áreas diferentes mudam a mesma unidade |\n| OCP — aberto-fechado | Como acrescentar uma variação sem editar código estável? | Cada nova modalidade exige alterar condicionais centrais |\n| LSP — substituição de Liskov | Uma implementação preserva as expectativas do contrato? | Um subtipo quebra clientes que funcionavam com o tipo base |\n| ISP — segregação de interfaces | O cliente depende só das operações que usa? | Clientes implementam métodos irrelevantes ou artificiais |\n| DIP — inversão de dependência | Política de alto nível depende de abstração ou detalhe? | Regras centrais ficam presas a banco, rede ou biblioteca |\n\n### Responsabilidade única e extensão\n\n**SRP** diz respeito a uma razão de mudança ligada a um ator ou grupo de interesses, não a um único método. Se uma classe calcula folha de pagamento, formata relatório e persiste dados porque três áreas diferentes mudam essas regras, convém separar as responsabilidades. A separação reduz mudanças acidentais, mas não exige fragmentar cada operação em uma classe minúscula.\n\n**OCP** busca permitir extensão do comportamento sem modificar repetidamente o núcleo estável. Uma interface `CalculadoraFrete` com implementações para modalidades diferentes permite adicionar uma modalidade por nova implementação e seleção apropriada, evitando inserir mais um ramo numa longa cadeia de `if`. O princípio não significa que nenhum arquivo possa ser modificado: a abstração deve proteger pontos de variação que realmente existem.\n\n### Substituição e contratos\n\n**LSP** trata da preservação das expectativas do tipo base. Se `Retangulo` promete que largura e altura podem ser alteradas independentemente, uma subclasse `Quadrado` que força ambas a mudar pode surpreender o cliente e quebrar invariantes. A relação de herança só é segura se as operações da subclasse respeitarem as pré-condições, pós-condições e invariantes esperadas; compartilhar nomes ou atributos não basta.\n\n### Interfaces e direção das dependências\n\n**ISP** evita interfaces “gordas”. Um consumidor que só imprime recibos não deveria depender de operações de cancelar pagamento e consultar estoque. Interfaces menores e específicas fazem implementações e clientes dependerem apenas do que usam.\n\n**DIP** estabelece que módulos de alto nível e de baixo nível devem depender de abstrações; os detalhes concretos também implementam essas abstrações. Por exemplo, um serviço de cobrança recebe uma interface `GatewayPagamento`; uma implementação de produção conversa com o provedor externo e uma implementação de teste pode ser substituída. Injeção de dependência é uma técnica possível para fornecer a implementação, mas não é o próprio princípio.\n\n### Como cai na prova\n\n- SRP trata de motivos ou atores de mudança; não significa “uma função por classe”.\n- OCP permite adicionar comportamento por pontos de extensão; LSP verifica se o subtipo mantém o contrato.\n- ISP reduz operações desnecessárias impostas a clientes; DIP desacopla política de detalhes concretos.\n- Inversão de dependência não é sinônimo de inverter o fluxo de execução nem de usar obrigatoriamente um contêiner de injeção."
+    },
+    {
+      "title": "2. GRASP",
+      "markdown": "### O problema que este assunto resolve\n\nSOLID ajuda a avaliar a forma das dependências e responsabilidades, mas o projetista ainda precisa decidir **qual objeto realiza cada tarefa**. GRASP (General Responsibility Assignment Software Patterns) oferece nove padrões para essa atribuição. Eles orientam decisões, não são classes prontas nem um catálogo de estruturas obrigatórias.\n\n> **Siglas e termos deste capítulo**\n> - **GRASP**: padrões gerais de atribuição de responsabilidades em projeto orientado a objetos.\n> - **Coesão**: quanto as tarefas de um módulo pertencem a um propósito relacionado.\n> - **Acoplamento**: grau de dependência entre módulos.\n> - **Fabricação pura**: objeto criado no projeto, sem representar diretamente uma entidade do domínio.\n\n| Padrão | Regra de atribuição | Exemplo de decisão |\n| --- | --- | --- |\n| Information Expert | Atribua a tarefa ao objeto que possui os dados necessários | `Venda` calcula o total de suas linhas |\n| Creator | Dê a criação a quem contém, agrega, registra ou usa de perto o objeto criado | `Venda` cria uma `LinhaDeVenda` que agrega |\n| Controller | Receba o evento de sistema num objeto que represente o sistema ou caso de uso | `ControladorVenda` recebe “iniciar venda” |\n| Low Coupling | Evite dependências desnecessárias entre classes | Serviço não conhece detalhes internos do banco |\n| High Cohesion | Mantenha tarefas relacionadas juntas e responsabilidades focadas | `Relatorio` não envia e-mail nem persiste pedidos |\n| Polymorphism | Use operações polimórficas quando variantes têm comportamento próprio | Cada tipo de pagamento calcula sua tarifa |\n| Pure Fabrication | Crie serviço técnico para obter coesão e baixo acoplamento | `RepositorioPedido` isola persistência |\n| Indirection | Introduza intermediário para desacoplar participantes | Adaptador separa aplicação de API externa |\n| Protected Variations | Proteja pontos sujeitos a variações com interfaces estáveis | Interface isola provedores de pagamento |\n\n### Os padrões centrais na prática\n\nO **Information Expert** atribui cálculo a quem tem os dados: uma linha de venda conhece quantidade e preço unitário, então calcula seu subtotal; a venda conhece suas linhas, então calcula o total. A regra preserva encapsulamento e evita uma classe externa que precise consultar muitos dados.\n\nO **Creator** não é “sempre a classe com nome Factory”. Pergunta qual objeto tem relação forte com o criado: contém, agrega, registra, usa ou possui dados de inicialização. O **Controller** recebe eventos de sistema e coordena o caso de uso, delegando trabalho aos objetos de domínio; ele não deve virar um objeto gigantesco que concentra toda regra.\n\n**Low Coupling** e **High Cohesion** são critérios para comparar alternativas: reduzir dependências ajuda a limitar o impacto de mudanças, enquanto alta coesão mantém tarefas relacionadas. Otimizar um sem observar o outro pode deslocar o problema. Uma **Pure Fabrication**, como serviço de persistência, não é uma entidade do negócio; ela pode ser criada justamente para não sobrecarregar uma entidade. **Indirection** cria um intermediário, e **Protected Variations** protege consumidores de mudanças previsíveis atrás de uma interface.\n\n### Como cai na prova\n\n- O Expert tem a informação necessária; o Creator decide criação a partir de relações de contenção ou uso próximo.\n- O Controller coordena eventos do sistema, não substitui objetos especialistas em regras de domínio.\n- Polymorphism trata variantes de comportamento; Indirection acrescenta um intermediário; Protected Variations preserva uma interface contra mudanças externas.\n- Pure Fabrication é uma classe de projeto que não precisa corresponder a um substantivo do domínio."
+    },
+    {
+      "title": "3. TDD",
+      "markdown": "### O problema que este assunto resolve\n\nNo desenvolvimento tradicional, é fácil acumular código antes de verificar o comportamento, descobrir tarde que o desenho dificulta testar e perder segurança ao refatorar. No **Test-Driven Development (TDD)**, o desenvolvedor alterna testes automatizados, código de produção e refatoração em passos pequenos. O teste primeiro especifica um comportamento observável; a implementação cresce em resposta a uma falha concreta.\n\n> **Siglas e termos deste capítulo**\n> - **TDD**: desenvolvimento orientado por testes.\n> - **Red-Green-Refactor**: falhar com um teste novo, fazê-lo passar com a menor mudança e melhorar a estrutura preservando o comportamento.\n> - **Teste unitário**: verificação automatizada de uma unidade pequena, geralmente isolada de dependências externas.\n> - **Refatoração**: alteração da estrutura interna sem mudança do comportamento observável.\n> - **Regressão**: defeito em comportamento que funcionava antes de uma alteração.\n\n### O ciclo curto\n\n1. **Red (vermelho)**: escreva um teste pequeno para a próxima regra e execute-o. Ele deve falhar porque a funcionalidade ainda não existe; uma falha por erro de compilação ou configuração pode revelar que o teste nem chegou a verificar a regra.\n2. **Green (verde)**: escreva o código mais simples que satisfaça o teste e execute novamente. Não antecipe uma arquitetura completa para possibilidades não exigidas.\n3. **Refactor (refatorar)**: com os testes passando, remova duplicação, melhore nomes e organização sem alterar o resultado observável; execute a suíte para conferir.\n\nExemplo: para uma função de desconto, primeiro se especifica um caso concreto (compra elegível resulta no total esperado), observa-se a falha, implementa-se a regra mínima e, depois de verde, reorganiza-se o código. Novos exemplos cobrem limites e exceções. Uma falha encontrada em produção pode iniciar outro ciclo: escreva um teste que reproduza o defeito antes de corrigi-lo.\n\n### O que TDD garante e o que não garante\n\nTDD mantém uma suíte de verificações executável e fornece feedback frequente, apoiando regressão e desenho com unidades testáveis. Porém, testes só verificam os casos e propriedades que foram expressos. Uma suíte verde não prova ausência de defeitos, correção de todo requisito ou qualidade de usabilidade. Cobertura de código mede execução de trechos, não a qualidade dos oráculos e das afirmações.\n\nTestes excessivamente grandes, frágeis ou acoplados à implementação podem tornar a mudança custosa. Testes unitários também não substituem testes de integração, aceitação, segurança e desempenho quando esses riscos são relevantes. O alvo é feedback útil e frequente, não maximizar contagem de testes.\n\n### Como cai na prova\n\n- A ordem característica é teste falhando, código mínimo passando, refatoração com testes verdes.\n- Refatorar muda a estrutura, mas mantém o comportamento observável.\n- Escrever testes depois do código pode ser valioso, porém não corresponde ao ciclo test-first do TDD.\n- TDD não é apenas executar testes nem promete provar que o software está livre de defeitos."
+    },
+    {
+      "title": "4. BDD",
+      "markdown": "### O problema que este assunto resolve\n\nUma equipe pode produzir muitos testes técnicos e ainda implementar uma funcionalidade diferente da necessidade do usuário. **Behavior-Driven Development (BDD)** amplia a conversa sobre comportamento, ajudando negócio, desenvolvimento e testes a construir entendimento comum por exemplos concretos. Cenários claros podem servir de especificação e, quando automatizados, também de testes de aceitação.\n\n> **Siglas e termos deste capítulo**\n> - **BDD**: desenvolvimento orientado a comportamento.\n> - **Gherkin**: linguagem estruturada para descrever funcionalidades e cenários com palavras-chave.\n> - **Given / When / Then**: Dado (contexto), Quando (ação ou evento), Então (resultado observável).\n> - **Critério de aceitação**: condição verificável que define um resultado esperado da funcionalidade.\n> - **Especificação executável**: exemplo que pode ser executado como verificação automatizada.\n\n### Do objetivo ao cenário\n\nUma conversa começa pelo valor e pelas regras de negócio, identifica exemplos de sucesso, limites e exceções, e descreve o comportamento visível. Em Gherkin, `Feature` agrupa o comportamento; `Scenario` apresenta um exemplo; `Given` estabelece o contexto, `When` descreve o evento e `Then` expressa o resultado. Por exemplo: dado um carrinho com total elegível, quando o cliente aplica um cupom válido, então o sistema apresenta o desconto e o total atualizado. Os passos devem descrever o que o usuário ou sistema observa, não detalhes de chamadas internas.\n\n`Scenario Outline` e `Examples` permitem executar um mesmo cenário para várias linhas de dados, quando os exemplos compartilham a mesma regra. Isso evita cópias quase idênticas, sem transformar o cenário numa planilha obscura de combinações. Cenários devem ser concretos e relevantes; um “Então” precisa ser observável e verificável.\n\n### BDD e TDD trabalham em níveis diferentes\n\nBDD frequentemente começa de fora para dentro: exemplos de aceitação esclarecem o resultado da funcionalidade e podem orientar ciclos internos de TDD, nos quais unidades são especificadas e implementadas. Os níveis se complementam. Um cenário de aceitação não precisa ser implementado como um teste unitário, e testes unitários não substituem a conversa sobre exemplos de negócio.\n\nBDD não se reduz a escrever arquivos `.feature` nem a instalar Cucumber. Sem colaboração, exemplos compreensíveis e ligação com necessidades reais, a sintaxe por si só não produz BDD. Uma especificação automatizada pode ficar obsoleta se a equipe não mantiver os cenários junto com a evolução do comportamento.\n\n### Como cai na prova\n\n- Given caracteriza contexto, When descreve evento/ação e Then afirma resultado observável.\n- BDD foca colaboração e linguagem de comportamento; TDD regula o ciclo de implementação por testes.\n- Um cenário de aceitação demonstra comportamento de ponta a ponta; um teste unitário isola uma unidade.\n- BDD não é sinônimo de Gherkin, nem exige que todo cenário seja automatizado para haver conversa orientada por comportamento."
+    }
+  ],
+  "summary": "SOLID organiza responsabilidades, contratos, interfaces e dependências: SRP, OCP, LSP, ISP e DIP. GRASP orienta a distribuição de responsabilidades por nove padrões, incluindo Expert, Creator, Controller, baixo acoplamento, alta coesão, Polymorphism, Pure Fabrication, Indirection e Protected Variations. TDD alterna teste que falha, implementação mínima e refatoração com testes passando; a suíte dá feedback, mas não prova ausência de defeitos. BDD usa colaboração e exemplos compreensíveis de comportamento; em Gherkin, Given define contexto, When a ação e Then o resultado observável. BDD pode orientar critérios de aceitação e complementar TDD em ciclos internos.",
+  "flashcards": [
+    {
+      "front": "O que significa SRP?",
+      "back": "Responsabilidade única: organizar um módulo para que mudanças de um mesmo ator ou motivo de mudança não se misturem com responsabilidades independentes."
+    },
+    {
+      "front": "SRP exige uma classe por método?",
+      "back": "Não. Ele busca uma responsabilidade coesa e uma razão relacionada para mudar, não fragmentação mecânica."
+    },
+    {
+      "front": "Qual é a ideia central do OCP?",
+      "back": "Permitir extensão de comportamento sem modificar repetidamente o núcleo estável, usando abstrações nos pontos de variação adequados."
+    },
+    {
+      "front": "O que verifica LSP?",
+      "back": "Se uma implementação substituta preserva contratos e expectativas do tipo base para seus clientes."
+    },
+    {
+      "front": "Para que serve ISP?",
+      "back": "Para que clientes dependam de interfaces pequenas com operações pertinentes, em vez de contratos grandes e irrelevantes."
+    },
+    {
+      "front": "O que propõe DIP?",
+      "back": "Módulos de alto e baixo nível dependem de abstrações; detalhes concretos implementam os contratos."
+    },
+    {
+      "front": "Injeção de dependência e DIP são a mesma coisa?",
+      "back": "Não. Injeção é uma técnica de fornecimento de dependência; DIP é um princípio sobre direção das dependências."
+    },
+    {
+      "front": "O que faz o Information Expert?",
+      "back": "Atribui uma operação ao objeto que possui os dados necessários para realizá-la."
+    },
+    {
+      "front": "Como identificar um candidato a Creator?",
+      "back": "Procure quem contém, agrega, registra, usa de perto ou tem dados para inicializar o objeto criado."
+    },
+    {
+      "front": "Qual é a função do Controller em GRASP?",
+      "back": "Receber um evento de sistema e coordenar o caso de uso, delegando regras aos objetos apropriados."
+    },
+    {
+      "front": "O que é alta coesão?",
+      "back": "Concentrar em um módulo tarefas relacionadas a um propósito claro, evitando responsabilidades desconexas."
+    },
+    {
+      "front": "O que é baixo acoplamento?",
+      "back": "Limitar dependências desnecessárias entre módulos para reduzir propagação de mudanças."
+    },
+    {
+      "front": "O que caracteriza Pure Fabrication?",
+      "back": "Uma classe criada para o desenho, sem representar entidade do domínio, como um repositório técnico."
+    },
+    {
+      "front": "Qual a função de Indirection?",
+      "back": "Inserir um intermediário que reduz dependência direta entre componentes."
+    },
+    {
+      "front": "Como Polymorphism ajuda na atribuição de responsabilidade?",
+      "back": "Cada tipo implementa sua variação de comportamento por uma operação comum, evitando condicionais centrais extensos."
+    },
+    {
+      "front": "O que protege Protected Variations?",
+      "back": "Consumidores contra mudanças em um ponto variável, por meio de uma interface estável."
+    },
+    {
+      "front": "Quais são as três etapas de TDD?",
+      "back": "Red: teste falha; Green: código mínimo o faz passar; Refactor: melhora-se a estrutura mantendo o comportamento."
+    },
+    {
+      "front": "Por que o teste novo deve falhar em Red?",
+      "back": "Para confirmar que o exemplo detecta a ausência do comportamento, em vez de passar sem verificar a regra."
+    },
+    {
+      "front": "O que é refatoração?",
+      "back": "Alterar estrutura interna do código sem mudar seu comportamento observável."
+    },
+    {
+      "front": "TDD prova que não existem defeitos?",
+      "back": "Não. Ele verifica os casos escritos e melhora feedback, mas não prova ausência de falhas."
+    },
+    {
+      "front": "O que descreve Given em Gherkin?",
+      "back": "O contexto ou estado inicial do cenário."
+    },
+    {
+      "front": "O que descreve When em Gherkin?",
+      "back": "A ação ou evento que dispara o comportamento considerado."
+    },
+    {
+      "front": "O que descreve Then em Gherkin?",
+      "back": "O resultado esperado que possa ser observado e verificado."
+    },
+    {
+      "front": "Como BDD se relaciona com TDD?",
+      "back": "Exemplos de aceitação podem orientar a funcionalidade; TDD conduz ciclos internos de teste, implementação e refatoração."
+    },
+    {
+      "front": "BDD exige Cucumber?",
+      "back": "Não. Ferramentas podem automatizar cenários, mas colaboração e exemplos de comportamento são a prática central."
+    }
+  ],
+  "tips": [
+    "Associe SRP a atores ou razões de mudança, não a uma contagem fixa de métodos.",
+    "Diferencie OCP (extender sem editar continuamente) de LSP (substituir sem quebrar expectativas).",
+    "Para DIP, siga a dependência no código: política deve apontar para contrato, não para detalhe concreto.",
+    "No GRASP, localize primeiro quem conhece os dados; depois avalie Creator, coesão e acoplamento.",
+    "Memorize a ordem TDD: falhar, passar, refatorar; refatoração ocorre com comportamento protegido por testes.",
+    "Em Given-When-Then, exija contexto, evento e resultado observável, nessa ordem lógica."
+  ],
+  "traps": [
+    "Confundir SRP com uma classe por método ou com uma única linha de código alterável.",
+    "Tratar OCP como proibição absoluta de modificar qualquer código existente.",
+    "Achar que uma subclasse é substituível só porque herda os atributos e métodos do tipo base.",
+    "Confundir DIP com injeção de dependência ou com inversão da ordem de chamadas em tempo de execução.",
+    "Transformar o Controller GRASP em objeto que implementa sozinho todas as regras do domínio.",
+    "Afirmar que suíte verde, alta cobertura ou arquivo Gherkin isoladamente garantem qualidade completa."
+  ],
+  "activeRecall": [
+    "Explique por que uma classe de folha de pagamento que também formata relatórios pode violar SRP.",
+    "Dê um exemplo de extensão que respeita OCP e identifique o ponto de variação.",
+    "Como uma subclasse que fortalece uma pré-condição pode violar LSP?",
+    "Mostre como ISP reduz obrigações artificiais para consumidores de uma API.",
+    "Trace a direção das dependências no DIP usando um serviço de cobrança e um gateway externo.",
+    "Compare Information Expert com Creator usando Venda e LinhaDeVenda.",
+    "Por que um Controller que concentra regras de domínio pode ter baixa coesão?",
+    "Descreva um ciclo TDD e explique por que o primeiro teste deve falhar por motivo relevante."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Princípios SOLID não são sinônimos",
+      "summary": "OCP trata de extensão, LSP da substituibilidade contratual, ISP do tamanho das interfaces e DIP da direção das dependências. SRP separa razões de mudança."
+    },
+    {
+      "key": "e2",
+      "title": "GRASP orienta atribuição de responsabilidades",
+      "summary": "Expert usa conhecimento, Creator considera relações de criação e Controller coordena eventos. Baixo acoplamento e alta coesão avaliam a qualidade da distribuição."
+    },
+    {
+      "key": "e3",
+      "title": "TDD é um ciclo test-first curto",
+      "summary": "Um teste novo falha, código mínimo o satisfaz e refatoração melhora a estrutura sob testes verdes. Testar depois não reproduz essa direção de trabalho."
+    },
+    {
+      "key": "e4",
+      "title": "BDD precisa de exemplos compartilhados",
+      "summary": "A sintaxe Given-When-Then estrutura contexto, evento e resultado. BDD envolve descoberta e colaboração; ferramenta ou arquivo de cenário sem isso não basta."
+    },
+    {
+      "key": "e5",
+      "title": "Testes dão evidência delimitada",
+      "summary": "Uma suíte executa verificações escritas; cobertura e aprovação não demonstram, sozinhas, que todos os requisitos ou riscos foram tratados."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No princípio da responsabilidade única, a unidade de projeto deve ser observada pelas razões e pelos interessados que podem exigir sua mudança.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. SRP procura manter juntas responsabilidades ligadas a um mesmo ator ou motivo de mudança. Ele não é uma regra mecânica de uma função por classe nem impede que uma unidade tenha várias operações coesas.",
+      "section": "1. SOLID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe que possui vários métodos viola necessariamente SRP, ainda que todos implementem uma única responsabilidade de negócio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. SRP não limita a quantidade de métodos. O sinal relevante é a mistura de razões independentes para mudança; vários métodos podem colaborar numa responsabilidade coesa.",
+      "section": "1. SOLID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma interface de estratégia para modalidades de cálculo permite acrescentar uma nova modalidade sem inserir outro ramo numa condicional central, ilustrando OCP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Uma nova implementação pode estender o comportamento por um contrato já definido. OCP busca evitar alterações recorrentes em código estável, embora não proíba toda modificação nem justifique abstrações sem necessidade.",
+      "section": "1. SOLID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O princípio aberto-fechado determina que classes publicadas nunca mais possam ser modificadas, mesmo quando os requisitos mudam de forma inesperada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. OCP orienta a proteger partes estáveis por extensões nos pontos de variação conhecidos. Não estabelece uma impossibilidade literal de editar código diante de qualquer mudança ou defeito.",
+      "section": "1. SOLID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma implementação derivada muda as expectativas que os clientes tinham sobre o tipo-base, pode haver violação de LSP mesmo que a linguagem aceite a herança.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. LSP é uma exigência semântica de substituição, não apenas sintática. Uma classe pode compilar como subtipo e ainda quebrar clientes por alterar invariantes ou resultados esperados.",
+      "section": "1. SOLID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A segregação de interfaces recomenda contratos menores para que cada cliente conheça somente as operações pertinentes ao seu uso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. ISP reduz dependências em métodos que um cliente não usa. Interfaces específicas evitam implementações artificiais e mudanças sem relação para consumidores distintos.",
+      "section": "1. SOLID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "DIP exige que todo serviço chame seu módulo de baixo nível antes de executar qualquer regra de alto nível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. DIP trata da direção das dependências entre módulos e abstrações, não da ordem temporal das chamadas. A política de alto nível não deve ficar acoplada ao detalhe concreto.",
+      "section": "1. SOLID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Injeção de dependência pode ser usada para fornecer uma implementação concreta a uma abstração, mas não define sozinha o princípio DIP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Injeção é uma técnica de composição ou fornecimento de dependência. DIP é a regra de projeto segundo a qual os módulos devem depender de abstrações e os detalhes devem implementá-las.",
+      "section": "1. SOLID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Information Expert atribui uma operação ao objeto que dispõe dos dados necessários, favorecendo encapsulamento da informação usada no cálculo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O objeto que conhece os dados pode executar a responsabilidade sem expor sua estrutura a um coordenador externo. Por exemplo, uma venda conhece suas linhas para calcular o total.",
+      "section": "2. GRASP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "GRASP Creator determina que todo objeto deve ser criado por uma classe chamada Factory, sem considerar agregação ou uso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Creator procura uma classe que contenha, agregue, registre, use de perto ou possua dados para inicializar o objeto. Não exige uma classe com nome Factory para toda criação.",
+      "section": "2. GRASP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Controller GRASP recebe um evento de sistema e coordena o caso de uso, delegando cálculos de domínio aos objetos que têm conhecimento apropriado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Controller é ponto de entrada para eventos do sistema e coordena a operação. Delegar preserva coesão e evita concentrar todas as regras de negócio nesse objeto.",
+      "section": "2. GRASP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Low Coupling e High Cohesion são padrões incompatíveis, pois reduzir dependências sempre obriga a espalhar tarefas relacionadas em muitas classes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. São critérios complementares para avaliar atribuições. Um desenho procura limitar dependências sem retirar de um objeto tarefas que formam uma responsabilidade coerente.",
+      "section": "2. GRASP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe de repositório criada para isolar detalhes de persistência pode ser Pure Fabrication, mesmo sem representar uma entidade do negócio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Pure Fabrication é uma abstração de projeto que não corresponde diretamente a um conceito do domínio. Ela pode manter persistência coesa e reduzir o acoplamento de entidades a detalhes técnicos.",
+      "section": "2. GRASP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No ciclo TDD, o desenvolvedor começa implementando toda a funcionalidade e só depois escreve testes para conferir o código pronto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. TDD começa por um teste que expressa o próximo comportamento, observa a falha e então escreve código suficiente para fazê-lo passar. Testar depois é outra sequência de trabalho.",
+      "section": "3. TDD",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na etapa Green, a intenção é fazer passar o teste recém-escrito com a implementação mais simples que satisfaça o exemplo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Green busca código suficiente para o comportamento coberto, sem antecipar requisitos hipotéticos. A estrutura pode ser melhorada na etapa de refatoração após os testes passarem.",
+      "section": "3. TDD",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A etapa Refactor permite reorganizar o código mantendo o comportamento observável protegido pelos testes que continuam passando.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Refatoração altera a estrutura interna sem mudar o comportamento externo. Se os testes falham por alteração intencional do comportamento, trata-se de mudança funcional, não apenas refatoração.",
+      "section": "3. TDD",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma suíte de testes verde demonstra que todos os defeitos possíveis foram eliminados do sistema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A suíte só oferece evidência para os casos, condições e oráculos codificados. Requisitos não cobertos, defeitos em integração e riscos não representados ainda podem existir.",
+      "section": "3. TDD",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um cenário Gherkin, Given estabelece contexto, When apresenta o evento e Then descreve o resultado esperado observável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Essa sequência estrutura as condições iniciais, a ação e a consequência verificável. Um Then que apenas repete implementação interna costuma ser menos útil para especificar comportamento.",
+      "section": "4. BDD",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A adoção de Gherkin por uma equipe é suficiente para caracterizar BDD, ainda que os cenários não sejam discutidos com pessoas de negócio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Gherkin é uma forma de estruturar texto. BDD requer descoberta colaborativa de exemplos e entendimento compartilhado do comportamento; a ferramenta, isoladamente, não garante essa prática.",
+      "section": "4. BDD",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Cenários de aceitação que orientam a funcionalidade podem coexistir com testes unitários usados em ciclos internos de TDD.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. BDD esclarece comportamento de negócio por exemplos, enquanto TDD pode orientar unidades internas. Os níveis têm objetivos diferentes e se complementam sem que um substitua automaticamente o outro.",
+      "section": "4. BDD",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+
+    {
+      "statement": "Uma classe calcula remuneração, monta arquivos de relatório e envia mensagens porque esses passos ocorrem na mesma rotina. Qual princípio aponta mais diretamente para separar razões de mudança distintas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DIP, fazendo a classe depender de todas as implementações concretas disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "LSP, criando subtipos para cada formato de relatório emitido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ISP, obrigando cada método da rotina a declarar uma interface própria.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "OCP, impedindo que a classe existente seja alterada em qualquer circunstância.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SRP, separando responsabilidades alteradas por atores ou motivos diferentes.",
+          "correct": true
+        }
+      ],
+      "explanation": "SRP trata de razões de mudança relacionadas a responsabilidades distintas. Formatação e envio podem evoluir por áreas diferentes da regra de cálculo. LSP trata de substituição; ISP de interfaces; OCP de extensão; DIP de dependências em abstrações.",
+      "section": "1. SOLID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe acrescenta formatos de exportação com frequência. Qual solução ilustra melhor o objetivo do OCP para essa variação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter uma condicional central e incluir nela cada novo formato solicitado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Proibir a adição de novos formatos depois que o primeiro entrar em produção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Duplicar todo o serviço de exportação para cada consumidor da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reunir cálculo, persistência e exportação num módulo único e genérico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir um contrato de exportação e acrescentar implementações para os formatos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um contrato permite acrescentar uma implementação para cada formato e reduzir mudanças repetidas no núcleo. A condicional central continua sendo modificada; duplicação e concentração de tarefas não protegem o ponto de variação, e proibir extensão contraria o objetivo.",
+      "section": "1. SOLID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um subtipo de armazenamento precisa ser substituível por seus clientes. Qual situação evidencia melhor uma violação de LSP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A implementação usa algoritmo interno diferente e preserva resultados prometidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A implementação registra métricas adicionais sem mudar o contrato visível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A implementação rejeita entradas aceitas pelo tipo-base e quebra um cliente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A implementação é construída por fábrica e recebe dependências no início.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A implementação possui campos privados com nomes diferentes dos da classe-base.",
+          "correct": false
+        }
+      ],
+      "explanation": "Rejeitar entradas que o contrato-base aceita fortalece a pré-condição e surpreende clientes, violando substituibilidade. Estratégia interna, métricas invisíveis, fábrica e nomes de campos privados não quebram necessariamente as expectativas contratuais.",
+      "section": "1. SOLID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma interface ampla reúne operações de leitura, gravação e administração. Um relatório só consulta dados. Que ajuste se alinha ao ISP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fazer o relatório implementar operações administrativas sem executá-las.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Duplicar toda a interface ampla dentro da classe de relatório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover a consulta para impedir que clientes dependam de interfaces.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Oferecer uma interface de consulta com somente as operações necessárias.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Instanciar diretamente a implementação concreta de administração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma interface específica de consulta evita que o relatório dependa de gravação e administração. Métodos artificiais mantêm a interface inchada; duplicação ou remoção da consulta não resolve a dependência desnecessária.",
+      "section": "1. SOLID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço de negócio chama diretamente uma biblioteca concreta de pagamentos. Qual mudança expressa melhor DIP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar um contrato de pagamento conhecido pelo serviço e implementado pelo adaptador concreto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Fazer o serviço importar todas as bibliotecas concretas para escolher uma delas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mover a regra de negócio para dentro da biblioteca externa de pagamentos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eliminar testes unitários para que o serviço execute somente em produção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar uma subclasse da biblioteca e obrigar o domínio a herdá-la.",
+          "correct": false
+        }
+      ],
+      "explanation": "O domínio passa a depender de uma abstração estável; o adaptador de infraestrutura a implementa. Importar todos os detalhes mantém acoplamento, mover regras para a biblioteca mistura camadas e herança não inverte automaticamente a dependência.",
+      "section": "1. SOLID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação calcula o total de uma venda somando suas linhas. Qual atribuição segue Information Expert?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atribuir o cálculo à tela, que conhece o botão acionado pelo usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Atribuir o cálculo à venda, que conhece e agrega suas linhas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Atribuir o cálculo ao controlador HTTP, que recebe todos os eventos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Atribuir o cálculo ao banco, que armazena o identificador da venda.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atribuir o cálculo a uma classe sem acesso às linhas nem aos valores.",
+          "correct": false
+        }
+      ],
+      "explanation": "A venda agrega as linhas e tem os dados necessários para somar seus subtotais. Uma tela ou controlador pode iniciar a operação, mas não é o especialista nos dados do domínio; uma classe sem acesso não pode realizar o cálculo com encapsulamento.",
+      "section": "2. GRASP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao criar uma nova linha dentro de uma venda, qual candidata se ajusta melhor ao padrão Creator?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um objeto de interface que não conhece a venda nem seus itens.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um serviço global que cria qualquer objeto sem contexto do domínio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A própria venda, que agrega e mantém as linhas que cria.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Um relatório separado que somente apresenta totais já calculados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um componente de log que registra mensagens após a operação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Creator favorece a classe que contém ou agrega os objetos criados. A venda mantém suas linhas e pode iniciar sua criação; os demais candidatos não têm relação próxima ou dados que justifiquem essa responsabilidade.",
+      "section": "2. GRASP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma interface recebe a solicitação de iniciar pedido. Qual papel GRASP deve receber inicialmente esse evento de sistema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Information Expert, necessariamente dono de todos os dados do pedido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pure Fabrication, que substitui as entidades do domínio em todo cálculo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Protected Variations, que converte qualquer evento em contrato externo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Creator, pois todo evento de sistema tem como resultado criar objetos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Controller, que coordena a operação e delega as regras necessárias.",
+          "correct": true
+        }
+      ],
+      "explanation": "Controller recebe eventos de sistema e coordena a execução do caso de uso, delegando trabalho. O evento não implica sempre criação, e Expert, Pure Fabrication e Protected Variations resolvem questões diferentes de atribuição e acoplamento.",
+      "section": "2. GRASP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema conversa com três provedores externos por classes próprias, e a regra central conhece todas elas. Qual orientação GRASP favorece conter essa dependência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar acoplamento para que a regra central conheça cada detalhe do provedor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Concentrar também relatórios e persistência na regra central de negócio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover contratos e permitir que os provedores chamem diretamente o domínio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar Low Coupling, reduzindo dependências diretas desnecessárias.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar Creator para transferir ao domínio a instanciação de cada biblioteca.",
+          "correct": false
+        }
+      ],
+      "explanation": "Low Coupling avalia e reduz dependências desnecessárias. Contratos ou intermediários podem isolar provedores. Conhecer todos os detalhes aumenta o acoplamento; agrupar tarefas não relacionadas reduz coesão, e Creator não exige instanciar bibliotecas externas no domínio.",
+      "section": "2. GRASP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual desenho tende a apresentar alta coesão num módulo responsável por cálculo de frete?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reúne regras de cálculo de frete relacionadas e deixa e-mail em outro serviço.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Combina cálculo, autenticação, envio de e-mail e renderização de relatórios.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mantém um método sem relação com frete para reduzir o número de classes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Replica a mesma regra de frete em telas diferentes para evitar dependências.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Faz o módulo executar qualquer tarefa por meio de uma lista de comandos genéricos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Alta coesão mantém tarefas ligadas a um propósito. Cálculo de frete combina com regras de modalidade e preço, enquanto autenticação, e-mail e apresentação têm motivos de mudança distintos. Duplicação e generalidade arbitrária não criam foco.",
+      "section": "2. GRASP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois sistemas precisam se comunicar, mas não devem conhecer diretamente seus formatos internos. Qual padrão GRASP introduz um intermediário para esse propósito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Creator, que atribui a produção de cada objeto ao seu consumidor final.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Indirection, que coloca um intermediário entre os participantes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Information Expert, que concentra os dados de ambos os sistemas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "High Cohesion, que determina a ordem de chamadas entre os sistemas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Controller, que substitui por completo os contratos de integração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Indirection acrescenta um objeto intermediário para reduzir a dependência direta entre componentes. Creator trata de criação, Expert de conhecimento, coesão da relação entre tarefas e Controller da coordenação de eventos de sistema.",
+      "section": "2. GRASP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Variações no protocolo de um provedor externo não devem obrigar os clientes do domínio a mudar. Qual padrão GRASP enfatiza proteger esses pontos variáveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Creator, fazendo o provedor criar todos os clientes que dependem dele.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Information Expert, movendo o protocolo externo para as entidades de negócio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Protected Variations, isolando a variação atrás de um contrato estável.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Controller, convertendo cada chamada externa em evento de interface.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "High Cohesion, reunindo consumidores e biblioteca num único componente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Protected Variations identifica um ponto sujeito a mudança e protege os demais componentes com uma interface estável ou encapsulamento. As outras opções atribuem criação, conhecimento, coordenação ou coesão e não isolam por si o protocolo variável.",
+      "section": "2. GRASP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação possui vários tipos de pagamento, cada qual com regra de tarifa própria. Que padrão GRASP permite variar a resposta por tipo sem uma cadeia extensa de condicionais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Creator, criando uma classe distinta para cada cliente que paga.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Controller, colocando toda regra tarifária no receptor da tela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pure Fabrication, armazenando todas as tarifas em uma classe sem comportamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Polymorphism, delegando a operação tarifária a cada implementação do tipo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Information Expert, copiando a tarifa de cada tipo para a classe de venda.",
+          "correct": false
+        }
+      ],
+      "explanation": "Polymorphism atribui comportamento específico às implementações de uma abstração comum, evitando que um cliente central conheça todos os tipos. As alternativas deslocam criação ou coordenação, ou centralizam/copiam regras.",
+      "section": "2. GRASP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste automatizado deve expressar um comportamento novo antes de existir a implementação. Qual sequência descreve TDD?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Implementar toda a função, escrever testes depois e evitar executar durante a mudança.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escrever o teste, observá-lo falhar, fazê-lo passar e refatorar com segurança.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Refatorar a arquitetura, remover os testes antigos e validar somente no fim.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar mocks para todas as classes e considerar o teste aprovado sem execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar testes de aceitação uma vez e dispensar verificações menores do código.",
+          "correct": false
+        }
+      ],
+      "explanation": "TDD segue Red, Green e Refactor: primeiro o teste falha pelo comportamento ausente, depois uma implementação mínima o satisfaz e, por fim, a estrutura é melhorada com testes passando. As demais sequências removem feedback ou invertem a direção test-first.",
+      "section": "3. TDD",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste recém-escrito passa antes de qualquer mudança no código de produção. Qual interpretação é mais útil no ciclo TDD?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O teste pode não estar exercitando a regra ausente ou a funcionalidade já existe.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A etapa Red foi cumprida porque qualquer resultado verde confirma a ausência do recurso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O teste deve ser apagado, pois TDD não admite cenários que passem inicialmente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A implementação deve ser alterada até o teste começar a falhar por compilação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A suíte deve ser substituída por medição de cobertura sem asserções explícitas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Red serve para demonstrar que o teste detecta a falta do comportamento. Se passa, talvez o recurso já exista, o caminho não foi exercitado ou a asserção não verifica a regra; deve-se investigar antes de considerar o ciclo iniciado.",
+      "section": "3. TDD",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após satisfazer um teste, uma equipe quer remover duplicação sem mudar o resultado oferecido aos clientes. Qual etapa do TDD corresponde a essa ação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Red, pois a duplicação deve causar uma falha antes de ser removida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Green, pois essa etapa permite acrescentar qualquer requisito futuro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Refactor, pois melhora a estrutura preservando comportamento observável.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Deploy, pois a estrutura interna só pode mudar depois da publicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Acceptance, pois o cliente precisa editar diretamente as classes duplicadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Refactor remove duplicação e melhora desenho sem mudança funcional, usando os testes para detectar regressões. Red e Green são etapas anteriores do ciclo; deploy e aceitação não nomeiam essa atividade de estrutura interna.",
+      "section": "3. TDD",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um defeito foi relatado em uma validação de limite. Qual prática aplica TDD ao conserto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alterar diretamente a produção e escrever uma nota sem reproduzir o caso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar a validação e confiar que o usuário repetirá a operação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reescrever toda a aplicação antes de identificar a entrada problemática.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar primeiro um teste que reproduz a falha e então corrigir o código.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aumentar a cobertura geral sem verificar a regra do limite relatado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um teste de regressão que falha com a entrada problemática documenta e reproduz o defeito. A correção deve fazê-lo passar e a suíte pode então proteger os comportamentos relacionados; mudança sem reprodução não garante que o caso foi resolvido.",
+      "section": "3. TDD",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe mede cobertura de linhas muito alta e conclui que seu sistema não contém defeitos. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A conclusão procede, porque cada linha executada foi comparada a todo requisito.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A cobertura é evidência de execução, mas não prova bons oráculos nem ausência de falhas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A cobertura mede somente o número de colaboradores que escreveram os testes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A cobertura substitui testes de integração quando todas as classes foram executadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A cobertura demonstra que não há cenários de aceitação pendentes no produto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cobertura indica quais trechos foram executados, não se as asserções verificam o comportamento correto ou se todos os requisitos e combinações foram testados. Também não substitui verificações de integração e aceitação.",
+      "section": "3. TDD",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste unitário falha sempre que muda o nome de um método privado, embora a saída pública permaneça igual. Que problema de desenho de teste é provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O teste está excessivamente acoplado a detalhes internos da implementação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O teste expressa corretamente um resultado observável de aceitação do usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O teste aplica o padrão GRASP Information Expert à classe de domínio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O teste mede apenas dependências de implantação entre sistemas distintos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O teste confirma o princípio aberto-fechado sem observar o comportamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Testes frágeis que dependem de nomes e organização privada dificultam refatorações mesmo quando o comportamento não muda. Testes orientados a contratos e resultados observáveis dão proteção mais alinhada ao propósito.",
+      "section": "3. TDD",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conversa sobre desconto precisa registrar contexto, ação do cliente e total final exibido. Qual cenário usa corretamente Given-When-Then?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Given calcula o desconto, When define a interface e Then instancia o banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Given executa o código-fonte, When declara classes e Then mede cobertura técnica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Given descreve o total, When descreve o resultado e Then apresenta o contexto inicial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Given escolhe a ferramenta, When compila o projeto e Then define a estrutura do repositório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Given fornece o contexto, When apresenta a aplicação do cupom, Then verifica o total atualizado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Given descreve o estado inicial, When a ação relevante e Then a consequência visível. As outras opções trocam a função das etapas ou descrevem decisões internas que não especificam o comportamento solicitado.",
+      "section": "4. BDD",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante refinamento, analista, desenvolvedor e testador discutem exemplos de uma regra de reembolso antes de automatizá-los. Que característica de BDD aparece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A conversão automática de qualquer requisito vago em código de produção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A substituição de critérios de negócio por testes privados de implementação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A execução obrigatória de cada exemplo como teste unitário isolado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A decisão de dispensar usuários e documentar apenas o código final.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A colaboração para descobrir entendimento compartilhado do comportamento.",
+          "correct": true
+        }
+      ],
+      "explanation": "BDD utiliza conversas e exemplos para alinhar o comportamento esperado entre participantes. A automação pode dar suporte, mas não transforma automaticamente requisitos vagos nem exige que todo cenário seja um teste unitário.",
+      "section": "4. BDD",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um mesmo comportamento deve ser verificado para diversas combinações de tipo de cliente e faixa. Qual recurso de Gherkin pode expressar exemplos tabulares de forma reutilizável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Background, repetindo a tabela como contexto antes de qualquer funcionalidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Then, usando o resultado como substituto para todas as condições de entrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Scenario Outline com Examples, fornecendo linhas de dados para o cenário.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Feature, usando o título para executar cada combinação de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Given, carregando automaticamente exemplos de todos os ambientes de teste.",
+          "correct": false
+        }
+      ],
+      "explanation": "Scenario Outline permite parametrizar um cenário e Examples fornece linhas para executá-lo com valores concretos. Background compartilha contexto, não substitui a tabela de casos; Feature, Given e Then têm outros papéis.",
+      "section": "4. BDD",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação distingue adequadamente o nível habitual de um cenário BDD do de um teste unitário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cenário sempre testa uma linha, enquanto o teste unitário percorre todo o sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O cenário descreve comportamento de interesse; o teste unitário isola uma unidade pequena.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O cenário valida somente banco de dados, enquanto unidade valida apenas interface.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os dois são necessariamente idênticos e precisam usar a mesma ferramenta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O teste unitário registra conversa entre áreas, enquanto cenário oculta o resultado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cenários BDD normalmente comunicam comportamento significativo para a funcionalidade e podem operar no nível de aceitação. Testes unitários verificam unidades menores; ambos podem coexistir e não precisam da mesma ferramenta nem nível.",
+      "section": "4. BDD",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma especificação automatizada continua descrevendo a regra antiga após a mudança do produto. Qual prática reduz esse risco no BDD?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter cenários junto à evolução do comportamento e revisar exemplos com a equipe.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Congelar os cenários assim que automatizados e ignorar divergências futuras.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover a participação de negócio para preservar o texto original da especificação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter os resultados observáveis em nomes de métodos privados da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tratar qualquer cenário desatualizado como prova de que o produto está correto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Especificações executáveis podem virar documentação viva somente se permanecerem alinhadas ao comportamento vigente. Revisão colaborativa ajuda a atualizar exemplos e evitar que uma automação verde valide uma regra obsoleta.",
+      "section": "4. BDD",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa apresenta corretamente uma relação entre as práticas de projeto e desenvolvimento estudadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SOLID substitui testes; por isso TDD e BDD são desnecessários em código coeso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "GRASP define sintaxe Given-When-Then para especificar eventos de sistema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "BDD e TDD são nomes equivalentes para a mesma granularidade de teste unitário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "TDD organiza ciclos de implementação; BDD esclarece comportamento por exemplos compartilhados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "DIP atribui sempre ao Controller todos os cálculos necessários ao caso de uso.",
+          "correct": false
+        }
+      ],
+      "explanation": "TDD descreve um ciclo de desenvolvimento guiado por testes, enquanto BDD promove especificação colaborativa de comportamento por exemplos. SOLID e GRASP tratam de desenho e atribuição de responsabilidades; não substituem a verificação.",
+      "section": "4. BDD",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No padrão Indirection, o intermediário precisa possuir e calcular todos os dados do domínio para que os componentes permaneçam desacoplados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Indirection insere um intermediário para reduzir dependência direta, mas não determina que ele concentre todos os dados e regras do domínio. A responsabilidade deve continuar coesa e atribuída conforme o conhecimento necessário.",
+      "section": "2. GRASP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "DIP obriga a declarar uma interface da linguagem em todo ponto de dependência, mesmo quando um contrato abstrato já está representado de outra forma.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. DIP exige dependência em abstrações, mas não prescreve uma construção sintática específica chamada interface. Uma abstração pode ser representada por contratos disponíveis na linguagem e adequada à arquitetura.",
+      "section": "1. SOLID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma refatoração em TDD pode alterar o resultado público da unidade desde que os testes de implementação continuem passando.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Refatorar preserva o comportamento observável. Mudar o resultado público é uma alteração funcional e requer especificar o novo comportamento, não apenas reorganizar a estrutura interna.",
+      "section": "3. TDD",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "BDD só existe quando cada cenário usa literalmente as palavras-chave Given, When e Then, inclusive em equipes que especificam comportamento sem Gherkin.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Given-When-Then é uma estrutura útil e difundida para exemplos, mas BDD é a prática de colaboração e especificação de comportamento. A equipe pode aplicar seus princípios sem usar exatamente essa sintaxe ou ferramenta.",
+      "section": "4. BDD",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste de unidade bem escrito elimina a necessidade de testar integrações entre componentes que dependem de serviços externos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Testes unitários verificam uma unidade pequena; integração verifica interações que podem falhar em fronteiras, protocolos e configurações. A suíte adequada depende dos riscos e níveis do sistema.",
+      "section": "3. TDD",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "OCP recomenda usar herança em todos os projetos, pois composição e delegação impedem a extensão de comportamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. OCP orienta proteger módulos estáveis por pontos de extensão, que podem ser implementados por composição, delegação, polimorfismo ou outras técnicas. Não prescreve herança universal.",
+      "section": "1. SOLID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "The S.O.L.I.D. Principles of Object Oriented Design",
+      "publisher": "Object Mentor / Robert C. Martin",
+      "reference": "Texto do autor sobre princípios de projeto orientado a objetos",
+      "url": "https://objectmentor.com/resources/articles/Principles_and_Patterns.pdf",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "TDD",
+      "publisher": "Agile Alliance",
+      "reference": "Definição, ciclo test-first, refatoração e armadilhas comuns",
+      "url": "https://agilealliance.org/glossary/tdd/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Test Driven Development: By Example",
+      "publisher": "Pearson / Kent Beck",
+      "reference": "Obra de referência sobre Red-Green-Refactor",
+      "url": "https://www.pearson.com/en-us/subject-catalog/p/Beck-Test-Driven-Development-By-Example/P200000009421/9780321146533",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Introducing Behaviour-Driven Development",
+      "publisher": "Dan North",
+      "reference": "Artigo do criador do termo BDD sobre sua origem e abordagem",
+      "url": "https://dannorth.net/blog/article-introducing-behaviour-driven-development/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "BDD History",
+      "publisher": "Cucumber",
+      "reference": "Histórico de BDD, exemplos e desenvolvimento da estrutura Given-When-Then",
+      "url": "https://cucumber.io/docs/bdd/history/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "GRASP: Designing objects with responsibilities",
+      "publisher": "Universidade de Tübingen",
+      "reference": "Material universitário com os nove padrões GRASP",
+      "url": "https://ps.cs.uni-tuebingen.de/teaching/ss19/se/5_grasp.pdf",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

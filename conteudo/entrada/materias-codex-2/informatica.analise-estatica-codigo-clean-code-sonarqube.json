@@ -1,0 +1,626 @@
+{
+  "id": "informatica.analise-estatica-codigo-clean-code-sonarqube",
+  "subject": "Informática",
+  "title": "Análise estática de código-fonte: clean code e SonarQube",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Análise estática de código-fonte",
+    "Análise estática com SonarQube",
+    "SonarQube e qualidade de código",
+    "Clean code e análise estática",
+    "Ferramenta SonarQube para código",
+    "Regras de qualidade no SonarQube",
+    "Perfis de qualidade SonarQube",
+    "Quality gate do SonarQube",
+    "Inspeção estática de programas",
+    "Manutenibilidade do código-fonte",
+    "Code smells e dívida técnica",
+    "Análise de código em integração contínua"
+  ],
+  "scope": {
+    "covers": "Conceito, limites e fluxo da análise estática; legibilidade e princípios práticos de clean code; regras, issues e perfis de qualidade do SonarQube; diferenças entre bug, vulnerabilidade, code smell e security hotspot; métricas, cobertura, duplicação, dívida técnica e quality gate; análise de branches e pull requests; tratamento responsável de achados e integração em CI.",
+    "excludes": "Instalação e administração detalhada de servidor, sintaxe exaustiva de linguagens, desenvolvimento de plugins e regras personalizadas, testes dinâmicos como substitutos de análise estática e configuração específica de versões comerciais."
+  },
+  "theoryTitle": "Código compreensível e análise automatizada",
+  "chapters": [
+    {
+      "title": "1. Análise estática e limites da automação",
+      "markdown": "### O problema que este assunto resolve\n\nUma falha pode permanecer escondida no código até que certo caminho seja executado. A análise estática examina o código-fonte (e, conforme a ferramenta, representações intermediárias) sem executar o programa para procurar padrões associados a defeitos, riscos de segurança e dificuldades de manutenção. Ela ajuda a encontrar cedo um retorno esquecido, uma condição suspeita, um recurso que não foi fechado ou uma construção confusa.\n\n> **Siglas e termos deste capítulo**\n> - **Análise estática**: exame automatizado do código sem executá-lo.\n> - **Análise dinâmica**: observação do programa enquanto ele roda, por exemplo em um teste.\n> - **Regra**: critério verificável que um analisador procura no código.\n> - **Achado (issue)**: ocorrência identificada por uma regra em um ponto do projeto.\n> - **Falso positivo**: alerta que, após análise, não corresponde a um problema real naquele contexto.\n\n### Estática, dinâmica e revisão se complementam\n\nA análise estática pode apontar uma condição que sempre será verdadeira, detectar uma concatenação insegura de entrada em consulta ou localizar código duplicado sem precisar executar os casos envolvidos. Já testes executam o programa com entradas escolhidas e comparam resultados esperados; revisão humana avalia intenção, domínio e decisões de arquitetura. Uma ferramenta pode não conhecer a regra de negócio que explica uma exceção e também pode não encontrar um erro que só aparece com determinada sequência de eventos.\n\n| Abordagem | O que observa | Exemplo | Limite típico |\n| --- | --- | --- | --- |\n| Análise estática | Estrutura e padrões do código | Ramo sem efeito ou possível injeção | Não comprova o comportamento de todos os cenários |\n| Teste dinâmico | Execução com entradas e ambiente concretos | Resposta de uma função para um valor de entrada | Só cobre cenários exercitados |\n| Revisão humana | Intenção, contexto e desenho | Se a abstração representa o domínio | Depende de conhecimento, tempo e atenção |\n\n### O que o analisador realmente entrega\n\nNo SonarQube, regras são executadas sobre o código para gerar issues. O conjunto de regras depende do perfil de qualidade associado à linguagem. Na experiência padrão, os tipos conhecidos incluem **bug** (erro que pode causar comportamento incorreto), **vulnerabilidade** (ponto explorável) e **code smell** (problema de manutenibilidade). Um **security hotspot** marca código sensível à segurança que requer revisão; sua presença pede avaliação, mas não declara automaticamente que existe vulnerabilidade explorável.\n\nO relatório é um apoio à decisão. O desenvolvedor abre o achado, entende o trecho e o risco, corrige quando pertinente, ou registra justificativa apropriada se concluir que a regra não se aplica. Ignorar indiscriminadamente os avisos também é ruim: elimina o sinal útil e torna futuras ocorrências difíceis de distinguir.\n\n### Como cai na prova\n\n- Análise estática não executa o programa; teste dinâmico executa.\n- SonarQube não substitui testes, revisão, compilação nem decisão técnica.\n- Hotspot pede revisão de segurança; não é sinônimo automático de vulnerabilidade confirmada.\n- O perfil de qualidade seleciona as regras que serão aplicadas à linguagem."
+    },
+    {
+      "title": "2. Clean code: tornar a intenção visível",
+      "markdown": "### O problema que este assunto resolve\n\nCódigo é lido repetidamente por pessoas que precisam corrigir, ampliar ou investigar o sistema. Um método longo com nomes genéricos e efeitos escondidos exige que cada leitor reconstrua o raciocínio original. Clean code é uma orientação prática para tornar a intenção do código clara e reduzir surpresas; não é uma coleção universal de limites numéricos nem uma licença para refatorar sem necessidade.\n\n> **Siglas e termos deste capítulo**\n> - **Refatoração**: alteração interna que melhora a estrutura preservando o comportamento observável.\n> - **Coesão**: relação entre as responsabilidades reunidas em um módulo.\n> - **Acoplamento**: grau de dependência entre módulos.\n> - **Efeito colateral**: alteração de estado ou interação externa causada por uma operação.\n> - **Código duplicado**: trechos repetidos que tendem a exigir correções sincronizadas.\n\n### Nomes, funções e responsabilidades\n\nUm nome útil descreve a intenção no vocabulário do domínio. `diasAtraso` informa mais que `x`; `calcularMulta` indica uma ação mais precisamente que `processar`. Evite abreviações locais sem significado compartilhado e nomes que escondem a unidade ou o alcance de um valor. Um nome claro diminui comentários necessários para explicar o óbvio, mas um comentário continua valioso quando explica uma decisão não evidente, uma restrição externa ou o motivo de uma solução.\n\nUma função deve permitir que o leitor acompanhe uma tarefa em nível compreensível. Quando reúne validação, acesso a banco, formatação e envio de mensagem, mudanças pequenas passam a exigir entendimento de várias responsabilidades. Separar passos com nomes que exprimem a intenção ajuda a testar e modificar cada parte. Funções menores não são objetivo por si só: muitas divisões artificiais, parâmetros sem sentido e camadas sem responsabilidade também dificultam a leitura.\n\n### Condições, duplicação e tratamento de erro\n\nPrefira condições cujo nome ou estrutura revele a regra de negócio. Uma cadeia de `if` aninhados pode ser reorganizada em retornos antecipados quando isso torna os casos inválidos e o fluxo principal mais claros. Evite booleanos mágicos, como `salvar(item, true)`, se o leitor não puder saber o significado de `true`; um nome de parâmetro explícito ou uma operação distinta comunica melhor.\n\nDuplicação não é somente desperdício de linhas. Se duas cópias representam a mesma regra, uma correção aplicada a uma só pode criar comportamentos divergentes. Contudo, abstrair dois trechos apenas parecidos pode juntar conceitos que mudam por motivos diferentes. A extração deve refletir uma regra comum real. Tratamento de erro deve preservar informação útil: capturar uma exceção e ignorá-la faz uma falha parecer sucesso; devolver um resultado explícito ou propagar uma exceção adequada torna o fluxo observável.\n\n### Refatorar com segurança\n\nAntes de mudar a estrutura, entenda o comportamento que deve permanecer. Testes de caracterização ou testes de unidade ajudam a registrar os casos relevantes; depois da refatoração, executá-los reduz o risco de alteração funcional acidental. Mudanças pequenas e revisáveis facilitam identificar onde uma regressão entrou. Limpar código não significa remover verificações, comentários de contexto ou validações só para reduzir linhas.\n\n### Como cai na prova\n\n- Código limpo facilita leitura e alteração; não se mede apenas por poucas linhas.\n- Nomes significativos e responsabilidades coesas reduzem a necessidade de adivinhar intenção.\n- Refatorar preserva o comportamento externo; alterar a regra de negócio não é mera refatoração.\n- Reutilizar abstrações sem coesão pode aumentar o acoplamento em vez de melhorar o código."
+    },
+    {
+      "title": "3. Regras, issues e perfis de qualidade no SonarQube",
+      "markdown": "### O problema que este assunto resolve\n\nUma equipe precisa aplicar critérios consistentes sem revisar manualmente cada linha em busca de padrões conhecidos. O SonarQube analisa o projeto com analisadores de linguagens e regras configuradas. Um achado aponta uma ocorrência e fornece contexto para investigação; não significa sempre que a aplicação falhará.\n\n> **Siglas e termos deste capítulo**\n> - **Quality profile (perfil de qualidade)**: conjunto de regras usado para analisar uma linguagem.\n> - **Issue**: ocorrência de uma regra no código analisado.\n> - **Vulnerability**: achado que representa uma fraqueza de segurança explorável.\n> - **Security hotspot**: uso de código sensível à segurança que deve ser revisado.\n> - **Quality gate**: conjunto de condições que determina se o resultado atende ao padrão definido.\n\n### Quatro categorias que não se devem confundir\n\n| Categoria | Pergunta prática | Exemplo geral | Resposta esperada |\n| --- | --- | --- | --- |\n| Bug / confiabilidade | O código pode se comportar incorretamente? | Recurso possivelmente não fechado ou condição defeituosa | Corrigir o defeito provável |\n| Vulnerabilidade / segurança | Há uma fraqueza que pode ser explorada? | Entrada não confiável concatenada em comando | Corrigir a falha de segurança |\n| Code smell / manutenibilidade | A construção dificulta compreender ou manter? | Duplicação ou complexidade desnecessária | Avaliar refatoração útil |\n| Security hotspot | O trecho sensível foi usado com segurança? | Operação que manipula entrada ou criptografia | Revisar contexto e decisão |\n\nAs telas e termos podem variar com a experiência e a configuração do produto, mas essas distinções conceituais continuam importantes. A regra é associada a um perfil por linguagem; alterar o perfil muda o conjunto aplicado em análises futuras. O perfil embutido Sonar way é apresentado pela SonarSource como padrão recomendado, mas equipes podem gerenciar perfis conforme suas necessidades e permissões.\n\n### Métricas e o portão de qualidade\n\nO SonarQube reúne métricas de issues, segurança, confiabilidade, manutenibilidade, complexidade, duplicação, cobertura e revisão de hotspots. A cobertura é calculada a partir de dados produzidos pela execução dos testes instrumentados, que são importados na análise; a mera análise estática não executa os testes nem prova que eles sejam bons. Cobertura alta também não garante ausência de defeitos: um teste pode executar uma linha sem verificar corretamente o resultado.\n\nO quality gate aplica condições às métricas e apresenta aprovação ou reprovação. O gate recomendado Sonar way é direcionado a código novo e, na documentação consultada, inclui ausência de novos issues, revisão dos novos hotspots, cobertura do novo código de pelo menos 80% e duplicação nesse código de no máximo 3%. Esses valores descrevem essa configuração documentada, podem ser alterados conforme instância/projeto e não são lei universal sobre qualidade de software.\n\n### Fluxo de análise\n\nUma sequência usual é: preparar a fonte e dependências; configurar identificador e parâmetros do projeto; executar o scanner no host de CI; enviar resultados ao servidor; abrir os achados; corrigir ou revisar; verificar o status do gate. Para projetos compilados, certos analisadores podem precisar de informações produzidas pela compilação. O scanner coleta e transmite resultados; ele não decide sozinho se uma alteração deve ser publicada.\n\n### Como cai na prova\n\n- Perfil determina regras da linguagem; quality gate determina condições de aprovação do resultado.\n- Cobertura depende de relatório de testes, enquanto duplicação e issues vêm da análise.\n- Security hotspot requer revisão e pode ser validado como seguro após avaliar o contexto.\n- Aprovar o gate não é garantia matemática de ausência de qualquer defeito."
+    },
+    {
+      "title": "4. Código novo, integração contínua e tratamento de achados",
+      "markdown": "### O problema que este assunto resolve\n\nSistemas antigos podem acumular muitos alertas. Exigir que toda a base seja perfeita antes de aceitar qualquer melhoria pode paralisar a equipe. Uma estratégia gradual acompanha a qualidade do código novo e impede que a dívida cresça enquanto correções são planejadas para o legado.\n\n> **Siglas e termos deste capítulo**\n> - **CI**: integração contínua, execução automatizada de verificações a cada mudança.\n> - **Pull request (PR)**: proposta de alteração revisada antes de integrar à branch de destino.\n> - **Branch de destino**: linha de desenvolvimento contra a qual uma PR é comparada.\n> - **Dívida técnica**: esforço estimado para remediar problemas de manutenibilidade detectados.\n> - **Código novo**: trecho definido como novo pelas regras do projeto ou diferença da PR.\n\n### Foco no código novo\n\nNa análise de pull request, o SonarQube compara a branch da proposta com a branch de destino e relata issues introduzidos pela alteração. O gate da PR aplica suas condições de código novo. Isso ajuda a evitar que uma mudança recente acrescente problemas, sem exigir que a PR resolva de uma vez todos os defeitos antigos. Para bons resultados, a branch de destino deve ter uma análise disponível. Depois da integração, uma análise da branch principal pode revelar outras situações do projeto.\n\nA definição de código novo em análises regulares pode usar critérios configurados, como versão anterior, janela de dias, análise específica ou branch de referência. A equipe deve escolher uma definição coerente com seu processo de entrega; caso contrário, a métrica de novo código pode não refletir o que realmente mudou.\n\n### Triagem responsável\n\nPara cada issue, identifique a regra, o trecho e o impacto possível. Confirme se a entrada é controlada, se o caminho pode ser alcançado e se o contexto realmente viola a regra. Corrija defeitos e vulnerabilidades; para smells, avalie o custo e o benefício de manutenção. Em hotspots, documente a revisão de segurança. Se for falso positivo ou exceção justificada, use o mecanismo de resolução disponível e registre evidências, sem apagar o contexto nem desativar a regra globalmente por conveniência.\n\nPriorize risco e alcance, e não apenas o número de alertas. Um problema de injeção em uma rota pública é diferente de uma duplicação pequena em código raramente alterado. A estimativa de dívida técnica é uma medida de esforço associado a issues de manutenibilidade, não uma conta financeira ou um prazo de entrega garantido.\n\n### Integração e rotina de equipe\n\nAutomatize a análise na CI para que o resultado chegue perto do momento da mudança. Em PRs, publique o status do gate e, quando disponível, os achados junto da revisão. Corrija primeiro o código novo e trate o legado por prioridades explícitas. Revise perfis e condições de gate com a equipe, pois uma regra muito ruidosa pode gerar alertas ignorados, enquanto uma regra excessivamente permissiva perde utilidade.\n\n### Como cai na prova\n\n- Análise de PR compara mudanças com a branch de destino e destaca problemas introduzidos pela PR.\n- Quality gate é política automatizada de condições, não aprovação humana de arquitetura.\n- Métrica de cobertura precisa de dados de execução de testes.\n- Achado deve ser investigado no contexto; aceitar todos ou desabilitar tudo destrói o valor da análise."
+    }
+  ],
+  "summary": "Análise estática procura padrões problemáticos no código sem executá-lo e complementa testes e revisão humana. Clean code prioriza intenção legível, responsabilidades coesas, baixo acoplamento e mudanças seguras. No SonarQube, regras de perfis de qualidade geram issues que podem representar bugs, vulnerabilidades, code smells ou hotspots a revisar. Métricas e quality gates ajudam a aplicar uma política de qualidade; cobertura depende de relatórios de testes. A análise de PR concentra-se em alterações recentes, e cada achado deve ser triado de acordo com seu contexto e risco.",
+  "flashcards": [
+    { "front": "O que é análise estática?", "back": "Exame automatizado do código sem executar o programa." },
+    { "front": "O que diferencia análise dinâmica?", "back": "Ela observa o programa em execução, normalmente com entradas de teste." },
+    { "front": "O que seleciona as regras aplicadas por linguagem no SonarQube?", "back": "O perfil de qualidade associado à linguagem do projeto." },
+    { "front": "O que é uma issue?", "back": "Uma ocorrência de regra identificada no código analisado." },
+    { "front": "O que caracteriza um bug no modelo tradicional do SonarQube?", "back": "Uma falha de código que pode causar comportamento incorreto." },
+    { "front": "O que caracteriza uma vulnerabilidade?", "back": "Uma fraqueza de segurança que pode ser explorada." },
+    { "front": "O que caracteriza um code smell?", "back": "Um problema de manutenibilidade que dificulta entender ou alterar o código." },
+    { "front": "O que sinaliza um security hotspot?", "back": "Código sensível à segurança que precisa ser revisado no contexto." },
+    { "front": "O que avalia um quality gate?", "back": "Condições configuradas sobre métricas que indicam aprovação ou reprovação." },
+    { "front": "A análise estática substitui testes?", "back": "Não. Ela complementa testes, que executam cenários concretos." },
+    { "front": "Como tornar um nome útil?", "back": "Descrever a intenção ou conceito do domínio com termos compreensíveis." },
+    { "front": "Por que limitar responsabilidades de uma função?", "back": "Para que sua intenção seja compreensível e mudanças não afetem tarefas sem relação." },
+    { "front": "O que é refatoração?", "back": "Melhoria da estrutura interna preservando o comportamento observável." },
+    { "front": "Por que duplicação é arriscada?", "back": "Correções podem ser feitas em uma cópia e esquecidas nas demais." },
+    { "front": "Cobertura de teste prova ausência de defeitos?", "back": "Não. Ela mede execução de linhas/condições cobertas segundo os relatórios, não a qualidade das verificações." },
+    { "front": "De onde vem o dado de cobertura no SonarQube?", "back": "De relatórios gerados por ferramentas de teste e importados na análise." },
+    { "front": "O que significa dívida técnica de manutenibilidade?", "back": "Esforço estimado para remediar issues que afetam a manutenção." },
+    { "front": "Como a análise de PR identifica código novo?", "back": "Pela diferença entre a branch da PR e a branch de destino." },
+    { "front": "Qual a vantagem de focar em código novo?", "back": "Evita introduzir novos problemas enquanto o legado é tratado gradualmente." },
+    { "front": "O que fazer com um hotspot?", "back": "Inspecionar o uso sensível e registrar se o contexto é seguro ou exige correção." }
+  ],
+  "tips": [
+    "Separe mentalmente o perfil, que escolhe regras, do gate, que avalia condições do resultado.",
+    "Leia o código ao redor do achado e pergunte se o fluxo é alcançável e qual entrada o influencia.",
+    "Ao revisar cobertura, confirme que o relatório dos testes foi produzido e importado na análise.",
+    "Use nomes que expressem propósito e unidade, evitando booleanos sem significado visível.",
+    "Trate um hotspot como convite à revisão contextual, não como prova automática de invasão.",
+    "Foque em manter o código novo limpo e planeje o legado por risco e frequência de mudança."
+  ],
+  "traps": [
+    "Confundir análise estática, que não executa o sistema, com teste dinâmico.",
+    "Afirmar que o SonarQube encontra todos os defeitos ou substitui revisão de código.",
+    "Tratar um hotspot como vulnerabilidade confirmada sem análise contextual.",
+    "Supor que cobertura alta significa que os testes verificam resultados corretos.",
+    "Confundir perfil de qualidade com quality gate: regras versus condições de aprovação.",
+    "Acreditar que clean code significa sempre reduzir linhas ou criar funções minúsculas."
+  ],
+  "activeRecall": [
+    { "question": "Uma regra de análise detecta uma consulta montada por concatenação com parâmetro recebido do usuário. Que tipo de risco deve ser investigado?", "answer": "Possível vulnerabilidade de injeção; é preciso verificar como a entrada é controlada e usada." },
+    { "question": "O analisador aponta um hotspot em uma chamada de criptografia. O que se conclui imediatamente?", "answer": "Que o uso sensível deve ser revisado; não se conclui sozinho que há vulnerabilidade explorável." },
+    { "question": "Uma função valida entrada, grava no banco e envia e-mail. Qual preocupação de clean code aparece?", "answer": "Responsabilidades múltiplas, que podem ser separadas se isso deixar o fluxo mais coeso e testável." },
+    { "question": "Uma PR introduz um smell, mas a aplicação compila. O gate ainda pode reprovar?", "answer": "Sim, se uma condição configurada do gate falhar; compilação e gate avaliam aspectos diferentes." },
+    { "question": "Uma linha foi executada nos testes, mas nenhum resultado foi verificado. A cobertura garante correção?", "answer": "Não. Execução coberta não garante asserção adequada nem comportamento correto." },
+    { "question": "Qual é o risco de ignorar uma exceção capturada sem ação?", "answer": "Falhas podem desaparecer e o fluxo parecer concluído com sucesso." },
+    { "question": "Por que analisar a branch de destino antes da análise da PR ajuda?", "answer": "Ela fornece a referência contra a qual as mudanças e issues novos serão comparados." },
+    { "question": "O relatório apresenta milhares de smells no sistema antigo. Qual abordagem gradual faz sentido?", "answer": "Impedir que código novo acrescente problemas e priorizar o legado por risco, impacto e frequência de mudança." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Análise estática não é teste", "summary": "Análise sem execução e teste de cenários são técnicas diferentes que se complementam.", "description": "A análise estática inspeciona código sem executá-lo. Testes dinâmicos executam cenários; nenhum dos dois cobre sozinho todos os comportamentos." },
+    { "key": "e2", "title": "Categorias de achados têm sentidos diferentes", "summary": "Bug, vulnerabilidade, smell e hotspot pedem interpretações e respostas distintas.", "description": "Bug aponta possível comportamento incorreto; vulnerabilidade indica fraqueza explorável; smell afeta manutenção; hotspot pede revisão de código sensível à segurança." },
+    { "key": "e3", "title": "Quality profile e quality gate", "summary": "Perfil escolhe regras e gate verifica condições de aceitação da análise.", "description": "O perfil reúne regras de análise para linguagens. O gate verifica condições sobre métricas e informa se o resultado atende à política configurada." },
+    { "key": "e4", "title": "Métricas não são garantias", "summary": "Cobertura e aprovação de gate informam medidas, mas não provam perfeição.", "description": "Cobertura mede código executado segundo relatórios, não qualidade das asserções. Aprovar o gate tampouco prova ausência absoluta de defeitos." },
+    { "key": "e5", "title": "Clean code é legibilidade com propósito", "summary": "Código legível depende de intenção clara e boas responsabilidades, não só de linhas curtas.", "description": "Reduzir linhas, criar funções mínimas ou abstrair trechos parecidos sem coesão não garante código melhor. Intenção clara e comportamento preservado importam." }
+  ],
+  "questions": [
+    {
+      "statement": "A análise estática examina o código sem executar o programa, podendo identificar padrões associados a defeitos e riscos.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A análise estática verifica o código sem colocá-lo em execução; isso a distingue dos testes dinâmicos, embora as duas abordagens possam ser usadas em conjunto.",
+      "section": "1. Análise estática e limites da automação", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Como o SonarQube analisa o código automaticamente, a equipe pode dispensar testes e revisão humana.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. A ferramenta procura padrões definidos por regras, mas não conhece todo o contexto do negócio nem exercita todos os cenários de execução. Testes e revisão humana continuam necessários.",
+      "section": "1. Análise estática e limites da automação", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um security hotspot assinala código sensível à segurança cuja utilização deve ser revisada no contexto.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. O hotspot chama atenção para uma área sensível, mas a revisão é necessária para decidir se a configuração é segura ou se há vulnerabilidade concreta.",
+      "section": "1. Análise estática e limites da automação", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um falso positivo é um achado que, após exame do contexto, não representa o problema indicado pela regra.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. O alerta não corresponde a um defeito real naquele caso. A equipe deve confirmar isso pelo código e registrar a justificativa de modo rastreável.",
+      "section": "1. Análise estática e limites da automação", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Testes dinâmicos podem revelar comportamento de execução em cenários escolhidos, enquanto a análise estática inspeciona o código sem executá-lo.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Cada abordagem observa evidências diferentes: os testes executam entradas e verificam resultados, e a análise estática procura padrões no código. Usá-las em conjunto amplia a detecção.",
+      "section": "1. Análise estática e limites da automação", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Todo alerta emitido por uma regra estática prova que o sistema falhará em produção.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Um alerta é um achado a investigar. Pode apontar defeito real, risco provável, problema de manutenção ou uso que requer revisão; o contexto determina a resposta adequada.",
+      "section": "1. Análise estática e limites da automação", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra de análise estática pode localizar código duplicado sem executar os caminhos duplicados.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A duplicação é identificável por padrões estruturais do código. A ferramenta não precisa executar os trechos para compará-los, embora a decisão de abstraí-los exija contexto.",
+      "section": "1. Análise estática e limites da automação", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A análise estática demonstra que todos os resultados possíveis do programa estão corretos, ainda que nenhum cenário de teste seja executado.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Analisadores aplicam regras e técnicas próprias, mas não provam de forma geral a correção de todo comportamento e de qualquer entrada. Testes e outras verificações continuam importantes.",
+      "section": "1. Análise estática e limites da automação", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente a análise estática?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Mede apenas o tempo de resposta do programa quando usuários acessam o sistema, sem examinar instruções ou estruturas do código-fonte.", "correct": false },
+        { "key": "B", "text": "Executa todos os caminhos com entradas reais e confirma cada resultado de negócio.", "correct": false },
+        { "key": "C", "text": "Substitui a compilação ao corrigir automaticamente qualquer erro de sintaxe encontrado.", "correct": false },
+        { "key": "D", "text": "Inspeciona o código sem executá-lo e procura ocorrências de padrões definidos por regras.", "correct": true },
+        { "key": "E", "text": "Compara exclusivamente documentos de requisitos, sem examinar arquivos de código.", "correct": false }
+      ],
+      "explanation": "A análise estática examina o código sem executar o programa e aplica regras para localizar padrões suspeitos. Execução com entradas, desempenho em produção e revisão de requisitos são atividades distintas.",
+      "section": "1. Análise estática e limites da automação", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe recebe um alerta de hotspot numa função que processa entrada externa. Qual é o próximo passo mais apropriado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Tratar o alerta como prova de invasão e desligar o serviço imediatamente.", "correct": false },
+        { "key": "B", "text": "Revisar o fluxo de dados, os controles existentes e registrar a conclusão de segurança.", "correct": true },
+        { "key": "C", "text": "Desativar globalmente as regras de segurança para eliminar alertas semelhantes.", "correct": false },
+        { "key": "D", "text": "Ignorar o achado porque hotspots não podem apontar problemas relevantes.", "correct": false },
+        { "key": "E", "text": "Substituir todos os testes por uma nova análise estática do mesmo arquivo.", "correct": false }
+      ],
+      "explanation": "O hotspot requer investigação do trecho sensível. A equipe deve verificar se a entrada é controlada e se há proteção suficiente, corrigindo ou documentando a conclusão. Não é prova automática de ataque nem deve ser descartado sem revisão.",
+      "section": "1. Análise estática e limites da automação", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática favorece clean code ao nomear uma função que calcula o valor da multa por atraso?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Usar um nome curto como `f1`, pois leitores podem consultar o histórico do Git e reconstruir depois o significado de cada chamada.", "correct": false },
+        { "key": "B", "text": "Usar um nome que expresse a intenção, como `calcularMultaPorAtraso`.", "correct": true },
+        { "key": "C", "text": "Usar o nome `processar`, sem indicar o dado nem o resultado da operação.", "correct": false },
+        { "key": "D", "text": "Usar uma sequência de letras do nome do desenvolvedor responsável.", "correct": false },
+        { "key": "E", "text": "Repetir o comentário inteiro no nome, mesmo que o nome fique sem significado.", "correct": false }
+      ],
+      "explanation": "Um nome que revela a intenção ajuda o leitor a entender o papel da função sem reconstruir o contexto histórico. Nomes genéricos e abreviações pessoais escondem a finalidade do código.",
+      "section": "2. Clean code: tornar a intenção visível", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma função valida cadastro, grava no banco e envia mensagem de confirmação. Qual alteração tende a melhorar a clareza se as responsabilidades puderem ser separadas?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Concentrar também a formatação de telas na função para manter uma única entrada, mesmo que tarefas sem relação fiquem acopladas.", "correct": false },
+        { "key": "B", "text": "Criar passos coesos com nomes que revelem validação, gravação e notificação.", "correct": true },
+        { "key": "C", "text": "Remover as verificações e confiar que o banco rejeitará todos os dados inválidos.", "correct": false },
+        { "key": "D", "text": "Substituir nomes de domínio por abreviações para reduzir o tamanho do arquivo.", "correct": false },
+        { "key": "E", "text": "Duplicar a função para cada canal de mensagem, sem compartilhar nenhuma regra.", "correct": false }
+      ],
+      "explanation": "Separar etapas coesas com nomes claros facilita entender o fluxo e alterar uma responsabilidade sem afetar as outras. A decomposição deve refletir tarefas reais, não criar camadas artificiais nem remover validações.",
+      "section": "2. Clean code: tornar a intenção visível", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma função chamada `salvar(item, true)` é sempre clara porque possui poucos parâmetros.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. O valor booleano não revela o que significa `true`. Uma chamada nomeada, um parâmetro explícito ou operações distintas podem comunicar melhor a intenção do argumento.",
+      "section": "2. Clean code: tornar a intenção visível", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Refatorar consiste em melhorar a estrutura interna preservando o comportamento observável que o sistema deve manter.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A refatoração reorganiza a implementação sem mudar o comportamento externo esperado. Se a regra de negócio muda, há mudança funcional além da refatoração.",
+      "section": "2. Clean code: tornar a intenção visível", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Eliminar todo comentário é sempre necessário para produzir código limpo, inclusive comentários que explicam uma restrição externa não evidente.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Comentários que repetem literalmente o código podem ser ruído, mas explicações sobre decisões, limitações externas ou contexto não evidente podem ser valiosas e devem ser mantidas atualizadas.",
+      "section": "2. Clean code: tornar a intenção visível", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Código duplicado pode fazer com que uma correção seja aplicada a uma cópia e esquecida em outra.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Quando trechos representam a mesma regra, mantê-los em separado aumenta a chance de divergência. A extração de uma abstração deve, contudo, refletir uma responsabilidade comum real.",
+      "section": "2. Clean code: tornar a intenção visível", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Capturar uma exceção e ignorá-la sem registrar nem comunicar falha pode fazer o sistema parecer bem-sucedido quando a operação não ocorreu.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. O erro silencioso remove informação necessária para diagnosticar a falha e pode levar etapas seguintes a assumir um resultado que não existe. O tratamento deve preservar um sinal apropriado.",
+      "section": "2. Clean code: tornar a intenção visível", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A melhor forma de melhorar qualquer função é dividi-la em funções tão pequenas que cada uma contenha somente uma linha.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Funções pequenas podem ajudar quando representam passos coesos e nomeados, mas fragmentação artificial cria navegação e abstrações desnecessárias. O objetivo é deixar intenção e responsabilidade claras.",
+      "section": "2. Clean code: tornar a intenção visível", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa caracteriza um code smell no modelo tradicional do SonarQube?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Um problema de manutenibilidade que torna o código mais difícil de compreender ou alterar.", "correct": true },
+        { "key": "B", "text": "Uma confirmação de que uma pessoa explorou uma falha em ambiente de produção.", "correct": false },
+        { "key": "C", "text": "Um relatório de teste que mede apenas a latência de uma consulta no banco, sem indicar se o código é mais fácil de compreender ou alterar.", "correct": false },
+        { "key": "D", "text": "Um requisito funcional aprovado e implementado em uma versão do sistema.", "correct": false },
+        { "key": "E", "text": "Uma regra de compilação que transforma automaticamente código fonte em executável.", "correct": false }
+      ],
+      "explanation": "Code smell é um achado relacionado à manutenibilidade. Pode indicar complexidade ou duplicação, por exemplo, e merece avaliação para decidir se uma refatoração trará benefício.",
+      "section": "3. Regras, issues e perfis de qualidade no SonarQube", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No SonarQube, qual elemento reúne as regras que serão aplicadas ao código de uma linguagem?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Um relatório de cobertura gerado por uma suíte de testes.", "correct": false },
+        { "key": "B", "text": "O perfil de qualidade associado àquela linguagem.", "correct": true },
+        { "key": "C", "text": "A branch de destino escolhida para comparar uma pull request.", "correct": false },
+        { "key": "D", "text": "A lista de usuários autorizados a revisar issues no servidor.", "correct": false },
+        { "key": "E", "text": "O quality gate que contém apenas critérios de compilação do programa.", "correct": false }
+      ],
+      "explanation": "O perfil de qualidade é composto por regras para verificar o código. O quality gate tem outra função: avaliar condições sobre o resultado da análise e métricas configuradas.",
+      "section": "3. Regras, issues e perfis de qualidade no SonarQube", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa distingue corretamente perfil de qualidade e quality gate?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O perfil compara branches; o gate substitui os revisores humanos de uma pull request e aprova a arquitetura sem avaliação técnica.", "correct": false },
+        { "key": "B", "text": "O perfil compila o projeto; o gate gera automaticamente os casos de teste funcionais.", "correct": false },
+        { "key": "C", "text": "O perfil controla usuários; o gate armazena permanentemente os arquivos fonte analisados.", "correct": false },
+        { "key": "D", "text": "O perfil contém somente métricas de cobertura; o gate escolhe a linguagem do projeto.", "correct": false },
+        { "key": "E", "text": "O perfil define regras de análise; o gate avalia condições para aprovar ou reprovar o resultado.", "correct": true }
+      ],
+      "explanation": "Perfis selecionam o conjunto de regras aplicado ao código. Gates verificam se as medidas resultantes atendem condições como limite de issues ou cobertura em código novo.",
+      "section": "3. Regras, issues e perfis de qualidade no SonarQube", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma concatenação de entrada não confiável em uma consulta pode gerar um achado de segurança. Como esse tipo de issue deve ser entendido?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Como exigência de compilação que se resolve apenas renomeando o arquivo da consulta.", "correct": false },
+        { "key": "B", "text": "Como simples duplicação estética, resolvida renomeando o arquivo da consulta, sem revisar de que forma a entrada externa chega ao comando.", "correct": false },
+        { "key": "C", "text": "Como falha de cobertura, corrigida adicionando comentários ao redor da consulta.", "correct": false },
+        { "key": "D", "text": "Como possível vulnerabilidade de injeção, cuja causa deve ser removida com tratamento seguro da entrada.", "correct": true },
+        { "key": "E", "text": "Como regra de formatação, sem relação possível com comportamento ou segurança.", "correct": false }
+      ],
+      "explanation": "Entrada controlada pelo usuário concatenada em uma consulta pode permitir injeção. Deve-se investigar o fluxo e usar APIs parametrizadas ou outro mecanismo seguro adequado, além de testar a correção.",
+      "section": "3. Regras, issues e perfis de qualidade no SonarQube", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na análise de código novo, um quality gate pode impor condições para issues, hotspots revisados, cobertura e duplicação.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Gates podem reunir condições sobre novas issues e métricas como cobertura e duplicação, além da revisão de hotspots, conforme a configuração adotada.",
+      "section": "3. Regras, issues e perfis de qualidade no SonarQube", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A cobertura de testes é calculada apenas pela inspeção estática, sem dados produzidos durante a execução dos testes.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. A cobertura depende de estatísticas de execução fornecidas por ferramentas de teste e importadas na análise. O scanner não executa por si só todos os testes para calcular a cobertura.",
+      "section": "3. Regras, issues e perfis de qualidade no SonarQube", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Aprovar um quality gate comprova que nenhum defeito existe no sistema, inclusive em caminhos não testados.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. O gate informa que as condições configuradas foram atendidas. Ele não prova ausência absoluta de defeitos e pode não cobrir comportamentos ou riscos fora das regras e métricas aplicadas.",
+      "section": "3. Regras, issues e perfis de qualidade no SonarQube", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O gate Sonar way documentado pela SonarSource inclui critérios recomendados para código novo, mas suas condições não constituem uma lei universal de qualidade.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. O Sonar way é um conjunto de condições recomendado e configurado no produto, incluindo medidas de código novo. Equipes podem adaptar gates às necessidades do projeto; aprovação não é garantia matemática de perfeição.",
+      "section": "3. Regras, issues e perfis de qualidade no SonarQube", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um teste executou uma linha e a cobertura subiu, mas nenhuma asserção verifica o valor retornado. Qual interpretação é correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A linha foi coberta, mas esse indicador sozinho não mostra que o resultado foi validado corretamente.", "correct": true },
+        { "key": "B", "text": "O sistema está provado correto, pois toda execução coberta implica uma asserção válida.", "correct": false },
+        { "key": "C", "text": "A análise estática converteu a execução em uma verificação integral de comportamento.", "correct": false },
+        { "key": "D", "text": "O SonarQube deve remover o teste, porque cobertura sem asserção não pode ser medida.", "correct": false },
+        { "key": "E", "text": "A métrica de cobertura mede somente quantidade de comentários e nomes de métodos.", "correct": false }
+      ],
+      "explanation": "Cobertura indica linhas ou condições executadas conforme os relatórios. Um teste pode executar o código sem verificar que a resposta é correta; a qualidade das asserções precisa de avaliação separada.",
+      "section": "3. Regras, issues e perfis de qualidade no SonarQube", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise de pull request deve comparar a alteração proposta com a branch de destino para identificar issues introduzidos pela mudança.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Na análise de PR, o novo código é a diferença entre a branch proposta e sua branch de destino, e os resultados se concentram em issues introduzidos pela alteração.",
+      "section": "4. Código novo, integração contínua e tratamento de achados", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A análise de uma pull request tem como finalidade exigir que a proposta corrija todos os problemas antigos do repositório antes de ser integrada.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. A análise de PR foca os problemas introduzidos pelo novo código em relação à branch de destino. A estratégia permite evitar novos problemas e tratar o legado de forma gradual.",
+      "section": "4. Código novo, integração contínua e tratamento de achados", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma definição de código novo sem relação com o processo de entrega pode tornar as métricas pouco representativas das alterações recentes.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A configuração de código novo deve acompanhar como a equipe entrega versões e compara alterações. Uma definição inadequada pode medir um período ou conjunto de linhas que não corresponde às mudanças que se deseja controlar.",
+      "section": "4. Código novo, integração contínua e tratamento de achados", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A melhor forma de reduzir ruído de alertas é desativar todas as regras que geram ocorrências para qualquer projeto.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Desabilitar indiscriminadamente elimina sinais válidos e esconde riscos futuros. A equipe deve investigar regras ruidosas, ajustar o perfil com critério e registrar justificativas para exceções específicas.",
+      "section": "4. Código novo, integração contínua e tratamento de achados", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O SonarScanner executa sozinho todos os testes e decide se uma alteração deve ser publicada em produção.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. O scanner realiza e envia a análise configurada; os testes e seus relatórios são providenciados pelo fluxo de build e teste. O gate sinaliza condições, enquanto a decisão de publicação depende do processo da equipe.",
+      "section": "4. Código novo, integração contínua e tratamento de achados", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma issue foi considerada falsa positiva após inspeção. Qual tratamento é mais responsável?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Alterar o código aleatoriamente até o alerta sumir, sem conferir o comportamento nem registrar por que a mudança resolveu o achado.", "correct": false },
+        { "key": "B", "text": "Apagar todos os arquivos analisados para impedir que o achado volte a ser visto.", "correct": false },
+        { "key": "C", "text": "Desativar permanentemente qualquer análise para evitar novos falsos positivos.", "correct": false },
+        { "key": "D", "text": "Registrar a justificativa e usar o fluxo de resolução apropriado, preservando evidências do contexto.", "correct": true },
+        { "key": "E", "text": "Marcar todas as issues do projeto como falsas positivas sem revisão individual.", "correct": false }
+      ],
+      "explanation": "Uma resolução justificada e rastreável mantém o contexto para outros revisores. Exceções devem ser específicas e baseadas em inspeção, em vez de eliminar análises ou marcar alertas sem confirmação.",
+      "section": "4. Código novo, integração contínua e tratamento de achados", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer evitar o crescimento da dívida técnica sem bloquear toda entrega por problemas históricos. Qual política combina com esse objetivo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Exigir que cada PR resolva o legado inteiro antes de permitir qualquer alteração nova.", "correct": false },
+        { "key": "B", "text": "Aplicar critérios ao código novo e planejar a correção do legado segundo risco e impacto.", "correct": true },
+        { "key": "C", "text": "Desativar todos os gates até que o sistema antigo não tenha nenhuma issue.", "correct": false },
+        { "key": "D", "text": "Analisar somente código antigo e deixar as alterações recentes sem verificação.", "correct": false },
+        { "key": "E", "text": "Corrigir apenas smells de baixa prioridade, independentemente de vulnerabilidades detectadas.", "correct": false }
+      ],
+      "explanation": "Focar no código novo evita acrescentar problemas enquanto o legado é tratado gradualmente. A fila antiga deve ser priorizada por risco, impacto e contexto, sem deixar vulnerabilidades relevantes para trás.",
+      "section": "4. Código novo, integração contínua e tratamento de achados", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A dívida técnica apresentada para manutenibilidade é uma estimativa de esforço de remediação associada a issues, não uma previsão garantida de prazo ou custo financeiro.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A métrica soma estimativas de esforço associadas às regras de manutenibilidade. Ela auxilia comparação e priorização, mas não incorpora todas as variáveis reais de uma entrega nem garante duração ou valor financeiro.",
+      "section": "4. Código novo, integração contínua e tratamento de achados", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Para que análise estática em integração contínua tenha valor, seu resultado deve ser disponibilizado perto do momento em que a alteração é revisada.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Executar a análise na esteira próxima à mudança facilita localizar a origem do problema e permite que a equipe avalie os achados antes da integração ou publicação.",
+      "section": "4. Código novo, integração contínua e tratamento de achados", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação possui várias issues antigas, mas uma pequena PR não introduz issue novo e atende às condições do gate de código novo. O que esse resultado informa?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Que as condições configuradas para o código novo foram atendidas, sem afirmar que o legado está perfeito.", "correct": true },
+        { "key": "B", "text": "Que todas as issues antigas foram automaticamente apagadas durante a análise da PR.", "correct": false },
+        { "key": "C", "text": "Que o SonarQube verificou todos os comportamentos possíveis de toda a aplicação.", "correct": false },
+        { "key": "D", "text": "Que a branch de destino não precisa mais de análise em nenhuma entrega futura.", "correct": false },
+        { "key": "E", "text": "Que os testes dinâmicos foram substituídos por regras de manutenção do perfil.", "correct": false }
+      ],
+      "explanation": "O gate da PR avalia as condições aplicáveis ao novo código comparado com a branch de destino. O resultado não elimina problemas antigos nem certifica todas as propriedades do sistema.",
+      "section": "4. Código novo, integração contínua e tratamento de achados", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um código de retorno recebe `0` para sucesso e `1` para falha, mas a chamada usa `executar(1)`. Qual mudança favorece a leitura?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Manter o número e acrescentar mais parâmetros posicionais à chamada.", "correct": false },
+        { "key": "B", "text": "Renomear a função para `fazer` e explicar o valor em um comentário distante.", "correct": false },
+        { "key": "C", "text": "Usar uma constante ou tipo nomeado que expresse o significado do estado.", "correct": true },
+        { "key": "D", "text": "Remover a distinção entre sucesso e falha para deixar a chamada mais curta.", "correct": false },
+        { "key": "E", "text": "Copiar a função para cada ponto de chamada e ajustar o número localmente.", "correct": false }
+      ],
+      "explanation": "Valores nomeados deixam explícito o significado do argumento e reduzem a dependência de memorizar convenções numéricas. A chamada mantém a mesma regra de negócio com intenção mais clara.",
+      "section": "2. Clean code: tornar a intenção visível", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um método de cálculo consulta a rede, altera um arquivo global e também devolve um valor. O que deve ser investigado ao refatorá-lo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Se a chamada de rede deve ser executada várias vezes para aumentar a cobertura.", "correct": false },
+        { "key": "B", "text": "Se todos os nomes podem ser reduzidos a uma letra para indicar concisão.", "correct": false },
+        { "key": "C", "text": "Se os testes de unidade podem ser removidos após a divisão do método.", "correct": false },
+        { "key": "D", "text": "Se a função tem efeitos colaterais ocultos e responsabilidades que dificultam prever o resultado.", "correct": true },
+        { "key": "E", "text": "Se a alteração deve mudar o resultado externo para comprovar que ocorreu refatoração.", "correct": false }
+      ],
+      "explanation": "Combinar cálculo com I/O e alteração de estado global cria efeitos colaterais que dificultam raciocinar e testar o método. Uma refatoração pode separar essas responsabilidades preservando o comportamento observável.",
+      "section": "2. Clean code: tornar a intenção visível", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Dois trechos parecem semelhantes, mas representam regras de negócio que mudam por razões distintas. Qual decisão é mais prudente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Unificá-los obrigatoriamente, pois qualquer semelhança textual exige uma abstração única.", "correct": false },
+        { "key": "B", "text": "Duplicar todos os arquivos e impedir que qualquer lógica seja compartilhada.", "correct": false },
+        { "key": "C", "text": "Extrair a abstração somente depois de confirmar uma responsabilidade conceitual comum.", "correct": true },
+        { "key": "D", "text": "Renomear os trechos para esconder a duplicação dos revisores do projeto.", "correct": false },
+        { "key": "E", "text": "Adicionar uma condição global que altere ambos conforme o nome do arquivo.", "correct": false }
+      ],
+      "explanation": "Abstrações devem representar conceitos coesos. Juntar regras que evoluem por motivos diferentes pode criar condicionais e acoplamento, tornando mudanças futuras mais difíceis que a duplicação original.",
+      "section": "2. Clean code: tornar a intenção visível", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O perfil ativo de uma linguagem não inclui uma regra relevante que a equipe deseja aplicar. Qual ação corresponde à configuração do SonarQube?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Alterar o quality gate para que ele passe a examinar o código-fonte em busca daquela regra.", "correct": false },
+        { "key": "B", "text": "Revisar o perfil da linguagem e ativar a regra conforme as permissões e política da equipe.", "correct": true },
+        { "key": "C", "text": "Adicionar uma condição de cobertura, que substitui qualquer regra de código.", "correct": false },
+        { "key": "D", "text": "Mudar a branch de destino, pois ela controla quais regras ficam ativas.", "correct": false },
+        { "key": "E", "text": "Desativar a análise completa e confiar que o compilador encontre todo code smell.", "correct": false }
+      ],
+      "explanation": "O perfil de qualidade determina as regras aplicadas à linguagem. O gate avalia métricas do resultado e não substitui a seleção de regras do perfil.",
+      "section": "3. Regras, issues e perfis de qualidade no SonarQube", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma ferramenta encontra um bloco catch vazio. Qual classificação geral melhor descreve a preocupação primária?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Problema de confiabilidade, pois uma falha pode ser engolida e o fluxo parecer normal.", "correct": true },
+        { "key": "B", "text": "Cobertura de branch, pois todo bloco catch executado aumenta a duplicação.", "correct": false },
+        { "key": "C", "text": "Hotspot necessariamente seguro, pois exceções não afetam segurança nem comportamento.", "correct": false },
+        { "key": "D", "text": "Problema exclusivamente estético, sem possibilidade de afetar diagnóstico ou resultado.", "correct": false },
+        { "key": "E", "text": "Falha de compilação inevitável, mesmo em linguagens que aceitam blocos vazios.", "correct": false }
+      ],
+      "explanation": "Engolir uma exceção pode ocultar falha de execução e permitir que etapas seguintes prossigam com estado inválido. O tratamento deve preservar ou comunicar o erro de modo adequado.",
+      "section": "3. Regras, issues e perfis de qualidade no SonarQube", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O gate de um projeto reprova devido a uma condição de cobertura no novo código. Os testes foram executados, mas o relatório não foi importado. Qual ação faz sentido?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Desativar todas as regras do perfil de qualidade para gerar cobertura automaticamente.", "correct": false },
+        { "key": "B", "text": "Verificar a geração e a importação do relatório de cobertura no fluxo de análise.", "correct": true },
+        { "key": "C", "text": "Trocar o nome da branch, pois nomes de branch incluem os dados de cobertura.", "correct": false },
+        { "key": "D", "text": "Marcar todos os hotspots como revisados, pois isso recompõe linhas de teste.", "correct": false },
+        { "key": "E", "text": "Reescrever os testes como comentários, que são contabilizados como linhas exercitadas.", "correct": false }
+      ],
+      "explanation": "O SonarQube consome dados de cobertura produzidos por ferramentas de teste. Mesmo com testes executados, a métrica pode ficar indisponível ou incompleta se o relatório não for gerado ou importado corretamente.",
+      "section": "3. Regras, issues e perfis de qualidade no SonarQube", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração apresenta um hotspot revisado e considerado seguro, mas ainda há uma condição de duplicação acima do limite. O que pode ocorrer?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O gate pode reprovar pela condição de duplicação, mesmo que o hotspot tenha sido revisado.", "correct": true },
+        { "key": "B", "text": "O hotspot revisado cancela automaticamente todas as demais condições do gate.", "correct": false },
+        { "key": "C", "text": "A revisão converte os blocos duplicados em testes executados e aumenta a cobertura.", "correct": false },
+        { "key": "D", "text": "O SonarQube ignora métricas quando uma issue de segurança foi considerada segura.", "correct": false },
+        { "key": "E", "text": "O gate deve aprovar porque a duplicação é sempre removida na análise estática.", "correct": false }
+      ],
+      "explanation": "As condições de um gate são avaliadas conforme sua configuração. A revisão de hotspot satisfaz a condição pertinente a esse achado, mas não altera automaticamente a métrica de duplicação.",
+      "section": "3. Regras, issues e perfis de qualidade no SonarQube", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente a análise de uma pull request no SonarQube?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Ela executa apenas regras de estilo e não considera diferenças entre branches.", "correct": false },
+        { "key": "B", "text": "Ela compara o código da proposta com a branch de destino e foca issues introduzidos pela mudança.", "correct": true },
+        { "key": "C", "text": "Ela atualiza automaticamente a branch de destino sem revisão da proposta.", "correct": false },
+        { "key": "D", "text": "Ela valida somente o texto da descrição da PR, sem analisar os arquivos alterados.", "correct": false },
+        { "key": "E", "text": "Ela substitui as verificações de build e testes que a integração contínua realiza.", "correct": false }
+      ],
+      "explanation": "Na análise de PR, o novo código é definido pela diferença em relação à branch de destino e os resultados destacam problemas introduzidos pela alteração. Build e testes continuam sendo atividades complementares.",
+      "section": "4. Código novo, integração contínua e tratamento de achados", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma issue de vulnerabilidade está em um endpoint público e envolve entrada controlada pelo usuário. Qual critério de triagem é mais adequado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Priorizar a investigação do fluxo, da exposição e dos controles, corrigindo a causa se confirmada.", "correct": true },
+        { "key": "B", "text": "Adiar sempre a análise até que todos os code smells de formatação sejam removidos.", "correct": false },
+        { "key": "C", "text": "Fechar o alerta porque o uso de uma biblioteca externa impede qualquer ataque.", "correct": false },
+        { "key": "D", "text": "Desabilitar o endpoint no analisador, mantendo o comportamento inseguro em produção.", "correct": false },
+        { "key": "E", "text": "Considerar o gate verde como prova de que a entrada não pode ser explorada.", "correct": false }
+      ],
+      "explanation": "A triagem considera exposição, controle da entrada e proteções concretas. Uma vulnerabilidade potencial em rota pública merece prioridade compatível com o risco; o estado do gate não substitui a investigação técnica.",
+      "section": "4. Código novo, integração contínua e tratamento de achados", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um time quer evitar que alertas ignorados se tornem rotina. Qual prática ajuda a manter confiança nos resultados?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Revisar regras e exceções com critério, registrando razões para achados não aplicáveis.", "correct": true },
+        { "key": "B", "text": "Marcar cada novo alerta como falso positivo antes que alguém o leia.", "correct": false },
+        { "key": "C", "text": "Ocultar o painel de análise de todos os desenvolvedores do projeto.", "correct": false },
+        { "key": "D", "text": "Aumentar a quantidade de regras sem verificar se são adequadas ao projeto.", "correct": false },
+        { "key": "E", "text": "Excluir periodicamente os históricos de análise para apagar achados antigos.", "correct": false }
+      ],
+      "explanation": "A equipe deve investigar ruído e ajustar perfis ou exceções de forma transparente e específica. Isso preserva alertas úteis e permite compreender decisões anteriores.",
+      "section": "4. Código novo, integração contínua e tratamento de achados", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma métrica de dívida técnica diminuiu depois que issues de manutenibilidade foram corrigidas. Qual leitura é apropriada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A estimativa associada à remediação dessas issues caiu, sem garantir por si só menor custo total do projeto.", "correct": true },
+        { "key": "B", "text": "O projeto não terá mais defeitos funcionais nem vulnerabilidades em qualquer versão.", "correct": false },
+        { "key": "C", "text": "O SonarQube calculou o orçamento financeiro e o prazo final com precisão contratual.", "correct": false },
+        { "key": "D", "text": "Todos os testes passaram automaticamente porque dívida técnica e cobertura são a mesma métrica.", "correct": false },
+        { "key": "E", "text": "O perfil de qualidade foi removido e por isso nenhuma análise futura poderá gerar issues.", "correct": false }
+      ],
+      "explanation": "A dívida técnica representa esforço de remediação estimado para issues de manutenibilidade. Sua redução é informação útil de manutenção, mas não certifica outras qualidades nem equivale a uma previsão financeira completa.",
+      "section": "4. Código novo, integração contínua e tratamento de achados", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "SonarQube Server — SonarQube rules",
+      "publisher": "SonarSource",
+      "reference": "Regras, tipos de achados e relação entre regra e perfil de qualidade.",
+      "url": "https://docs.sonarsource.com/sonarqube-server/quality-standards-administration/managing-rules/rules",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SonarQube Server — Understanding quality profiles",
+      "publisher": "SonarSource",
+      "reference": "Composição dos perfis de qualidade e regras aplicadas por linguagem.",
+      "url": "https://docs.sonarsource.com/sonarqube-server/2025.4/quality-standards-administration/managing-quality-profiles/understanding-quality-profiles",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SonarQube Server — Understanding quality gates",
+      "publisher": "SonarSource",
+      "reference": "Condições de gate, recomendações do Sonar way e foco em código novo.",
+      "url": "https://docs.sonarsource.com/sonarqube-server/2026.1/quality-standards-administration/managing-quality-gates/introduction-to-quality-gates",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SonarQube Server — Quality standards and new code",
+      "publisher": "SonarSource",
+      "reference": "Definição de novo código, perfis, gates e análise de pull request.",
+      "url": "https://docs.sonarsource.com/sonarqube-server/2025.5/user-guide/about-new-code",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SonarQube Server — Understanding measures and metrics",
+      "publisher": "SonarSource",
+      "reference": "Métricas de cobertura, duplicação, complexidade, manutenibilidade e dívida técnica.",
+      "url": "https://docs.sonarsource.com/sonarqube-server/user-guide/code-metrics/metrics-definition",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SonarQube Server — Pull request analysis introduction",
+      "publisher": "SonarSource",
+      "reference": "Comparação de PR com branch de destino e uso de condições de novo código.",
+      "url": "https://docs.sonarsource.com/sonarqube-server/2025.2/analyzing-source-code/pull-request-analysis/introduction",
+      "accessedAt": "2026-10-30"
+    }
+  ]
+}
