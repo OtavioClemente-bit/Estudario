@@ -465,6 +465,7 @@ private fun ExamView(simulation: Simulation) {
     val row = Simulations.row(Store.data, simulation.id)
     var answers by remember(simulation.id) { mutableStateOf(Simulations.answersOf(row)) }
     var flagged by remember(simulation.id) { mutableStateOf(Simulations.flaggedOf(row)) }
+    var crossed by remember(simulation.id) { mutableStateOf(setOf<String>()) }
     var index by remember(simulation.id) { mutableStateOf(0) }
     val openedAt = remember(simulation.id) { Date.now().toLong() }
     val baseElapsed = remember(simulation.id) { (row?.get("elapsedSeconds") as? kotlinx.serialization.json.JsonPrimitive)?.content?.toLongOrNull() ?: 0L }
@@ -510,12 +511,27 @@ private fun ExamView(simulation: Simulation) {
             Div({ classes("stack", "tight") }) {
                 question.options.sortedBy { it.position }.forEach { option ->
                     androidx.compose.runtime.key(question.id, option.key) {
-                        Button({
-                            classes(*listOfNotNull("option", if (answers[question.id] == option.key) "chosen" else null).toTypedArray())
-                            onClick { answers = answers + (question.id to option.key) }
-                        }) {
-                            Span({ classes("key") }) { Text(option.key) }
-                            Span { Inline(option.text) }
+                        // Riscar como no treino: o botão ao lado ou o clique direito. Só ajuda a pensar.
+                        val crossKey = "${question.id}:${option.key}"
+                        val isCrossed = crossKey in crossed
+                        fun toggleCross() {
+                            crossed = if (isCrossed) crossed - crossKey else crossed + crossKey
+                            if (!isCrossed && answers[question.id] == option.key) answers = answers - question.id
+                        }
+                        Div({ classes("option-row") }) {
+                            Button({
+                                classes(*listOfNotNull("option", if (answers[question.id] == option.key) "chosen" else null, if (isCrossed) "crossed" else null).toTypedArray())
+                                onClick { if (isCrossed) crossed = crossed - crossKey else answers = answers + (question.id to option.key) }
+                                addEventListener("contextmenu") { e -> e.preventDefault(); toggleCross() }
+                            }) {
+                                Span({ classes("key") }) { Text(option.key) }
+                                Span({ classes("grow") }) { Inline(option.text) }
+                            }
+                            Button({
+                                classes("strike-btn", *listOfNotNull(if (isCrossed) "on" else null).toTypedArray())
+                                attr("title", if (isCrossed) "Desfazer risco" else "Riscar alternativa")
+                                onClick { toggleCross() }
+                            }) { Icon("strikethrough_s") }
                         }
                     }
                 }
