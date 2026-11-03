@@ -22,6 +22,9 @@ object SnapshotMerge {
         "planSubjects" to listOf("planId", "subjectId"),
         "studyAvailability" to listOf("planId", "day"),
         "studyDayOverrides" to listOf("planId", "day"),
+        // Sem esta chave, a mesma revisão feita aqui e no site entrava duas vezes e a restauração
+        // parava na chave primária (planId, revision).
+        "studyPlanRevisions" to listOf("planId", "revision"),
         "errorConceptEntries" to listOf("conceptId", "errorEntryId"),
         "questionTags" to listOf("questionId", "tagId"),
     )
