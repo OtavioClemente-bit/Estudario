@@ -91,6 +91,13 @@ Deno.test("matéria completa passa e monta material aceito em todos os estilos",
   }
 });
 
+Deno.test("pedido só de resumo (0 questões) sai da biblioteca", () => {
+  const m = validateLibraryMaterial(material());
+  const content = assembleFromLibrary(m, null, { board: null, options: { ...ALL, blocks: ["SUMMARY"], questionCount: 0 }, avoidStatements: [] }, "s");
+  assert(content);
+  assertEquals((content.questions as unknown[] | undefined ?? []).length, 0);
+});
+
 Deno.test("matéria rasa ou genérica é recusada com os motivos", () => {
   const m = material();
   m.questions = (m.questions as Json[]).slice(0, 10);

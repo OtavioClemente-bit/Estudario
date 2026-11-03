@@ -829,7 +829,9 @@ export function assembleFromLibrary(
   // "Mais questões" (só o bloco de questões): entrega as inéditas que a biblioteca ainda tem, mesmo
   // que sejam menos que o pedido; a IA só entra quando não sobrou nenhuma.
   const questionsOnly = options.blocks.length === 1 && wants("QUESTIONS");
-  if (questions.length === 0 || (questions.length < options.questionCount && !questionsOnly && !partial)) return null;
+  // Pedido sem questões (ex.: só o resumo, questionCount 0): zero questões é o esperado, não falta de
+  // material. Antes caía aqui e o Grátis via "sem matéria pronta" num tópico que tem matéria (03/11).
+  if ((questions.length === 0 && options.questionCount > 0) || (questions.length < options.questionCount && !questionsOnly && !partial)) return null;
   // As que completaram a cota vêm de nível vizinho; o app espera o nível pedido em todas, como na
   // geração por IA (content-repair faz o mesmo).
   if (wanted !== null) for (const question of questions) question.difficulty = wanted;
