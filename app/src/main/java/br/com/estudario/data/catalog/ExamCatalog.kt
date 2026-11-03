@@ -396,12 +396,19 @@ object ExamCatalogProvider {
  */
 suspend fun editalBoardOf(context: android.content.Context, competitionId: Long, competitionName: String): String {
     val app = context.applicationContext as? br.com.estudario.EstudarioApplication ?: return ""
-    app.database.simulationDao().examProfile(competitionId)?.board?.trim()?.takeIf(String::isNotBlank)?.let { return it }
+    val profile = app.database.simulationDao().examProfile(competitionId)
+    profile?.board?.trim()?.takeIf(String::isNotBlank)?.let { return it }
+    // "Banca a definir": nada de recorte de banca até a pessoa escolher.
+    if (profile?.boardPending == true) return ""
     return runCatching {
         val catalog = ExamCatalogProvider.get(context)
         if (!catalog.isConfigured) return@runCatching ""
         val id = catalog.catalogIdFor(competitionName, CatalogLinks.get(context, competitionId)) ?: return@runCatching ""
-        catalog.entries().firstOrNull { it.id == id }?.board?.trim().orEmpty()
+        val entry = catalog.entries().firstOrNull { it.id == id } ?: return@runCatching ""
+        // A banca de um edital antigo (TRT-3 2022 = FUMARC) não é a do próximo concurso: só vale a do
+        // catálogo quando o edital é deste ano ou do anterior.
+        val thisYear = java.time.LocalDate.now().year
+        if ((entry.year ?: 0) < thisYear - 1) "" else entry.board?.trim().orEmpty()
     }.getOrDefault("")
 }
 
