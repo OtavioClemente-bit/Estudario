@@ -1,0 +1,567 @@
+{
+  "id": "informatica.devops-jenkins-maven",
+  "subject": "Informática",
+  "title": "Fundamentos de DevOps e DevSecOps: Jenkins e Maven",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Fundamentos de DevOps e DevSecOps: Jenkins e Maven",
+    "Fundamentos de DevOps e DevSecOps: Jenkins e Maven.",
+    "DevOps e DevSecOps com Jenkins e Maven",
+    "Jenkins e Maven",
+    "Jenkins e Apache Maven",
+    "Integração contínua com Jenkins e Maven",
+    "Pipeline Jenkins com Maven",
+    "Jenkins Pipeline e Jenkinsfile",
+    "Apache Maven: POM, ciclo de vida e dependências",
+    "Ferramentas de integração contínua: Jenkins",
+    "Automação de build com Maven",
+    "DevSecOps em esteiras Jenkins"
+  ],
+  "scope": {
+    "covers": "Conceitos de DevOps e DevSecOps aplicados à esteira de integração e entrega contínuas; Apache Maven: POM, coordenadas, estrutura de diretórios, ciclos de vida, fases, plugins e goals, dependências, escopos, transitividade, mediação de versões, dependencyManagement, BOM, repositórios local e remoto, SNAPSHOT e release; Jenkins: controller, agentes e executores, jobs freestyle e Pipeline, Jenkinsfile, sintaxe declarativa e scripted, stages, steps, post, when, triggers, Multibranch Pipeline, artefatos e resultados de testes; DevSecOps na esteira: credenciais, SAST, DAST, SCA, quality gates, SBOM, isolamento do controller e promoção de artefatos.",
+    "excludes": "Instalação passo a passo do Jenkins e do Maven, programação Java e Groovy em profundidade, Gradle, outras ferramentas de CI (GitLab CI, GitHub Actions) além de comparações gerais, contêineres e Kubernetes em detalhe, e administração de servidores de repositório como Nexus e Artifactory."
+  },
+  "theoryTitle": "Jenkins e Maven na esteira DevOps e DevSecOps",
+  "chapters": [
+    {
+      "title": "1. DevOps, DevSecOps e a esteira de CI/CD",
+      "markdown": "### O que DevOps resolve\n\nDevOps é um conjunto de práticas e de cultura que aproxima desenvolvimento (Dev) e operação (Ops). O objetivo é entregar software com mais frequência e menos risco, trocando passos manuais e repassados entre equipes por um fluxo automatizado, medido e compartilhado. Em prova, as ideias que mais aparecem são **automação**, **colaboração**, **feedback rápido** e **melhoria contínua**.\n\n### Integração contínua (CI)\n\nNa integração contínua, cada desenvolvedor envia suas alterações com frequência para um repositório compartilhado, e **cada envio dispara um build automatizado com testes**. Se algo quebra, a equipe descobre em minutos, quando a mudança ainda é pequena e fácil de corrigir. É aqui que entram as duas ferramentas desta matéria:\n\n- o **Maven** sabe *como* construir o projeto Java: compilar, testar, empacotar e publicar;\n- o **Jenkins** sabe *quando* e *onde* fazer isso: observa o repositório, dispara a esteira, executa as etapas e guarda os resultados.\n\n### Entrega contínua e implantação contínua\n\n| Prática | O que acontece no fim da esteira |\n|---|---|\n| Entrega contínua (continuous delivery) | Todo artefato aprovado fica **pronto** para ir à produção; a liberação pode depender de uma decisão humana. |\n| Implantação contínua (continuous deployment) | Todo artefato aprovado em todas as etapas vai **automaticamente** para produção. |\n\nA diferença é a aprovação manual antes da produção. Na implantação contínua ela não existe.\n\n### DevSecOps e shift-left\n\nDevSecOps integra a segurança ao mesmo fluxo, em vez de deixá-la para uma auditoria no fim. A ideia de **shift-left** é deslocar as verificações para a **esquerda** da linha do tempo, ou seja, para o começo: análise do código no commit, verificação de dependências no build, segredos protegidos na esteira. A segurança passa a ser responsabilidade de todos, e não só de uma equipe isolada.\n\n### O fluxo típico\n\n1. O desenvolvedor faz push para o repositório Git.\n2. Um webhook avisa o Jenkins, que inicia o pipeline.\n3. O Jenkins chama o Maven: compilação, testes unitários, empacotamento.\n4. Ferramentas de segurança analisam o código e as dependências.\n5. O artefato aprovado é publicado em um repositório e promovido entre ambientes.\n\nGuarde o princípio **construir uma vez, implantar muitas**: o mesmo artefato testado segue para homologação e produção, sem ser recompilado em cada ambiente."
+    },
+    {
+      "title": "2. Maven: POM, coordenadas e ciclo de vida",
+      "markdown": "### O que é o Maven\n\nO Apache Maven é uma ferramenta de **automação de build e gestão de dependências**, muito usada em projetos Java. Ele trabalha por **convenção**: se o projeto segue a estrutura padrão, quase nada precisa ser configurado.\n\n| Pasta | Conteúdo |\n|---|---|\n| `src/main/java` | código da aplicação |\n| `src/main/resources` | arquivos de configuração da aplicação |\n| `src/test/java` | código dos testes |\n| `target` | saída do build (classes compiladas, relatórios, o .jar ou .war) |\n\n### O POM e as coordenadas\n\nO arquivo **pom.xml** (Project Object Model) descreve o projeto: identificação, dependências, plugins e configurações do build. Todo artefato é identificado pelas **coordenadas GAV**:\n\n- **groupId**: a organização ou o grupo (ex.: `br.jus.tribunal`);\n- **artifactId**: o nome do módulo (ex.: `sistema-protocolo`);\n- **version**: a versão (ex.: `1.4.0` ou `1.5.0-SNAPSHOT`).\n\nO elemento `packaging` diz o tipo de saída (`jar` é o padrão; também existem `war` e `pom`). Um POM pode herdar de um **POM pai** (`parent`), e um projeto agregador lista seus módulos em `modules`, formando um build multimódulo.\n\n### Ciclos de vida, fases e goals\n\nO Maven tem três ciclos de vida: **clean** (limpa a pasta target), **default** (o build propriamente dito) e **site** (documentação). Cada ciclo é uma sequência de **fases**. As principais fases do ciclo default, em ordem:\n\n1. `validate` → confere se o projeto está correto;\n2. `compile` → compila o código principal;\n3. `test` → executa os testes unitários;\n4. `package` → empacota (gera o .jar ou .war);\n5. `verify` → roda verificações, como testes de integração;\n6. `install` → copia o artefato para o **repositório local** (`~/.m2/repository`);\n7. `deploy` → envia o artefato para o **repositório remoto**.\n\n**Pedir uma fase executa todas as anteriores do mesmo ciclo.** `mvn package` passa por validate, compile e test antes de empacotar. Já `mvn clean install` executa a fase clean do ciclo clean e depois o ciclo default até install.\n\nQuem faz o trabalho são os **plugins**, cada um com seus **goals** (tarefas). Os goals ficam ligados às fases: o maven-compiler-plugin compila, o **Surefire** roda os testes unitários na fase test e o **Failsafe** roda os testes de integração nas fases integration-test e verify. Um goal também pode ser chamado direto, no formato `plugin:goal`, como `mvn dependency:tree`.\n\n### Opções que caem\n\n- `-DskipTests`: compila os testes, mas **não os executa**;\n- `-Dmaven.test.skip=true`: **nem compila** os testes;\n- `-B` (batch mode): sem interação, ideal para servidores de CI;\n- `mvnw`: o Maven Wrapper, que baixa a versão certa do Maven e deixa o build igual em qualquer máquina."
+    },
+    {
+      "title": "3. Maven: dependências, escopos e repositórios",
+      "markdown": "### Declarando dependências\n\nBasta informar as coordenadas da biblioteca no `pom.xml`. O Maven baixa o artefato e, junto, as **dependências transitivas** (as dependências das dependências). Para ver a árvore completa, use `mvn dependency:tree`.\n\n### Escopos\n\n| Escopo | Compila o código principal? | Vai para o artefato / execução? | Transitivo? |\n|---|---|---|---|\n| `compile` (padrão) | sim | sim | sim |\n| `provided` | sim | não: o servidor ou o JDK fornece | não |\n| `runtime` | não | sim (ex.: driver JDBC) | sim |\n| `test` | não, só os testes | não | não |\n| `system` | sim, com caminho local fixo | não recomendado | não |\n| `import` | só em `dependencyManagement`, com `type` pom | importa um BOM | não se aplica |\n\nSem escopo declarado, vale **compile**. Bibliotecas de teste, como JUnit e Mockito, devem ficar em **test** para não irem para o artefato final. A API de Servlet num .war costuma ser **provided**, porque o servidor de aplicação já a oferece.\n\n### Conflito de versões: mediação\n\nQuando a mesma biblioteca chega por caminhos diferentes, o Maven aplica a regra da **definição mais próxima** (nearest definition): vence a versão que está **mais perto do projeto na árvore**. Se estiverem na mesma profundidade, vence a **declarada primeiro**. O Maven **não** escolhe automaticamente a versão mais nova. Para forçar uma versão, declare a dependência diretamente ou fixe a versão em `dependencyManagement`. Também é possível excluir uma transitiva com `exclusions`.\n\n### dependencyManagement e BOM\n\nA seção `dependencyManagement` **centraliza versões e escopos**, normalmente no POM pai, mas **não adiciona** a dependência a ninguém: o módulo ainda precisa declarar a biblioteca, só que sem a versão. Um **BOM** (Bill of Materials) é um POM com uma lista de versões compatíveis; ele é importado em `dependencyManagement` com `type` pom e escopo `import`.\n\n### Repositórios\n\n- **Local**: `~/.m2/repository`, o cache da máquina. `mvn install` grava aqui.\n- **Remoto**: o Maven Central ou um repositório da organização (Nexus, Artifactory). `mvn deploy` publica aqui.\n\nAs credenciais dos repositórios remotos ficam no **settings.xml**, na seção `servers`, com o mesmo `id` do repositório, e não no pom.xml, que é versionado junto com o código.\n\n### SNAPSHOT e release\n\nVersões terminadas em **-SNAPSHOT** indicam desenvolvimento em andamento: o mesmo número pode receber builds novos, e o Maven verifica se há uma cópia mais recente. Versões de **release** (ex.: `2.1.0`) são imutáveis: uma vez publicadas, não devem mudar."
+    },
+    {
+      "title": "4. Jenkins: arquitetura, jobs e Pipeline como código",
+      "markdown": "### O que é o Jenkins\n\nO Jenkins é um **servidor de automação de código aberto**, escrito em Java, extensível por **plugins**. Ele observa repositórios, dispara builds, executa testes, guarda artefatos e mostra o histórico de cada execução.\n\n### Arquitetura\n\n- **Controller** (antigo master): guarda a configuração, agenda os builds, distribui o trabalho e oferece a interface web.\n- **Agentes** (nodes): máquinas, VMs ou contêineres que **executam** os builds.\n- **Executores**: as vagas de execução de cada nó; um agente com 2 executores roda 2 builds ao mesmo tempo.\n\n### Tipos de job\n\n- **Freestyle**: configurado por telas, em passos. Simples, mas a configuração fica fora do repositório.\n- **Pipeline**: a esteira escrita como código em **Groovy**, num arquivo **Jenkinsfile** guardado no repositório. Assim, a esteira é versionada, revisada e muda junto com o código.\n- **Multibranch Pipeline**: varre o repositório, encontra as ramificações que têm Jenkinsfile e cria um pipeline para cada uma.\n\n### Sintaxe declarativa\n\n```groovy\npipeline {\n    agent any\n    environment { MAVEN_OPTS = '-Xmx1g' }\n    triggers { pollSCM('H/5 * * * *') }\n    stages {\n        stage('Build') {\n            steps { sh 'mvn -B clean package' }\n        }\n        stage('Publicar') {\n            when { branch 'main' }\n            steps { sh 'mvn -B deploy' }\n        }\n    }\n    post {\n        always { junit 'target/surefire-reports/*.xml' }\n        failure { echo 'Build quebrado' }\n    }\n}\n```\n\n- `pipeline` é o bloco obrigatório de topo da sintaxe **declarativa**; `agent` diz onde executar; `stages` reúne as etapas; cada `stage` tem `steps`.\n- `post` roda ao final, conforme a condição: `always`, `success`, `failure`, `unstable`, `changed`, `cleanup`.\n- `when` executa a etapa só se a condição valer (por exemplo, a branch main).\n- `triggers` agenda a execução com `cron` ou consulta o repositório com `pollSCM`; o caractere **H** espalha o horário para não sobrecarregar o servidor. O mais eficiente, porém, é o **webhook**, em que o repositório avisa o Jenkins a cada push.\n- `parallel` roda etapas ao mesmo tempo; `input` pausa à espera de aprovação; `options { timeout(...) }` limita a duração.\n\n### Sintaxe scripted\n\nA sintaxe **scripted** é Groovy mais livre e começa pelo bloco `node { ... }`. Dá mais flexibilidade, mas é mais difícil de ler e validar. A declarativa é a recomendada para a maioria dos casos.\n\n### Resultados e artefatos\n\n- `junit` publica os relatórios de teste; testes que falham deixam o build **UNSTABLE** (amarelo), e não FAILURE.\n- `archiveArtifacts` guarda o .jar ou .war gerado.\n- `stash` e `unstash` levam arquivos de uma etapa para outra, mesmo entre agentes diferentes.\n- **Shared Libraries** guardam trechos de pipeline reutilizados por vários projetos."
+    },
+    {
+      "title": "5. DevSecOps na esteira Jenkins e Maven",
+      "markdown": "### Segurança dentro da esteira\n\nNo DevSecOps, a esteira não só constrói e testa: ela também **barra** o que é inseguro. As verificações automáticas mais cobradas:\n\n| Sigla | O que analisa | Quando |\n|---|---|---|\n| **SAST** (teste estático) | o código-fonte, sem executá-lo, em busca de falhas como injeção | cedo, no build |\n| **SCA** (análise de composição) | as bibliotecas de terceiros, comparando com vulnerabilidades conhecidas (CVE) | no build, junto do Maven |\n| **DAST** (teste dinâmico) | a aplicação em execução, de fora, como um atacante | em ambiente de teste |\n| **Varredura de segredos** | senhas e chaves esquecidas no código | no commit e no build |\n\nNum projeto Maven, a SCA costuma rodar como um plugin no build (por exemplo, o OWASP Dependency-Check), configurado para **reprovar o build** quando encontrar vulnerabilidade acima de uma nota de severidade definida. Essa barreira automática é um **quality gate**: a esteira só segue se o critério for cumprido.\n\n### Credenciais e segredos\n\n- Nunca grave senhas, tokens ou chaves no Jenkinsfile ou no pom.xml: os dois são versionados e ficam no histórico.\n- No Jenkins, use o **Credentials Plugin**: o segredo fica guardado no Jenkins e entra no pipeline com `withCredentials` ou com o helper `credentials()` em `environment`. O Jenkins **mascara** o valor nos logs.\n- No Maven, as credenciais dos repositórios ficam no **settings.xml** do agente, que pode ser fornecido pelo Jenkins como arquivo gerenciado.\n\n### Endurecendo o Jenkins\n\n- **Não execute builds no controller.** O build roda código vindo do repositório; no controller, esse código teria acesso à configuração e às credenciais de todo o Jenkins. A recomendação é deixar **zero executores** no nó embutido e usar agentes.\n- Use agentes **efêmeros** (um contêiner novo por build), que somem ao final e não acumulam resíduos.\n- Aplique **menor privilégio**: cada pessoa e cada job só com as permissões necessárias (autorização por matriz ou por papéis).\n- Mantenha o Jenkins e os plugins atualizados: plugins desatualizados são uma porta comum de ataque.\n- Scripts Groovy de usuários rodam em **sandbox**, com aprovação de métodos sensíveis por um administrador.\n\n### Artefatos confiáveis\n\n- **Construir uma vez, implantar muitas**: o artefato aprovado é **promovido** entre ambientes, nunca recompilado, para que o que foi testado seja o que vai para produção.\n- O **SBOM** (Software Bill of Materials) é o inventário dos componentes do artefato, com versões; ele permite descobrir rapidamente se uma nova vulnerabilidade atinge o sistema. Há plugins Maven que geram o SBOM durante o build.\n- Versões de release imutáveis e repositório controlado evitam que um artefato seja trocado depois de aprovado."
+    }
+  ],
+  "summary": "DevOps automatiza o caminho do código até a produção, com integração contínua (cada push dispara build e testes), entrega contínua (artefato sempre pronto para liberar) e implantação contínua (liberação automática). DevSecOps leva a segurança para o começo do fluxo (shift-left). O Maven constrói projetos Java a partir do pom.xml: coordenadas GAV, ciclo default (validate, compile, test, package, verify, install, deploy; pedir uma fase executa as anteriores), plugins e goals, escopos de dependência (compile é o padrão; test e provided não são transitivos), mediação pela definição mais próxima, dependencyManagement e BOM, repositório local (install) e remoto (deploy), SNAPSHOT e release. O Jenkins orquestra a esteira: controller coordena, agentes executam, Jenkinsfile versiona o pipeline (declarativo começa por pipeline; scripted, por node), com stages, steps, post, when, triggers e Multibranch. Na esteira segura: SAST, SCA e DAST, quality gates, credenciais no Credentials Plugin e no settings.xml, nada de build no controller, artefato construído uma vez e promovido, SBOM.",
+  "flashcards": [
+    { "front": "O que é integração contínua?", "back": "Enviar alterações com frequência ao repositório compartilhado, com build e testes automáticos a cada envio." },
+    { "front": "Entrega contínua x implantação contínua", "back": "Na entrega, o artefato fica pronto e a liberação pode ser manual; na implantação, vai sozinho para produção." },
+    { "front": "Shift-left em DevSecOps", "back": "Levar as verificações de segurança para o início do fluxo, no commit e no build." },
+    { "front": "Coordenadas GAV do Maven", "back": "groupId, artifactId e version: identificam qualquer artefato." },
+    { "front": "Fases principais do ciclo default do Maven", "back": "validate, compile, test, package, verify, install, deploy." },
+    { "front": "mvn install x mvn deploy", "back": "install grava no repositório local (~/.m2); deploy publica no repositório remoto." },
+    { "front": "-DskipTests x -Dmaven.test.skip=true", "back": "O primeiro compila e não executa os testes; o segundo nem compila." },
+    { "front": "Escopo padrão de uma dependência Maven", "back": "compile." },
+    { "front": "Escopo provided", "back": "Usado na compilação, mas fornecido pelo servidor ou JDK; não vai para o artefato e não é transitivo." },
+    { "front": "Regra de conflito de versões do Maven", "back": "Vence a definição mais próxima do projeto; empate de profundidade, vence a declarada primeiro." },
+    { "front": "dependencyManagement", "back": "Centraliza versões e escopos, mas não adiciona a dependência sozinho." },
+    { "front": "Controller x agente no Jenkins", "back": "O controller coordena e guarda a configuração; o agente executa os builds." },
+    { "front": "Jenkinsfile", "back": "Arquivo no repositório com o pipeline como código, versionado junto com a aplicação." },
+    { "front": "Bloco inicial: declarativo x scripted", "back": "Declarativo começa por pipeline; scripted, por node." },
+    { "front": "Condição always no post", "back": "Executa ao final, qualquer que seja o resultado do build." },
+    { "front": "Teste que falha no passo junit", "back": "Deixa o build UNSTABLE, não FAILURE." },
+    { "front": "SAST x DAST x SCA", "back": "SAST analisa o código parado; DAST, a aplicação rodando; SCA, as bibliotecas de terceiros." },
+    { "front": "Onde guardar segredos da esteira Jenkins", "back": "No Credentials Plugin, usados com withCredentials, mascarados no log." },
+    { "front": "Construir uma vez, implantar muitas", "back": "O mesmo artefato aprovado é promovido entre ambientes, sem recompilar." },
+    { "front": "SBOM", "back": "Inventário dos componentes e versões de um artefato de software." }
+  ],
+  "tips": [
+    "Pedir uma fase do Maven executa todas as anteriores do mesmo ciclo: mvn package também compila e testa.",
+    "install é local (~/.m2) e deploy é remoto: a banca adora trocar os dois.",
+    "Na dúvida sobre conflito de versões no Maven, procure a mais próxima do projeto na árvore, não a mais nova.",
+    "No Jenkins declarativo, procure os blocos pipeline, agent, stages, stage, steps e post; no scripted, node.",
+    "Em DevSecOps, associe SAST ao código-fonte, DAST à aplicação rodando e SCA às dependências."
+  ],
+  "traps": [
+    "Dizer que install publica no repositório remoto: quem publica é deploy.",
+    "Inverter -DskipTests (compila, não executa) e -Dmaven.test.skip=true (nem compila).",
+    "Afirmar que dependencyManagement já inclui a biblioteca no projeto: ele só fixa versão e escopo.",
+    "Trocar as palavras iniciais: pipeline é da sintaxe declarativa; node é da scripted.",
+    "Tratar entrega contínua e implantação contínua como sinônimos: só a implantação vai para produção sem aprovação humana.",
+    "Achar que rodar o build no controller é mais seguro: é o contrário, porque ele guarda a configuração e as credenciais."
+  ],
+  "activeRecall": [
+    { "question": "Quais fases o Maven executa quando você roda mvn verify?", "answer": "Todas as anteriores do ciclo default e a própria verify: validate, compile, test, package, as de teste de integração e verify." },
+    { "question": "Por que JUnit deve ficar no escopo test?", "answer": "Porque só os testes precisam dele; no escopo test ele não vai para o artefato final nem é passado adiante como transitivo." },
+    { "question": "Como o Maven decide entre duas versões da mesma biblioteca vindas por caminhos diferentes?", "answer": "Pela definição mais próxima do projeto na árvore; se estiverem na mesma profundidade, vence a declarada primeiro." },
+    { "question": "Qual a vantagem de guardar o pipeline num Jenkinsfile?", "answer": "A esteira vira código: é versionada, revisada e muda junto com a aplicação, e cada branch pode ter a sua." },
+    { "question": "Por que não executar builds no controller do Jenkins?", "answer": "O build roda código do repositório; no controller, ele teria acesso à configuração e às credenciais de todo o Jenkins." },
+    { "question": "O que um quality gate faz numa esteira DevSecOps?", "answer": "Interrompe a esteira quando um critério não é cumprido, como vulnerabilidade acima da severidade permitida." },
+    { "question": "Qual a diferença entre release e SNAPSHOT no Maven?", "answer": "SNAPSHOT é versão em desenvolvimento, que pode receber builds novos com o mesmo número; release é imutável depois de publicada." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Fases do Maven confundidas", "summary": "Pedir uma fase executa as anteriores do ciclo; install grava no repositório local e deploy no remoto; -DskipTests compila e não executa os testes." },
+    { "key": "e2", "title": "Escopos e transitividade", "summary": "compile é o padrão e é transitivo; provided e test não vão para o artefato nem passam adiante; runtime não é usado para compilar." },
+    { "key": "e3", "title": "Mediação de versões e dependencyManagement", "summary": "Vence a definição mais próxima (empate: a declarada primeiro), não a mais nova; dependencyManagement fixa versões sem adicionar a dependência." },
+    { "key": "e4", "title": "Estrutura do Pipeline Jenkins", "summary": "Declarativo começa por pipeline e tem agent, stages e post; scripted começa por node; post always roda em qualquer resultado; teste que falha deixa UNSTABLE." },
+    { "key": "e5", "title": "Segurança da esteira", "summary": "Segredos no Credentials Plugin e no settings.xml, nunca no repositório; nada de build no controller; SAST, DAST e SCA têm alvos diferentes." }
+  ],
+  "questions": [
+    {
+      "statement": "Na integração contínua, cada alteração enviada ao repositório compartilhado dispara um build com testes automatizados, de modo que os defeitos de integração aparecem cedo, quando a mudança ainda é pequena.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Integrar com frequência e verificar cada envio com build e testes automáticos é a essência da integração contínua. O ganho é descobrir a quebra logo após a mudança que a causou, quando corrigir é barato.",
+      "section": "1. DevOps, DevSecOps e a esteira de CI/CD", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Entrega contínua e implantação contínua são sinônimos: nas duas práticas, toda alteração aprovada nos testes vai para produção sem nenhuma decisão humana.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Na entrega contínua o artefato aprovado fica pronto para produção, mas a liberação pode depender de uma aprovação manual. Só na implantação contínua a alteração aprovada vai automaticamente para produção.",
+      "section": "1. DevOps, DevSecOps e a esteira de CI/CD", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em DevSecOps, a expressão shift-left significa deslocar as verificações de segurança para as etapas finais do ciclo, logo antes da implantação em produção.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. Shift-left é levar a segurança para a esquerda da linha do tempo, ou seja, para o começo: análise no commit e no build. Deixar tudo para logo antes da produção é justamente o modelo que o DevSecOps quer evitar.",
+      "section": "1. DevOps, DevSecOps e a esteira de CI/CD", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No Maven, o arquivo pom.xml descreve o projeto, incluindo suas coordenadas, as dependências e os plugins usados no build.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. O POM (Project Object Model) é o arquivo central do Maven: identifica o projeto pelas coordenadas groupId, artifactId e version e declara dependências, plugins e configurações do build.",
+      "section": "2. Maven: POM, coordenadas e ciclo de vida", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Executar mvn package dispara também as fases anteriores do ciclo de vida padrão, como validate, compile e test.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. No Maven, pedir uma fase executa todas as fases anteriores do mesmo ciclo de vida. Por isso package só empacota depois de validar, compilar e rodar os testes unitários.",
+      "section": "2. Maven: POM, coordenadas e ciclo de vida", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A fase install do Maven envia o artefato gerado para o repositório remoto da organização, deixando-o disponível para as demais equipes.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. A fase install copia o artefato para o repositório local da máquina (~/.m2/repository). Quem publica no repositório remoto, compartilhado com as outras equipes, é a fase deploy.",
+      "section": "2. Maven: POM, coordenadas e ciclo de vida", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O comando mvn clean install executa fases de dois ciclos de vida distintos: a fase clean, do ciclo clean, e a fase install do ciclo default, precedida de todas as fases anteriores a ela.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. clean pertence ao ciclo clean e apaga a pasta target; install pertence ao ciclo default e, como toda fase pedida, executa antes validate, compile, test, package e verify.",
+      "section": "2. Maven: POM, coordenadas e ciclo de vida", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No Maven, a opção -DskipTests deixa de compilar as classes de teste, ao passo que -Dmaven.test.skip=true apenas deixa de executá-las.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado, porque os papéis estão trocados. -DskipTests compila os testes e só não os executa; -Dmaven.test.skip=true pula também a compilação das classes de teste.",
+      "section": "2. Maven: POM, coordenadas e ciclo de vida", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Quando uma dependência é declarada no pom.xml sem indicação de escopo, o Maven a considera no escopo compile.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. compile é o escopo padrão: a dependência fica disponível na compilação, nos testes e na execução, e é repassada como transitiva para quem usar o projeto.",
+      "section": "3. Maven: dependências, escopos e repositórios", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma dependência de escopo test, como uma biblioteca de testes unitários, fica disponível na compilação do código principal e é empacotada no artefato final.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. O escopo test serve só para compilar e executar os testes. A biblioteca não está disponível para o código principal, não vai para o artefato e não é transitiva.",
+      "section": "3. Maven: dependências, escopos e repositórios", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A seção dependencyManagement define versões e escopos que os módulos aproveitam ao declarar a dependência, mas, sozinha, não acrescenta a dependência ao projeto.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. dependencyManagement centraliza as versões, geralmente no POM pai. O módulo ainda precisa declarar a biblioteca em dependencies, só que sem a versão, que vem da seção gerenciada.",
+      "section": "3. Maven: dependências, escopos e repositórios", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Se duas dependências trazem versões diferentes da mesma biblioteca, o Maven escolhe sempre a versão mais nova, independentemente da posição de cada uma na árvore de dependências.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. O Maven aplica a mediação pela definição mais próxima: vence a versão mais perto do projeto na árvore e, no empate de profundidade, a declarada primeiro. A versão mais nova pode perder.",
+      "section": "3. Maven: dependências, escopos e repositórios", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Versões terminadas em -SNAPSHOT indicam artefatos em desenvolvimento, que podem ser substituídos por compilações mais recentes com o mesmo número de versão.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Um SNAPSHOT é uma versão em andamento: o mesmo número recebe builds novos, e o Maven verifica se há cópia mais recente. Versões de release, ao contrário, são imutáveis depois de publicadas.",
+      "section": "3. Maven: dependências, escopos e repositórios", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O Jenkinsfile guarda a definição do pipeline junto com o código no repositório, o que permite versionar e revisar a própria esteira de integração.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Com o Jenkinsfile, o pipeline vira código: entra no histórico do Git, passa por revisão e muda junto com a aplicação. É a ideia de pipeline como código.",
+      "section": "4. Jenkins: arquitetura, jobs e Pipeline como código", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um Pipeline declarativo do Jenkins, os passos do bloco post com a condição always são executados ao final, tenha a execução terminado com sucesso ou com falha.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. always roda independentemente do resultado, o que o torna o lugar certo para publicar relatórios de teste ou limpar o espaço de trabalho. Para resultados específicos existem success, failure e unstable.",
+      "section": "4. Jenkins: arquitetura, jobs e Pipeline como código", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No Jenkins, os agentes são as máquinas ou contêineres que executam os builds, enquanto o controller coordena os jobs, agenda as execuções e guarda a configuração.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A arquitetura distribuída separa quem coordena (controller) de quem executa (agentes, com seus executores). Isso permite escalar e isolar os builds do servidor central.",
+      "section": "4. Jenkins: arquitetura, jobs e Pipeline como código", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A sintaxe scripted do Pipeline do Jenkins começa obrigatoriamente pelo bloco pipeline, e a sintaxe declarativa, pelo bloco node.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado, porque está invertido. O bloco pipeline é o topo obrigatório da sintaxe declarativa; a sintaxe scripted, Groovy mais livre, é escrita a partir do bloco node.",
+      "section": "4. Jenkins: arquitetura, jobs e Pipeline como código", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um job do tipo Multibranch Pipeline descobre as ramificações do repositório que possuem Jenkinsfile e cria um pipeline para cada uma delas.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. O Multibranch Pipeline varre o repositório e cria automaticamente um pipeline por branch (e por pull request, conforme a configuração) que tenha Jenkinsfile, removendo os de branches apagadas.",
+      "section": "4. Jenkins: arquitetura, jobs e Pipeline como código", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Gravar a senha do repositório de artefatos diretamente no Jenkinsfile é uma prática aceitável, desde que o repositório de código seja privado.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. O Jenkinsfile é versionado: a senha fica no histórico e chega a todos com acesso ao repositório, mesmo privado. Segredos devem ficar no Credentials Plugin e entrar no pipeline com withCredentials.",
+      "section": "5. DevSecOps na esteira Jenkins e Maven", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A análise de composição de software (SCA) verifica as bibliotecas de terceiros usadas pelo projeto em busca de vulnerabilidades conhecidas.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. A SCA compara as dependências, inclusive as transitivas trazidas pelo Maven, com bases de vulnerabilidades conhecidas (CVE). Ela não analisa o código escrito pela equipe, papel do SAST.",
+      "section": "5. DevSecOps na esteira Jenkins e Maven", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Recomenda-se executar os builds no próprio controller do Jenkins, pois assim o código do build fica isolado de qualquer dado sensível do servidor.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [{ "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true }],
+      "explanation": "Errado. É o contrário: o controller guarda a configuração e as credenciais, e o build roda código vindo do repositório. A recomendação é deixar zero executores no nó embutido e executar os builds em agentes.",
+      "section": "5. DevSecOps na esteira Jenkins e Maven", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Pelo princípio construir uma vez e implantar muitas, o mesmo artefato aprovado nos testes é promovido entre homologação e produção, em vez de ser recompilado em cada ambiente.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [{ "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false }],
+      "explanation": "Certo. Recompilar em cada ambiente poderia gerar um binário diferente do testado. Promover o mesmo artefato garante que o que foi aprovado é exatamente o que chega à produção.",
+      "section": "5. DevSecOps na esteira Jenkins e Maven", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer descobrir em minutos quando uma alteração quebra o sistema. Qual prática atende diretamente a esse objetivo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Integrar as alterações com frequência, com build e testes a cada envio.", "correct": true },
+        { "key": "B", "text": "Juntar as alterações de todo o mês e testar tudo de uma única vez no fim.", "correct": false },
+        { "key": "C", "text": "Testar manualmente só na véspera de cada liberação planejada.", "correct": false },
+        { "key": "D", "text": "Deixar cada desenvolvedor compilar na própria máquina, sem servidor.", "correct": false },
+        { "key": "E", "text": "Liberar direto em produção e corrigir quando o usuário reclamar.", "correct": false }
+      ],
+      "explanation": "A integração contínua verifica cada envio com build e testes automáticos, então a quebra aparece logo após a mudança. Juntar alterações (B) ou testar só na véspera (C) atrasa a descoberta; compilar só localmente (D) não verifica a integração; e liberar sem teste (E) transfere o problema ao usuário.",
+      "section": "1. DevOps, DevSecOps e a esteira de CI/CD", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No Maven, quais elementos formam as coordenadas que identificam de forma única um artefato?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "packaging, scope e classifier.", "correct": false },
+        { "key": "B", "text": "groupId, name e description.", "correct": false },
+        { "key": "C", "text": "groupId, artifactId e version.", "correct": true },
+        { "key": "D", "text": "artifactId, plugin e goal.", "correct": false },
+        { "key": "E", "text": "repository, phase e version.", "correct": false }
+      ],
+      "explanation": "As coordenadas GAV (groupId, artifactId e version) identificam qualquer artefato no Maven. name e description são só informativos; scope é da dependência; plugin, goal e phase pertencem ao build; repository é onde o artefato fica.",
+      "section": "2. Maven: POM, coordenadas e ciclo de vida", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência apresenta, na ordem correta, fases do ciclo de vida default do Maven?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "compile, validate, package, test, deploy, install.", "correct": false },
+        { "key": "B", "text": "validate, compile, test, package, install, deploy.", "correct": true },
+        { "key": "C", "text": "validate, test, compile, install, package, deploy.", "correct": false },
+        { "key": "D", "text": "clean, compile, package, test, deploy, install.", "correct": false },
+        { "key": "E", "text": "validate, compile, package, deploy, test, install.", "correct": false }
+      ],
+      "explanation": "O ciclo default segue validate, compile, test, package, verify, install e deploy. Testar vem antes de empacotar, e install (local) vem antes de deploy (remoto). clean nem é do ciclo default, e sim do ciclo clean.",
+      "section": "2. Maven: POM, coordenadas e ciclo de vida", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um analista precisa ver todas as dependências do projeto, inclusive as transitivas, organizadas em forma de árvore. Qual comando do Maven atende a isso?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "mvn validate, que lista todas as bibliotecas usadas pelo projeto.", "correct": false },
+        { "key": "B", "text": "mvn install, que imprime a árvore ao final.", "correct": false },
+        { "key": "C", "text": "mvn clean, que mostra o que será removido.", "correct": false },
+        { "key": "D", "text": "mvn dependency:tree, goal do plugin de dependências.", "correct": true },
+        { "key": "E", "text": "mvn site:deploy, que publica as dependências.", "correct": false }
+      ],
+      "explanation": "dependency:tree é um goal do maven-dependency-plugin, chamado no formato plugin:goal, e mostra a árvore com as transitivas. validate só confere o projeto, install grava o artefato no repositório local, clean apaga a pasta target e site:deploy publica a documentação.",
+      "section": "2. Maven: POM, coordenadas e ciclo de vida", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Num projeto Maven, os testes de integração precisam da aplicação já empacotada, e a falha deles deve ser avaliada só depois que o ambiente de teste for desmontado. Qual configuração é a mais adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Surefire na fase test, que roda antes do empacotamento.", "correct": false },
+        { "key": "B", "text": "Compiler na fase compile, que já executa as classes.", "correct": false },
+        { "key": "C", "text": "Surefire na fase deploy, depois da publicação remota.", "correct": false },
+        { "key": "D", "text": "Failsafe na fase validate, antes de compilar o projeto.", "correct": false },
+        { "key": "E", "text": "Failsafe nas fases integration-test e verify.", "correct": true }
+      ],
+      "explanation": "O Failsafe roda os testes de integração na fase integration-test, depois do package, e só reprova o build na fase verify, permitindo desmontar o ambiente antes. O Surefire roda testes unitários na fase test, antes do empacotamento; o compiler não executa testes; validate vem antes de existir código compilado; e deploy é tarde demais.",
+      "section": "2. Maven: POM, coordenadas e ciclo de vida", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação web empacotada como .war usa a API de Servlet, que já é fornecida pelo servidor de aplicação onde ela roda. Qual escopo deve ter essa dependência?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "compile, para ir junto dentro do arquivo .war.", "correct": false },
+        { "key": "B", "text": "provided, usada para compilar e fornecida pelo servidor.", "correct": true },
+        { "key": "C", "text": "test, porque só os testes precisam da API.", "correct": false },
+        { "key": "D", "text": "runtime, porque não é usada para compilar.", "correct": false },
+        { "key": "E", "text": "import, que traz a API do servidor para o projeto.", "correct": false }
+      ],
+      "explanation": "provided deixa a API disponível para compilar, mas não a coloca no .war, porque o servidor a fornece. compile duplicaria a biblioteca no pacote; test a deixaria fora da compilação do código principal; runtime não serve para compilar; e import só vale para BOMs em dependencyManagement.",
+      "section": "3. Maven: dependências, escopos e repositórios", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O build publica artefatos num repositório remoto que exige usuário e senha. Onde, segundo as boas práticas do Maven, essas credenciais devem ficar?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "No pom.xml, dentro da seção distributionManagement.", "correct": false },
+        { "key": "B", "text": "Num comentário no topo do Jenkinsfile do projeto.", "correct": false },
+        { "key": "C", "text": "No arquivo README do repositório, para a equipe toda consultar.", "correct": false },
+        { "key": "D", "text": "No settings.xml, na seção servers, com o id do repositório.", "correct": true },
+        { "key": "E", "text": "Na pasta src/main/resources, junto das configurações.", "correct": false }
+      ],
+      "explanation": "As credenciais ficam no settings.xml, em servers, com o mesmo id do repositório declarado no POM, e o arquivo pode ser fornecido ao agente pelo Jenkins. pom.xml, Jenkinsfile, README e src/main/resources são versionados; a senha iria para o histórico, e no último caso até para dentro do artefato.",
+      "section": "3. Maven: dependências, escopos e repositórios", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O projeto declara a biblioteca A, que depende de X 1.2. Também declara B, que depende de C, que depende de X 2.0. Sem declaração direta de X nem dependencyManagement, qual versão de X o Maven usa?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "X 1.2, por estar mais perto do projeto na árvore.", "correct": true },
+        { "key": "B", "text": "X 2.0, porque o Maven prefere a versão mais nova.", "correct": false },
+        { "key": "C", "text": "As duas, cada uma num trecho separado do classpath.", "correct": false },
+        { "key": "D", "text": "Nenhuma: o build falha por conflito de versões.", "correct": false },
+        { "key": "E", "text": "X 2.0, por ter sido a última encontrada na árvore.", "correct": false }
+      ],
+      "explanation": "Pela definição mais próxima, X 1.2 está a dois níveis (projeto, A, X) e X 2.0 a três (projeto, B, C, X); vence a 1.2. O Maven não escolhe a mais nova (B), não coloca duas versões no classpath (C), não reprova o build por isso (D) e, no empate, vence a primeira declarada, não a última (E).",
+      "section": "3. Maven: dependências, escopos e repositórios", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Para manter compatíveis as versões de várias bibliotecas de um mesmo fornecedor, a equipe decide usar o BOM (Bill of Materials) publicado por ele. Como esse BOM é declarado no POM?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Em dependencies, com escopo compile e type jar.", "correct": false },
+        { "key": "B", "text": "Em plugins, como um plugin de verificação de versões.", "correct": false },
+        { "key": "C", "text": "Em dependencyManagement, com type pom e escopo import.", "correct": true },
+        { "key": "D", "text": "Em modules, como mais um submódulo do projeto.", "correct": false },
+        { "key": "E", "text": "Em repositories, apontando para o site do fornecedor.", "correct": false }
+      ],
+      "explanation": "O escopo import só existe em dependencyManagement e só para artefatos do tipo pom: ele traz para o projeto as versões gerenciadas pelo BOM. Declarar em dependencies como jar tentaria baixar uma biblioteca que não existe; plugins, modules e repositories têm outros papéis.",
+      "section": "3. Maven: dependências, escopos e repositórios", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual bloco é obrigatório no topo de um Jenkinsfile escrito na sintaxe declarativa?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "node, que escolhe o agente do build.", "correct": false },
+        { "key": "B", "text": "stage, que abre a primeira etapa.", "correct": false },
+        { "key": "C", "text": "post, que define o fim da execução.", "correct": false },
+        { "key": "D", "text": "steps, que lista os comandos do build.", "correct": false },
+        { "key": "E", "text": "pipeline, que envolve toda a definição.", "correct": true }
+      ],
+      "explanation": "Na sintaxe declarativa, tudo fica dentro do bloco pipeline, que por sua vez contém agent, stages e, opcionalmente, post. node é o bloco de partida da sintaxe scripted; stage, steps e post existem, mas dentro de pipeline.",
+      "section": "4. Jenkins: arquitetura, jobs e Pipeline como código", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No pipeline, o passo junit publica os relatórios do Surefire. Se três testes falharem, mas a compilação e o empacotamento tiverem dado certo, qual será, em regra, o resultado do build?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "UNSTABLE, sinalizado em amarelo.", "correct": true },
+        { "key": "B", "text": "SUCCESS, porque o pacote foi gerado.", "correct": false },
+        { "key": "C", "text": "ABORTED, porque o Jenkins cancela o job.", "correct": false },
+        { "key": "D", "text": "NOT_BUILT, porque as etapas são puladas.", "correct": false },
+        { "key": "E", "text": "FAILURE, igual a um erro de compilação.", "correct": false }
+      ],
+      "explanation": "Testes que falham registrados pelo passo junit deixam o build UNSTABLE: a esteira terminou, mas a qualidade não foi atingida. FAILURE fica para erros que interrompem a execução, como falha de compilação; SUCCESS ignoraria as falhas; ABORTED e NOT_BUILT indicam cancelamento e etapa não executada.",
+      "section": "4. Jenkins: arquitetura, jobs e Pipeline como código", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O servidor Git da organização não consegue enviar webhooks ao Jenkins. Qual recurso do Pipeline declarativo permite que o Jenkins verifique periodicamente se há alterações no repositório?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "input, que pausa a execução à espera de alguém.", "correct": false },
+        { "key": "B", "text": "stash, que guarda arquivos entre as etapas.", "correct": false },
+        { "key": "C", "text": "pollSCM dentro de triggers, com expressão cron.", "correct": true },
+        { "key": "D", "text": "archiveArtifacts, que guarda o pacote gerado.", "correct": false },
+        { "key": "E", "text": "parallel, que roda várias etapas ao mesmo tempo.", "correct": false }
+      ],
+      "explanation": "pollSCM, dentro de triggers, consulta o repositório no intervalo da expressão cron e dispara o build se houver commit novo; o H espalha o horário. input espera aprovação, stash guarda arquivos, archiveArtifacts arquiva o pacote e parallel roda etapas em paralelo: nenhum deles dispara o pipeline.",
+      "section": "4. Jenkins: arquitetura, jobs e Pipeline como código", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Num Multibranch Pipeline, a etapa de publicação do artefato deve rodar apenas na branch main; nas outras branches, só build e testes. Qual diretiva do Pipeline declarativo resolve isso dentro da etapa?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "options com timeout limitado à branch main.", "correct": false },
+        { "key": "B", "text": "when com a condição branch 'main'.", "correct": true },
+        { "key": "C", "text": "post com a condição success nas branches.", "correct": false },
+        { "key": "D", "text": "environment com a variável BRANCH igual a main.", "correct": false },
+        { "key": "E", "text": "agent none, que desliga as outras branches.", "correct": false }
+      ],
+      "explanation": "when faz a etapa executar só quando a condição vale, e branch 'main' é uma das condições prontas. timeout limita a duração; post success roda ao fim de builds bem-sucedidos em qualquer branch; definir uma variável não decide se a etapa roda; e agent none apenas não aloca agente global.",
+      "section": "4. Jenkins: arquitetura, jobs e Pipeline como código", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A etapa de build gera o .jar num agente Linux, e a etapa seguinte, que roda em outro agente, precisa desse arquivo. Qual recurso do Jenkins transfere os arquivos entre as etapas do mesmo build?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "junit, que copia relatórios para o próximo agente.", "correct": false },
+        { "key": "B", "text": "pollSCM, que baixa de novo o código no agente.", "correct": false },
+        { "key": "C", "text": "withCredentials, que libera o acesso aos arquivos.", "correct": false },
+        { "key": "D", "text": "stash na primeira etapa e unstash na segunda.", "correct": true },
+        { "key": "E", "text": "input, que pede ao usuário o envio do arquivo.", "correct": false }
+      ],
+      "explanation": "stash guarda arquivos do espaço de trabalho com um nome, e unstash os recupera em outra etapa, mesmo em outro agente, dentro do mesmo build. junit só publica relatórios; pollSCM verifica o repositório; withCredentials injeta segredos; e input pausa para aprovação.",
+      "section": "4. Jenkins: arquitetura, jobs e Pipeline como código", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O pipeline precisa de um token para publicar o artefato. Qual é a forma recomendada de usá-lo no Jenkins?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Escrever o token no Jenkinsfile, num bloco environment.", "correct": false },
+        { "key": "B", "text": "Guardá-lo nas credenciais do Jenkins e usar withCredentials.", "correct": true },
+        { "key": "C", "text": "Colocá-lo no pom.xml, como propriedade do projeto.", "correct": false },
+        { "key": "D", "text": "Imprimi-lo no console para conferir antes do envio.", "correct": false },
+        { "key": "E", "text": "Enviá-lo por e-mail à equipe a cada nova execução.", "correct": false }
+      ],
+      "explanation": "Com o Credentials Plugin, o token fica guardado no Jenkins e entra no pipeline por withCredentials, mascarado nos logs. No Jenkinsfile ou no pom.xml ele iria para o histórico do repositório; imprimi-lo no console ou mandá-lo por e-mail o exporia a mais gente.",
+      "section": "5. DevSecOps na esteira Jenkins e Maven", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual tipo de verificação de segurança analisa o código-fonte sem executá-lo, procurando falhas como injeção e uso inseguro de funções, logo nas primeiras etapas da esteira?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "DAST, que ataca a aplicação em execução.", "correct": false },
+        { "key": "B", "text": "SCA, que inspeciona as bibliotecas de terceiros.", "correct": false },
+        { "key": "C", "text": "Teste de carga, que mede o desempenho.", "correct": false },
+        { "key": "D", "text": "Teste de aceitação feito pelo usuário final.", "correct": false },
+        { "key": "E", "text": "SAST, a análise estática do código.", "correct": true }
+      ],
+      "explanation": "O SAST examina o código parado, o que permite rodá-lo cedo, no build. O DAST testa a aplicação rodando, de fora; a SCA olha as dependências, não o código da equipe; e testes de carga e de aceitação não têm foco em vulnerabilidades do código.",
+      "section": "5. DevSecOps na esteira Jenkins e Maven", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A equipe quer que o build Maven executado pelo Jenkins seja interrompido quando alguma biblioteca usada tiver vulnerabilidade conhecida de severidade alta. Qual medida implementa esse controle?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Rodar -DskipTests para acelerar e revisar depois.", "correct": false },
+        { "key": "B", "text": "Trocar as dependências para o escopo provided.", "correct": false },
+        { "key": "C", "text": "Executar o build no controller, com mais permissões.", "correct": false },
+        { "key": "D", "text": "Análise de dependências que reprova acima da nota limite.", "correct": true },
+        { "key": "E", "text": "Publicar como SNAPSHOT para corrigir na versão seguinte.", "correct": false }
+      ],
+      "explanation": "Uma análise de composição (SCA) no build, configurada para reprovar quando houver vulnerabilidade acima da severidade definida, funciona como quality gate. Pular testes não verifica dependências; provided só muda o empacotamento; o controller não deve rodar builds; e publicar como SNAPSHOT não impede a biblioteca vulnerável.",
+      "section": "5. DevSecOps na esteira Jenkins e Maven", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Sobre a segurança no modelo DevSecOps, assinale a afirmativa correta.",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Cabe só à equipe de segurança, numa auditoria no fim.", "correct": false },
+        { "key": "B", "text": "Substitui os testes funcionais, que deixam de ser necessários.", "correct": false },
+        { "key": "C", "text": "É responsabilidade compartilhada e entra no fluxo automatizado.", "correct": true },
+        { "key": "D", "text": "Só é aplicada depois que o sistema chega ao ambiente de produção.", "correct": false },
+        { "key": "E", "text": "Dispensa automação, pois depende de revisão manual.", "correct": false }
+      ],
+      "explanation": "DevSecOps distribui a responsabilidade pela segurança entre desenvolvimento, segurança e operação e coloca verificações automáticas no próprio fluxo. Deixar tudo para uma auditoria final ou para depois da produção é o modelo que ele combate; a segurança não substitui os testes funcionais nem dispensa automação.",
+      "section": "1. DevOps, DevSecOps e a esteira de CI/CD", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma vulnerabilidade grave é divulgada numa biblioteca popular. Qual artefato, gerado durante o build, permite saber rapidamente quais sistemas da organização incluem essa biblioteca e em qual versão?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O SBOM, inventário de componentes e versões.", "correct": true },
+        { "key": "B", "text": "O relatório do Surefire, com os testes unitários.", "correct": false },
+        { "key": "C", "text": "O log do console, com a saída de cada etapa.", "correct": false },
+        { "key": "D", "text": "O arquivo settings.xml do agente de build.", "correct": false },
+        { "key": "E", "text": "O Jenkinsfile, com a ordem das etapas.", "correct": false }
+      ],
+      "explanation": "O SBOM (Software Bill of Materials) lista os componentes de cada artefato, com versões, inclusive as dependências transitivas; basta consultá-lo para saber quem usa a biblioteca afetada. Relatórios de teste, logs, settings.xml e Jenkinsfile não trazem esse inventário de forma confiável.",
+      "section": "5. DevSecOps na esteira Jenkins e Maven", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Numa esteira, cada artefato aprovado em todas as etapas automáticas fica disponível para produção, mas a liberação só ocorre quando o gestor do sistema autoriza. Essa esteira pratica",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "implantação contínua, pela aprovação final.", "correct": false },
+        { "key": "B", "text": "integração contínua apenas, sem nenhuma entrega.", "correct": false },
+        { "key": "C", "text": "modelo em cascata, por exigir uma autorização.", "correct": false },
+        { "key": "D", "text": "implantação contínua com shift-left.", "correct": false },
+        { "key": "E", "text": "entrega contínua, com liberação manual.", "correct": true }
+      ],
+      "explanation": "Na entrega contínua, o artefato está sempre pronto para produção, e a liberação pode depender de decisão humana, como descrito. Na implantação contínua não há essa aprovação. Também não é só integração contínua, porque o artefato chega pronto à porta da produção, nem cascata, que não tem esteira automatizada.",
+      "section": "1. DevOps, DevSecOps e a esteira de CI/CD", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    { "kind": "OFICIAL", "title": "Introduction to the Build Lifecycle", "publisher": "Apache Maven Project", "reference": "Ciclos de vida clean, default e site; fases e ordem de execução", "url": "https://maven.apache.org/guides/introduction/introduction-to-the-lifecycle.html", "accessedAt": "2026-11-03" },
+    { "kind": "OFICIAL", "title": "Introduction to the Dependency Mechanism", "publisher": "Apache Maven Project", "reference": "Escopos, transitividade, mediação de versões, dependencyManagement e escopo import", "url": "https://maven.apache.org/guides/introduction/introduction-to-dependency-mechanism.html", "accessedAt": "2026-11-03" },
+    { "kind": "OFICIAL", "title": "Pipeline Syntax", "publisher": "Jenkins", "reference": "Sintaxe declarativa e scripted: pipeline, agent, stages, steps, post, when, triggers", "url": "https://www.jenkins.io/doc/book/pipeline/syntax/", "accessedAt": "2026-11-03" },
+    { "kind": "OFICIAL", "title": "Controller Isolation", "publisher": "Jenkins", "reference": "Não executar builds no controller; executores no nó embutido", "url": "https://www.jenkins.io/doc/book/security/controller-isolation/", "accessedAt": "2026-11-03" },
+    { "kind": "COMPLEMENTAR", "title": "OWASP DevSecOps Guideline", "publisher": "OWASP Foundation", "reference": "SAST, DAST, SCA e varredura de segredos na esteira", "url": "https://owasp.org/www-project-devsecops-guideline/", "accessedAt": "2026-11-03" }
+  ]
+}
