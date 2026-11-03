@@ -1,0 +1,596 @@
+{
+  "id": "estatistica.computacao-estatistica-simulacao-e-bootstrap",
+  "subject": "Estatística",
+  "title": "Computação estatística, simulação e bootstrap",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Estatística computacional, simulação e bootstrap",
+    "Métodos computacionais em estatística aplicada",
+    "Geração de números aleatórios e simulação",
+    "Métodos de Monte Carlo em inferência estatística",
+    "Avaliação numérica de estimadores e testes",
+    "Simulação de modelos de regressão linear",
+    "Simulação de séries temporais e processos ARIMA",
+    "Bootstrap paramétrico e não paramétrico",
+    "Intervalos de confiança e testes bootstrap",
+    "GNU PSPP, R e ambiente RStudio",
+    "Reamostragem bootstrap para erro padrão",
+    "Correção de viés por bootstrap estatístico"
+  ],
+  "scope": {
+    "covers": "Estatística computacional; geração pseudoaleatória e reprodutibilidade; transformação inversa, aceitação-rejeição e composição para simular distribuições; Monte Carlo; avaliação numérica de viés, variância, erro quadrático médio, cobertura de intervalos e tamanho e poder de testes; uso básico de GNU PSPP, R e RStudio para definir variáveis, resumir dados, construir gráficos e executar testes; simulação paramétrica de regressão e séries temporais; bootstrap não paramétrico e paramétrico; erro-padrão, intervalos de confiança, correção de viés e testes bootstrap.",
+    "excludes": "Teoria geral de probabilidade e inferência fora do necessário para compreender os métodos computacionais; programação avançada em R; instruções dependentes de versões específicas dos programas; desenvolvimento de geradores criptográficos; modelos especializados de séries temporais não apresentados como exemplos básicos."
+  },
+  "theoryTitle": "Da geração aleatória à inferência por reamostragem",
+  "chapters": [
+    {
+      "title": "1. Dados, programas estatísticos e geração aleatória",
+      "markdown": "### O problema que este assunto resolve\n\nA computação estatística permite descrever dados, ajustar modelos e aproximar distribuições que seriam difíceis de obter por fórmulas fechadas. O programa executa cálculos, mas não decide sozinho se uma variável foi codificada corretamente, se os dados são independentes ou se o modelo é adequado. A interpretação continua dependendo do desenho do estudo e das hipóteses estatísticas.\n\n> **Siglas e termos deste capítulo**\n> - **PSPP**: GNU PSPP, programa livre para análise estatística de dados amostrais, com interface gráfica e linguagem de comandos.\n> - **R**: ambiente e linguagem para computação estatística e gráficos.\n> - **RStudio**: ambiente de desenvolvimento integrado que organiza editor, console, arquivos, gráficos e ajuda para trabalhar com R.\n> - **RNG**: gerador de números pseudoaleatórios; produz uma sequência determinística a partir de um estado inicial.\n> - **Semente**: estado inicial configurado para tornar uma sequência pseudoaleatória reproduzível.\n\n### Preparar dados e escolher uma análise\n\nAntes da análise, dê a cada variável um nome identificável e registre seu significado. Distinga o tipo dos dados: `grupo` pode ser nominal, `satisfacao` ordinal, e `tempo` quantitativo de escala. Uma codificação numérica não transforma automaticamente categorias em medidas: os códigos 1, 2 e 3 para setores não autorizam calcular uma média com interpretação substantiva. No PSPP, nomes e rótulos são atributos distintos; rótulos de valores associam, por exemplo, 0 a “não” e 1 a “sim”. Níveis de medida e valores ausentes precisam ser definidos de acordo com o instrumento e o plano de análise.\n\nPSPP oferece procedimentos como `DESCRIPTIVES`, `FREQUENCIES`, `EXAMINE`, `GRAPH`, `T-TEST`, `ONEWAY`, `NPAR TESTS` e regressão, embora a cobertura de procedimentos seja incompleta em relação a produtos que ele substitui. No R, operações usuais incluem `summary`, `table`, `hist`, `plot`, `lm` e testes como `t.test`. O RStudio é uma interface de trabalho: seu editor prepara scripts, o console os executa, o painel Plots mostra gráficos e Help abre documentação. Projetos do RStudio ajudam a manter arquivos e diretório de trabalho organizados. O programa não altera a lógica estatística subjacente ao R.\n\n### Números pseudoaleatórios e reprodutibilidade\n\nO R oferece `runif(n, min, max)` para uniformes, `rnorm` para normais, `rbinom` para binomiais, `rexp` para exponenciais e diversas outras funções com prefixo `r`. `sample` seleciona elementos de um conjunto com ou sem reposição. `set.seed` fixa o estado inicial do gerador, permitindo repetir uma sequência sob configuração compatível; não transforma números pseudoaleatórios em observações independentes do mundo real nem corrige um modelo errado. Para documentar uma simulação reprodutível, registre semente, gerador quando relevante, tamanho da amostra, parâmetros, algoritmo, versão do programa e passos de análise.\n\n### Como cai na prova\n\n- RStudio organiza o trabalho com R; não é, por si só, um método estatístico.\n- Um rótulo esclarece códigos, mas não muda o tipo da variável nem valida a codificação.\n- A semente torna a sequência reproduzível sob as mesmas condições; ela não torna o sorteio “mais aleatório”.\n- PSPP tem tabelas, gráficos, estatísticas descritivas e testes, mas não se deve supor que toda função de outros programas esteja implementada."
+    },
+    {
+      "title": "2. Simulação de variáveis e método de Monte Carlo",
+      "markdown": "### O problema que este assunto resolve\n\nUma variável aleatória pode ser simulada para estudar consequências de um modelo probabilístico ou para aproximar uma quantidade matemática. O método de Monte Carlo usa repetições aleatórias para estimar, por média amostral, uma esperança, probabilidade ou característica de um procedimento. Sua precisão depende tanto do número de repetições quanto da variabilidade do que está sendo calculado.\n\n> **Siglas e termos deste capítulo**\n> - **CDF**: função de distribuição acumulada, que associa a cada valor a probabilidade de não o exceder.\n> - **Transformação inversa**: método que converte uma uniforme em outra distribuição pela inversa da função acumulada.\n> - **Aceitação-rejeição**: algoritmo que propõe valores de uma distribuição simples e aceita alguns segundo uma regra de probabilidade.\n> - **Monte Carlo**: aproximação numérica baseada em amostras aleatórias repetidas.\n> - **Replicação**: execução independente de um experimento simulado completo.\n\n### Três maneiras de construir uma variável simulada\n\nSe `U` for uniforme em (0,1) e `F` uma função de distribuição contínua, então `X = F^{-1}(U)` tem distribuição `F`. Para uma exponencial de taxa positiva `lambda`, por exemplo, `X = -log(U)/lambda`. Para uma variável discreta com probabilidades acumuladas, divide-se o intervalo unitário em faixas cujos comprimentos são essas probabilidades e associa-se cada faixa a um resultado. A transformação inversa é direta quando a inversa pode ser calculada de forma conveniente.\n\nNa aceitação-rejeição, escolhe-se uma densidade proposta `g` e uma constante `M` que satisfaça `f(x) <= M g(x)` em todo o suporte. Sorteia-se `Y` de `g` e `U` uniforme; aceita-se `Y` se `U <= f(Y)/(M g(Y))`. Uma proposta ruim pode gerar muitas rejeições, mas os valores aceitos seguem a distribuição-alvo quando as condições são respeitadas. Pela composição, uma variável pode ser construída primeiro sorteando uma classe e depois sorteando condicionalmente dentro dessa classe; isso é útil em misturas.\n\n### O que Monte Carlo estima\n\nPara estimar `E[h(X)]`, gere `X_1,...,X_M` e use a média `M^{-1} soma h(X_m)`. Seu erro-padrão de Monte Carlo é estimado por `s_h/sqrt(M)`, onde `s_h` é o desvio-padrão dos valores `h(X_m)`. O erro típico cai na ordem de `1/sqrt(M)`: quadruplicar as repetições reduz aproximadamente pela metade o erro, sem garantir redução pela metade em cada execução. Se a quantidade-alvo for uma probabilidade, a média de indicadores 0/1 a estima, e sua variância pode ser estimada pelas próprias replicações.\n\nSeparar aleatoriedade de Monte Carlo de incerteza amostral evita conclusões erradas. Mais replicações reduzem ruído numérico condicional ao modelo; não compensam dados enviesados, parâmetros mal especificados ou premissas falsas. Em comparação de métodos, aplicar os mesmos números aleatórios aos dois métodos pode reduzir a variância da diferença, desde que o desenho pareado seja planejado e a análise respeite esse pareamento.\n\n### Como cai na prova\n\n- A transformação inversa parte de uma uniforme e da CDF-alvo; aceitação-rejeição usa proposta, limite de razão e descarte.\n- Monte Carlo aproxima uma quantidade definida pelo modelo, não demonstra que o modelo representa a população.\n- A ordem de convergência usual é `M^{-1/2}`; ganho de precisão custa muitas repetições.\n- Diferencie replicações de um procedimento da amostra observada usada para estimar seus parâmetros."
+    },
+    {
+      "title": "3. Avaliação numérica de estimadores, intervalos e testes",
+      "markdown": "### O problema que este assunto resolve\n\nUma simulação permite comparar um procedimento estatístico com o valor verdadeiro conhecido no cenário simulado. Escolhe-se uma população ou mecanismo gerador, definem-se parâmetros, repetem-se amostras e calcula-se o estimador, intervalo ou decisão de teste em cada repetição. Como o mecanismo foi especificado, pode-se medir desempenho que não é diretamente observável em uma única amostra real.\n\n> **Siglas e termos deste capítulo**\n> - **Viés**: média do estimador menos o parâmetro verdadeiro.\n> - **EQM**: erro quadrático médio, `E[(estimador - parâmetro)^2]`, igual a variância mais viés ao quadrado.\n> - **Cobertura**: proporção de intervalos simulados que contêm o parâmetro verdadeiro.\n> - **Tamanho**: probabilidade de rejeitar a hipótese nula quando ela é verdadeira.\n> - **Poder**: probabilidade de rejeitar a hipótese nula em um cenário alternativo especificado.\n\n### Um experimento de simulação bem definido\n\nEspecifique a pergunta, a população geradora, os tamanhos amostrais, os valores dos parâmetros, os métodos comparados e as métricas antes de executar. Em cada replicação, gere dados, ajuste o método, armazene a estimativa, o intervalo e a decisão. Resuma as replicações, reporte a incerteza Monte Carlo das métricas e inspecione falhas de convergência ou resultados ausentes. Um estudo que escolhe cenários ou métricas depois de ver os resultados pode favorecer artificialmente um método.\n\nO viés é aproximado pela média das estimativas menos o parâmetro. A variância é aproximada pela variância entre estimativas. O EQM empírico é a média dos erros ao quadrado; se o parâmetro é fixo em todas as replicações, também corresponde à variância empírica mais o quadrado do viés empírico, segundo as definições amostrais usadas. Um estimador enviesado pode ter EQM menor que um não enviesado se sua variância cair suficientemente. “Sem viés” isoladamente não significa “melhor”.\n\nPara intervalos com confiança nominal de 95%, cobertura empírica é a fração de intervalos que contêm o valor verdadeiro no conjunto simulado. Deve-se também observar largura média, assimetria e instabilidade: um intervalo muito largo pode cobrir bem sem ser informativo. Sob hipótese nula, a taxa de rejeição estima o tamanho; sob alternativas definidas, a taxa estima poder. Relatar apenas a porcentagem sem número de replicações esconde o erro Monte Carlo da própria avaliação.\n\n### Regressão e séries temporais simuladas\n\nNa regressão linear, um mecanismo básico é `Y_i = beta0 + beta1 X_i + epsilon_i`. A simulação deve declarar como `X` é gerado, a distribuição e variância dos erros, independência, tamanho da amostra e coeficientes. Ajusta-se o modelo em cada amostra e avaliam-se, por exemplo, viés de `beta1`, EQM, cobertura de intervalo e frequência de rejeição. Cenários com heterocedasticidade, erro não normal, colinearidade ou amostras pequenas testam robustez, mas só respondem à pergunta se o mecanismo for explicitado.\n\nEm séries temporais, a ordem das observações importa. Um processo AR(1) pode ser representado por `Y_t = phi Y_{t-1} + epsilon_t`; quando `|phi| < 1` e os erros são apropriados, a dependência entre tempos é parte do modelo. Não se deve embaralhar os valores como se fossem observações independentes. Para estudar o ajuste, gere a série conforme o mecanismo, ajuste o modelo e avalie parâmetros, previsões ou cobertura em replicações. A função `simulate` do R tem método para respostas de objetos ajustados `lm`/`glm`; para ARIMA, ferramentas próprias e parâmetros do processo definem a simulação.\n\n### Como cai na prova\n\n- A cobertura empírica avalia intervalos; a proporção de rejeição sob a nula avalia tamanho; sob alternativa, avalia poder.\n- EQM inclui viés e variância e pode favorecer estimador enviesado de baixa variância.\n- Simulação de regressão exige declarar a geração dos preditores e dos erros.\n- Em séries temporais, preserve a dependência temporal prevista no processo."
+    },
+    {
+      "title": "4. Bootstrap: reamostrar para estimar incerteza",
+      "markdown": "### O problema que este assunto resolve\n\nO bootstrap estima a variabilidade de um estimador usando dados disponíveis como aproximação da população, em vez de depender exclusivamente de uma fórmula analítica. No bootstrap não paramétrico ordinário, cada amostra reamostrada tem o mesmo tamanho da amostra original e é extraída com reposição das observações. Algumas observações aparecem várias vezes e outras ficam de fora; isso é parte do método, não duplicação acidental.\n\n> **Siglas e termos deste capítulo**\n> - **Amostra bootstrap**: amostra obtida por reamostragem dos dados ou de um modelo ajustado.\n> - **Replicação bootstrap**: valor do estimador calculado em uma amostra reamostrada.\n> - **Erro-padrão bootstrap**: desvio-padrão dos valores replicados do estimador.\n> - **Bootstrap paramétrico**: gera novas amostras de uma distribuição ajustada, com parâmetros estimados.\n> - **Bootstrap não paramétrico**: reamostra observações empíricas, respeitando o esquema amostral.\n\n### Passos e estimativa do erro-padrão\n\nCalcule o estimador original `t_hat`. Para cada replicação `b`, gere uma amostra bootstrap e recalcule `t_hat_b*`. A média dos valores bootstrap descreve o centro da distribuição empírica; seu desvio-padrão é o erro-padrão bootstrap estimado. Aumentar o número de reamostragens diminui o ruído de Monte Carlo da aproximação, mas não cria novas informações sobre regiões da população ausentes da amostra.\n\nNo bootstrap não paramétrico, o mecanismo ordinário é indicado para observações independentes e identicamente distribuídas. Para amostras estratificadas, conglomerados, pares ou séries temporais, a reamostragem precisa preservar o desenho ou a estrutura relevante, por exemplo sorteando unidades primárias ou blocos. Sortear linhas individuais de uma série e destruir sua autocorrelação geralmente não representa o processo de amostragem adequado.\n\nNo bootstrap paramétrico, ajusta-se uma distribuição ou modelo, estima-se seus parâmetros e gera-se cada réplica desse modelo. Em uma regressão, uma opção é gerar novos erros de acordo com a distribuição paramétrica assumida e formar novas respostas; a estratégia específica depende do alvo inferencial e das hipóteses. Esse método pode ser mais eficiente quando o modelo é correto, mas incorpora a forma paramétrica imposta. O não paramétrico é menos dependente de uma família especificada, mas limitado pela informação da amostra e pelo desenho de reamostragem.\n\n### Viés e cuidado de interpretação\n\nUma estimativa comum do viés bootstrap é `média(t_hat_b*) - t_hat`. Sob a aproximação de que o viés bootstrap representa o viés de amostragem, uma correção simples é `t_corr = t_hat - viés_boot = 2 t_hat - média(t_hat_b*)`. É uma correção aproximada, não uma garantia de melhora: pode aumentar variância e não resolve viés causado por seleção, medição ruim ou especificação inadequada. O resumo deve apresentar estimativa original, viés estimado, erro-padrão e método de reamostragem.\n\n### Como cai na prova\n\n- O bootstrap não paramétrico ordinário reamostra com reposição da amostra empírica.\n- Erro-padrão bootstrap é o desvio-padrão dos estimadores nas réplicas, não a média deles.\n- No paramétrico, as réplicas vêm do modelo ajustado; no não paramétrico, vêm das observações.\n- Corrigir o centro por viés estimado não corrige automaticamente erro de modelo ou amostragem."
+    },
+    {
+      "title": "5. Intervalos e testes bootstrap",
+      "markdown": "### O problema que este assunto resolve\n\nA distribuição de replicações bootstrap aproxima a distribuição amostral do estimador e pode sustentar intervalos e testes quando a aproximação normal simples é inadequada. Há métodos distintos: eles não são sinônimos nem produzem necessariamente os mesmos limites. A escolha depende do parâmetro, da forma da distribuição, do plano de amostragem e de hipóteses que devem ser justificadas.\n\n> **Siglas e termos deste capítulo**\n> - **Percentil**: usa quantis empíricos da distribuição bootstrap como limites.\n> - **Básico**: reflete quantis bootstrap em torno da estimativa observada.\n> - **Studentizado**: usa estatística padronizada por erro-padrão, exigindo variâncias apropriadas.\n> - **BCa**: intervalo com correção de viés e aceleração, que ajusta a posição dos quantis.\n> - **Hipótese nula**: valor ou restrição que o procedimento de teste avalia.\n\n### Intervalos de confiança\n\nPara um intervalo percentil bilateral de nível `1-alpha`, tomam-se aproximadamente os quantis `alpha/2` e `1-alpha/2` dos estimadores bootstrap. A vantagem é a leitura direta da distribuição replicada; a limitação é que ele não corrige por si só todo viés ou assimetria. O intervalo básico reflete os quantis das diferenças em relação à estimativa original. A aproximação normal usa estimativa e erro-padrão bootstrap, podendo incorporar correção do centro. O studentizado compara desvios escalados por erros-padrão de cada réplica e exige estimativas de variância correspondentes.\n\nBCa ajusta os quantis pela posição da estimativa observada na distribuição bootstrap e pela aceleração, frequentemente calculada via jackknife ou valores de influência. Essa correção pode melhorar cobertura em certas situações, mas não elimina problemas de amostras pequenas, estatísticas não regulares, observações influentes extremas ou desenho de reamostragem incompatível. O pacote `boot` do R disponibiliza, em `boot.ci`, métodos normal, básico, studentizado, percentil e BCa para objetos de bootstrap; fornecer um intervalo não certifica que os pressupostos do estudo foram atendidos.\n\n### Testes de hipóteses por bootstrap\n\nPara testar `H0: theta = theta0`, a distribuição usada para calcular a probabilidade de resultados tão extremos quanto o observado precisa refletir a hipótese nula. Uma estratégia é gerar dados sob o modelo restrito pela nula, recalcular a estatística em cada réplica e comparar os resultados com o observado. Outra abordagem relaciona testes e intervalos por inversão, desde que a construção e a calibração sejam coerentes. Reamostrar dados sem impor a nula e simplesmente contar estatísticas extremas pode produzir uma referência incorreta para certos testes.\n\nA estimativa Monte Carlo do valor-p é a fração de estatísticas replicadas pelo menos tão extremas quanto a observada, de acordo com alternativa definida; métodos de simulação frequentemente usam ajuste que evita reportar valor-p zero quando nenhuma réplica excede o observado. A resolução é limitada pelo número de réplicas. Assim, não se deve interpretar muitos algarismos em um valor-p bootstrap calculado com poucas simulações.\n\n### Como cai na prova\n\n- Percentil usa quantis; básico reflete desvios; studentizado usa escala variável; BCa ajusta viés e aceleração.\n- Para teste bootstrap, a distribuição de referência deve representar o cenário imposto pela hipótese nula.\n- O número de réplicas limita a resolução numérica; mais réplicas reduzem erro de Monte Carlo, não o viés estrutural.\n- Intervalos e testes bootstrap continuam sujeitos ao plano amostral e às limitações dos dados."
+    }
+  ],
+  "summary": "A computação estatística usa algoritmos para resumir dados e aproximar distribuições de estimadores, intervalos e testes. PSPP oferece recursos de análise e gráficos; R fornece funções de distribuição, geração aleatória, modelos e testes; RStudio organiza a edição e execução de código R. Com semente registrada, uma sequência pseudoaleatória pode ser reproduzida. Monte Carlo aproxima quantidades por repetições e seu erro típico decresce na ordem de 1/raiz do número de repetições. Simulações avaliam viés, variância, erro quadrático médio, cobertura, tamanho e poder somente em relação ao mecanismo gerador especificado. Em regressão, as hipóteses sobre preditores e erros precisam ser explícitas; em séries temporais, preserva-se dependência temporal. O bootstrap não paramétrico reamostra observações com reposição; o paramétrico gera dados do modelo ajustado. O desvio-padrão dos estimadores reamostrados estima o erro-padrão, e métodos percentil, básico, normal, studentizado e BCa constroem intervalos distintos. Correção de viés e testes bootstrap são aproximações cujo êxito depende de uma reamostragem coerente com o desenho e com a hipótese avaliada.",
+  "flashcards": [
+    {"front":"O que significa fixar a semente do gerador pseudoaleatório?","back":"Definir o estado inicial para reproduzir a sequência aleatória sob a mesma configuração e versão compatível do gerador."},
+    {"front":"Qual função do R gera uniformes entre limites especificados?","back":"`runif(n, min, max)`, que gera n valores uniformes no intervalo definido pelos limites."},
+    {"front":"Qual é o papel do RStudio em relação ao R?","back":"É um ambiente integrado que organiza editor, console, arquivos, gráficos e ajuda para trabalhar com R."},
+    {"front":"O que um rótulo de variável faz no PSPP?","back":"Acrescenta uma descrição legível ao nome abreviado; não muda a natureza nem os valores da variável."},
+    {"front":"Como funciona a transformação inversa?","back":"Gera U uniforme e calcula F inversa de U para obter uma variável com função de distribuição F."},
+    {"front":"Qual condição orienta a aceitação-rejeição?","back":"A densidade-alvo deve ser limitada por M vezes a densidade proposta; aceita-se a proposta com probabilidade f(y)/(M g(y))."},
+    {"front":"O que estima uma média de Monte Carlo?","back":"Uma esperança ou quantidade probabilística definida pelo mecanismo simulado, pela média dos valores calculados nas repetições."},
+    {"front":"Como varia aproximadamente o erro de Monte Carlo com M?","back":"Na ordem de 1/raiz de M; multiplicar M por quatro tende a reduzir o erro pela metade."},
+    {"front":"Como se calcula o viés de um estimador?","back":"Esperança do estimador menos o parâmetro verdadeiro; em simulação, aproxima-se pela média das estimativas menos o valor conhecido."},
+    {"front":"Como se relacionam EQM, variância e viés?","back":"EQM é variância mais o quadrado do viés, para o estimador em relação ao parâmetro fixo."},
+    {"front":"O que é cobertura empírica de um intervalo?","back":"Fração das amostras simuladas cujos intervalos incluem o parâmetro verdadeiro."},
+    {"front":"Como se avalia o tamanho empírico de um teste?","back":"Pela proporção de rejeições em simulações nas quais a hipótese nula é verdadeira."},
+    {"front":"Como se estima o poder de um teste por simulação?","back":"Calcula-se a proporção de rejeições em replicações sob um cenário alternativo especificado."},
+    {"front":"Que estrutura deve ser declarada ao simular regressão?","back":"Geração dos preditores, coeficientes, distribuição e variância dos erros, tamanho amostral e hipóteses do modelo."},
+    {"front":"Por que não se embaralha uma série temporal no bootstrap comum?","back":"O embaralhamento destrói a ordem e pode eliminar autocorrelação que faz parte do processo gerador."},
+    {"front":"Como são formadas as amostras do bootstrap não paramétrico ordinário?","back":"Por sorteio com reposição das observações empíricas, mantendo o tamanho da amostra original."},
+    {"front":"De onde vêm os dados do bootstrap paramétrico?","back":"De uma distribuição ou modelo ajustado com parâmetros estimados a partir da amostra observada."},
+    {"front":"Como o bootstrap estima o erro-padrão?","back":"Calcula o desvio-padrão dos valores do estimador obtidos nas amostras bootstrap."},
+    {"front":"Qual é o intervalo percentil?","back":"Intervalo cujos limites são quantis empíricos da distribuição dos estimadores reamostrados."},
+    {"front":"O que BCa ajusta?","back":"A posição dos quantis para corrigir viés e aceleração da distribuição bootstrap."},
+    {"front":"O que exige um intervalo studentizado?","back":"Estatísticas bootstrap escaladas por seus erros-padrão e estimativas de variância adequadas."},
+    {"front":"Como construir uma referência bootstrap para testar uma hipótese nula?","back":"Gerar amostras sob o modelo restringido pela nula e recalcular a estatística de teste em cada réplica."}
+  ],
+  "tips": [
+    "Use `set.seed` antes da etapa aleatória e registre também o modelo, a amostra e a configuração do gerador.",
+    "Antes de resumir dados, confira codificação, rótulos, níveis de medida e valores ausentes.",
+    "Em Monte Carlo, informe a quantidade estimada, o número de replicações e a incerteza numérica da aproximação.",
+    "Na avaliação de um teste, simule separadamente cenários sob a hipótese nula e sob alternativas relevantes.",
+    "Escolha o esquema bootstrap pela unidade amostral: indivíduos, pares, conglomerados ou blocos temporais.",
+    "Ao relatar intervalo bootstrap, diga o método usado e não confunda precisão Monte Carlo com validade inferencial."
+  ],
+  "traps": [
+    "Confundir RStudio com R: a IDE organiza o trabalho; as funções estatísticas pertencem ao R e seus pacotes.",
+    "Tratar códigos categóricos como medidas quantitativas só porque foram gravados como números.",
+    "Achar que fixar semente torna o gerador aleatório verdadeiro ou corrige a especificação do modelo.",
+    "Afirmar que mais replicações eliminam viés de modelo, seleção da amostra ou erro de medição.",
+    "Reamostrar observações independentes de uma série como se a autocorrelação não importasse.",
+    "Interpretar o desvio-padrão das réplicas bootstrap como erro dos dados observados, e não do estimador."
+  ],
+  "activeRecall": [
+    {"question":"Descreva o fluxo entre uma variável no arquivo, sua definição e uma análise no PSPP ou no R.","answer":"Defina nome, tipo, rótulos, nível de medida e códigos ausentes; confira valores; escolha estatística ou gráfico compatível com a pergunta e com o desenho; interprete a saída no contexto dos dados."},
+    {"question":"Compare transformação inversa e aceitação-rejeição.","answer":"A transformação inversa aplica a inversa da CDF a uma uniforme e é conveniente quando a inversa está disponível. Aceitação-rejeição usa uma distribuição proposta e aceita cada proposta com uma probabilidade calculada para reproduzir a densidade-alvo."},
+    {"question":"Por que o erro de Monte Carlo não cai linearmente com o número de repetições?","answer":"A média de variáveis aleatórias independentes tem erro-padrão proporcional ao desvio-padrão dividido pela raiz do número de observações; por isso quadruplicar as repetições costuma reduzir o erro pela metade."},
+    {"question":"Em uma simulação de cobertura, que dados precisam ser registrados por replicação?","answer":"O intervalo calculado, o indicador de conter o parâmetro, eventuais falhas de ajuste e as condições do cenário; a média dos indicadores estima cobertura e também tem erro Monte Carlo."},
+    {"question":"Como comparar viés e EQM de dois estimadores?","answer":"Calcule para cada método a média das estimativas, o desvio em relação ao parâmetro, a variância e a média dos erros quadráticos; não conclua superioridade apenas por viés menor."},
+    {"question":"Como simular um modelo de regressão linear para avaliar o teste de inclinação?","answer":"Escolha coeficientes, mecanismo dos preditores e erros, gere amostras sob inclinação nula para avaliar tamanho e sob inclinações alternativas para avaliar poder; ajuste e teste em cada réplica."},
+    {"question":"Por que a reamostragem de uma série temporal exige cuidado?","answer":"As observações sucessivas podem ser dependentes; a amostragem de linhas isoladas remove a ordem e altera a estrutura temporal, então o método deve preservar dependência, por exemplo por blocos ou modelo."},
+    {"question":"Diferencie bootstrap paramétrico e não paramétrico e indique uma limitação de cada um.","answer":"O paramétrico gera réplicas do modelo ajustado e depende de sua adequação. O não paramétrico sorteia observações empíricas com reposição e não cria informação sobre regiões da população ausentes da amostra."},
+    {"question":"Como se obtém uma estimativa bootstrap do erro-padrão e do viés?","answer":"O erro-padrão é o desvio-padrão das estimativas reamostradas; o viés estimado é a média dessas estimativas menos a estimativa original."}
+  ],
+  "errorConcepts": [
+    {"key":"e1","title":"Reprodutibilidade confundida com validade","summary":"Semente e ambiente registrado permitem repetir cálculos pseudoaleatórios, mas não asseguram independência, amostragem representativa, especificação correta ou interpretação causal."},
+    {"key":"e2","title":"Métricas de simulação trocadas","summary":"Viés mede deslocamento médio; variância mede dispersão; EQM combina ambos; cobertura avalia intervalos; tamanho e poder dependem, respectivamente, de cenários nulos e alternativos."},
+    {"key":"e3","title":"Reamostragem que ignora o desenho","summary":"Bootstrap por linhas independentes não é adequado automaticamente a pares, estratos, conglomerados ou séries autocorrelacionadas; a unidade e a estrutura do sorteio devem ser preservadas."},
+    {"key":"e4","title":"Distribuições de referência incompatíveis","summary":"Intervalos percentil, básico, studentizado e BCa fazem ajustes diferentes; em teste bootstrap, a geração precisa refletir a hipótese nula para calibrar a distribuição de referência."},
+    {"key":"e5","title":"Mais réplicas tratadas como solução universal","summary":"Aumentar replicações reduz o ruído Monte Carlo, mas não corrige amostra inadequada, viés estrutural, hipótese errada nem ausência de observações relevantes."}
+  ],
+  "questions": [
+    {
+      "statement":"No GNU PSPP, uma analista quer conhecer média, desvio-padrão, mínimo e máximo de uma variável quantitativa. Qual procedimento atende diretamente a esse objetivo?",
+      "format":"MULTIPLE_CHOICE","difficulty":"FACIL",
+      "options":[
+        {"key":"A","text":"Executar DESCRIPTIVES para a variável e solicitar as estatísticas lineares desejadas.","correct":true},
+        {"key":"B","text":"Executar NPAR TESTS para obter a distribuição descritiva completa da escala.","correct":false},
+        {"key":"C","text":"Executar GRAPH para calcular os momentos e gravá-los como variáveis novas.","correct":false},
+        {"key":"D","text":"Executar T-TEST, que sempre imprime a média sem definir grupos de comparação.","correct":false},
+        {"key":"E","text":"Executar REGRESSION, que resume qualquer variável sem especificar preditores.","correct":false}],
+      "explanation":"DESCRIPTIVES resume variáveis numéricas e permite solicitar média, desvio-padrão, mínimo e máximo. NPAR TESTS executa testes não paramétricos; GRAPH constrói gráficos; T-TEST compara médias em configurações apropriadas; REGRESSION ajusta um modelo com variáveis definidas.",
+      "section":"1. Dados, programas estatísticos e geração aleatória","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Em uma base do PSPP, a variável setor usa os códigos 1, 2 e 3 para departamentos sem ordem natural. Como interpretar adequadamente essa codificação?",
+      "format":"MULTIPLE_CHOICE","difficulty":"FACIL",
+      "options":[
+        {"key":"A","text":"Os códigos formam uma escala de intervalo, pois crescem de uma unidade em cada categoria.","correct":false},
+        {"key":"B","text":"A variável é nominal; rótulos de valores podem esclarecer o departamento representado por cada código.","correct":true},
+        {"key":"C","text":"A variável é ordinal porque números inteiros sempre estabelecem uma ordem substantiva entre categorias.","correct":false},
+        {"key":"D","text":"A variável é contínua, pois o programa armazena os códigos em formato numérico.","correct":false},
+        {"key":"E","text":"A média dos códigos indica o departamento típico, ainda que as categorias não tenham ordem.","correct":false}],
+      "explanation":"Os números são identificadores de categorias sem ordenação substantiva, portanto a escala é nominal. Rótulos tornam a codificação legível, mas não atribuem distância nem ordem aos departamentos; a média dos códigos não tem interpretação de departamento típico.",
+      "section":"1. Dados, programas estatísticos e geração aleatória","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma rotina em R precisa que uma execução posterior reproduza os mesmos sorteios para fins de depuração. Qual recurso atende a esse requisito?",
+      "format":"MULTIPLE_CHOICE","difficulty":"FACIL",
+      "options":[
+        {"key":"A","text":"Usar `summary()` antes de cada chamada para reiniciar automaticamente a sequência aleatória.","correct":false},
+        {"key":"B","text":"Salvar somente o gráfico produzido, pois ele armazena o estado do gerador.","correct":false},
+        {"key":"C","text":"Definir uma semente com `set.seed()` antes das operações aleatórias relevantes.","correct":true},
+        {"key":"D","text":"Abrir o mesmo projeto RStudio, que fixa por padrão a semente de todos os scripts.","correct":false},
+        {"key":"E","text":"Converter os sorteios em fatores, o que impede o gerador de avançar.","correct":false}],
+      "explanation":"`set.seed()` inicializa o estado do RNG e permite reproduzir a sequência pseudoaleatória sob configuração compatível. `summary()` e fatores não reinicializam o gerador, salvar um gráfico não guarda esse estado e um projeto RStudio não fixa automaticamente sementes.",
+      "section":"1. Dados, programas estatísticos e geração aleatória","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"No RStudio, onde a pessoa normalmente digita comandos interativos e recebe a saída da execução no R?",
+      "format":"MULTIPLE_CHOICE","difficulty":"FACIL",
+      "options":[
+        {"key":"A","text":"No painel Files, que interpreta comandos e armazena os resultados numéricos.","correct":false},
+        {"key":"B","text":"No painel Plots, que serve como terminal e executa expressões estatísticas.","correct":false},
+        {"key":"C","text":"No painel Help, que recebe comandos e grava as variáveis no ambiente.","correct":false},
+        {"key":"D","text":"No Console, que executa expressões e apresenta a saída produzida pelo R.","correct":true},
+        {"key":"E","text":"No painel Environment, que substitui o interpretador quando um projeto está aberto.","correct":false}],
+      "explanation":"O Console é a área de interação direta com o R. O editor prepara scripts, Files navega por arquivos, Plots exibe gráficos, Help mostra documentação e Environment lista objetos disponíveis.",
+      "section":"1. Dados, programas estatísticos e geração aleatória","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma pesquisa codificou respostas de satisfação como baixa, média e alta. Ao definir a variável, qual descrição preserva a informação de mensuração?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"Nominal, porque toda resposta textual perde qualquer ordem quando recebe um código numérico.","correct":false},
+        {"key":"B","text":"Escala, porque os três níveis podem ser armazenados como 1, 2 e 3.","correct":false},
+        {"key":"C","text":"Contínua, desde que o sistema use números inteiros para facilitar as tabelas.","correct":false},
+        {"key":"D","text":"Dicotômica, pois uma resposta média pode ser agrupada junto com uma das extremidades.","correct":false},
+        {"key":"E","text":"Ordinal, pois há ordenação entre categorias, sem que isso prove distâncias iguais entre níveis.","correct":true}],
+      "explanation":"Baixa, média e alta têm ordem, mas a codificação não demonstra intervalos iguais entre respostas. Por isso, a classificação ordinal é adequada; armazenar em números não transforma categorias em escala contínua.",
+      "section":"1. Dados, programas estatísticos e geração aleatória","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"A documentação de um relatório informa que PSPP executa tabelas, estatísticas descritivas, gráficos e procedimentos inferenciais. O que se pode concluir com segurança sobre o programa?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"É um programa de análise estatística de dados amostrais, com procedimentos implementados em diferentes graus.","correct":true},
+        {"key":"B","text":"É uma interface gráfica do R e depende da instalação do RStudio para toda análise.","correct":false},
+        {"key":"C","text":"É exclusivamente um editor de planilhas, sem linguagem de comandos ou testes inferenciais.","correct":false},
+        {"key":"D","text":"É um pacote que executa todos os procedimentos estatísticos de SPSS sem diferenças de suporte.","correct":false},
+        {"key":"E","text":"É uma biblioteca destinada apenas a importar bases, sem calcular tabelas ou gráficos.","correct":false}],
+      "explanation":"O GNU PSPP é um programa para análise estatística de dados amostrais, com linguagem de comandos e saída tabular ou gráfica. Seu manual esclarece que o suporte a procedimentos está em desenvolvimento; ele não é interface do R nem garante paridade integral com outro produto.",
+      "section":"1. Dados, programas estatísticos e geração aleatória","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"O painel Plots do RStudio exibe um gráfico produzido pelo R e a interface organiza a visualização sem substituir o cálculo estatístico do R. Certo ou errado?",
+      "format":"TRUE_FALSE","difficulty":"FACIL",
+      "options":[{"key":"C","text":"Certo","correct":true},{"key":"E","text":"Errado","correct":false}],
+      "explanation":"Certo. O R executa os comandos e produz o gráfico; RStudio oferece um painel para visualizá-lo e ferramentas para organizar a sessão. A interface não substitui o mecanismo de cálculo do R.",
+      "section":"1. Dados, programas estatísticos e geração aleatória","errorConceptKey":"e1","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"No R, `sample(x, size, replace = TRUE)` pode sortear elementos de `x` com reposição, permitindo que um mesmo elemento seja selecionado mais de uma vez. Certo ou errado?",
+      "format":"TRUE_FALSE","difficulty":"FACIL",
+      "options":[{"key":"C","text":"Certo","correct":true},{"key":"E","text":"Errado","correct":false}],
+      "explanation":"Certo. Com `replace = TRUE`, cada seleção não remove o elemento do conjunto de possibilidades; portanto uma unidade pode reaparecer. Essa característica é usada no bootstrap ordinário.",
+      "section":"1. Dados, programas estatísticos e geração aleatória","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma pessoa atribui rótulos a códigos de uma variável nominal no PSPP e passa a interpretar a média desses códigos como distância quantitativa entre categorias. Certo ou errado: o rótulo, por si só, legitima essa interpretação.",
+      "format":"TRUE_FALSE","difficulty":"MEDIA",
+      "options":[{"key":"C","text":"Certo","correct":false},{"key":"E","text":"Errado","correct":true}],
+      "explanation":"Errado. Rótulos apenas associam descrições aos códigos. A escala nominal não fornece ordem nem distâncias quantitativas, e a média dos identificadores depende de uma codificação arbitrária.",
+      "section":"1. Dados, programas estatísticos e geração aleatória","errorConceptKey":"e1","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Para simular uma exponencial de taxa `lambda` usando transformação inversa, qual construção a partir de `U` uniforme em (0,1) é apropriada?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"Definir `X = lambda * U`, que produz a cauda exponencial para qualquer taxa positiva.","correct":false},
+        {"key":"B","text":"Definir `X = -log(U)/lambda`, que transforma a uniforme pela inversa da CDF exponencial.","correct":true},
+        {"key":"C","text":"Definir `X = U^lambda`, que produz média sempre igual ao inverso da taxa.","correct":false},
+        {"key":"D","text":"Definir `X = log(U) * lambda`, que gera valores não negativos com suporte ilimitado.","correct":false},
+        {"key":"E","text":"Definir `X = 1-U`, que transforma toda uniforme em uma exponencial de média unitária.","correct":false}],
+      "explanation":"A inversa da CDF exponencial resulta em `-log(1-U)/lambda`; como `1-U` também é uniforme, `-log(U)/lambda` tem a distribuição desejada. As demais expressões não produzem essa lei e, em alguns casos, geram valores negativos ou limitados.",
+      "section":"2. Simulação de variáveis e método de Monte Carlo","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Em uma aceitação-rejeição, a densidade proposta cobre a densidade-alvo quando `f(y) <= M g(y)` para todo y. Qual é a regra de aceitação após sortear `Y` de g e `U` uniforme?",
+      "format":"MULTIPLE_CHOICE","difficulty":"DIFICIL",
+      "options":[
+        {"key":"A","text":"Aceitar Y se `U` for maior que `M g(Y)/f(Y)`, descartando valores com alvo maior.","correct":false},
+        {"key":"B","text":"Aceitar Y sempre que `f(Y)` for menor que `g(Y)`, sem gerar uniforme adicional.","correct":false},
+        {"key":"C","text":"Aceitar Y se `U <= f(Y)/(M g(Y))`; caso contrário, rejeitar e propor outro valor.","correct":true},
+        {"key":"D","text":"Aceitar Y se `M g(Y)` for menor que um, independentemente do valor observado em Y.","correct":false},
+        {"key":"E","text":"Aceitar Y se `U <= M g(Y)/f(Y)`, usando essa razão sem limitar a probabilidade a um.","correct":false}],
+      "explanation":"A razão `f(Y)/(M g(Y))` é a probabilidade de aceitação e está entre zero e um pela condição de cobertura. Essa regra corrige o excesso da distribuição proposta; a razão inversa pode exceder um ou aceitar com padrão incorreto.",
+      "section":"2. Simulação de variáveis e método de Monte Carlo","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma média de Monte Carlo estima `E[h(X)]` com M sorteios independentes e variância finita. Qual ordem descreve o erro-padrão típico dessa média?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"A ordem de `1/M`, de modo que duplicar M costuma dividir o erro-padrão por dois.","correct":false},
+        {"key":"B","text":"A ordem de `1/sqrt(M)`, de modo que quadruplicar M tende a reduzir o erro pela metade.","correct":true},
+        {"key":"C","text":"A ordem de `sqrt(M)`, pois cada nova repetição acrescenta uma fonte independente de erro.","correct":false},
+        {"key":"D","text":"A ordem constante, pois aleatoriedade impede qualquer melhora com aumento das replicações.","correct":false},
+        {"key":"E","text":"A ordem de `1/M^2`, desde que a quantidade estimada seja uma probabilidade.","correct":false}],
+      "explanation":"O erro-padrão da média é o desvio-padrão de `h(X)` dividido por `sqrt(M)`. Assim, multiplicar o número de simulações por quatro tende a reduzir esse erro à metade; não existe a redução linear de `1/M` atribuída à média em geral.",
+      "section":"2. Simulação de variáveis e método de Monte Carlo","errorConceptKey":"e5","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma variável discreta assume valores 0, 1 e 2 com probabilidades 0,2, 0,5 e 0,3. Como a transformação inversa pode atribuir valores a `U` uniforme em (0,1)?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"Associar a 0 uma faixa de comprimento 0,2, a 1 a faixa seguinte de 0,5 e a 2 a faixa restante de 0,3.","correct":true},
+        {"key":"B","text":"Dividir o intervalo unitário em três faixas de igual comprimento para refletir os três valores possíveis.","correct":false},
+        {"key":"C","text":"Usar faixas de comprimentos 0,3, 0,5 e 0,2, ordenadas conforme a magnitude dos resultados.","correct":false},
+        {"key":"D","text":"Arredondar `2U` ao inteiro mais próximo, pois a distribuição tem três categorias consecutivas.","correct":false},
+        {"key":"E","text":"Sortear o valor 0, 1 ou 2 por `runif` sem considerar as probabilidades indicadas.","correct":false}],
+      "explanation":"Os comprimentos dos intervalos precisam coincidir com as probabilidades acumuladas: 0,2 para o resultado 0, depois 0,5 para o resultado 1 e 0,3 para o resultado 2. Faixas iguais ou probabilidades trocadas gerariam outra distribuição.",
+      "section":"2. Simulação de variáveis e método de Monte Carlo","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Em um experimento Monte Carlo, o valor verdadeiro de uma integral é definido pelo modelo e a estimativa é a média de resultados aleatórios. Certo ou errado: aumentar o número de replicações reduz o ruído de Monte Carlo, mas não corrige a escolha de um modelo inadequado.",
+      "format":"TRUE_FALSE","difficulty":"FACIL",
+      "options":[{"key":"C","text":"Certo","correct":true},{"key":"E","text":"Errado","correct":false}],
+      "explanation":"Certo. Mais replicações estabilizam a aproximação numérica em torno da quantidade definida pelo modelo. Se o modelo ou seus parâmetros não representam o problema substantivo, uma aproximação mais precisa ainda será da quantidade errada.",
+      "section":"2. Simulação de variáveis e método de Monte Carlo","errorConceptKey":"e5","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Na aceitação-rejeição, uma proposta `g` que cobre a densidade-alvo com constante M garante que todos os valores propostos serão aceitos, pois a cobertura impede descarte. Certo ou errado?",
+      "format":"TRUE_FALSE","difficulty":"MEDIA",
+      "options":[{"key":"C","text":"Certo","correct":false},{"key":"E","text":"Errado","correct":true}],
+      "explanation":"Errado. A condição de cobertura torna válida a probabilidade de aceitação, mas ela pode ser menor que um. Há rejeições, e uma proposta eficiente é aquela que limita rejeições excessivas sem violar a condição matemática.",
+      "section":"2. Simulação de variáveis e método de Monte Carlo","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Duas técnicas de Monte Carlo são comparadas usando números aleatórios comuns em cada repetição, e depois se calcula a diferença pareada entre seus resultados. Certo ou errado: esse desenho pode reduzir a variância da comparação quando os resultados ficam positivamente correlacionados.",
+      "format":"TRUE_FALSE","difficulty":"DIFICIL",
+      "options":[{"key":"C","text":"Certo","correct":true},{"key":"E","text":"Errado","correct":false}],
+      "explanation":"Certo. Para resultados positivamente correlacionados, a variância da diferença pareada pode ser menor que a variância de uma diferença entre execuções independentes. O desenho precisa parear as replicações corretamente e comparar a estatística da diferença.",
+      "section":"2. Simulação de variáveis e método de Monte Carlo","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Em 5.000 amostras simuladas, um estimador de um parâmetro conhecido apresenta média 4,8, enquanto o valor verdadeiro é 5. Qual é a estimativa de viés obtida nesse experimento?",
+      "format":"MULTIPLE_CHOICE","difficulty":"FACIL",
+      "options":[
+        {"key":"A","text":"Uma estimativa de viés igual a 0,2, dada pela diferença entre valor verdadeiro e média simulada.","correct":false},
+        {"key":"B","text":"Uma estimativa de viés igual a 5,0, que corresponde ao valor do parâmetro especificado.","correct":false},
+        {"key":"C","text":"Uma estimativa de viés igual a 4,8, pois viés é a média das estimativas obtidas.","correct":false},
+        {"key":"D","text":"Uma estimativa de viés igual a -0,2, dada pela média simulada menos o parâmetro verdadeiro.","correct":true},
+        {"key":"E","text":"Uma estimativa de viés igual a 0,04, obtida ao elevar a diferença entre média e parâmetro ao quadrado.","correct":false}],
+      "explanation":"O viés é a esperança do estimador menos o parâmetro. Pela aproximação Monte Carlo, `4,8 - 5 = -0,2`, indicando subestimação média. O quadrado da diferença é a parcela de viés ao quadrado no EQM, não o viés.",
+      "section":"3. Avaliação numérica de estimadores, intervalos e testes","errorConceptKey":"e2","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Um intervalo de confiança nominal de 95% contém o parâmetro verdadeiro em 92% de 2.000 amostras simuladas. Qual métrica esse resultado estima?",
+      "format":"MULTIPLE_CHOICE","difficulty":"FACIL",
+      "options":[
+        {"key":"A","text":"A cobertura empírica do procedimento de intervalo, que ficou abaixo do nível nominal no cenário simulado.","correct":true},
+        {"key":"B","text":"O poder do teste associado, pois cada intervalo que contém o parâmetro equivale a uma rejeição.","correct":false},
+        {"key":"C","text":"O tamanho do teste, que é a proporção de intervalos contendo o valor verdadeiro.","correct":false},
+        {"key":"D","text":"O erro-padrão Monte Carlo da estimativa pontual, calculado diretamente como 0,92.","correct":false},
+        {"key":"E","text":"A probabilidade de o parâmetro ser aleatório e assumir o valor observado em cada amostra.","correct":false}],
+      "explanation":"A fração de intervalos que cobrem o valor verdadeiro estima a cobertura frequentista no cenário simulado. Poder e tamanho referem-se a decisões de teste; 0,92 é a estimativa da cobertura, não o erro-padrão de uma estimativa pontual.",
+      "section":"3. Avaliação numérica de estimadores, intervalos e testes","errorConceptKey":"e2","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma pesquisadora avalia a taxa de rejeição de um teste quando a hipótese nula é verdadeira. Qual propriedade está sendo estimada?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"O viés do estimador, calculado pela diferença entre a taxa de rejeição e o parâmetro nulo.","correct":false},
+        {"key":"B","text":"A cobertura do intervalo, pois decisões de rejeição são limites de confiança simulados.","correct":false},
+        {"key":"C","text":"O tamanho do teste no cenário nulo, aproximado pela proporção de rejeições simuladas.","correct":true},
+        {"key":"D","text":"O poder do teste sob alternativa, ainda que o mecanismo mantenha verdadeira a hipótese nula.","correct":false},
+        {"key":"E","text":"O erro quadrático médio da estatística, porque qualquer rejeição corresponde a erro ao quadrado.","correct":false}],
+      "explanation":"O tamanho é a probabilidade de rejeitar a hipótese nula quando ela é verdadeira. Sua estimativa de simulação é a proporção de rejeições sob cenários nulos; poder exige simular cenários alternativos.",
+      "section":"3. Avaliação numérica de estimadores, intervalos e testes","errorConceptKey":"e2","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Considere dois estimadores do mesmo parâmetro: um não enviesado e muito variável, outro levemente enviesado e concentrado. Qual comparação é apropriada?",
+      "format":"MULTIPLE_CHOICE","difficulty":"DIFICIL",
+      "options":[
+        {"key":"A","text":"O não enviesado sempre tem menor erro quadrático médio, pois viés diferente de zero é sempre pior.","correct":false},
+        {"key":"B","text":"O enviesado sempre é preferível, pois uma variância pequena garante erro total mínimo.","correct":false},
+        {"key":"C","text":"A variância decide sozinha a comparação quando os estimadores têm o mesmo parâmetro-alvo.","correct":false},
+        {"key":"D","text":"Basta comparar os valores em uma amostra observada, pois a propriedade depende de um único conjunto de dados.","correct":false},
+        {"key":"E","text":"Compare variância mais viés ao quadrado, pois EQM considera os dois componentes do erro.","correct":true}],
+      "explanation":"Para um parâmetro fixo, `EQM = variância + viés²`. Um estimador enviesado pode ter EQM menor se a redução de variância compensar o viés ao quadrado; a propriedade deve ser avaliada no cenário relevante, não em uma única amostra.",
+      "section":"3. Avaliação numérica de estimadores, intervalos e testes","errorConceptKey":"e2","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Em simulação sob uma alternativa específica, 720 de 1.000 testes rejeitam a hipótese nula. Como interpretar essa fração?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"Como cobertura empírica do teste, já que as amostras não foram geradas sob a hipótese nula.","correct":false},
+        {"key":"B","text":"Como estimativa do poder do teste para a alternativa e as condições simuladas.","correct":true},
+        {"key":"C","text":"Como tamanho do teste universal para todos os valores possíveis do parâmetro.","correct":false},
+        {"key":"D","text":"Como viés do estimador, pois rejeição mede a diferença média das estimativas.","correct":false},
+        {"key":"E","text":"Como probabilidade exata de rejeição em qualquer população, independentemente do tamanho amostral.","correct":false}],
+      "explanation":"Sob uma alternativa fixada, a proporção de rejeições estima o poder nas condições do experimento. O resultado não é universal: depende do tamanho amostral, do efeito, da distribuição dos dados e do teste utilizado.",
+      "section":"3. Avaliação numérica de estimadores, intervalos e testes","errorConceptKey":"e2","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma simulação informa taxa de cobertura estimada com muitas casas decimais, mas usa poucas centenas de replicações. Certo ou errado: a taxa também tem incerteza Monte Carlo e não deve ser tratada como exata.",
+      "format":"TRUE_FALSE","difficulty":"MEDIA",
+      "options":[{"key":"C","text":"Certo","correct":true},{"key":"E","text":"Errado","correct":false}],
+      "explanation":"Certo. A cobertura estimada é uma proporção de indicadores aleatórios e, portanto, varia entre execuções. Relatar precisão numérica compatível com o número de replicações e quantificar o erro Monte Carlo evita falsa exatidão.",
+      "section":"3. Avaliação numérica de estimadores, intervalos e testes","errorConceptKey":"e5","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Em todas as replicações de uma avaliação, o mecanismo gerador mantém verdadeira a hipótese nula e a taxa de rejeição do teste é 0,04. Certo ou errado: essa proporção estima o tamanho empírico do teste nesse cenário.",
+      "format":"TRUE_FALSE","difficulty":"FACIL",
+      "options":[{"key":"C","text":"Certo","correct":true},{"key":"E","text":"Errado","correct":false}],
+      "explanation":"Certo. Como a hipótese nula foi mantida verdadeira, a taxa de rejeição estima o tamanho empírico do teste. Para estimar poder é necessário especificar uma alternativa e simular dados sob ela.",
+      "section":"3. Avaliação numérica de estimadores, intervalos e testes","errorConceptKey":"e2","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma simulação de cobertura escolhe o parâmetro verdadeiro depois de observar os limites de cada intervalo, para que o parâmetro caiba na maior parte deles. Certo ou errado: esse procedimento fornece cobertura empírica válida para o cenário gerador.",
+      "format":"TRUE_FALSE","difficulty":"DIFICIL",
+      "options":[{"key":"C","text":"Certo","correct":false},{"key":"E","text":"Errado","correct":true}],
+      "explanation":"Errado. O parâmetro verdadeiro precisa ser fixado pelo cenário gerador antes das amostras. Escolhê-lo em função dos intervalos condiciona a avaliação aos resultados e infla artificialmente a cobertura.",
+      "section":"3. Avaliação numérica de estimadores, intervalos e testes","errorConceptKey":"e2","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Um estudo de simulação de regressão quer avaliar viés e cobertura do coeficiente angular. Que plano descreve adequadamente a geração e avaliação?",
+      "format":"MULTIPLE_CHOICE","difficulty":"DIFICIL",
+      "options":[
+        {"key":"A","text":"Fixar somente o coeficiente angular, ajustar uma regressão aos dados observados e repetir a mesma saída várias vezes.","correct":false},
+        {"key":"B","text":"Sortear coeficientes após ajustar cada réplica e declarar cobertura se o intervalo contiver a estimativa.","correct":false},
+        {"key":"C","text":"Gerar apenas os erros, sem definir como os preditores se relacionam com as respostas simuladas.","correct":false},
+        {"key":"D","text":"Definir preditores, coeficientes e erros, gerar amostras e comparar estimativas e intervalos com o coeficiente fixo.","correct":true},
+        {"key":"E","text":"Usar observações de tempos distintos como independentes e avaliar somente o R quadrado médio.","correct":false}],
+      "explanation":"O cenário precisa especificar o mecanismo de `X`, os parâmetros e a geração de erros de `Y`; em cada amostra se ajusta o modelo. Viés compara estimativas ao coeficiente conhecido e cobertura verifica se o intervalo inclui esse mesmo valor fixo.",
+      "section":"3. Avaliação numérica de estimadores, intervalos e testes","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Para um processo AR(1), `Y_t = phi Y_(t-1) + epsilon_t`, um analista embaralha os valores simulados antes de ajustar o modelo, preservando a distribuição marginal. Qual problema isso causa?",
+      "format":"MULTIPLE_CHOICE","difficulty":"DIFICIL",
+      "options":[
+        {"key":"A","text":"Remove a estrutura de dependência temporal que o modelo pretende estudar, alterando o mecanismo relevante.","correct":true},
+        {"key":"B","text":"Garante estacionariedade, porque qualquer permutação elimina tendências e autocorrelações espúrias.","correct":false},
+        {"key":"C","text":"Mantém a ordem temporal por permutar apenas índices, portanto não afeta o ajuste do processo.","correct":false},
+        {"key":"D","text":"Converte os erros do processo em resíduos gaussianos, independentemente da distribuição original.","correct":false},
+        {"key":"E","text":"Aumenta o número efetivo de observações, pois cada ordenação vale como nova trajetória independente.","correct":false}],
+      "explanation":"A dependência entre valores sucessivos é parte do mecanismo AR(1). Embaralhar mantém a distribuição marginal aproximada, mas destrói a relação de defasagem e invalida uma avaliação de estimadores ou previsões baseada na dinâmica temporal.",
+      "section":"3. Avaliação numérica de estimadores, intervalos e testes","errorConceptKey":"e3","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma analista simula séries ARIMA para avaliar intervalos de previsão e ajusta novamente o modelo em cada trajetória. Que medida é diretamente adequada para avaliar as previsões?",
+      "format":"MULTIPLE_CHOICE","difficulty":"DIFICIL",
+      "options":[
+        {"key":"A","text":"Apenas a média das observações de cada trajetória, ignorando horizontes e valores previstos.","correct":false},
+        {"key":"B","text":"O número de parâmetros do modelo, que determina sozinho se toda previsão é precisa.","correct":false},
+        {"key":"C","text":"A proporção de intervalos de previsão que contêm os valores futuros gerados, por horizonte definido.","correct":true},
+        {"key":"D","text":"A proporção de coeficientes AR exatamente iguais aos parâmetros verdadeiros em cada ajuste.","correct":false},
+        {"key":"E","text":"A cobertura dos intervalos de confiança dos coeficientes, tratada como equivalente à previsão futura.","correct":false}],
+      "explanation":"Para avaliar intervalos de previsão, compare seus limites com os valores futuros gerados e estime a cobertura em cada horizonte. Cobertura de coeficientes responde a outra pergunta; igualdades numéricas exatas dos parâmetros não são uma métrica de previsão.",
+      "section":"3. Avaliação numérica de estimadores, intervalos e testes","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Em todas as replicações de uma regressão simulada, os erros são gerados com variância constante e independentes dos preditores. Certo ou errado: esse desenho avalia automaticamente o desempenho do estimador sob heterocedasticidade.",
+      "format":"TRUE_FALSE","difficulty":"MEDIA",
+      "options":[{"key":"C","text":"Certo","correct":false},{"key":"E","text":"Errado","correct":true}],
+      "explanation":"Errado. O cenário descrito impõe homocedasticidade e independência; para estudar heterocedasticidade é necessário variar explicitamente a variância do erro com os preditores ou outra característica do processo gerador.",
+      "section":"3. Avaliação numérica de estimadores, intervalos e testes","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Ao simular um processo temporal dependente, uma equipe mantém a ordem gerada e usa várias trajetórias independentes para estimar o desempenho de um método. Certo ou errado: esse procedimento pode preservar a dinâmica dentro de cada trajetória.",
+      "format":"TRUE_FALSE","difficulty":"MEDIA",
+      "options":[{"key":"C","text":"Certo","correct":true},{"key":"E","text":"Errado","correct":false}],
+      "explanation":"Certo. Cada trajetória independente funciona como uma replicação do experimento, enquanto a ordem interna preserva defasagens e dependência do processo. É preciso ainda verificar que as trajetórias foram geradas pelo modelo pretendido.",
+      "section":"3. Avaliação numérica de estimadores, intervalos e testes","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Um pesquisador usa `mean(t_boot) - t_obs` como viés bootstrap e propõe subtraí-lo da estimativa observada. Qual estimativa corrigida resulta dessa regra?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"`t_corr = t_obs + mean(t_boot)`, que desloca a estimativa na direção da média bootstrap.","correct":false},
+        {"key":"B","text":"`t_corr = mean(t_boot) - t_obs`, que substitui estimativa pelo viés em unidades originais.","correct":false},
+        {"key":"C","text":"`t_corr = t_obs * mean(t_boot)`, que corrige o viés por uma razão de centros.","correct":false},
+        {"key":"D","text":"`t_corr = t_obs - (mean(t_boot) - t_obs) = 2t_obs - mean(t_boot)`.","correct":true},
+        {"key":"E","text":"`t_corr = t_obs - sd(t_boot)`, que remove o erro-padrão estimado do valor pontual.","correct":false}],
+      "explanation":"Subtrair o viés estimado, `mean(t_boot)-t_obs`, de `t_obs` produz `2t_obs-mean(t_boot)`. O desvio-padrão bootstrap estima erro-padrão, não viés; a correção permanece aproximada e pode elevar a variância.",
+      "section":"4. Bootstrap: reamostrar para estimar incerteza","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma amostra contém 40 observações independentes. Para cada réplica do bootstrap não paramétrico ordinário, qual procedimento é adequado?",
+      "format":"MULTIPLE_CHOICE","difficulty":"FACIL",
+      "options":[
+        {"key":"A","text":"Sortear 40 valores com reposição da amostra observada e calcular novamente a estatística de interesse.","correct":true},
+        {"key":"B","text":"Sortear 40 valores sem reposição, garantindo que cada réplica seja uma permutação completa dos dados.","correct":false},
+        {"key":"C","text":"Gerar 40 valores de uma normal padrão, independentemente da distribuição observada na amostra.","correct":false},
+        {"key":"D","text":"Duplicar cada observação uma vez e calcular a estatística sem alterar o tamanho amostral.","correct":false},
+        {"key":"E","text":"Reamostrar os 40 valores com reposição e descartar a estatística para preservar o conjunto original.","correct":false}],
+      "explanation":"No bootstrap não paramétrico ordinário, cada réplica é uma amostra de mesmo tamanho extraída com reposição da distribuição empírica, e a estatística é recalculada. Sem reposição, cada réplica apenas permutaria os dados e não representaria a variabilidade bootstrap.",
+      "section":"4. Bootstrap: reamostrar para estimar incerteza","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma variável de interesse tem amostra pequena e o analista ajusta uma distribuição normal com média e variância estimadas. Em um bootstrap paramétrico, de onde vêm as novas observações?",
+      "format":"MULTIPLE_CHOICE","difficulty":"FACIL",
+      "options":[
+        {"key":"A","text":"De um sorteio sem reposição das observações originais, preservando a ordem em que foram coletadas.","correct":false},
+        {"key":"B","text":"Da distribuição ajustada com parâmetros estimados, que gera dados novos para cada réplica.","correct":true},
+        {"key":"C","text":"Da distribuição empírica, sem usar a família paramétrica escolhida pelo analista.","correct":false},
+        {"key":"D","text":"De uma população conhecida exatamente, dispensando estimar qualquer parâmetro a partir da amostra.","correct":false},
+        {"key":"E","text":"De resíduos reamostrados necessariamente, mesmo quando nenhum modelo de regressão foi ajustado.","correct":false}],
+      "explanation":"O bootstrap paramétrico gera réplicas da família de distribuição ou modelo ajustado, com parâmetros estimados na amostra. Reamostrar observações empíricas caracteriza o não paramétrico; a adequação da distribuição suposta é uma limitação central.",
+      "section":"4. Bootstrap: reamostrar para estimar incerteza","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma pesquisa por domicílios selecionou pessoas em conglomerados e deseja estimar a incerteza por bootstrap. Qual estratégia respeita melhor a estrutura descrita?",
+      "format":"MULTIPLE_CHOICE","difficulty":"DIFICIL",
+      "options":[
+        {"key":"A","text":"Sortear todas as pessoas isoladamente, pois o conglomerado afeta apenas a coleta e não a variância.","correct":false},
+        {"key":"B","text":"Reamostrar apenas os valores da variável-resposta, mantendo os demais campos em ordem original.","correct":false},
+        {"key":"C","text":"Permutar conglomerados dentro de cada domicílio, sem conservar unidades primárias selecionadas.","correct":false},
+        {"key":"D","text":"Gerar observações de uma distribuição normal única, independentemente do desenho amostral registrado.","correct":false},
+        {"key":"E","text":"Reamostrar unidades primárias ou conglomerados segundo o desenho, preservando a dependência intragrupo.","correct":true}],
+      "explanation":"A unidade de reamostragem deve refletir o desenho amostral. Sortear pessoas isoladamente ignora dependência dentro dos conglomerados e pode subestimar incerteza; o método exato depende dos estratos, estágios e probabilidades usados na seleção.",
+      "section":"4. Bootstrap: reamostrar para estimar incerteza","errorConceptKey":"e3","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma equipe reamostra com reposição cada observação individual de uma série temporal autocorrelacionada, sem preservar ordem nem blocos. Certo ou errado: esse bootstrap mantém automaticamente a dependência temporal original.",
+      "format":"TRUE_FALSE","difficulty":"FACIL",
+      "options":[{"key":"C","text":"Certo","correct":false},{"key":"E","text":"Errado","correct":true}],
+      "explanation":"Errado. O sorteio independente de pontos ignora a ordem e tende a destruir a autocorrelação. A reamostragem temporal precisa usar esquema que preserve a dependência relevante, como blocos, ou um modelo temporal ajustado.",
+      "section":"4. Bootstrap: reamostrar para estimar incerteza","errorConceptKey":"e3","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Com o aumento do número de réplicas bootstrap, o erro-padrão estimado passa a corrigir qualquer viés causado por variável omitida no modelo original. Certo ou errado?",
+      "format":"TRUE_FALSE","difficulty":"MEDIA",
+      "options":[{"key":"C","text":"Certo","correct":false},{"key":"E","text":"Errado","correct":true}],
+      "explanation":"Errado. Mais réplicas reduzem a variação numérica do resumo bootstrap, mas repetem o procedimento baseado nos mesmos dados e hipóteses. Viés por variável omitida não desaparece apenas por reamostragem.",
+      "section":"4. Bootstrap: reamostrar para estimar incerteza","errorConceptKey":"e5","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Em um estudo com pares antes e depois, as duas medidas são reamostradas independentemente, quebrando a associação de cada participante. Certo ou errado: esse procedimento conserva o desenho pareado para estimar a diferença média.",
+      "format":"TRUE_FALSE","difficulty":"DIFICIL",
+      "options":[{"key":"C","text":"Certo","correct":false},{"key":"E","text":"Errado","correct":true}],
+      "explanation":"Errado. As duas medidas de cada pessoa formam uma unidade pareada. Deve-se reamostrar os pares como unidades, mantendo juntas as observações antes e depois, para preservar a distribuição das diferenças individuais.",
+      "section":"4. Bootstrap: reamostrar para estimar incerteza","errorConceptKey":"e3","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Um analista obteve 1.000 estimativas bootstrap do mesmo parâmetro. Qual quantidade fornece uma estimativa direta do erro-padrão bootstrap?",
+      "format":"MULTIPLE_CHOICE","difficulty":"FACIL",
+      "options":[
+        {"key":"A","text":"A média das estimativas bootstrap, pois o centro da distribuição é a dispersão do estimador.","correct":false},
+        {"key":"B","text":"A mediana das estimativas bootstrap, independentemente de sua distância em relação ao centro.","correct":false},
+        {"key":"C","text":"O desvio-padrão das estimativas bootstrap, calculado ao longo das réplicas.","correct":true},
+        {"key":"D","text":"A diferença entre o maior e o menor valor bootstrap, dividida pelo tamanho original da amostra.","correct":false},
+        {"key":"E","text":"O erro da estimativa original em relação ao parâmetro, que é conhecido em qualquer amostra real.","correct":false}],
+      "explanation":"O erro-padrão bootstrap é estimado pelo desvio-padrão dos valores do estimador nas reamostragens. A média e a mediana descrevem localização; a amplitude depende de extremos e do número de réplicas; em dados reais, o parâmetro costuma ser desconhecido.",
+      "section":"4. Bootstrap: reamostrar para estimar incerteza","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"A amostra original apresenta um máximo extremo que pode ser importante para estimar um quantil populacional. Qual ressalva se aplica ao bootstrap não paramétrico?",
+      "format":"MULTIPLE_CHOICE","difficulty":"DIFICIL",
+      "options":[
+        {"key":"A","text":"A reamostragem reproduz a distribuição empírica, mas não pode gerar valores além dos observados e pode representar mal a cauda.","correct":true},
+        {"key":"B","text":"Toda réplica inclui obrigatoriamente o máximo uma única vez, garantindo cobertura exata para qualquer quantil.","correct":false},
+        {"key":"C","text":"O máximo se torna irrelevante porque a reposição transforma o estimador de quantil em uma média normal.","correct":false},
+        {"key":"D","text":"O bootstrap adiciona automaticamente valores extremos por extrapolação, mesmo sem assumir um modelo paramétrico.","correct":false},
+        {"key":"E","text":"O tamanho das réplicas pode ser aumentado para criar informação sobre a cauda fora do suporte empírico.","correct":false}],
+      "explanation":"O bootstrap empírico sorteia somente valores observados; não extrapola para além do suporte da amostra. Para estatísticas de cauda e amostras pequenas, a distribuição bootstrap pode representar mal a incerteza, e aumentar réplicas reduz ruído computacional, não cria valores populacionais desconhecidos.",
+      "section":"4. Bootstrap: reamostrar para estimar incerteza","errorConceptKey":"e5","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma amostra bootstrap produz valores do estimador cuja média excede a estimativa original. Essa diferença pode ser usada como estimativa do viés bootstrap. Certo ou errado?",
+      "format":"TRUE_FALSE","difficulty":"MEDIA",
+      "options":[{"key":"C","text":"Certo","correct":true},{"key":"E","text":"Errado","correct":false}],
+      "explanation":"Certo. A diferença entre a média das estimativas reamostradas e a estimativa original é uma estimativa bootstrap do viés. Ela é aproximada e não demonstra que o mecanismo de amostragem original tenha exatamente esse viés.",
+      "section":"4. Bootstrap: reamostrar para estimar incerteza","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"No bootstrap paramétrico, um modelo normal é ajustado aos dados e cada réplica é gerada desse modelo com parâmetros estimados. Certo ou errado: a validade depende, entre outros aspectos, de a família paramétrica ser razoável para a população-alvo.",
+      "format":"TRUE_FALSE","difficulty":"MEDIA",
+      "options":[{"key":"C","text":"Certo","correct":true},{"key":"E","text":"Errado","correct":false}],
+      "explanation":"Certo. A simulação paramétrica herda as hipóteses do modelo ajustado; se a família ou a estrutura de dependência estiver inadequada, a distribuição das réplicas não representa corretamente a incerteza pretendida.",
+      "section":"4. Bootstrap: reamostrar para estimar incerteza","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"As estimativas bootstrap ordenadas são 10, 11, 12, 14 e 20. Para construir um intervalo percentil bilateral de 80%, quais posições conceituais devem fornecer os limites?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"O mínimo e o máximo, pois todo intervalo bootstrap deve conter todos os resultados reamostrados.","correct":false},
+        {"key":"B","text":"Os quantis 10% e 90% da distribuição bootstrap, com interpolação conforme a convenção adotada.","correct":true},
+        {"key":"C","text":"A média menos e mais um erro-padrão, independentemente da assimetria dos valores replicados.","correct":false},
+        {"key":"D","text":"Os quantis 20% e 80%, pois o nível de confiança se divide igualmente entre as duas caudas.","correct":false},
+        {"key":"E","text":"A estimativa original e a média bootstrap, que representam as extremidades do intervalo percentil.","correct":false}],
+      "explanation":"Um intervalo bilateral de 80% deixa 10% em cada cauda e usa quantis 0,10 e 0,90 da distribuição bootstrap. Quantis exatos e interpolação dependem do número de réplicas e da convenção; mínimo e máximo não definem o nível solicitado.",
+      "section":"5. Intervalos e testes bootstrap","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma analista compara intervalo percentil e intervalo básico. Qual descrição identifica corretamente o método básico?",
+      "format":"MULTIPLE_CHOICE","difficulty":"MEDIA",
+      "options":[
+        {"key":"A","text":"Usa diretamente a média e o desvio-padrão bootstrap em uma aproximação normal simétrica.","correct":false},
+        {"key":"B","text":"Usa quantis empíricos sem qualquer transformação ou reflexão em torno da estimativa observada.","correct":false},
+        {"key":"C","text":"Padroniza cada réplica pelo erro-padrão calculado naquela própria reamostragem.","correct":false},
+        {"key":"D","text":"Reflete os quantis bootstrap das diferenças em torno da estimativa calculada na amostra original.","correct":true},
+        {"key":"E","text":"Corrige quantis com aceleração estimada por influência e jackknife, como faz o BCa.","correct":false}],
+      "explanation":"O intervalo básico usa a distribuição das diferenças entre estimativas bootstrap e original e reflete seus limites em torno da estimativa observada. A aproximação normal, o percentil, o studentizado e o BCa usam construções distintas.",
+      "section":"5. Intervalos e testes bootstrap","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Qual método de intervalo bootstrap ajusta a posição dos quantis por correção de viés e aceleração?",
+      "format":"MULTIPLE_CHOICE","difficulty":"FACIL",
+      "options":[
+        {"key":"A","text":"O método percentil, que desloca os limites pela estimativa paramétrica da variância residual.","correct":false},
+        {"key":"B","text":"O método básico, que estima aceleração por ajuste de uma regressão linear em cada amostra.","correct":false},
+        {"key":"C","text":"O método studentizado, que ordena diretamente os valores sem usar erros-padrão.","correct":false},
+        {"key":"D","text":"A aproximação normal, que calcula quantis ajustados por influência sem hipótese de escala.","correct":false},
+        {"key":"E","text":"O BCa, que significa corrigido por viés e acelerado e ajusta os quantis bootstrap.","correct":true}],
+      "explanation":"BCa é o intervalo bias-corrected and accelerated: corrige a localização por viés e ajusta a escala de assimetria por aceleração. Isso não garante desempenho universal, especialmente com dados pequenos ou estimadores não regulares.",
+      "section":"5. Intervalos e testes bootstrap","errorConceptKey":null,"sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Um intervalo studentizado é calculado sem qualquer estimativa de variância para as réplicas, pois a distribuição empírica já substitui a necessidade de escala. Certo ou errado?",
+      "format":"TRUE_FALSE","difficulty":"FACIL",
+      "options":[{"key":"C","text":"Certo","correct":false},{"key":"E","text":"Errado","correct":true}],
+      "explanation":"Errado. A studentização padroniza a diferença entre estimativa e alvo por erro-padrão, inclusive nas réplicas. O método precisa de estimativas de variância apropriadas, que podem ser custosas ou difíceis para alguns estimadores.",
+      "section":"5. Intervalos e testes bootstrap","errorConceptKey":"e4","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Um teste de `H0: theta = theta0` gera amostras de um modelo restringido a `theta0`, recalcula a estatística e conta resultados tão extremos quanto o observado. Certo ou errado: esse desenho pode aproximar a distribuição de referência sob a hipótese nula.",
+      "format":"TRUE_FALSE","difficulty":"DIFICIL",
+      "options":[{"key":"C","text":"Certo","correct":true},{"key":"E","text":"Errado","correct":false}],
+      "explanation":"Certo. A geração sob o modelo imposto pela hipótese nula aproxima a distribuição da estatística quando a nula é verdadeira. A calibração exige que o modelo restrito e a definição de extremidade sejam adequados ao teste.",
+      "section":"5. Intervalos e testes bootstrap","errorConceptKey":"e4","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Uma pesquisadora obtém zero réplicas tão extremas quanto a observação em um teste com número finito de simulações. Certo ou errado: o valor-p bootstrap é necessariamente exatamente zero na população sob a hipótese nula.",
+      "format":"TRUE_FALSE","difficulty":"DIFICIL",
+      "options":[{"key":"C","text":"Certo","correct":false},{"key":"E","text":"Errado","correct":true}],
+      "explanation":"Errado. Nenhuma réplica extrema não prova probabilidade populacional nula; pode refletir resolução limitada da simulação. O valor-p Monte Carlo tem incerteza e há convenções de cálculo que evitam reportar zero absoluto quando não se observam excedências.",
+      "section":"5. Intervalos e testes bootstrap","errorConceptKey":"e4","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"Um teste bootstrap bilateral usa estatística padronizada e hipótese nula composta. Qual descrição é essencial para que a distribuição simulada sirva de referência?",
+      "format":"MULTIPLE_CHOICE","difficulty":"DIFICIL",
+      "options":[
+        {"key":"A","text":"Sortear sem reposição dos dados e manter todos os parâmetros estimados livremente, sem considerar a restrição nula.","correct":false},
+        {"key":"B","text":"Usar apenas estimativas bootstrap sob o modelo irrestrito e presumir que qualquer centro equivale à nula.","correct":false},
+        {"key":"C","text":"Gerar sob a hipótese nula ou modelo restrito apropriado e recalcular a estatística em cada réplica.","correct":true},
+        {"key":"D","text":"Escolher a distribuição após observar qual produz mais rejeições e tratar essa taxa como nível nominal.","correct":false},
+        {"key":"E","text":"Rejeitar quando o intervalo percentil da amostra original contém o parâmetro nulo, sem definir a alternativa.","correct":false}],
+      "explanation":"A distribuição de referência do teste deve representar a hipótese nula; por isso parâmetros incompatíveis com a restrição são ajustados sob o modelo nulo. Geração irrestrita não garante calibração. A regra bilateral também precisa especificar o que conta como resultado tão extremo quanto o observado.",
+      "section":"5. Intervalos e testes bootstrap","errorConceptKey":"e4","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    },
+    {
+      "statement":"O pacote `boot` do R oferece `boot.ci` com opções de intervalos normal, básico, studentizado, percentil e BCa. Certo ou errado: selecionar uma dessas opções prova que a amostragem e o modelo usados são válidos.",
+      "format":"TRUE_FALSE","difficulty":"MEDIA",
+      "options":[{"key":"C","text":"Certo","correct":false},{"key":"E","text":"Errado","correct":true}],
+      "explanation":"Errado. A função calcula tipos de intervalos a partir de um objeto bootstrap, mas a validade depende do desenho de reamostragem, da adequação do modelo e do comportamento do estimador. A disponibilidade computacional não certifica pressupostos.",
+      "section":"5. Intervalos e testes bootstrap","errorConceptKey":"e4","sourceType":"AUTHORIAL","board":null,"agency":null,"year":null,"sourceUrl":null
+    }
+  ],
+  "sources": [
+    {"kind":"OFICIAL","title":"GNU PSPP Users’ Guide","publisher":"GNU Project","reference":"Definição de variáveis, níveis de medida, DESCRIPTIVES, FREQUENCIES, gráficos e testes estatísticos","url":"https://www.gnu.org/software/pspp/manual/pspp.html","accessedAt":"2026-11-03"},
+    {"kind":"OFICIAL","title":"GNU PSPP","publisher":"Free Software Foundation","reference":"Descrição do programa e procedimentos estatísticos disponíveis","url":"https://www.gnu.org/software/pspp/pspp.html","accessedAt":"2026-11-03"},
+    {"kind":"OFICIAL","title":"R Documentation: Random Number Generation","publisher":"R Core Team","reference":"Geradores, estado pseudoaleatório, set.seed, RNGkind e reprodutibilidade","url":"https://stat.ethz.ch/R-manual/R-devel/library/base/html/Random.html","accessedAt":"2026-11-03"},
+    {"kind":"OFICIAL","title":"R Documentation: The Uniform Distribution","publisher":"R Core Team","reference":"runif e geração de variáveis uniformes","url":"https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Uniform.html","accessedAt":"2026-11-03"},
+    {"kind":"OFICIAL","title":"R Documentation: Simulate Responses","publisher":"R Core Team","reference":"Simulação de respostas em objetos ajustados, incluindo métodos para lm e glm","url":"https://stat.ethz.ch/R-manual/R-devel/library/stats/html/simulate.html","accessedAt":"2026-11-03"},
+    {"kind":"OFICIAL","title":"R Documentation: ARIMA Modelling of Time Series","publisher":"R Core Team","reference":"Modelagem ARIMA, especificação e representação de séries temporais","url":"https://stat.ethz.ch/R-manual/R-devel/library/stats/html/arima.html","accessedAt":"2026-11-03"},
+    {"kind":"OFICIAL","title":"RStudio IDE: Pane Layout","publisher":"Posit","reference":"Panes de Console, Source, Files, Plots, Help e organização da interface","url":"https://docs.posit.co/ide/user/ide/guide/ui/ui-panes.html","accessedAt":"2026-11-03"},
+    {"kind":"OFICIAL","title":"RStudio IDE Cheat Sheet","publisher":"Posit","reference":"Recursos do editor, execução de código, console, projetos, gráficos e ajuda","url":"https://opensource.posit.co/resources/cheatsheets/rstudio-ide/","accessedAt":"2026-11-03"},
+    {"kind":"OFICIAL","title":"boot: Bootstrap Functions","publisher":"CRAN / R Core Team","reference":"Intervalos bootstrap normal, básico, studentizado, percentil e BCa","url":"https://stat.ethz.ch/CRAN/web/packages/boot/refman/boot.html","accessedAt":"2026-11-03"}
+  ]
+}
