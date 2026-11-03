@@ -49,9 +49,12 @@ if (Deno.args.includes("--montar")) {
   }
 } else if (Deno.args.includes("--aplicar")) {
   const ok: string[] = [];
+  // Duplicadas de matéria já publicada (achadas pela colisão de apelido): não voltam a ser copiadas.
+  let duplicadas = new Set<string>();
+  try { duplicadas = new Set(Deno.readTextFileSync(`${ROOT}work/duplicadas.txt`).split(/\s+/).filter(Boolean)); } catch { /* nenhuma */ }
   for (const e of Deno.readDirSync(RES)) {
     if (!e.name.endsWith(".json")) continue;
-    for (const id of JSON.parse(Deno.readTextFileSync(`${RES}/${e.name}`)).ok ?? []) if (!publicada(id) && destino(id)) ok.push(id);
+    for (const id of JSON.parse(Deno.readTextFileSync(`${RES}/${e.name}`)).ok ?? []) if (!publicada(id) && destino(id) && !duplicadas.has(id)) ok.push(id);
   }
   for (const id of ok) {
     const m = JSON.parse(Deno.readTextFileSync(`${PASTA}/${id}.json`));

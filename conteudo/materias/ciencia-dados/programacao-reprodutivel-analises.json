@@ -1,0 +1,2361 @@
+{
+  "id": "ciencia-dados.programacao-reprodutivel-analises",
+  "subject": "Ciência de Dados",
+  "title": "Programação reprodutível de análises",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Programação reprodutível de análises",
+    "Reprodutibilidade em análise de dados",
+    "Organização modular de análises",
+    "Testes automatizados em análise de dados",
+    "Testes de código para ciência de dados",
+    "Reprodução de resultados analíticos",
+    "Projetos reprodutíveis em Python",
+    "Estrutura de projetos de análise",
+    "Ambientes virtuais para análises",
+    "Controle de dependências em projetos",
+    "Testes unitários para funções analíticas",
+    "Fixtures e testes de dados",
+    "Notebooks e execução reprodutível",
+    "Rastreabilidade de análises computacionais"
+  ],
+  "scope": {
+    "covers": "Organização de projetos de análise de dados em módulos e funções reutilizáveis; separação entre entrada, transformação, análise e apresentação; testes unitários, de integração e de regressão; dados de teste, fixtures, parametrização, isolamento e determinismo; execução de notebooks; controle de versões de código e dependências; ambientes virtuais, sementes aleatórias, caminhos relativos, configuração e registro de parâmetros; rastreabilidade, documentação e limitações da reprodução de resultados.",
+    "excludes": "Estatística inferencial e desenho amostral em profundidade, administração de infraestrutura de produção, treinamento de modelos específicos, licenças de ferramentas e garantia de que resultados científicos sejam verdadeiros apenas por serem reproduzíveis."
+  },
+  "theoryTitle": "Como organizar, testar e reproduzir uma análise computacional",
+  "chapters": [
+    {
+      "title": "1. O que torna uma análise reprodutível",
+      "markdown": "### O problema que este assunto resolve\n\nUma análise de dados não é apenas o gráfico final. Ela depende dos dados recebidos, das transformações, das opções escolhidas, das bibliotecas e do ambiente em que o código foi executado. Se outra pessoa recebe apenas uma imagem ou uma planilha final, não consegue reconstruir com segurança como o resultado foi produzido. Uma análise computacional reprodutível preserva os insumos, o código e as decisões necessárias para executar novamente o fluxo e conferir o resultado.\n\n> **Siglas e termos deste capítulo**\n> - **Pipeline**: sequência documentada de etapas que leva os dados de entrada a um resultado.\n> - **Proveniência**: registro de onde vieram os dados e quais operações foram aplicadas.\n> - **Determinismo**: propriedade de produzir a mesma saída para as mesmas entradas e condições controladas.\n> - **Ambiente**: intérprete, sistema, bibliotecas e configurações usados para executar o projeto.\n> - **Semente aleatória**: estado inicial usado por um gerador pseudoaleatório para repetir uma sequência.\n\n### Registre entradas e decisões\n\nUm fluxo claro identifica cada etapa: leitura, validação, limpeza, transformação, cálculo e apresentação. O arquivo de entrada deve ser preservado ou identificado por versão, data, origem e, quando possível, checksum. Uma transformação relevante deve ser explícita: por exemplo, datas interpretadas em fuso horário definido e valores ausentes tratados segundo regra declarada. Guardar somente o resultado final elimina a possibilidade de revisar essas escolhas.\n\nParâmetros que alteram o resultado pertencem à configuração ou aos argumentos registrados, não a números escondidos no meio do código. Registre, por exemplo, o intervalo de datas, o filtro aplicado, a unidade de medida, a versão do conjunto de dados e a semente. Um parâmetro explícito pode ser variado e auditado; um valor embutido sem documentação é difícil de localizar.\n\n### Repetir não é provar verdade\n\nReexecutar o mesmo código pode reproduzir um erro, um viés de amostragem ou uma interpretação inadequada. Reprodutibilidade permite conferir o caminho computacional; validade exige avaliar se os dados, premissas e métodos sustentam a conclusão. Também há fontes legítimas de variação: paralelismo, ordenação não especificada, hardware, versões de bibliotecas e dados externos que mudam. O objetivo é identificar essas dependências e controlar ou registrar as que importam.\n\n| Elemento | Registro útil | Risco quando omitido |\n| --- | --- | --- |\n| Dados | origem, versão, período e checksum | arquivo substituído sem percepção |\n| Código | commit ou versão identificável | transformações não recuperáveis |\n| Parâmetros | configuração e valores usados | resultado sem contexto |\n| Ambiente | versão da linguagem e dependências | diferenças de comportamento |\n| Execução | comando, data e logs | falha ou etapa impossível de localizar |\n\n### Como cai na prova\n\n- Uma imagem de gráfico isolada não documenta os dados, o código e os parâmetros que a geraram.\n- Fixar uma semente ajuda a repetir sorteios pseudoaleatórios, mas não controla todas as fontes de variação.\n- Reprodutibilidade computacional não demonstra por si só que a conclusão é válida ou causal."
+    },
+    {
+      "title": "2. Organização modular de projetos analíticos",
+      "markdown": "### O problema que este assunto resolve\n\nUm notebook com centenas de células misturando leitura de arquivos, limpeza, estatística, gráficos e exportação é difícil de revisar. A ordem de execução pode divergir da ordem visual; uma variável antiga pode permanecer na memória e mascarar uma célula incompleta. Organização modular separa responsabilidades em funções e módulos pequenos, com entradas e saídas compreensíveis.\n\n> **Siglas e termos deste capítulo**\n> - **Módulo**: arquivo de código que reúne definições relacionadas e pode ser importado.\n> - **Função**: unidade nomeada que recebe entradas e devolve um resultado ou produz efeito definido.\n> - **API**: interface pela qual uma parte do projeto oferece operações a outra.\n> - **Efeito colateral**: alteração externa à função, como gravar arquivo ou mudar estado global.\n> - **Ponto de entrada**: comando ou função que inicia a execução do fluxo.\n\n### Separe etapas por responsabilidade\n\nUma estrutura simples pode manter código importável em `src/analise/`, testes em `tests/`, dados em `data/` e notebooks em `notebooks/`. Os diretórios são uma convenção, não uma obrigação. O importante é evitar que a lógica essencial fique duplicada em várias células ou seja executada automaticamente ao importar um módulo. Uma função `carregar_dados(caminho)` pode validar colunas e devolver uma tabela; `resumir_por_grupo(dados)` calcula resumos sem ler ou escrever arquivos; uma etapa final grava a saída em local explícito.\n\nFunções puras, que dependem apenas dos argumentos e devolvem resultados sem mudar estado externo, são mais simples de testar. Nem toda rotina precisa ser pura: leitura, banco de dados, relógio e escrita são efeitos necessários. Isole-os nas bordas do fluxo e passe seus resultados às funções de transformação. Assim, um teste da regra de cálculo não depende de acesso à rede ou de um arquivo pessoal.\n\n### Notebook como narrativa, módulo como lógica reutilizável\n\nUm notebook é adequado para exploração, visualizações e explicação sequencial. Para análise duradoura, mova transformações reutilizáveis para módulos importáveis e mantenha no notebook chamadas e interpretação. Reiniciar o kernel e executar todas as células do início ao fim revela dependência de estado oculto. A célula que define uma função não deve depender de uma variável que só existe porque outra célula foi executada manualmente antes.\n\nCaminhos de arquivos devem ser resolvidos a partir de configuração conhecida ou da raiz do projeto, e não do diretório de trabalho acidental do computador do autor. A saída derivada pode ser recriada; dados brutos e resultados publicados devem ser identificados e tratados de modo que não sejam sobrescritos silenciosamente.\n\n### Como cai na prova\n\n- Uma boa divisão separa leitura e escrita, transformação e apresentação; não fragmenta cada linha sem motivo.\n- Importar um módulo de análise não deve iniciar todo o processamento nem sobrescrever resultados.\n- Testar o notebook após reiniciar o kernel verifica dependências ocultas de ordem e estado."
+    },
+    {
+      "title": "3. Testes para regras e fluxos de análise",
+      "markdown": "### O problema que este assunto resolve\n\nUma análise pode terminar sem erro e ainda produzir resultado incorreto: uma conversão de unidade pode multiplicar por cem, um filtro pode excluir o limite válido ou um agrupamento pode contar linhas em vez de entidades. Testes automatizados com exemplos conhecidos verificam contratos importantes e detectam regressões quando o código muda.\n\n> **Siglas e termos deste capítulo**\n> - **Teste unitário**: verifica uma unidade pequena, como uma função, com dependências controladas.\n> - **Teste de integração**: verifica a interação entre componentes ou serviços.\n> - **Regressão**: comportamento correto anteriormente que deixa de funcionar após uma alteração.\n> - **Fixture**: dado ou recurso preparado para uso em um ou mais testes.\n> - **Oráculo**: regra ou resultado esperado usado para decidir se o teste passou.\n\n### Teste comportamento observável\n\nPara uma função que calcula média por grupo, monte dados pequenos cujo resultado possa ser calculado à mão. Verifique nomes de grupos, valores e tratamento de ausentes conforme o contrato. Inclua casos de borda relevantes: grupo vazio, duplicatas, coluna ausente, tipo inválido e valor exatamente no limite de um filtro. Não use apenas um exemplo grande cujo resultado esperado ninguém consegue conferir.\n\nTeste unitário isola uma transformação, sem rede, banco ou leitura de um caminho da máquina do autor. Teste de integração é apropriado para verificar, por exemplo, que o leitor aceita o formato real e que a etapa de gravação gera o arquivo esperado. Em ambos, use dados sintéticos ou cópias pequenas e não altere dados de produção.\n\nEm pytest, testes são normalmente descobertos em arquivos `test_*.py` ou `*_test.py`, com funções cujos nomes começam por `test`. Uma fixture fornece recursos reutilizáveis; o escopo da fixture determina se o recurso é criado para uma função, classe, módulo ou sessão. `tmp_path` oferece um diretório temporário para testar arquivos. Parametrização executa a mesma regra com vários conjuntos de entradas, como limites inferior, interior e superior.\n\n### Evite testes frágeis e falsos positivos\n\nUm teste que só verifica que a função não lançou exceção não confirma que a transformação está correta. Compare o conteúdo esperado, as dimensões, tipos e invariantes pertinentes. Tolerâncias numéricas precisam refletir precisão e arredondamento adequados; tolerância ampla demais pode esconder erro. Testes não devem depender da ordem incidental de execução, de dados vivos da internet ou do relógio real. Use relógio, identificadores ou geradores aleatórios controláveis quando forem parte da regra.\n\nUma falha deve apontar qual contrato foi violado. Nomeie o caso e mantenha a massa de dados pequena. Testes não substituem revisão de método, análise exploratória e validação de premissas; eles reduzem o risco de erros de implementação conhecidos.\n\n### Como cai na prova\n\n- O teste de uma transformação deve ter entrada pequena e resultado esperado verificável.\n- Fixtures organizam preparação e limpeza de recursos; não são os resultados da análise.\n- Parametrização reaproveita a mesma regra de teste com entradas distintas, sem duplicar a lógica do teste."
+    },
+    {
+      "title": "4. Dependências, execução e rastreabilidade",
+      "markdown": "### O problema que este assunto resolve\n\nO mesmo script pode mudar de comportamento quando roda com outra versão de uma biblioteca, com outro diretório atual ou com dados externos atualizados. Um ambiente virtual isola pacotes de um projeto dos pacotes do sistema e de outros projetos, mas ele não registra sozinho todos os dados, parâmetros ou condições da execução.\n\n> **Siglas e termos deste capítulo**\n> - **`venv`**: módulo padrão do Python para criar ambientes virtuais isolados.\n> - **Manifesto de dependências**: arquivo que declara pacotes necessários e, conforme a ferramenta, suas versões.\n> - **Lockfile**: registro mais preciso das versões resolvidas para uma instalação repetível.\n> - **CI**: integração contínua, execução automatizada de verificações em alterações do projeto.\n> - **Checksum**: resumo calculado de um arquivo, útil para identificar se o conteúdo mudou.\n\n### Recrie o ambiente e registre o comando\n\nEm Python, `python -m venv .venv` cria ambiente virtual local. Dependências declaradas podem ser instaladas nele, em vez de misturadas à instalação global. Registre a versão do Python e mantenha os arquivos de dependências apropriados ao projeto sob controle de versão. O diretório `.venv` costuma ser recriado na máquina de destino e não versionado, pois contém executáveis e caminhos locais e não é portável. Um ambiente virtual tampouco fixa versão do sistema operacional, bibliotecas nativas, serviços externos ou os dados da análise.\n\nDocumente um comando de execução a partir da raiz do projeto, como `python -m pacote.executar --config config/estudo.toml`. Registre configuração efetivamente usada, versão do código, identificação dos dados e logs. Separe configuração pública de segredos: credenciais não devem ser gravadas no repositório. Use caminhos configuráveis e relativos à raiz do projeto, evitando depender de `C:\\Users\\...` ou do diretório em que o terminal foi aberto.\n\n### Aleatoriedade e notebooks\n\nUma semente explícita permite reinicializar um gerador pseudoaleatório para repetir uma sequência em condições compatíveis. Registre também a biblioteca e o algoritmo quando a sequência exata for importante: a semente isolada pode não garantir valores idênticos entre versões, dispositivos ou operações paralelas. Prefira geradores locais com estado explícito a modificar estado global sem necessidade.\n\nNotebook executável deve ser testado com kernel limpo e execução de todas as células na ordem. A saída registrada pode ajudar a leitura, mas pode ficar desatualizada em relação ao código; por isso a execução integral e a inspeção do diff são relevantes. A automação pode executar testes e notebook em integração contínua, desde que dados e serviços necessários estejam disponíveis de forma controlada.\n\n### Como cai na prova\n\n- `venv` separa bibliotecas do projeto; não empacota dados nem torna caminhos locais portáveis.\n- Um arquivo de dependências e a versão do código melhoram a reconstrução, mas também é preciso identificar entradas e parâmetros.\n- Uma semente controla parte da aleatoriedade pseudoaleatória, não todas as diferenças ambientais ou algorítmicas."
+    }
+  ],
+  "summary": "Programação reprodutível de análises organiza código, dados, dependências, parâmetros e execução para que o fluxo possa ser refeito e auditado. Separe leitura e gravação de transformações reutilizáveis, distribua responsabilidades em módulos e exponha uma entrada documentada. Testes unitários verificam regras com dados pequenos e resultados conhecidos; testes de integração cobrem interação entre componentes. Fixtures preparam recursos, parametrização reaplica casos e diretórios temporários isolam testes de arquivo. Em Python, pytest descobre arquivos test_*.py e funções test_*; ambientes venv isolam dependências, mas não são portáveis nem guardam dados ou parâmetros. Registre versão do código, origem e identificação dos dados, versões das dependências, configuração, comando, logs e sementes usadas. Reiniciar o kernel e executar notebooks por inteiro expõe dependências ocultas de estado. Reprodutibilidade ajuda a conferir o caminho computacional, sem provar por si só validade metodológica ou verdade da conclusão.",
+  "flashcards": [
+    {
+      "front": "O que é proveniência de dados?",
+      "back": "Registro da origem dos dados e das operações e transformações pelas quais passaram."
+    },
+    {
+      "front": "O que caracteriza uma análise computacional reprodutível?",
+      "back": "Código, entradas, parâmetros e ambiente identificáveis permitem refazer e conferir o fluxo analítico."
+    },
+    {
+      "front": "Reprodutibilidade demonstra que uma conclusão é verdadeira?",
+      "back": "Não. Ela permite repetir o procedimento; validade depende também dos dados, premissas e métodos."
+    },
+    {
+      "front": "O que é determinismo no contexto de uma execução?",
+      "back": "Mesmas entradas e condições controladas levam à mesma saída observável."
+    },
+    {
+      "front": "Para que serve uma semente aleatória?",
+      "back": "Para inicializar um gerador pseudoaleatório e repetir uma sequência em condições compatíveis."
+    },
+    {
+      "front": "Por que uma semente não garante identidade absoluta em qualquer computador?",
+      "back": "Algoritmos, versões, paralelismo, dispositivo e bibliotecas podem alterar a sequência ou os resultados."
+    },
+    {
+      "front": "Qual a vantagem de separar transformações de leitura de arquivos?",
+      "back": "A regra pode ser testada com entradas em memória, sem depender do caminho ou sistema de arquivos."
+    },
+    {
+      "front": "Que tipo de código é mais fácil de testar isoladamente?",
+      "back": "Funções que recebem dados por argumentos e devolvem resultado sem alterar estado externo."
+    },
+    {
+      "front": "O que é um efeito colateral?",
+      "back": "Mudança externa à função, como gravar arquivo, chamar serviço ou alterar estado global."
+    },
+    {
+      "front": "O que verifica um teste unitário?",
+      "back": "Uma unidade pequena, como uma função, com dependências controladas e resultado esperado."
+    },
+    {
+      "front": "O que verifica um teste de integração?",
+      "back": "A interação entre componentes, como leitura de formato e gravação da saída."
+    },
+    {
+      "front": "O que é uma fixture em pytest?",
+      "back": "Uma função ou recurso que prepara dados e dependências para um teste."
+    },
+    {
+      "front": "Para que serve a parametrização de testes?",
+      "back": "Executar a mesma regra de teste com várias entradas sem duplicar sua estrutura."
+    },
+    {
+      "front": "Que convenção de nome pytest usa para descobrir arquivos?",
+      "back": "Por padrão, busca arquivos test_*.py ou *_test.py e funções iniciadas por test."
+    },
+    {
+      "front": "O que fornece a fixture tmp_path?",
+      "back": "Um diretório temporário individual para criar e verificar arquivos durante um teste."
+    },
+    {
+      "front": "Por que reiniciar kernel antes de executar notebook?",
+      "back": "Remove variáveis antigas e revela dependências de estado ou de ordem ocultas."
+    },
+    {
+      "front": "Para que serve um ambiente venv?",
+      "back": "Isola interpretador e pacotes do projeto dos pacotes globais e de outros ambientes."
+    },
+    {
+      "front": "Por que não se versiona normalmente o diretório .venv?",
+      "back": "Ele tem executáveis e caminhos locais, é descartável e deve ser recriado na máquina de destino."
+    },
+    {
+      "front": "O que um manifesto de dependências não registra por si só?",
+      "back": "Dados, parâmetros, código executado, serviços externos e todas as condições do sistema."
+    },
+    {
+      "front": "Por que registrar checksum do arquivo de entrada?",
+      "back": "Para detectar se o conteúdo identificado como insumo mudou entre execuções."
+    },
+    {
+      "front": "Como evitar dependência do diretório atual do autor?",
+      "back": "Resolver caminhos a partir da raiz do projeto ou de configuração explícita."
+    },
+    {
+      "front": "O que é um teste de regressão?",
+      "back": "Verificação que detecta se comportamento antes correto foi quebrado por uma alteração."
+    },
+    {
+      "front": "Por que usar dados sintéticos pequenos em testes?",
+      "back": "Tornam o resultado esperado fácil de calcular, isolam a regra e evitam expor dados reais."
+    },
+    {
+      "front": "Uma execução sem exceções comprova resultado correto?",
+      "back": "Não; o teste precisa conferir valores, dimensões, tipos ou invariantes esperados."
+    }
+  ],
+  "tips": [
+    "Desenhe o fluxo como entrada, validação, transformação, cálculo e apresentação; atribua a cada etapa uma responsabilidade clara.",
+    "Teste transformações com tabelas pequenas cujo resultado você consiga calcular manualmente, inclusive limites e dados ausentes.",
+    "Mantenha leitura, rede e gravação nas bordas; passe os dados para funções analíticas por argumentos.",
+    "Registre versão de código, dados, parâmetros, dependências e comando de execução junto ao resultado.",
+    "Execute o notebook com kernel reiniciado e todas as células em ordem antes de compartilhar os resultados.",
+    "Use ambiente virtual e caminhos configuráveis; recrie o ambiente na máquina de destino em vez de copiar a pasta local."
+  ],
+  "traps": [
+    "Confundir repetir o cálculo com provar que a conclusão está correta: a reprodução confirma o procedimento, não suas premissas.",
+    "Afirmar que fixar uma semente controla toda variação: versão, hardware, paralelismo e algoritmos também importam.",
+    "Tratar teste que apenas não lança exceção como teste suficiente: ele pode aceitar um valor analítico errado.",
+    "Achar que venv guarda os dados e todas as condições da análise: ele isola principalmente interpretador e pacotes.",
+    "Importar módulo que inicia a análise e grava arquivos: efeitos colaterais tornam teste e reutilização imprevisíveis.",
+    "Considerar saídas salvas no notebook sempre atualizadas: elas podem corresponder a código ou entradas antigos."
+  ],
+  "activeRecall": [
+    {
+      "question": "Quais componentes devem ser identificados para reexecutar uma análise?",
+      "answer": "Código e versão, entradas identificadas, parâmetros, dependências e ambiente, comando ou ponto de entrada e registros relevantes da execução."
+    },
+    {
+      "question": "Como dividir uma análise que mistura arquivos, limpeza, cálculo e gráficos?",
+      "answer": "Separar funções ou módulos de leitura e validação, transformações, cálculos e apresentação; manter I/O nas bordas e fornecer argumentos explícitos."
+    },
+    {
+      "question": "Como você testaria uma função que converte unidades?",
+      "answer": "Usaria valores pequenos com conversão conhecida, valores de borda e tipos inválidos, comparando resultado e comportamento esperado sem ler arquivos externos."
+    },
+    {
+      "question": "Diferencie teste unitário de teste de integração com um exemplo analítico.",
+      "answer": "O unitário verifica a função de agregação isolada; o de integração confirma que o leitor interpreta o arquivo e o fluxo grava a saída correta."
+    },
+    {
+      "question": "O que pode tornar um teste flakey?",
+      "answer": "Dependência de rede ou relógio, ordem de execução, estado global, aleatoriedade não controlada e recursos externos compartilhados."
+    },
+    {
+      "question": "Por que não copiar o ambiente virtual de uma máquina para outra?",
+      "answer": "Ele contém caminhos e executáveis locais e não é considerado portável; o procedimento adequado é recriá-lo e instalar dependências declaradas."
+    },
+    {
+      "question": "Que cuidados tornam um notebook executável por outra pessoa?",
+      "answer": "Declarar entradas e ambiente, remover dependência de variáveis antigas, reiniciar kernel e executar células na ordem documentada."
+    },
+    {
+      "question": "O que uma semente reprodutível controla e o que não controla?",
+      "answer": "Inicializa a sequência pseudoaleatória do gerador escolhido; não garante igualdade através de algoritmos, versões, dispositivos ou execução paralela distintos."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Reprodução confundida com validade",
+      "summary": "Refazer o mesmo fluxo permite auditar o procedimento, mas não prova que dados, premissas, desenho ou interpretação sejam adequados."
+    },
+    {
+      "key": "e2",
+      "title": "Responsabilidades misturadas no notebook",
+      "summary": "Leitura, transformação, cálculo e apresentação devem ter limites compreensíveis; variáveis antigas e efeitos no import escondem dependências."
+    },
+    {
+      "key": "e3",
+      "title": "Testes sem resultado esperado",
+      "summary": "Uma execução sem exceção não verifica correção; use casos pequenos, bordas e comparação de valores ou invariantes."
+    },
+    {
+      "key": "e4",
+      "title": "Ambiente tomado por reprodução completa",
+      "summary": "venv isola pacotes, mas dados, parâmetros, código, sistema e serviços externos precisam ser identificados separadamente."
+    },
+    {
+      "key": "e5",
+      "title": "Semente tratada como garantia universal",
+      "summary": "A semente ajuda a repetir sorteios do gerador, porém bibliotecas, versões, hardware, paralelismo e operações podem influir."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe entrega somente um gráfico PNG e pede que outro analista confira o resultado. Que complemento mais diretamente permite reconstruir o cálculo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registrar código, dados, parâmetros e ambiente usados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Enviar uma captura maior do gráfico e aumentar a resolução dos eixos e rótulos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar uma cópia do gráfico em cada computador dos membros da equipe.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Descrever apenas o tema visual escolhido e a paleta de cores do gráfico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exportar os valores arredondados exibidos sem preservar as observações de origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para refazer o percurso, é preciso identificar entradas, operações, opções e ambiente. A imagem registra a apresentação, mas não revela filtros, conversões, dados ou versões que produziram os pontos. Os valores arredondados também podem eliminar informação necessária à conferência.",
+      "section": "1. O que torna uma análise reprodutível",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma semente fixa foi configurada numa análise aleatória; por isso qualquer computador e versão futura necessariamente produzirão os mesmos números bit a bit.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A semente inicializa um gerador pseudoaleatório e ajuda a repetir sua sequência em condições compatíveis. Algoritmo, versão da biblioteca, paralelismo e dispositivo podem introduzir diferenças, por isso também devem ser registrados quando relevantes.",
+      "section": "1. O que torna uma análise reprodutível",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe preserva o mesmo código, mas substitui o arquivo de entrada por uma extração atualizada sem registrar a mudança. Qual problema isso cria?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O código deixa automaticamente de poder ser executado em ambiente virtual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os testes unitários passam a funcionar somente em notebooks interativos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O novo arquivo não pode ser lido por uma função importada do projeto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A causa da diferença fica indeterminada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A versão anterior do código é apagada quando se calcula um checksum.",
+          "correct": false
+        }
+      ],
+      "explanation": "A origem e a versão dos dados são parte da proveniência. Sem identificá-las, uma mudança de resultado pode decorrer da atualização da entrada ou de uma mudança no cálculo, e as duas causas ficam confundidas.",
+      "section": "1. O que torna uma análise reprodutível",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente o alcance da reprodutibilidade computacional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela demonstra que a hipótese científica foi confirmada pelos dados usados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela permite repetir o procedimento, mas não valida sozinha suas premissas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ela torna desnecessário examinar a qualidade das medições de origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela elimina erros conceituais quando os testes automatizados passam.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela garante que qualquer equipe obtenha a mesma interpretação causal.",
+          "correct": false
+        }
+      ],
+      "explanation": "Reproduzir o cálculo torna possível verificar as operações e os resultados computacionais. A qualidade das premissas, do desenho, das medições e da interpretação exige avaliação própria; código executável pode reproduzir um método inadequado.",
+      "section": "1. O que torna uma análise reprodutível",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina analítica registra intervalo de datas e filtro aplicado em arquivo de configuração versionado junto do código. Isso impede auditar os parâmetros da execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Opções explícitas e preservadas permitem saber quais escolhas alteraram a análise e repeti-las. É necessário guardar a configuração efetivamente usada e evitar incluir nela credenciais secretas.",
+      "section": "1. O que torna uma análise reprodutível",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao organizar um projeto analítico modular, qual divisão favorece testes e reutilização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir a leitura e a limpeza dos dados em cada gráfico para manter células independentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Concentrar toda a análise numa função global acionada durante qualquer importação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Separar leitura, transformação e apresentação em funções claras.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Guardar todas as operações num arquivo de saída que não pode ser consultado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar um módulo diferente para cada variável, mesmo sem regra própria.",
+          "correct": false
+        }
+      ],
+      "explanation": "Separar responsabilidades deixa as transformações reutilizáveis e testáveis sem repetir acesso a arquivos ou renderização. A modularidade não exige fragmentação excessiva; os limites devem refletir operações com propósito claro.",
+      "section": "2. Organização modular de projetos analíticos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um módulo deve executar toda a análise e gravar os gráficos assim que é importado, pois isso garante que os dados estejam sempre atualizados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Importar um módulo deve normalmente disponibilizar funções e definições, sem iniciar processamento oneroso nem sobrescrever arquivos. Um ponto de entrada explícito torna execução, teste e revisão previsíveis.",
+      "section": "2. Organização modular de projetos analíticos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função recebe uma tabela e devolve médias por categoria sem ler arquivos, acessar a rede ou alterar variáveis globais. Por que esse desenho ajuda nos testes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele dispensa verificar o valor das médias, porque funções isoladas são sempre corretas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele impede que entradas diferentes sejam usadas na mesma sessão de Python.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele garante que a função será rápida para qualquer tamanho de conjunto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele transforma automaticamente a função em teste de integração completo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele permite fornecer dados controlados e conferir o retorno sem serviços externos.",
+          "correct": true
+        }
+      ],
+      "explanation": "A transformação isolada pode ser exercitada com uma tabela pequena em memória, e seu resultado comparado com valores conhecidos. O desenho reduz dependências externas, mas não elimina a necessidade de verificar a regra nem assegura desempenho para grandes entradas.",
+      "section": "2. Organização modular de projetos analíticos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma célula de notebook funciona apenas depois que o usuário executa manualmente outra célula fora da ordem exibida, pois uma variável antiga permanece na memória. O que a situação evidencia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dependência oculta de estado e de ordem de execução do notebook.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Isolamento correto entre a apresentação visual e o código analítico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uso obrigatório de teste de integração para qualquer função estatística.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Compatibilidade garantida entre versões distintas da biblioteca instalada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Comportamento esperado de caminhos relativos definidos na raiz do projeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "O estado guardado pelo kernel pode esconder que a sequência visível não basta para executar a análise. Reiniciar o kernel e executar todas as células em ordem é uma verificação prática de dependências não declaradas.",
+      "section": "2. Organização modular de projetos analíticos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Usar caminhos relativos resolvidos a partir da raiz conhecida do projeto reduz a dependência do diretório de trabalho acidental do analista.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O diretório em que o terminal foi aberto pode variar entre usuários e ferramentas. Ancorar o caminho à raiz configurada torna a localização das entradas previsível sem codificar o perfil pessoal do autor.",
+      "section": "2. Organização modular de projetos analíticos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função de limpeza deve converter datas e remover valores ausentes. Qual teste unitário oferece evidência mais direta sobre sua regra?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar o projeto inteiro e observar se a janela do notebook abre.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Testar casos conhecidos e conferir os resultados da limpeza.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Verificar apenas se o arquivo de código contém comentários explicativos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Comparar o tamanho do diretório de dependências antes e depois da execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Repetir a função com o conjunto de produção sem definir resultado esperado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O teste unitário fornece uma entrada controlada e compara a saída observável com o contrato da função, inclusive conversão e remoção. Abrir o notebook ou inspecionar comentários não verifica valores, e usar produção sem oráculo não permite decidir se a regra está correta.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste que confirma somente que uma função não lançou exceção prova que a função calculou o resultado analítico correto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A função pode retornar um número incorreto sem lançar erro. O teste precisa comparar valores, tipos, dimensões ou invariantes que expressem o contrato esperado.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No pytest, como aplicar a mesma verificação de limite de filtro a vários valores de entrada sem copiar a estrutura do teste?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir o teste por comentários descrevendo os valores considerados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar um arquivo de dependências diferente para cada valor de entrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar a função durante a importação do módulo de produção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar parametrização para fornecer vários casos à mesma função de teste.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desativar a descoberta automática para que o teste rode uma única vez.",
+          "correct": false
+        }
+      ],
+      "explanation": "A parametrização executa a mesma estrutura de teste com casos distintos, como valores abaixo, no limite e acima do corte. Assim cada resultado esperado é conferido sem replicar manualmente a lógica de teste.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste de integração é mais adequado do que um unitário quando o objetivo é verificar a interação entre o leitor de CSV e a etapa que grava o resultado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A questão envolve componentes que precisam trabalhar em conjunto: interpretar o arquivo e produzir saída. O teste pode usar um arquivo temporário pequeno, enquanto uma transformação isolada continua sendo candidata a teste unitário.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação usa pytest e precisa conferir arquivos criados pela função exportadora sem tocar em diretório pessoal nem deixar resíduos. Qual recurso é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar um caminho absoluto do computador do desenvolvedor para guardar cada arquivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Salvar todos os exemplos em uma pasta permanente compartilhada da equipe.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar tmp_path para criar arquivos temporários no teste.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar a função de escrita e testar apenas o título do gráfico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Colocar o arquivo exportado dentro do próprio pacote de dependências instalado.",
+          "correct": false
+        }
+      ],
+      "explanation": "`tmp_path` fornece diretório temporário isolado para o teste verificar a saída sem depender de um caminho pessoal ou contaminar o repositório. O teste ainda deve conferir conteúdo ou existência esperada, e não apenas executar a gravação.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fixture pytest tem escopo de sessão, logo sua instância é necessariamente recriada antes de cada função de teste.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O escopo controla a duração e o compartilhamento do recurso; escopo de sessão permite compartilhá-lo durante a sessão de testes. Para preparar estado novo por função, usa-se escopo apropriado, normalmente o padrão funcional.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em pytest sem configuração de descoberta diferente, que arquivo tende a ser coletado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "analysis.py, mesmo sem funções ou classes de teste nomeadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "data.csv, desde que contenha uma coluna chamada test_result.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "helper.py, porque todo módulo Python é executado como teste.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "results.json, quando existir ao lado de um notebook executável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "test_summary.py, com funções de teste cujo nome começa por test.",
+          "correct": true
+        }
+      ],
+      "explanation": "A convenção padrão do pytest procura arquivos `test_*.py` ou `*_test.py` e coleta funções iniciadas por `test`. A configuração pode personalizar os padrões, mas um CSV ou módulo auxiliar comum não se transforma automaticamente em teste.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste parametrizado de conversão de unidades deve testar valores próximos ao limite quando a regra depende de um corte, além de casos comuns.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Erros de comparação inclusiva ou exclusiva aparecem frequentemente no limite. Casos abaixo, exatamente no corte e acima dele tornam explícito o contrato da transformação.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao preparar teste de uma função que calcula total por categoria, qual massa de dados ajuda mais a identificar erro de agregação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma tabela sintética pequena com duas categorias e totais calculáveis à mão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma extração completa sem documentação e sem qualquer total de referência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um arquivo vazio, porque qualquer retorno deve ser aceito como equivalente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma captura do gráfico final sem os valores de cada categoria.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um banco de produção compartilhado, atualizado enquanto o teste executa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma tabela pequena com valores conhecidos permite calcular o resultado esperado e perceber agrupamento ou contagem incorretos. Um conjunto vivo sem referência não oferece oráculo confiável, e gráfico sem valores pode esconder divergências.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Isolar uma chamada de relógio ou de serviço externo atrás de uma dependência controlável pode tornar testes menos dependentes do tempo e da rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Passar o relógio ou cliente externo como dependência permite fornecer um substituto previsível no teste e verificar o comportamento sem depender de uma rede instável ou do instante real. O teste de integração do serviço pode existir separadamente.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual desenho reduz a chance de dois testes alterarem o estado um do outro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fazer o teste posterior depender do arquivo deixado pelo teste anterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar dados e recursos isolados, com preparação e limpeza explícitas por teste.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar sempre os testes em ordem alfabética e preservar estado global.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenar resultados intermediários em uma variável global compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pular testes que falham quando são executados em outra ordem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Isolamento e ciclo de vida explícito tornam cada teste independente. Depender da ordem ou de arquivos compartilhados cria resultados flakey e falhas difíceis de reproduzir, sobretudo quando a suíte executa testes em paralelo.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para comparar cálculos em ponto flutuante, qualquer tolerância numérica grande é segura porque evita falhas causadas por arredondamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A tolerância deve corresponder à precisão e ao arredondamento esperados. Um limite excessivo pode aceitar erro substantivo e produzir falso positivo; também convém verificar dimensões e casos com escala relevante.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo .venv está no repositório e funciona no computador de origem. O que é prática mais adequada para outra máquina?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Copiar o diretório sem alterações, pois executáveis virtuais são portáveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Renomear o diretório para esconder os caminhos absolutos registrados nele.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar os pacotes globais da máquina sem consultar as dependências do projeto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Recriar o ambiente e instalar as dependências declaradas pelo projeto.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Mover os dados para dentro do ambiente, que preservará também a análise.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ambientes virtuais são normalmente descartáveis e podem conter caminhos e executáveis específicos da instalação local. A máquina de destino deve recriar o ambiente a partir das declarações de dependência; os dados e a configuração são identificados por outros meios.",
+      "section": "4. Dependências, execução e rastreabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de `python -m venv .venv` isola pacotes do projeto e registra automaticamente a origem dos dados e os parâmetros analíticos usados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `venv` cria um ambiente isolado para o interpretador e bibliotecas, mas não registra a proveniência de dados ou a configuração analítica. Esses elementos precisam ser registrados no projeto ou nos artefatos da execução.",
+      "section": "4. Dependências, execução e rastreabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe vai compartilhar pacote de análise Python com colegas. Qual estratégia de dependências e ambiente é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Instalar bibliotecas na máquina de um autor e documentar apenas o nome delas por e-mail.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Exigir que cada pessoa descubra por tentativa quais pacotes são importados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Declarar dependências e recriar ambiente virtual isolado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Versionar somente a pasta local .venv e ignorar as declarações de pacotes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar a versão mais nova disponível sempre, sem registrar o que foi resolvido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Declarações de dependência tornam explícito o que instalar e um ambiente isolado reduz conflito com outros projetos. Um lockfile pode registrar versões resolvidas com mais precisão. A pasta local do ambiente não substitui esses arquivos e não é portável.",
+      "section": "4. Dependências, execução e rastreabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A pasta .venv deve ser versionada para garantir que o mesmo interpretador e todos os caminhos locais sejam usados por qualquer integrante em outro sistema operacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Ambientes virtuais podem conter caminhos absolutos e executáveis dependentes da plataforma e não são considerados portáveis. Mantêm-se as declarações de dependências e recria-se o ambiente no destino.",
+      "section": "4. Dependências, execução e rastreabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma execução produz médias diferentes após a atualização do pacote numérico, embora o arquivo de dados permaneça igual. Qual registro ajuda a investigar a causa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas a cor usada para renderizar as barras do gráfico final.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O nome da pessoa que abriu primeiro o notebook na equipe.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O tamanho da tela em que os valores do gráfico foram exibidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente a semente, ainda que nenhuma etapa use aleatoriedade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Versão do código, dependências resolvidas e condições da execução anterior.",
+          "correct": true
+        }
+      ],
+      "explanation": "A versão da biblioteca pode alterar algoritmos, precisão ou comportamento. Comparar código, ambiente e configuração anterior com os atuais permite investigar a mudança; semente só é pertinente a operações pseudoaleatórias e não substitui a identificação das dependências.",
+      "section": "4. Dependências, execução e rastreabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um checksum registrado para arquivo de entrada permite identificar que seu conteúdo mudou, embora não explique o significado dessa mudança.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O resumo do arquivo é útil para detectar conteúdo diferente. Ele não substitui metadados como origem, período, responsável ou regra de extração, que explicam o contexto da versão dos dados.",
+      "section": "4. Dependências, execução e rastreabilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise exige credencial para obter dados privados. Como manter rastreabilidade sem expor segredo no repositório?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colocar a senha no notebook e limpar apenas a saída exibida antes do envio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter segredo fora do código e registrar fonte e configuração não secreta usada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Incluir a credencial no nome do arquivo de configuração versionado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Publicar uma cópia da base privada para que qualquer pessoa refaça a consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Codificar a senha em base64 no script e tratá-la como dado não sensível.",
+          "correct": false
+        }
+      ],
+      "explanation": "Credenciais devem ser fornecidas por configuração segura do ambiente e não gravadas no repositório ou no notebook. Ainda se pode registrar fonte, período, consulta ou parâmetros não secretos e uma identificação da extração compatível com as regras de acesso.",
+      "section": "4. Dependências, execução e rastreabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma semente explícita e um arquivo de dependências identificam por completo dados, parâmetros, código, sistema operacional e serviços usados numa análise.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A semente e as dependências são apenas partes do registro. É necessário identificar dados, parâmetros, versão do código e condições externas relevantes; serviços e sistema também podem influir na execução.",
+      "section": "4. Dependências, execução e rastreabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comando documentado ajuda a tornar uma execução local repetível e fácil de reproduzir por outra pessoa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar qualquer célula selecionada e confiar no histórico da interface gráfica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar arquivo pessoal com caminho absoluto que só existe na estação de origem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Abrir o resultado final e inferir quais etapas foram executadas antes dele.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Registrar comando a partir da raiz e opções de configuração efetivamente usadas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Executar o programa sem argumentos para ocultar diferenças entre as opções.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um comando explícito com ponto de execução e configuração identificados permite repetir o fluxo. Caminhos pessoais e execução parcial dependente da interface escondem condições que outra pessoa não consegue reconstruir com segurança.",
+      "section": "4. Dependências, execução e rastreabilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma saída salva dentro de um notebook pode estar desatualizada em relação ao código e às entradas atuais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A saída registrada pode ter sido produzida numa execução anterior. Reiniciar o kernel, executar todas as células e revisar as alterações permite confirmar a correspondência entre código, entradas e resultados exibidos.",
+      "section": "4. Dependências, execução e rastreabilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma transformação que depende de fuso horário, qual documentação reduz ambiguidade entre execuções?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar o fuso e a regra de conversão adotados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Arredondar todas as datas para o dia sem registrar a operação aplicada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar o fuso padrão da máquina que executa e omitir essa informação do relatório.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter datas em texto livre para impedir que bibliotecas as interpretem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter somente a data do arquivo final, sem registrar as datas das observações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Interpretação e conversão de datas podem alterar filtros e agregações. Declarar o fuso e as regras aplicadas torna a escolha explícita; depender do padrão local pode produzir resultados diferentes em máquinas distintas.",
+      "section": "1. O que torna uma análise reprodutível",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste de regressão registra um caso em que uma mudança anterior quebrou o limite inclusivo de um filtro e verifica o comportamento em alterações futuras.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O caso preserva uma expectativa conhecida e detecta se uma alteração volta a quebrá-la. O teste é útil quando verifica o comportamento observável, e deve permanecer pequeno e compreensível.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer verificar que o notebook analítico não depende de variáveis antigas criadas durante exploração manual. Qual procedimento é mais direto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar somente a última célula de gráfico e manter o kernel aberto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Renomear as variáveis globais para nomes com prefixo de equipe.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reiniciar o kernel e executar todas as células desde o início.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Exportar o notebook para PDF e verificar se todas as páginas foram renderizadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Duplicar as células que falham até que uma delas funcione isoladamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Kernel limpo elimina objetos residuais de sessões anteriores, e a execução integral verifica se a ordem declarada basta. Exportar para PDF avalia apresentação, não a independência computacional das células.",
+      "section": "2. Organização modular de projetos analíticos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando uma função acessa diretamente a rede, o relógio atual e um arquivo fixo do autor, seus testes tendem a ser mais determinísticos porque essas fontes estão fora dos argumentos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Rede, tempo e caminhos externos podem variar sem aparecer na entrada explícita do teste. Injetar essas dependências ou isolá-las permite usar respostas controladas e reduzir variações ambientais.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto gera relatório com intervalos de confiança e usa sorteio repetido. O que convém registrar para ajudar a repetir a execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o nome do arquivo do gráfico, pois o resultado visual contém o método.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A configuração visual e a semente, sem mencionar dados ou biblioteca usada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A quantidade de páginas do relatório e a resolução do monitor de origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A semente, mas não o algoritmo ou a versão do gerador quando relevantes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dados identificados, método e parâmetros, semente, código e ambiente registrados.",
+          "correct": true
+        }
+      ],
+      "explanation": "Resultados de sorteio dependem de dados, método, opções e gerador. Registrar esses elementos e a versão do ambiente permite investigar diferenças; uma semente isolada não identifica todos os determinantes do cálculo.",
+      "section": "4. Dependências, execução e rastreabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "É aceitável compartilhar somente parâmetros de execução se o código e a versão do conjunto de dados puderem ser inferidos pela data de criação do gráfico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Datas de arquivos e gráficos não identificam de modo confiável código ou entradas, que podem ser substituídos ou recriados. As versões devem ser registradas diretamente e vinculadas à execução.",
+      "section": "1. O que torna uma análise reprodutível",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao escolher estrutura para um pacote analítico que terá testes de integração e unitários, qual arranjo é compatível com práticas documentadas de pytest?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter código e testes numa célula única para impedir problemas de importação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar diretório de código como src/pacote e testes separados em tests/.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Guardar testes dentro da pasta de dados para facilitar a descoberta por extensão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar os testes apenas copiando cada função para um notebook temporário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Omitir qualquer estrutura de pacote e depender do diretório pessoal no sys.path.",
+          "correct": false
+        }
+      ],
+      "explanation": "pytest documenta layouts com código em `src/` e testes em `tests/`, além de testes dentro do pacote em alguns projetos. A separação evita importar acidentalmente uma versão instalada diferente da cópia local e facilita executar contra pacote instalado.",
+      "section": "2. Organização modular de projetos analíticos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A execução de uma suíte de testes em integração contínua pode detectar falhas analíticas em alterações do projeto antes que resultados sejam publicados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A integração contínua pode executar verificações automatizadas a cada alteração e sinalizar regressões. Isso depende de testes que expressem contratos úteis e de entradas e serviços de execução controlados.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste lê diretamente uma base externa que muda diariamente e calcula seu resultado esperado usando o valor atual dessa mesma base. Qual falha de projeto é mais provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A suíte pode falhar de modo não determinístico e não isola a regra analítica.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O teste passa a ser unitário porque a fonte é consultada dentro da função.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O pytest deixará de descobrir os arquivos que começam por test_.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O ambiente virtual substituirá automaticamente a base por uma cópia fixa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O pacote terá erro de sintaxe por não guardar uma fixture em cache.",
+          "correct": false
+        }
+      ],
+      "explanation": "A base mutável introduz dependência de rede e conteúdo que o teste não controla; além disso, usar a própria saída como expectativa não verifica a regra. Uma fixture sintética ou snapshot estável é mais adequada ao teste unitário.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um parâmetro altera o corte de exclusão de observações. Guardá-lo num argumento nomeado e registrar o valor usado torna a decisão mais rastreável do que enterrá-lo numa expressão sem explicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O argumento explicita a opção e permite registrar qual valor foi aplicado. Isso facilita repetir o cálculo e comparar execuções, embora ainda seja necessário justificar metodologicamente a escolha do corte.",
+      "section": "1. O que torna uma análise reprodutível",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja detectar troca acidental de arquivo bruto entre duas execuções, mesmo que ambos tenham o mesmo nome. Qual evidência ajuda a identificar diferença de conteúdo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cor da pasta e a posição do arquivo no explorador de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O horário local em que o gráfico final foi aberto pelo revisor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O resumo checksum calculado para cada arquivo de entrada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O nome idêntico do arquivo, mesmo se os bytes tiverem mudado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A semente aleatória aplicada depois que a leitura do arquivo terminou.",
+          "correct": false
+        }
+      ],
+      "explanation": "Checksum permite comparar o conteúdo e detectar mudança apesar de nome idêntico. Ele não substitui origem e metadados de período, mas é evidência útil de identidade do arquivo usado na análise.",
+      "section": "1. O que torna uma análise reprodutível",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função de transformação pura lê o relógio do sistema por conta própria e devolve resultados diferentes para a mesma entrada. Ela continua pura porque não escreve arquivo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma função que consulta relógio externo depende de estado que não está nos argumentos e pode variar para a mesma entrada. A ausência de escrita em arquivo não basta para caracterizar uma função pura.",
+      "section": "2. Organização modular de projetos analíticos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um erro de unidade aparece apenas em observações exatamente iguais ao limite de conversão. Qual conjunto de casos parametrizados é mais informativo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir cem vezes um valor médio distante do limite e comparar só a média geral.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Testar apenas uma observação aleatória selecionada sem registrar a semente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar todo o conjunto real e aceitar qualquer resultado sem falha de execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificar valores abaixo, no limite e acima, com resultados esperados explícitos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Comparar a cor do gráfico produzido para três parâmetros distintos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Casos nas duas laterais e exatamente no limite revelam erros de desigualdade e conversão. Resultados esperados explícitos mostram se o contrato está certo; repetições de caso interior podem não exercitar o defeito.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando a sequência aleatória precisa ser reproduzida entre versões específicas, registrar gerador e versão da biblioteca pode ser relevante além do valor da semente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A semente não descreve sozinha o algoritmo de geração nem sua implementação. Quando se exige comparar sequências exatas, a biblioteca, o gerador e as condições de execução também podem ser determinantes.",
+      "section": "4. Dependências, execução e rastreabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise utiliza uma API externa cujo conteúdo pode ser corrigido pelo fornecedor. Qual prática fortalece a capacidade de investigar uma execução antiga?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardar somente o endereço da API e consultar sempre a resposta atual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Registrar horário, parâmetros e versão ou cópia identificável da resposta usada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desativar logs para evitar que as respostas alteradas sejam percebidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar a semente aleatória para compensar atualização do conteúdo remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Colocar a resposta dentro do diretório .venv sem preservar sua origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Serviços remotos podem mudar dados ou comportamento. Registrar parâmetros e horário e, quando permitido, preservar uma resposta identificável ajuda a investigar a execução histórica. Consultar somente o conteúdo atual não garante reconstruir o que foi recebido.",
+      "section": "4. Dependências, execução e rastreabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A documentação de um projeto pode declarar um comando de execução e ainda assim deixar a análise incompleta se não identificar qual arquivo de dados e configuração foram usados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O comando indica como iniciar o fluxo, mas a execução também depende das entradas e opções concretas. Uma instrução genérica sem identificar esses itens pode levar a outra pessoa a produzir um resultado diferente.",
+      "section": "4. Dependências, execução e rastreabilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função analítica grava resultados com nome fixo ao ser importada por cada teste. Qual alteração melhora previsibilidade e isolamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter a gravação na importação e apagar a saída apenas ao final da suíte.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar testes em ordem inversa para alternar o conteúdo sobrescrito.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Esconder o efeito colateral em variável global para centralizar a escrita.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar toda descoberta de testes que importe o módulo analítico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Separar cálculo de gravação e passar caminho de saída explicitamente ao executor.",
+          "correct": true
+        }
+      ],
+      "explanation": "Separar cálculo da operação de escrita evita que um import cause sobrescrita. Um ponto de entrada recebe caminho explícito, e o teste pode fornecer diretório temporário e verificar a saída isoladamente.",
+      "section": "2. Organização modular de projetos analíticos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste flakey é aquele cujo resultado varia entre execuções equivalentes sem que a regra ou a entrada declarada tenha mudado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Dependência da ordem, estado compartilhado, relógio real, rede instável ou aleatoriedade não controlada podem tornar uma suíte flakey. Isolamento e dependências controláveis ajudam a localizar a causa.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe pretende trocar a lógica de imputação e garantir que uma propriedade importante da saída continue verdadeira. Qual teste é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar uma invariante do contrato, como ausência de valores inválidos após a transformação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Confirmar que o nome da função não contém a palavra imputação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Medir o número de linhas de código antes e depois da alteração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aceitar a saída se o processo consumir memória abaixo de um limite arbitrário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Comparar a ordem visual das células sem executar o cálculo transformado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma invariante expressa uma propriedade que deve permanecer verdadeira após mudanças de implementação e pode detectar regressões sem depender de detalhes internos. A propriedade precisa refletir o contrato e não ser tão ampla a ponto de aceitar resultados errados.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto mantém módulos reutilizáveis em src e testes em tests; os arquivos de teste podem ser executados contra pacote instalado ou cópia de desenvolvimento, conforme a configuração de importação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. pytest documenta layouts com código em `src/` e testes separados; a estratégia de instalação e importação determina qual cópia do pacote será testada. Isso é útil para evitar testar inadvertidamente uma instalação global antiga.",
+      "section": "2. Organização modular de projetos analíticos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma auditoria precisa saber se uma análise foi executada com código não publicado no repositório. Qual registro oferece evidência mais direta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O tema visual do editor de código usado durante o desenvolvimento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O nome abreviado da equipe que preparou a apresentação final.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Identificador da versão ou commit do código associado à execução.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A data de modificação do arquivo PNG copiado para o relatório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A versão do sistema operacional sem qualquer identificação do código.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma referência identificável ao código executado permite recuperar e comparar aquela versão. Data do gráfico ou sistema operacional não prova quais instruções foram processadas.",
+      "section": "4. Dependências, execução e rastreabilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste unitário que usa uma tabela sintética não precisa verificar o valor esperado, porque a fixture já demonstra que a entrada foi criada corretamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A fixture prepara o recurso de entrada, mas não decide se a função processou os dados corretamente. O teste deve comparar a saída com um oráculo ou verificar invariantes explícitas.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma execução de notebook é bem-sucedida na máquina do autor e falha no CI porque depende de arquivo presente apenas na pasta pessoal dele. Qual correção aborda a causa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o tempo limite do CI sem alterar a origem do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter a saída do notebook em PDF antes de iniciar o CI.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fixar apenas uma semente aleatória na primeira célula do notebook.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Configurar entrada acessível e caminho resolvido a partir da raiz do projeto.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desativar a execução completa para manter as saídas salvas pelo autor.",
+          "correct": false
+        }
+      ],
+      "explanation": "O CI não compartilha o diretório pessoal. A entrada deve ser disponibilizada de forma controlada e o caminho resolvido por configuração ou raiz do projeto. Saídas antigas e sementes não corrigem a ausência do arquivo.",
+      "section": "2. Organização modular de projetos analíticos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um manifesto de dependências fixa todos os elementos capazes de alterar resultados, inclusive dados de API, configuração, parâmetros e versão do código.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O manifesto declara pacotes e, conforme o formato, versões. Dados externos, opções da execução e código precisam de identificação separada; alguns fatores de sistema também podem ser relevantes.",
+      "section": "4. Dependências, execução e rastreabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transformação retorna médias arredondadas para duas casas. Qual decisão de teste evita esconder diferenças analiticamente importantes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar apenas imagens renderizadas e ignorar a tabela numérica intermediária.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escolher tolerância adequada à precisão contratada e verificar forma e valores.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar tolerância tão ampla quanto o intervalo completo dos resultados possíveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não comparar resultados, desde que o arredondamento tenha sido executado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aceitar quaisquer valores finitos para evitar divergência entre máquinas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tolerância precisa refletir a precisão do contrato; limites amplos podem aceitar um erro relevante. Conferir dimensões e valores numéricos torna o teste sensível à falha sem exigir igualdade incompatível com arredondamento legítimo.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A descoberta padrão do pytest inclui arquivos test_*.py e funções de teste com prefixo test, embora padrões possam ser configurados pelo projeto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esses padrões são a convenção descrita para descoberta de testes. Configurações podem personalizar a coleta; fora disso, nomes de arquivos auxiliares não são coletados automaticamente como testes.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função recebe dados e uma semente, mas usa uma operação paralela cujo algoritmo pode mudar entre versões. Que afirmação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A semente torna irrelevante registrar versões do gerador e da biblioteca.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O paralelismo sempre elimina variação na ordem de operações numéricas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os resultados serão iguais porque argumentos explícitos impedem mudanças internas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um ambiente venv impede que qualquer atualização de pacote altere o algoritmo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registre versões e condições, pois a semente não fixa todo comportamento paralelo.",
+          "correct": true
+        }
+      ],
+      "explanation": "A semente controla o estado pseudoaleatório do gerador, mas não necessariamente a ordem de operações paralelas ou mudanças algorítmicas. Registrar versões e configurações permite delimitar as condições sob as quais a repetição foi observada.",
+      "section": "4. Dependências, execução e rastreabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "É útil manter os dados brutos identificáveis e as saídas derivadas separadas, para que uma execução não sobrescreva silenciosamente a única cópia da entrada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Separar entradas de saídas reduz risco de destruir a fonte e facilita refazer transformações. Controle de acesso, armazenamento e regras de retenção também devem ser considerados para dados sensíveis.",
+      "section": "1. O que torna uma análise reprodutível",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma revisão encontrou transformação duplicada em três notebooks. Qual refatoração favorece consistência sem tornar os notebooks inúteis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mover a lógica comum para módulo importável e deixar notebooks chamarem a função.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Copiar as três versões para uma quarta célula central e manter as demais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir o cálculo por uma imagem estática para impedir diferenças futuras.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar cada notebook em computador diferente para variar os resultados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Importar os notebooks entre si para compartilhar o estado do kernel.",
+          "correct": false
+        }
+      ],
+      "explanation": "Lógica comum num módulo pode ser testada uma vez e reutilizada, enquanto notebooks preservam exploração, visualização e narrativa. Manter cópias divergentes prolonga o risco de uma correção ser aplicada apenas em parte delas.",
+      "section": "2. Organização modular de projetos analíticos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise repetível exige que todo resultado seja idêntico, inclusive metadados de tempo de criação, mesmo quando o relatório registra a hora de execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A própria hora registrada muda a cada execução, embora os resultados analíticos possam ser equivalentes. Defina quais saídas devem ser determinísticas e quais metadados variáveis fazem parte do registro da execução.",
+      "section": "1. O que torna uma análise reprodutível",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina de análise deve usar dados de produção nos testes para garantir realismo, ainda que isso exponha informações e altere registros durante a execução.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim, desde que os testes sejam executados somente fora do horário comercial.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim, pois um teste de integração não pode usar cópias ou dados sintéticos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não; use dados sintéticos ou cópias pequenas controladas e sem efeitos em produção.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Não, porque testes nunca podem ler qualquer arquivo persistido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim, se uma fixture apagar depois os registros que foram modificados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Dados sintéticos ou cópias limitadas controlam o teste e reduzem risco de exposição ou alteração indevida. Uma integração pode usar ambiente de teste preparado; acesso direto a produção não é requisito para testar comportamento realista.",
+      "section": "3. Testes para regras e fluxos de análise",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Documentar que a coluna receita foi convertida de centavos para reais e registrar a regra aplicada torna uma transformação relevante mais auditável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Unidade e transformação alteram a interpretação do resultado e devem ser explícitas. Um teste com valores conhecidos pode ainda confirmar que a conversão foi implementada conforme a regra documentada.",
+      "section": "1. O que torna uma análise reprodutível",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Python — venv: criação de ambientes virtuais",
+      "publisher": "Python Software Foundation",
+      "reference": "Isolamento de pacotes, recriação e não portabilidade de ambientes virtuais",
+      "url": "https://docs.python.org/3/library/venv.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "pytest — Good Integration Practices",
+      "publisher": "pytest",
+      "reference": "Descoberta padrão de testes, layouts src e tests, instalação e modo de importação",
+      "url": "https://docs.pytest.org/en/stable/explanation/goodpractices.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "pytest — How to use fixtures",
+      "publisher": "pytest",
+      "reference": "Fixtures, escopos, dependências, preparação e limpeza de recursos de teste",
+      "url": "https://docs.pytest.org/en/stable/how-to/fixtures.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Python — unittest: unit testing framework",
+      "publisher": "Python Software Foundation",
+      "reference": "Testes unitários, execução e descoberta de testes",
+      "url": "https://docs.python.org/3/library/unittest.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "nbclient Documentation",
+      "publisher": "Jupyter Development Team",
+      "reference": "Execução automatizada de notebooks Jupyter",
+      "url": "https://nbclient.readthedocs.io/en/latest/",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}
