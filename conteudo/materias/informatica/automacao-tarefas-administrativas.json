@@ -1,0 +1,1887 @@
+{
+  "id": "informatica.automacao-tarefas-administrativas",
+  "subject": "Informática",
+  "title": "Automação de tarefas administrativas com scripts",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Automação de tarefas administrativas",
+    "Automação de tarefas administrativas em TI",
+    "Scripts para administração de sistemas",
+    "Scripting para rotinas administrativas",
+    "Automação com Shell Bash e PowerShell",
+    "Automação administrativa com Python",
+    "Criação automatizada de contas de usuário",
+    "Coleta e análise de logs de sistemas",
+    "Verificação automatizada de serviços de rede",
+    "Rotinas de backup com scripts",
+    "Automação, Scripting e Análise de Logs",
+    "Scripts para criação de usuários e backup"
+  ],
+  "scope": {
+    "covers": "Fundamentos de automação administrativa; scripts em Bash, PowerShell e Python; variáveis, argumentos, condições, repetição, funções, entrada e saída, códigos de retorno, tratamento de erros, permissões e execução agendada; criação idempotente de contas locais, verificação de serviços, coleta e filtragem de logs e cópia de arquivos para rotinas de backup; segurança, validação, registro e revisão das rotinas.",
+    "excludes": "Administração completa de Active Directory, desenho de políticas corporativas, desenvolvimento de aplicações, configuração avançada de ferramentas de backup, recuperação forense, administração de SIEM e sintaxe específica de distribuições ou versões não indicada no enunciado."
+  },
+  "theoryTitle": "Scripts confiáveis para rotinas administrativas",
+  "chapters": [
+    {
+      "title": "1. Automatizar com controle e segurança",
+      "markdown": "### O problema que este assunto resolve\n\nUma tarefa administrativa repetida — conferir serviços, provisionar contas, separar eventos de erro ou copiar arquivos — consome tempo e pode variar de uma execução para outra quando feita manualmente. Um script transforma passos explícitos em uma rotina repetível. Automatizar não elimina a necessidade de decidir o que a tarefa deve fazer: é preciso especificar entradas, resultado esperado, permissões, erros possíveis e como comprovar a execução.\n\n> **Siglas e termos deste capítulo**\n> - **Script**: arquivo de texto com comandos interpretados por um shell ou por uma linguagem.\n> - **Shell**: programa que interpreta comandos e conecta ferramentas, como Bash ou PowerShell.\n> - **Idempotência**: repetir uma operação leva ao mesmo estado desejado sem duplicar efeitos.\n> - **Privilégio mínimo**: conceder somente as permissões necessárias à tarefa.\n> - **Código de saída**: número devolvido ao processo chamador para indicar sucesso ou falha.\n\n### Planejar antes de executar\n\nUma rotina robusta começa por definir o escopo: quais máquinas, contas, arquivos e período de logs serão tratados? Em seguida, valida os parâmetros, verifica pré-requisitos e executa uma ação pequena e observável. Uma rotina de criação de usuário, por exemplo, deve validar o nome, detectar se a conta já existe, usar credenciais protegidas e só então criar ou ajustar a conta. A repetição deve informar se a conta já estava pronta ou se houve alteração.\n\n| Etapa | Pergunta prática | Exemplo de controle |\n| --- | --- | --- |\n| Entrada | Qual identificador ou caminho será usado? | Validar nome da conta e diretório de destino |\n| Pré-condição | A execução tem contexto e permissão adequados? | Conferir ferramenta, destino e privilégio |\n| Ação | Qual mudança é necessária? | Criar somente conta ausente |\n| Verificação | Como confirmar o resultado? | Consultar conta, serviço ou arquivo produzido |\n| Registro | O que deve ficar auditável? | Registrar horário, objeto e resultado sem senha |\n\n### Efeito colateral e modo de teste\n\nCriar contas, alterar serviços e copiar arquivos são ações com efeitos persistentes. Faça primeiro uma revisão do comando, limite a execução a um alvo de teste e use opções de simulação quando disponíveis. No PowerShell, parâmetros comuns como `-WhatIf` são oferecidos por alguns comandos, mas não por todos; confirme a ajuda do comando específico. Uma execução agendada deve usar uma identidade apropriada e ter acesso explícito aos recursos que precisa.\n\nNunca grave senha em texto claro no arquivo, na linha de comando, no histórico do shell ou no log. Não use conta administrativa ampla por conveniência. Leia uma lista de alvos como dados, valide os valores e evite compor comandos executáveis com texto não confiável.\n\n### Como cai na prova\n\n- Repetir com segurança não significa executar cegamente: verifique estado atual e faça a mudança somente quando necessária.\n- Um código de saída diferente de zero deve ser tratado como sinal de falha ou condição especial, e não como confirmação de sucesso.\n- A automação deve registrar resultado útil, proteger credenciais e limitar escopo e privilégios."
+    },
+    {
+      "title": "2. Bash, PowerShell e Python",
+      "markdown": "### O problema que este assunto resolve\n\nAs três ferramentas podem automatizar tarefas, mas têm modelos diferentes. Bash é um shell comum em sistemas Unix e Linux, adequado a encadear comandos e tratar arquivos e fluxos de texto. PowerShell organiza a automação em cmdlets e objetos, com forte integração ao Windows e disponibilidade multiplataforma em versões atuais. Python é uma linguagem geral: seu módulo padrão permite manipular arquivos, chamar processos e estruturar rotinas com tratamento de exceções.\n\n> **Siglas e termos deste capítulo**\n> - **Pipeline**: encadeamento em que a saída de uma etapa alimenta a próxima.\n> - **Cmdlet**: comando PowerShell com nome verbo-substantivo, como `Get-Service`.\n> - **Objeto**: valor com propriedades e métodos; no PowerShell, objetos fluem pelo pipeline.\n> - **Argumento**: valor fornecido ao script ou comando no momento da execução.\n> - **Shebang**: primeira linha opcional que indica o interpretador do script em sistemas Unix.\n\n### Bash: comandos, fluxos e retorno\n\nUm arquivo `.sh` contém comandos Bash. Variáveis são referenciadas com `$nome`; argumentos posicionais incluem `$1` e `$2`; `$?` contém o status do comando anterior. Por convenção, status zero indica sucesso e valor diferente de zero sinaliza falha. Redirecionamentos controlam fluxos: `>` cria ou substitui a saída em arquivo, `>>` acrescenta, `<` fornece entrada, e `2>` redireciona erros. A ordem dos redirecionamentos importa.\n\nFunções agrupam comandos reutilizáveis. `if` avalia o status de um comando ou teste; `for` percorre uma lista. `set -u` ajuda a detectar variável não definida, e `set -o pipefail` permite que falha em etapa anterior de um pipeline seja refletida no status do pipeline. `set -e` tem exceções contextuais e não substitui tratamento explícito de erro. Coloque expansões de variáveis que representam caminhos entre aspas duplas para preservar espaços e evitar expansão de curingas.\n\n### PowerShell: cmdlets e objetos\n\nUm arquivo `.ps1` pode combinar cmdlets, funções e estruturas `if`, `foreach` e `try/catch/finally`. A saída de `Get-Service` é composta por objetos que podem ser filtrados com `Where-Object` e selecionados com `Select-Object`; não é necessário analisar colunas impressas como texto. `Get-Help Nome-Do-Cmdlet -Examples` consulta exemplos locais. `try/catch` trata erros terminantes; quando necessário, `-ErrorAction Stop` transforma erro não terminante do cmdlet em terminante para aquele comando. O bloco `finally` é apropriado para liberar recursos e executar limpeza.\n\nO PowerShell distingue saída normal de fluxos de erro, aviso, informação, detalhamento e depuração. `Export-Csv` serializa objetos em CSV; `ConvertTo-Json` produz JSON. A formatação da tela é apresentação, não uma estrutura confiável para alimentar outro comando.\n\n### Python: linguagem e biblioteca padrão\n\nEm Python, `if`, `for` e funções expressam a lógica; `pathlib.Path` representa caminhos e `with` ajuda a fechar arquivos mesmo quando ocorre erro. `subprocess.run` executa programas externos, aceita argumentos como lista e pode capturar saída e código de retorno; passar uma lista evita depender de interpretação de shell para concatenar texto. `logging` registra mensagens por nível, e `shutil.copy2` copia arquivo preservando metadados que a função suporta.\n\n### Como cai na prova\n\n- Em Bash, `$?` corresponde ao status do último comando; um pipeline exige atenção especial ao status de cada etapa.\n- Em PowerShell, o pipeline transmite objetos; filtrar propriedade é mais confiável que procurar texto formatado.\n- Em Python, `subprocess.run([...])` e `logging` oferecem execução externa e registro estruturado, respectivamente."
+    },
+    {
+      "title": "3. Usuários e serviços",
+      "markdown": "### O problema que este assunto resolve\n\nA criação repetida de contas locais em estações ou servidores precisa ser consistente. Em Windows, o módulo `Microsoft.PowerShell.LocalAccounts` inclui `New-LocalUser`, que cria uma conta local, e `Get-LocalUser`, que consulta contas. `New-LocalUser -Name ... -Password ...` recebe uma senha como `SecureString`; `Read-Host -AsSecureString` pode coletá-la sem ecoar o texto na tela. A conta local não é, por esse fato, uma conta de domínio.\n\n> **Siglas e termos deste capítulo**\n> - **Conta local**: identidade armazenada e gerenciada no próprio computador.\n> - **SecureString**: tipo PowerShell destinado a representar texto sensível com proteção no ambiente da execução.\n> - **Serviço**: processo gerenciado pelo sistema operacional com estado e configuração de inicialização.\n> - **Estado desejado**: condição que a rotina deve encontrar ao terminar, como usuário existente ou serviço ativo.\n> - **Privilégio administrativo**: autorização necessária para certas mudanças no sistema.\n\n### Exemplo de provisionamento idempotente\n\nAntes de criar uma conta, consulte se ela existe. Se existir, não crie outra nem trate a repetição como falha inesperada; verifique se as propriedades estão adequadas e reporte a situação. Se não existir, solicite uma senha de forma protegida e chame `New-LocalUser`. A criação e a inclusão em grupo são etapas diferentes: `Add-LocalGroupMember` altera associação, portanto só deve ser usada para grupo aprovado e necessário. Não conceda associação administrativa por padrão.\n\nEm Linux, scripts de provisionamento podem chamar ferramentas administrativas do sistema, como `useradd`, mas os parâmetros e políticas variam entre distribuições. Confirme a ferramenta instalada e sua documentação local. Evite colocar senha como argumento visível em linha de comando. Execute o script com uma conta restrita e solicite elevação apenas para a operação que exige privilégio.\n\n### Verificar serviço antes de reiniciar\n\n`Get-Service` obtém objetos de serviços Windows, inclusive em execução e parados. Uma rotina de verificação pode consultar `Status`, comparar com o estado esperado e gerar alerta. Se a política autorizar iniciar o serviço, a ação deve vir depois da consulta e de uma checagem de dependências; `Start-Service` inicia, mas não prova que a aplicação dependente está saudável. Em Linux, ferramentas como `systemctl is-active nome` verificam estado em sistemas que usam systemd.\n\nConsulta e alteração são tarefas distintas. Um relatório de disponibilidade pode ser somente leitura; reinício automático deve ser previsto, limitado, registrado e compatível com janela de mudança. Uma falha persistente não se resolve reiniciando sem limite: registre estado e erro para diagnóstico.\n\n### Como cai na prova\n\n- `New-LocalUser` cria usuário local; para obter a conta existente, a consulta é feita com `Get-LocalUser`.\n- `Get-Service` consulta objetos e estados; `Start-Service` muda o estado.\n- Existência prévia da conta deve ser tratada como estado conhecido para evitar duplicação ou falha desnecessária."
+    },
+    {
+      "title": "4. Coletar e analisar logs",
+      "markdown": "### O problema que este assunto resolve\n\nLogs ajudam a explicar falhas e eventos, mas uma coleta sem filtro pode ser extensa, lenta e conter dados sensíveis. Defina fonte, intervalo de tempo, severidade, limite de registros e destino. Preserve o horário e a origem do evento; sem esses metadados, comparar ocorrências entre máquinas fica difícil.\n\n> **Siglas e termos deste capítulo**\n> - **Log**: registro cronológico de eventos de um programa ou sistema.\n> - **Event Log**: subsistema de eventos do Windows, com logs como System e Application.\n> - **ETW**: Event Tracing for Windows, tecnologia de rastreamento de eventos do Windows.\n> - **Severidade**: classificação de importância, como informação, aviso ou erro.\n> - **Rotação**: política de limitar, arquivar ou substituir arquivos de log ao longo do tempo.\n\n### Consultar logs no Windows\n\n`Get-WinEvent` lê eventos dos logs do Windows e de arquivos de rastreamento ETW. É possível selecionar um log com `-LogName`, limitar quantidade com `-MaxEvents` e filtrar por tabela com `-FilterHashtable`, por exemplo especificando `LogName`, `StartTime` e `Level`. A consulta padrão devolve primeiro os eventos mais recentes. Acesso a certos logs pode exigir elevação. Para salvar resultados de maneira estruturada, selecione propriedades relevantes e exporte CSV ou JSON, em vez de depender da formatação visual.\n\n### Examinar logs de texto no Linux\n\nFerramentas como `journalctl` consultam o journal do systemd: `journalctl -u nome-servico --since ...` restringe a unidade e o período. `grep` procura padrões em arquivos de texto, `tail` mostra as linhas finais e `awk` pode selecionar campos. Filtros devem manter a linha inteira ou campos de contexto suficientes para interpretar horário, processo e mensagem. Redirecionar saída e erro para o mesmo arquivo pode ajudar em uma coleta, mas proteja o destino e evite sobrescrever uma evidência anterior sem intenção.\n\n### Python para logs e análise\n\nO módulo `logging` permite registrar mensagens com níveis como DEBUG, INFO, WARNING, ERROR e CRITICAL. Configure nível e destino de forma deliberada; não registre senhas, tokens ou conteúdo pessoal desnecessário. Para processar arquivo linha a linha, use `with open(..., encoding=...)` e trate `OSError` para problemas de leitura. Datas devem manter fuso ou referência temporal clara. Uma busca por palavra pode localizar candidatos, mas não substitui interpretação de sequência, origem e severidade.\n\n### Como cai na prova\n\n- `Get-WinEvent -FilterHashtable` restringe a consulta na origem; filtrar apenas depois de carregar um log enorme pode desperdiçar recursos.\n- `journalctl -u` concentra a consulta em uma unidade do systemd; `grep` pesquisa texto.\n- Log bom contém contexto suficiente e exclui segredo; captura indiscriminada não é sinônimo de diagnóstico."
+    },
+    {
+      "title": "5. Backup, agendamento, falhas e auditoria",
+      "markdown": "### O problema que este assunto resolve\n\nUma rotina de backup precisa produzir uma cópia verificável em destino apropriado e deixar evidência de sucesso ou falha. Copiar arquivos não garante, por si só, que a cópia possa ser restaurada. O plano deve especificar origem, destino, exclusões, retenção, tratamento de arquivos em uso, espaço disponível e validação posterior. Para bancos e aplicações, cópias consistentes podem exigir mecanismos próprios do serviço.\n\n> **Siglas e termos deste capítulo**\n> - **Backup**: cópia mantida para recuperação de dados.\n> - **Restauração**: processo de recuperar dados a partir de uma cópia.\n> - **Retenção**: regra sobre por quanto tempo e quantas cópias são preservadas.\n> - **Agendador**: serviço que inicia tarefas em horários ou eventos definidos.\n> - **Checksum**: resumo calculado sobre conteúdo para comparar integridade de cópias.\n\n### Rotina de cópia e validação\n\nEm Python, `shutil.copy2(origem, destino)` copia um arquivo e tenta preservar metadados suportados; `shutil.copytree` trabalha com árvores de diretórios. Essas funções não oferecem, sozinhas, retenção, criptografia, catálogo, consistência transacional nem garantia de restauração. Um roteiro pode copiar para diretório datado, verificar existência e tamanho esperado, registrar resultado e executar checagem de hash quando adequada. Para dados de aplicação em uso, use o método de backup consistente indicado pelo produto.\n\nNo PowerShell, `Copy-Item` copia itens e `Test-Path` verifica caminhos; em Bash, `cp` copia arquivos e `tar` pode criar arquivo de acervo. Confirme códigos de saída e não escreva sucesso antes de conferir o resultado. Mantenha cópias em destino com acesso controlado e teste periodicamente a restauração em ambiente separado. Uma cópia no mesmo disco não protege contra falha física desse disco.\n\n### Agendar, registrar e recuperar de erro\n\nTarefas podem ser iniciadas por agendadores do sistema: cron em muitos Unix/Linux, Task Scheduler no Windows ou um serviço de agendamento da plataforma. A conta da tarefa precisa ter permissões de leitura da origem e escrita no destino; variáveis de ambiente e diretório atual podem diferir de uma sessão interativa. Use caminhos explícitos, saída para log e código de retorno útil.\n\nEm Bash, verifique status de cada comando relevante e use `trap` se precisar executar limpeza ao terminar. Em PowerShell, erros não terminantes não entram automaticamente no `catch`; `-ErrorAction Stop` pode torná-los capturáveis, e `finally` serve para limpeza. Em Python, use `try/except` para exceções esperadas e `finally` ou `with` para liberar recursos. Não esconda falha com um bloco que apenas continua sem registrar o problema.\n\n### Como cai na prova\n\n- Uma cópia só é confiável após verificação e teste de restauração compatível com a aplicação.\n- `shutil.copy2` copia arquivo e metadados suportados, mas não implementa uma política completa de backup.\n- Tarefa agendada usa identidade e ambiente próprios; teste permissões e caminhos nesse contexto."
+    }
+  ],
+  "summary": "Automação administrativa transforma procedimentos repetidos em scripts controláveis. Planeje entradas, pré-condições, estado desejado, verificação, registro, permissões mínimas e tratamento de falhas. Bash encadeia comandos e fluxos; `$?` guarda status do comando anterior, funções agrupam tarefas e redirecionamentos separam saída e erros. PowerShell trabalha com cmdlets e objetos: `New-LocalUser` cria conta local, `Get-LocalUser` consulta, `Get-Service` verifica serviços e `Get-WinEvent` coleta eventos; `try/catch/finally` trata erros terminantes e limpeza. Python usa `subprocess.run` para processos externos, `logging` para registros e `shutil.copy2` para cópia de arquivo com metadados suportados. Uma rotina de backup exige destino protegido, retenção, verificação e teste de restauração; cópia simples não garante recuperação. Não grave segredos em scripts ou logs, valide alvos, use privilégios mínimos e registre resultados úteis.",
+  "flashcards": [
+    {
+      "front": "O que significa idempotência numa rotina de provisionamento?",
+      "back": "Executar de novo converge para o mesmo estado sem duplicar contas nem repetir efeitos desnecessários."
+    },
+    {
+      "front": "Qual status Bash normalmente indica sucesso?",
+      "back": "Zero; valor diferente de zero indica falha ou condição que deve ser interpretada."
+    },
+    {
+      "front": "O que contém `$?` no Bash?",
+      "back": "O status de saída do comando anterior executado."
+    },
+    {
+      "front": "Para que serve `2>` no Bash?",
+      "back": "Redireciona o fluxo de erro padrão para um arquivo ou destino."
+    },
+    {
+      "front": "Por que colocar expansão de caminho entre aspas no Bash?",
+      "back": "Para preservar espaços e impedir expansão indesejada de curingas no caminho."
+    },
+    {
+      "front": "O que uma função Bash oferece?",
+      "back": "Agrupa comandos sob um nome reutilizável e aceita argumentos posicionais."
+    },
+    {
+      "front": "O que flui no pipeline PowerShell?",
+      "back": "Objetos com propriedades e métodos, e não apenas linhas de texto formatadas."
+    },
+    {
+      "front": "Qual cmdlet cria uma conta local Windows?",
+      "back": "`New-LocalUser`; a conta local é distinta de uma identidade de domínio."
+    },
+    {
+      "front": "Qual cmdlet consulta usuários locais?",
+      "back": "`Get-LocalUser`."
+    },
+    {
+      "front": "Como solicitar senha sem exibi-la no prompt PowerShell?",
+      "back": "`Read-Host -AsSecureString`, passando o resultado ao parâmetro `-Password` quando apropriado."
+    },
+    {
+      "front": "O que `Get-Service` retorna?",
+      "back": "Objetos que representam serviços e seus estados, inclusive serviços parados."
+    },
+    {
+      "front": "Para que serve `Get-WinEvent`?",
+      "back": "Consultar eventos dos logs Windows e registros ETW, com filtros e limites."
+    },
+    {
+      "front": "Qual cmdlet PowerShell pode exportar objetos para CSV?",
+      "back": "`Export-Csv`, após selecionar as propriedades necessárias."
+    },
+    {
+      "front": "O que faz `try/catch/finally` no PowerShell?",
+      "back": "Trata erros terminantes em catch e executa limpeza em finally."
+    },
+    {
+      "front": "Quando `-ErrorAction Stop` ajuda?",
+      "back": "Quando um cmdlet produz erro não terminante que deve ser capturado por try/catch."
+    },
+    {
+      "front": "Que recurso consulta logs de unidade systemd?",
+      "back": "`journalctl -u nome-servico`, que pode ser combinado com limite temporal."
+    },
+    {
+      "front": "Para que serve o módulo Python `logging`?",
+      "back": "Registrar mensagens por níveis de severidade e direcioná-las a destinos configurados."
+    },
+    {
+      "front": "O que `subprocess.run` permite em Python?",
+      "back": "Executar processo externo e inspecionar saída e código de retorno."
+    },
+    {
+      "front": "O que `shutil.copy2` faz?",
+      "back": "Copia arquivo e tenta preservar metadados que a plataforma suporta."
+    },
+    {
+      "front": "Por que uma cópia de arquivo não basta para chamar a rotina de backup confiável?",
+      "back": "Ainda são necessários consistência, destino protegido, retenção, verificação e teste de restauração."
+    },
+    {
+      "front": "O que deve ser evitado em logs de automação?",
+      "back": "Senhas, tokens e dados pessoais que não sejam necessários ao diagnóstico."
+    },
+    {
+      "front": "Por que testar tarefa no contexto do agendador?",
+      "back": "A identidade, permissões, diretório atual e variáveis podem diferir da sessão interativa."
+    },
+    {
+      "front": "O que significa privilégio mínimo?",
+      "back": "Conceder à tarefa apenas as permissões necessárias para seu objetivo."
+    },
+    {
+      "front": "Qual é a finalidade de validar o estado final?",
+      "back": "Confirmar que a conta, serviço, arquivo ou registro ficou como esperado."
+    },
+    {
+      "front": "O que é um código de saída?",
+      "back": "Sinal numérico devolvido ao processo chamador para representar resultado da execução."
+    }
+  ],
+  "tips": [
+    "Separe consulta de mudança: primeiro leia estado, depois altere somente se a rotina estiver autorizada.",
+    "Em Bash, capture o status logo após o comando relevante; outro comando pode substituir `$?`.",
+    "No PowerShell, filtre propriedades de objetos com `Where-Object`; não trate tabela formatada como dado estruturado.",
+    "Use `try/catch` para falhas tratáveis e registre contexto como alvo, horário e operação, sem incluir segredo.",
+    "Para conta local existente, trate a existência como estado a verificar, não como motivo para criar duplicata.",
+    "Agendamento confiável pede caminhos absolutos, identidade correta, acesso ao destino e teste da restauração."
+  ],
+  "traps": [
+    "Afirmar que Bash considera zero uma falha. O status zero representa sucesso; não zero sinaliza falha ou outra condição.",
+    "Dizer que `Get-Service` inicia o serviço. Ele consulta serviços; `Start-Service` é a ação de início.",
+    "Confundir `New-LocalUser` com criação de usuário de domínio. Esse cmdlet cria conta local no computador.",
+    "Supor que todo erro PowerShell cai em catch. O bloco captura erros terminantes; erro não terminante pode requerer `-ErrorAction Stop`.",
+    "Tratar saída formatada do PowerShell como estrutura para pipeline. Cmdlets passam objetos e propriedades.",
+    "Dizer que `shutil.copy2` implementa retenção e recuperação completa. Ele copia arquivo e metadados suportados, não uma política integral de backup."
+  ],
+  "activeRecall": [
+    {
+      "question": "Quais controles você definiria antes de automatizar a criação de contas?",
+      "answer": "Escopo e nome válidos, detecção de existência, identidade executora, privilégio mínimo, forma segura de obter senha, grupo autorizado, verificação final e registro sem segredos."
+    },
+    {
+      "question": "Explique a diferença entre consulta e mudança ao verificar serviços.",
+      "answer": "`Get-Service` ou `systemctl is-active` consulta estado; `Start-Service` ou ação equivalente muda estado e deve ser autorizada e registrada."
+    },
+    {
+      "question": "Como Bash indica sucesso e onde fica o status anterior?",
+      "answer": "Por convenção sucesso é status zero; `$?` contém o status do comando executado imediatamente antes."
+    },
+    {
+      "question": "Por que objetos PowerShell ajudam na coleta de eventos?",
+      "answer": "Permitem filtrar e selecionar propriedades antes de exportar, sem depender de colunas formatadas para tela."
+    },
+    {
+      "question": "Qual diferença entre erro terminante e não terminante no PowerShell?",
+      "answer": "Erro terminante interrompe o fluxo atual e pode ser capturado; erro não terminante pode permitir continuação, sendo possível promovê-lo com `-ErrorAction Stop`."
+    },
+    {
+      "question": "O que `finally` deve fazer?",
+      "answer": "Executar limpeza ou liberação de recursos após a tentativa, mesmo quando um erro terminante foi tratado."
+    },
+    {
+      "question": "Como estruturar chamada segura de processo externo em Python?",
+      "answer": "Passar executável e argumentos como lista a `subprocess.run`, tratar retorno ou exceção e evitar montar string executável com entrada não confiável."
+    },
+    {
+      "question": "O que falta a uma cópia feita com `copy2` para ser política de backup?",
+      "answer": "Ainda é preciso decidir consistência, retenção, proteção do destino, verificação e teste de restauração."
+    },
+    {
+      "question": "Como evitar que reaplicar script de usuário crie inconsistência?",
+      "answer": "Consultar a conta existente e comparar com o estado desejado, realizando somente as mudanças necessárias."
+    },
+    {
+      "question": "Que informações úteis entram no log de uma rotina?",
+      "answer": "Horário, alvo, operação, resultado, duração e contexto suficiente para diagnóstico, removendo senhas e tokens."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Status de processo e fluxos confundidos",
+      "summary": "Bash usa zero como sucesso e `$?` para o comando anterior; stderr é um fluxo separado e pipelines exigem atenção aos status das etapas."
+    },
+    {
+      "key": "e2",
+      "title": "Cmdlets e objetos interpretados como texto",
+      "summary": "PowerShell transmite objetos; Get-Service consulta, Start-Service altera, e Get-WinEvent coleta eventos com filtros."
+    },
+    {
+      "key": "e3",
+      "title": "Conta local, privilégio e repetição misturados",
+      "summary": "New-LocalUser cria conta local, credenciais devem ser protegidas e uma rotina idempotente verifica existência e estado antes de mudar."
+    },
+    {
+      "key": "e4",
+      "title": "Tratamento de erro incompleto",
+      "summary": "PowerShell catch trata erros terminantes; `-ErrorAction Stop` pode elevar erro não terminante, enquanto Python e Bash também precisam verificar exceções ou códigos de saída."
+    },
+    {
+      "key": "e5",
+      "title": "Cópia confundida com recuperação",
+      "summary": "Ferramentas de cópia não implementam sozinhas retenção, consistência nem teste de restauração; logs e destinos devem ser protegidos."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma tarefa agendada falha ao acessar arquivo que o administrador consegue ler na sessão interativa. Qual verificação é mais pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar indiscriminadamente as permissões de todos os usuários do computador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover o arquivo do script e deixar o agendador localizar o caminho automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar o nome do arquivo por um comando interno do PowerShell.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar a tarefa e considerar a leitura interativa uma prova de execução agendada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conferir identidade, permissões e caminhos absolutos no contexto usado pelo agendador.",
+          "correct": true
+        }
+      ],
+      "explanation": "A tarefa pode usar outra identidade e outro diretório atual, portanto deve-se conferir o acesso efetivo e usar caminhos explícitos. A sessão interativa do administrador não prova que a conta configurada para o agendador possua as mesmas permissões.",
+      "section": "5. Backup, agendamento, falhas e auditoria",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script Bash deve acrescentar saída padrão e erros ao mesmo arquivo de registro. Qual redirecionamento combina os dois fluxos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`< registro.txt`, que envia o conteúdo do arquivo aos dois fluxos do comando.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`>> registro.txt`, que acrescenta saída padrão e descarta automaticamente erros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`2> registro.txt`, que registra erros e duplica a saída padrão no arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`> registro.txt 2>&1`, que direciona stdout ao arquivo e stderr ao mesmo destino.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`2>&1 > registro.txt`, que sempre envia stdout e stderr ao arquivo na mesma ordem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na sequência `> registro.txt 2>&1`, primeiro stdout passa ao arquivo e depois stderr é duplicado para o destino atual de stdout. A ordem inversa não tem o mesmo efeito: stderr herdaria o stdout anterior antes de stdout ser redirecionado.",
+      "section": "2. Bash, PowerShell e Python",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, um objeto `pathlib.Path` foi criado a partir de um caminho. O que se pode concluir sem outra consulta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O arquivo existe, está legível e foi aberto para leitura automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O arquivo foi copiado e seus metadados estão preservados no destino.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O caminho foi convertido em diretório e criado no sistema de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A existência já está garantida, pois o construtor consulta o sistema de arquivos ao criar o objeto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O objeto representa o caminho, mas não comprova por si só que ele exista.",
+          "correct": true
+        }
+      ],
+      "explanation": "`Path` representa e facilita operações sobre um caminho; construir o objeto não cria nem verifica o arquivo. Uma consulta explícita como `exists()` verifica existência, e operações de abertura ainda podem falhar por permissão ou condição concorrente.",
+      "section": "2. Bash, PowerShell e Python",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo de log cresce continuamente e precisa obedecer a limite de espaço com preservação de histórico recente. Qual recurso operacional é pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar o arquivo durante gravação sem registrar quando a limpeza ocorreu.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Duplicar o arquivo integralmente a cada minuto no mesmo diretório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar o registro após a primeira falha para impedir crescimento futuro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Renomear toda a pasta de sistema para reduzir o tamanho do log atual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar rotação com limites e retenção definidos, preservando arquivos arquivados necessários.",
+          "correct": true
+        }
+      ],
+      "explanation": "Rotação limita crescimento e pode arquivar ou substituir logs conforme política de retenção. O limite e a quantidade de arquivos preservados devem atender à necessidade de diagnóstico, e a rotina não deve apagar evidências necessárias sem regra definida.",
+      "section": "4. Coletar e analisar logs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Bash, um comando que termina com status zero é convencionalmente considerado malsucedido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O padrão de status de processos trata zero como sucesso e valores diferentes de zero como falha ou condição especial. O shell disponibiliza o status para que o script decida se deve continuar, registrar erro ou seguir outro ramo.",
+      "section": "2. Bash, PowerShell e Python",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A variável `$?` do Bash preserva o resultado de qualquer comando anterior mesmo depois que outros comandos são executados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `$?` representa o status do comando mais recentemente executado. Se o script precisa decidir com base num comando específico, deve testar ou salvar o status imediatamente, antes de executar outro comando.",
+      "section": "2. Bash, PowerShell e Python",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Bash, `2>` redireciona a saída de erro padrão, enquanto `>>` acrescenta saída ao arquivo indicado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O descritor 2 corresponde ao erro padrão, e o operador `>>` abre o destino para acréscimo. Já `>` normalmente cria ou substitui o conteúdo do arquivo, portanto a escolha afeta a preservação dos registros anteriores.",
+      "section": "2. Bash, PowerShell e Python",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Colocar uma expansão de caminho entre aspas no Bash ajuda a preservar espaços como parte do mesmo argumento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As aspas impedem que espaços separem o caminho em vários argumentos e reduzem expansões de curingas indesejadas. Isso é especialmente importante quando caminhos vêm de parâmetros ou nomes de arquivos externos.",
+      "section": "2. Bash, PowerShell e Python",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função Bash cria automaticamente um processo separado e não compartilha o contexto do shell chamador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Funções Bash executam no contexto do shell atual, sem criar por si mesmas um processo novo. Seus argumentos tornam-se parâmetros posicionais durante a execução, o que permite agrupar lógica em partes reutilizáveis.",
+      "section": "2. Bash, PowerShell e Python",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O parâmetro `-ErrorAction Stop` pode tornar terminante um erro de cmdlet que seria não terminante, permitindo tratamento por `catch`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `try/catch` captura erros terminantes. Ao aplicar `-ErrorAction Stop` ao comando relevante, um erro não terminante pode ser promovido para que o fluxo passe ao bloco `catch` em vez de simplesmente continuar.",
+      "section": "2. Bash, PowerShell e Python",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O bloco `finally` do PowerShell é apropriado para limpeza que deve ocorrer depois do bloco try, inclusive após erro tratado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `finally` é executado depois do fluxo try/catch para liberar recursos ou fazer limpeza. Isso evita depender de o caminho feliz ter sido concluído para fechar ou remover recursos temporários.",
+      "section": "5. Backup, agendamento, falhas e auditoria",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PowerShell, `Get-Service` inicia um serviço parado quando esse serviço aparece na saída do cmdlet.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `Get-Service` consulta e retorna objetos de serviço, inclusive os parados. Iniciar é uma ação separada, feita com cmdlet apropriado como `Start-Service`, e requer autorização e confirmação do estado desejado.",
+      "section": "3. Usuários e serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O `Get-WinEvent` pode consultar logs Windows e filtrar eventos por critérios como log, horário ou nível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O cmdlet acessa logs de eventos e ETW, oferecendo parâmetros de filtro como `-FilterHashtable` e `-FilterXPath`. Limitar a consulta permite reduzir volume e direcionar a análise para o intervalo relevante.",
+      "section": "4. Coletar e analisar logs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O módulo Python `logging` oferece níveis como INFO e ERROR para registrar mensagens de execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O módulo padrão possui níveis de severidade, incluindo DEBUG, INFO, WARNING, ERROR e CRITICAL. Configurar o nível e o destino permite separar diagnóstico detalhado de falhas que exigem atenção.",
+      "section": "4. Coletar e analisar logs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`shutil.copy2` implementa por si só retenção, criptografia, cópia consistente de banco e teste de restauração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `copy2` copia arquivos e tenta preservar metadados suportados, mas não cria toda uma política de backup. Retenção, proteção, consistência da aplicação, validação e teste de recuperação precisam ser planejados separadamente.",
+      "section": "5. Backup, agendamento, falhas e auditoria",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa agendada pode executar sob identidade e ambiente diferentes da sessão interativa do administrador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Agendadores usam uma identidade configurada e podem iniciar com diretório atual e variáveis diferentes. Por isso caminhos explícitos, permissões conferidas e teste no próprio contexto agendado evitam falhas que não aparecem no terminal interativo.",
+      "section": "5. Backup, agendamento, falhas e auditoria",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cópia de backup pode ser considerada recuperável sem qualquer teste, desde que o arquivo de destino exista.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A existência do arquivo não comprova legibilidade, consistência nem capacidade de restauração. O teste periódico de recuperação verifica se os dados podem ser usados e se o procedimento atende ao objetivo definido.",
+      "section": "5. Backup, agendamento, falhas e auditoria",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A automação segura limita permissões e evita incluir senhas em arquivos de script ou registros de execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O princípio do privilégio mínimo reduz o impacto de erro ou comprometimento, e segredos não devem aparecer em texto claro no script, argumentos ou logs. A rotina precisa de mecanismo protegido de credenciais adequado ao ambiente.",
+      "section": "1. Automatizar com controle e segurança",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script idempotente é aquele que sempre executa uma operação nova, ainda que o estado desejado já exista.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Idempotência significa que repetir a rotina converge para o mesmo estado e evita duplicar efeitos desnecessários. Por exemplo, a criação de usuário consulta se a conta existe antes de tentar criá-la novamente.",
+      "section": "1. Automatizar com controle e segurança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa listar serviços Windows e seus estados sem alterá-los. Qual cmdlet atende diretamente a essa consulta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`Get-Service`, que retorna objetos com serviços e respectivos estados atuais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`Start-Service`, que consulta e inicia cada serviço encontrado no computador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`New-Service`, que enumera serviços existentes sem criar uma nova entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`Get-WinEvent`, que apresenta serviços ativos a partir do log System.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`New-LocalUser`, que lista serviços associados às contas locais existentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "`Get-Service` consulta serviços e devolve objetos que incluem estado. `Start-Service` altera o estado; `New-Service` cria entrada de serviço; `Get-WinEvent` lê eventos e `New-LocalUser` cria conta local, portanto não substituem a consulta solicitada.",
+      "section": "3. Usuários e serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um operador precisa criar uma conta local Windows usando senha digitada sem aparecer no prompt. Qual procedimento é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enviar a senha em texto ao `New-LocalUser` pela linha de comando.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Consultar eventos com `Get-WinEvent` e converter a mensagem em usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `Read-Host -AsSecureString` e passar o resultado a `-Password`.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Executar `Get-LocalUser` com senha como argumento para criar a conta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar uma entrada de serviço `New-Service` com nome e senha do usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "`Read-Host -AsSecureString` coleta a senha como SecureString, que pode ser fornecida a `New-LocalUser -Password`. `Get-LocalUser` apenas consulta contas. Colocar o segredo na linha de comando pode expô-lo e serviços não são contas de usuário.",
+      "section": "3. Usuários e serviços",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina deve coletar apenas eventos recentes de erro do log System. Qual abordagem PowerShell é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar `Get-Service` e guardar a propriedade Status de cada serviço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `Get-WinEvent` com `-FilterHashtable` para log, horário e nível.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar `New-LocalUser` e filtrar contas pela data de criação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar `Start-Service` e capturar a saída em arquivo de texto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `Export-Csv` sem consultar eventos e aguardar o agendador preencher dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "`Get-WinEvent` consulta eventos, e `-FilterHashtable` aceita critérios como nome do log, intervalo e nível. Os cmdlets de serviço e usuário consultam ou alteram outros objetos; `Export-Csv` apenas exporta dados já produzidos por uma etapa anterior.",
+      "section": "4. Coletar e analisar logs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um script Bash, qual expansão fornece o status do comando executado imediatamente antes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`$?`, que contém o código de saída do último comando executado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`$#`, que contém o texto completo da saída padrão do último comando.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`$0`, que contém sempre o status numérico da execução anterior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`$!`, que contém o código de erro guardado para o próximo pipeline.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`$$`, que contém o número de arquivos alterados pelo comando anterior.",
+          "correct": false
+        }
+      ],
+      "explanation": "`$?` é o parâmetro especial do status de saída mais recente. `$#` conta parâmetros posicionais, `$0` identifica o shell ou script, `$!` informa o PID do último trabalho em segundo plano e `$$` é o PID do shell.",
+      "section": "2. Bash, PowerShell e Python",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório PowerShell precisa manter o nome e o estado de cada serviço em formato tabular para análise posterior. Qual saída usar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Redirecionar a tabela de tela para o console e copiar manualmente as colunas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter cada objeto em desenho de tabela antes de enviá-lo ao pipeline.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Selecionar as propriedades e exportar objetos com `Export-Csv`.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Iniciar todos os serviços e registrar somente o texto de confirmação exibido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Gravar os objetos em um arquivo `.ps1` para que virem dados persistentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Selecionar propriedades relevantes e usar `Export-Csv` mantém os valores dos objetos num formato tabular reutilizável. A formatação de tela é voltada à apresentação, e gravar comandos em `.ps1` não serializa o resultado da consulta.",
+      "section": "2. Bash, PowerShell e Python",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa Python deve chamar uma ferramenta de sistema usando argumentos variáveis recebidos de um arquivo. Qual prática reduz riscos de interpretação do shell?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concatenar executável e entrada numa string e executá-la sempre pelo shell.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Passar executável e argumentos como lista a `subprocess.run`.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Escrever os argumentos em comentário e pedir que o operador os copie.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `logging.error` para executar o programa externo com segurança.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `shutil.copy2` para transformar argumento recebido em processo do sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "`subprocess.run` aceita o executável e os argumentos como sequência, evitando concatenar entrada variável numa linha interpretada por shell. Ainda é preciso validar argumentos e verificar retorno, saída e exceções; logging registra mensagens e copy2 copia arquivos.",
+      "section": "2. Bash, PowerShell e Python",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina Linux precisa consultar mensagens recentes de uma unidade gerenciada pelo systemd. Qual comando é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`systemctl enable`, que mostra linhas recentes do journal da unidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`tar -u`, que pesquisa mensagens de serviço por horário no arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`useradd -l`, que coleta mensagens do usuário associado à unidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`journalctl -u nome-servico`, opcionalmente limitado por instante inicial.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`chmod -u`, que exibe erros recentes do sistema filtrados pela unidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "`journalctl -u` filtra o journal pela unidade systemd e aceita opções temporais como `--since`. `systemctl enable` altera configuração de inicialização; os demais comandos citados não consultam o journal de uma unidade.",
+      "section": "4. Coletar e analisar logs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script foi alterado para executar repetidamente a criação de usuário, embora a conta já exista. Qual mudança melhora a idempotência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar uma pausa longa antes de chamar novamente o comando de criação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar o script como administrador para ignorar conflitos de nome existentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gravar a senha no log para comparar as execuções anteriores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mudar o nome da conta a cada execução para evitar colisões futuras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Consultar a conta e só criar quando estiver ausente, verificando estado final.",
+          "correct": true
+        }
+      ],
+      "explanation": "Consultar existência e estado antes de criar impede duplicação e permite convergir para o estado desejado. Pausa e privilégio amplo não resolvem a lógica; armazenar senha em log é inseguro e trocar nomes em cada execução cria contas indevidas.",
+      "section": "1. Automatizar com controle e segurança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cmdlet dentro de try gera erro não terminante, mas o bloco catch não é executado. Qual ajuste pontual pode mudar esse comportamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acrescentar `-ErrorAction Stop` ao cmdlet que precisa passar pelo catch.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Mover o cmdlet para `finally`, que converte todo erro em exceção capturável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir o cmdlet por `Write-Output`, mantendo a mesma consulta e resultado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `Export-Csv`, que transforma erros não terminantes em erros de sintaxe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Retirar o bloco try, pois catch só funciona sem bloco de tentativa.",
+          "correct": false
+        }
+      ],
+      "explanation": "`-ErrorAction Stop` faz o erro não terminante daquele cmdlet interromper o fluxo como erro terminante, que pode ser tratado em catch. Finally é destinado a limpeza; exportação não muda a semântica de erro e catch depende de try.",
+      "section": "5. Backup, agendamento, falhas e auditoria",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cópia com Python precisa tentar preservar metadados do arquivo de origem ao copiá-lo. Qual função é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`logging.copy2`, que cria um registro e replica metadados do sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`subprocess.run`, que copia arquivo e metadados sem executar processo externo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`shutil.copy2`, que copia o arquivo e tenta preservar metadados suportados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`pathlib.Path`, que sempre duplica conteúdo e atributos em outro volume.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`open(...).readline()`, que clona o arquivo completo com permissões e datas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A função `shutil.copy2` copia o conteúdo e tenta preservar metadados suportados pela plataforma. Ela não substitui uma estratégia completa de backup nem garante que todo metadado seja reproduzido em qualquer sistema de arquivos.",
+      "section": "5. Backup, agendamento, falhas e auditoria",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina deve detectar caminho de destino ausente antes de iniciar cópia. Que abordagem oferece uma verificação simples em PowerShell?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar `Get-Service` no caminho e comparar o estado com o nome da pasta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `Test-Path` e tratar explicitamente o resultado antes de copiar.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar `New-LocalUser` para materializar o diretório como uma conta local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `Get-WinEvent` para verificar se o destino consta no log Application.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar `Start-Service` ao nome do arquivo e aguardar confirmação de cópia.",
+          "correct": false
+        }
+      ],
+      "explanation": "`Test-Path` verifica a existência de caminho e permite criar, rejeitar ou reportar destino ausente antes da cópia. Os demais cmdlets operam sobre serviços, usuários ou eventos e não verificam existência de diretório.",
+      "section": "5. Backup, agendamento, falhas e auditoria",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pipeline Bash filtra eventos usando vários comandos encadeados. Que configuração ajuda a refletir falha ocorrida numa etapa anterior do pipeline?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`set -o pipefail`, que faz o status refletir falha em etapa do pipeline.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`set +u`, que preserva o status de todo comando já executado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`cd --`, que combina os códigos de saída das ferramentas encadeadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`export PATH`, que grava automaticamente erros de todos os processos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`echo $?`, que altera o pipeline e corrige a falha inicial.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com `pipefail`, o status do pipeline pode indicar falha de um comando anterior, em vez de refletir apenas o último. `echo $?` apenas exibe o status atual e as outras opções não agregam resultados de falha do pipeline.",
+      "section": "2. Bash, PowerShell e Python",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual característica torna o PowerShell conveniente para filtrar serviços e exportar campos específicos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O pipeline converte todos os objetos em linhas simples antes de qualquer cmdlet.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cmdlets só aceitam texto impresso e não recebem dados de comandos anteriores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A formatação de tela conserva as propriedades originais para exportação posterior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O pipeline transmite objetos com propriedades que podem ser filtradas e selecionadas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Cada serviço precisa ser salvo num script separado antes de uma consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "O pipeline do PowerShell transmite objetos e suas propriedades, que podem ser filtradas e selecionadas por cmdlets. A formatação para tela é uma etapa de apresentação e não deve ser confundida com os dados estruturados originais.",
+      "section": "2. Bash, PowerShell e Python",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina deve processar arquivo de log linha por linha e fechar o arquivo mesmo se a análise falhar. Qual recurso Python ajuda?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Abrir o arquivo sem contexto e depender do encerramento do interpretador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `with open(...)` para gerenciar o ciclo de vida do arquivo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar `shutil.copy2` para converter o log em objeto já analisado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `logging.disable` para fechar qualquer arquivo aberto pelo programa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Chamar `subprocess.run` sem argumentos para ler diretamente cada linha do arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O gerenciador de contexto `with` fecha o arquivo ao sair do bloco, inclusive quando ocorre uma exceção. A leitura pode então ser feita linha a linha, com tratamento de `OSError` para falhas de acesso.",
+      "section": "4. Coletar e analisar logs",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cópia diária é armazenada no mesmo disco da origem e esse disco pode falhar fisicamente. Qual medida melhora a recuperação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar a cópia duas vezes no mesmo diretório para duplicar a proteção física.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reduzir o nome do arquivo e desativar o registro da rotina.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar cópias protegidas em destino independente e testar restauração regularmente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar `copy2` com mais frequência, sem alterar o destino ou verificar o conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter apenas o último arquivo e apagar todo registro de sucesso anterior.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma falha física do disco pode atingir origem e cópia local simultaneamente. Destino independente, controle de acesso, retenção e teste de restauração reduzem esse risco e demonstram que os dados são recuperáveis.",
+      "section": "5. Backup, agendamento, falhas e auditoria",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação registra erros com Python e precisa distinguir mensagens informativas de falhas. Qual recurso atende esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `logging` com níveis como INFO, WARNING e ERROR.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar somente `print`, que atribui severidade automática e grava em arquivo rotativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `pathlib`, que classifica cada linha pelo tipo de erro encontrado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `copy2`, que separa mensagens por severidade durante a cópia.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `subprocess.run`, que converte toda saída em níveis de log padronizados.",
+          "correct": false
+        }
+      ],
+      "explanation": "`logging` disponibiliza níveis de severidade e destinos configuráveis. `print` apenas escreve texto; pathlib manipula caminhos, copy2 copia arquivos e subprocess executa processos sem classificar automaticamente as mensagens da aplicação.",
+      "section": "4. Coletar e analisar logs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista quer somente os últimos eventos de um log Windows, sem consultar todos os registros disponíveis. Qual parâmetro pode limitar a quantidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`-Name`, que limita o total e sempre seleciona eventos pelo usuário local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`-Password`, que reduz a busca e filtra pela credencial do evento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`-StartupType`, que restringe o log ao horário de inicialização do serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`-MaxEvents`, que define o número máximo de eventos retornados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`-SecureString`, que limita eventos e protege o arquivo de destino.",
+          "correct": false
+        }
+      ],
+      "explanation": "`Get-WinEvent -MaxEvents` limita o número de eventos devolvidos. Outros parâmetros citados pertencem a operações diferentes ou não são parâmetros de consulta de eventos; combinar limite e filtro temporal melhora a coleta.",
+      "section": "4. Coletar e analisar logs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script de backup precisa registrar falha de comando e evitar anunciar sucesso quando a cópia não ocorreu. Qual conduta é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gravar sucesso antes de copiar e apagar o log se o processo falhar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ignorar retorno do comando porque o arquivo de destino será criado depois.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Repetir a cópia sem limite até que qualquer status seja tratado como sucesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ocultar stderr e devolver sempre código zero para o agendador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Checar status e resultado, registrar falha e devolver código coerente ao agendador.",
+          "correct": true
+        }
+      ],
+      "explanation": "O script deve verificar retorno e resultado esperado antes de registrar sucesso. Falha precisa ficar visível no log e no código de saída para que o agendador ou monitoramento possa alertar e a equipe investigue.",
+      "section": "5. Backup, agendamento, falhas e auditoria",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina PowerShell precisa criar conta somente quando ausente e deixar uma conta já existente sem duplicação. Qual padrão é melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar `New-LocalUser` sempre e aceitar que cada repetição crie outra conta igual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Consultar com `Get-LocalUser`, criar se ausente e validar propriedades ao final.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar `Get-Service` para verificar se o nome da conta já está ocupado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `Get-WinEvent` e inferir existência a partir de eventos recentes do sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar imediatamente todos os usuários ao grupo Administradores antes da consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Consultar a conta antes de criá-la evita repetição desnecessária; a conferência final mostra se o estado atende ao pedido. Serviços e eventos não substituem a consulta da conta, e ampliar privilégios sem necessidade viola o privilégio mínimo.",
+      "section": "3. Usuários e serviços",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante uma análise, várias mensagens de log contêm tokens de autenticação. O que a rotina deve fazer ao registrar resultados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Copiar cada token para o nome do arquivo de saída para facilitar pesquisa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Imprimir os tokens no console e removê-los somente do arquivo final.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Evitar registrar segredos e limitar o conteúdo ao contexto necessário para diagnóstico.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Armazenar os tokens em script separado junto das mensagens de erro completas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Enviar os tokens ao agendador para identificar qual conta executou o processo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Registros devem conter contexto útil, não credenciais reutilizáveis. Tokens e senhas podem ser removidos ou mascarados antes de gravar; identidade da execução deve ser obtida por metadados adequados sem copiar segredos para logs.",
+      "section": "4. Coletar e analisar logs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cópia de diretório precisa ser feita com Bash para compor um arquivo de acervo. Qual ferramenta tem esse propósito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`journalctl`, que empacota diretórios e retém metadados de todos os arquivos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`Get-Service`, que arquiva diretórios Linux no journal do sistema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`awk`, que cria arquivos compactados ao selecionar colunas do diretório.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`tar`, que cria ou manipula arquivos de acervo a partir de caminhos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`grep`, que replica diretórios mantendo uma cópia completa para restauração.",
+          "correct": false
+        }
+      ],
+      "explanation": "`tar` é uma ferramenta de arquivamento usada para criar e manipular arquivos de acervo. Ela não substitui por si só políticas de destino, criptografia, retenção ou teste de restauração; os outros comandos listados têm funções distintas.",
+      "section": "5. Backup, agendamento, falhas e auditoria",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta de eventos retorna grande quantidade de registros e o objetivo é examinar apenas o log Application desde certo horário. Qual abordagem é mais eficiente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Coletar todos os logs e imprimir a tela inteira antes de procurar o horário manualmente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Filtrar apenas depois de exportar todo o histórico para vários arquivos intermediários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `Get-Service` para inferir eventos pelo estado atual de cada serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar `New-LocalUser` com data para consultar eventos de aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar `Get-WinEvent` com log e instante inicial no filtro da consulta.",
+          "correct": true
+        }
+      ],
+      "explanation": "Aplicar critérios de log e horário na consulta reduz dados coletados e facilita análise. `Get-WinEvent` aceita filtros estruturados; consultar estados de serviços ou criar conta não fornece os eventos requeridos.",
+      "section": "4. Coletar e analisar logs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço parado pode ser dependência de outro serviço que está em execução. O que fazer antes de iniciar o serviço automaticamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar política, dependências e estado esperado antes da ação autorizada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Iniciar todos os serviços parados, pois o estado parado indica sempre falha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar o log System para que o serviço aceite a inicialização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar usuário local com nome igual ao serviço e repetir a consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar verificação de estado e reiniciar continuamente até não haver erro.",
+          "correct": false
+        }
+      ],
+      "explanation": "Nem todo serviço parado está indisponível: alguns são iniciados sob demanda ou dependem de outro serviço. A automação deve verificar política e dependências antes de mudar estado, e registrar falhas persistentes em vez de reiniciar sem limite.",
+      "section": "3. Usuários e serviços",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista precisa limitar privilégios de uma tarefa que apenas lê logs e grava um relatório em pasta específica. Qual escolha é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar sempre como administrador de domínio para evitar erros de acesso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar uma identidade com as permissões mínimas necessárias nos logs e destino.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Conceder controle total em todos os discos para garantir escrita futura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Guardar senha administrativa no script e retirar permissões após cada execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar auditoria para que a consulta não seja registrada pelo sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "O privilégio mínimo concede somente acesso de leitura às fontes necessárias e escrita no destino do relatório. Credenciais administrativas embutidas e permissões amplas aumentam impacto de erro ou comprometimento; desativar auditoria reduz rastreabilidade.",
+      "section": "1. Automatizar com controle e segurança",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência expressa melhor o ciclo de uma rotina administrativa controlada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registrar sucesso, ignorar pré-condições, executar mudança e apagar evidências antigas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar ação em massa, conceder permissões e investigar somente se houver reclamação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Validar entradas e pré-requisitos, agir, confirmar resultado, registrar e devolver status.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Coletar toda saída disponível, suprimir erros e considerar o processo concluído.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Agendar primeiro, escolher alvos durante execução e desabilitar retorno do processo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma rotina começa validando entrada e pré-condições, executa com escopo controlado e confirma o estado final. Registro e status permitem auditoria e monitoramento. Ignorar erros ou registrar sucesso antes da verificação esconde falhas.",
+      "section": "1. Automatizar com controle e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script Bash precisa executar limpeza temporária ao terminar, inclusive após uma interrupção tratável. Qual recurso pode associar ação a evento do shell?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `trap` para associar uma função ou comando ao evento de saída.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar `$#` para repetir automaticamente a última instrução de limpeza.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `export` para fechar arquivos temporários quando o processo terminar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `grep` para interceptar sinais e apagar diretórios em execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `>>` para executar a limpeza depois de qualquer status não zero.",
+          "correct": false
+        }
+      ],
+      "explanation": "O builtin `trap` permite associar comandos a sinais ou ao evento EXIT, possibilitando limpeza ao encerrar o shell. A rotina ainda deve restringir caminhos removidos e considerar sinais que não podem ser interceptados, como encerramento abrupto do sistema.",
+      "section": "5. Backup, agendamento, falhas e auditoria",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Bash Reference Manual",
+      "publisher": "GNU Project / Free Software Foundation",
+      "reference": "Scripts, funções, status de saída, variáveis especiais, pipelines e redirecionamentos",
+      "url": "https://www.gnu.org/software/bash/manual/bash.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "about_Scripts",
+      "publisher": "Microsoft Learn",
+      "reference": "Scripts PowerShell, parâmetros, funções e execução",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_scripts?view=powershell-7.4",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "New-LocalUser",
+      "publisher": "Microsoft Learn",
+      "reference": "Criação de contas locais e uso de SecureString para senha",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.localaccounts/new-localuser?view=powershell-5.1",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Get-Service",
+      "publisher": "Microsoft Learn",
+      "reference": "Consulta de serviços Windows e seus estados",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/get-service?view=powershell-7.6",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Get-WinEvent",
+      "publisher": "Microsoft Learn",
+      "reference": "Consulta de logs de eventos e ETW com filtros",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.diagnostics/get-winevent?view=powershell-7.6",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "about_Try_Catch_Finally",
+      "publisher": "Microsoft Learn",
+      "reference": "Tratamento de erros terminantes, blocos catch e finally",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_try_catch_finally?view=powershell-7.6",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "subprocess — Subprocess management",
+      "publisher": "Python Software Foundation",
+      "reference": "Execução de processos externos com subprocess.run",
+      "url": "https://docs.python.org/3/library/subprocess.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "logging — Logging facility for Python",
+      "publisher": "Python Software Foundation",
+      "reference": "Níveis e configuração de registros de execução",
+      "url": "https://docs.python.org/3/library/logging.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "shutil — High-level file operations",
+      "publisher": "Python Software Foundation",
+      "reference": "Cópia de arquivos com copy2 e operações de diretório",
+      "url": "https://docs.python.org/3/library/shutil.html",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}
