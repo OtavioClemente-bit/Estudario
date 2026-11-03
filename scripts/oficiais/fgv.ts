@@ -1,0 +1,159 @@
+// Questões reais da FGV: na página de cada concurso (conhecimento.fgv.br/concursos/<slug>) pega as provas objetivas
+// "TIPO 1" e o PDF do gabarito OFICIAL DEFINITIVO, extrai as questões (5 alternativas) exatamente como estão e cruza
+// cada prova com o bloco certo do gabarito. Não escreve nem altera questão nenhuma. Respeita o robots.txt da FGV
+// (só bloqueia busca/admin) e baixa devagar. Saída em work/provas-oficiais/fgv/<slug>/ (fora do git).
+//   deno run -A scripts/oficiais/fgv.ts trt16 [outro_slug ...]
+//   deno run -A scripts/oficiais/fgv.ts --todos     (concursos da FGV dos editais que têm link /concursos/<slug>)
+const ROOT = new URL("../../", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
+const SAIDA = `${ROOT}work/provas-oficiais/fgv`;
+const SITE = "https://conhecimento.fgv.br";
+const HEADERS = { "User-Agent": "Mozilla/5.0" };
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+type Json = Record<string, any>;
+
+function concursosDosEditais(): string[] {
+  const set = new Set<string>();
+  for (const e of Deno.readDirSync(`${ROOT}conteudo/editais`)) {
+    if (!e.name.endsWith(".json")) continue;
+    const j = JSON.parse(Deno.readTextFileSync(`${ROOT}conteudo/editais/${e.name}`).replace(/^﻿/, ""));
+    const m = String(j.url ?? "").match(/conhecimento\.fgv\.br\/concursos\/([^/?#]+)/i);
+    if (m) set.add(m[1]);
+  }
+  return [...set].sort();
+}
+async function baixar(url: string, destino: string): Promise<boolean> {
+  try { Deno.statSync(destino); return true; } catch { /* novo */ }
+  const r = await fetch(url, { headers: HEADERS });
+  if (!r.ok) return false;
+  Deno.writeFileSync(destino, new Uint8Array(await r.arrayBuffer()));
+  await sleep(2500);
+  return true;
+}
+function texto(pdf: string, layout: boolean): string {
+  const o = new Deno.Command("pdftotext", { args: ["-enc", "UTF-8", ...(layout ? ["-layout"] : []), pdf, "-"], stdout: "piped", stderr: "piped" }).outputSync();
+  return new TextDecoder().decode(o.stdout);
+}
+
+// ---------------------------------------------------------------- gabarito: blocos "<cargo> – TIPO 1" + linhas de números/letras
+function lerGabarito(t: string): { titulo: string; resp: Map<number, string> }[] {
+  const blocos: { titulo: string; resp: Map<number, string> }[] = [];
+  const L = t.split(/\r?\n/);
+  let atual: { titulo: string; resp: Map<number, string> } | null = null;
+  for (let i = 0; i < L.length; i++) {
+    const l = L[i].trim();
+    if (/TIPO\s*\d/i.test(l) && !/^\d/.test(l)) { atual = { titulo: l, resp: new Map() }; blocos.push(atual); continue; }
+    if (!atual || !/^\d+(\s+\d+)+$/.test(l)) continue;
+    const nums = l.split(/\s+/).map(Number);
+    const letras = (L[i + 1] ?? "").replace(/\s+/g, "").toUpperCase();
+    if (letras.length !== nums.length) continue; // linha estranha: não arrisca
+    nums.forEach((n, k) => atual!.resp.set(n, letras[k]));
+    i++;
+  }
+  return blocos.filter((b) => /TIPO\s*1\b/i.test(b.titulo) && b.resp.size);
+}
+
+// ---------------------------------------------------------------- questões: número, enunciado, (A)..(E)
+const CAB = [/^FGV$/, /^TRIBUNAL|^JUSTIÇA|^MINIST|^PREFEITURA|^SECRETARIA/i];
+function lerProva(t: string, total: number) {
+  const L = t.split(/\r?\n/).map((l) => l.trim());
+  // Rodapés repetidos de página (ex.: "Analista Judiciário (Área ...)") saem
+  const freq = new Map<string, number>();
+  for (const l of L) if (l) freq.set(l, (freq.get(l) ?? 0) + 1);
+  const linhas = L.filter((l) => l && !((freq.get(l) ?? 0) >= 3 && !/^\(?[A-E]\)/.test(l)) && !CAB.some((r) => r.test(l) && l.length < 60));
+  const qs: { numero: number; bruto: string }[] = [];
+  // Prova em duas colunas sai fora de ordem: aceita cada número (1..total) uma vez, em qualquer ordem, se a linha é só
+  // o número ou começa uma frase (não "25 (C) 19." de uma alternativa).
+  const vistos = new Set<number>();
+  for (const l of linhas) {
+    const m = l.match(/^(\d{1,3})(?:\s+(\S.*))?$/);
+    const n = m ? Number(m[1]) : 0;
+    if (m && n >= 1 && n <= total && !vistos.has(n) && (!m[2] || /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ"“']/.test(m[2]))) { vistos.add(n); qs.push({ numero: n, bruto: m[2] ?? "" }); continue; }
+    if (qs.length) qs[qs.length - 1].bruto += "\n" + l;
+  }
+  return qs.map((q) => {
+    const partes = q.bruto.split(/\s*\(([A-E])\)\s+/);
+    // partes = [enunciado, "A", textoA, "B", textoB, ...]
+    const alternativas: string[] = [];
+    for (let k = 1; k < partes.length; k += 2) alternativas.push((partes[k + 1] ?? "").replace(/\s+/g, " ").trim());
+    const letras = partes.filter((_, k) => k % 2 === 1).join("");
+    return { numero: q.numero, enunciado: partes[0].replace(/\s+/g, " ").trim(), alternativas, ok: letras === "ABCDE" };
+  });
+}
+
+// casa a prova com o bloco do gabarito pelo cabeçalho da capa (cargo + especialidade)
+// Compara pelo começo das palavras (enfermeiro/enfermeiros/enfermagem) e só aceita com folga clara sobre o 2º colocado.
+const GENERICAS = new Set(["tipo", "nivel", "superior", "medio", "fundamental", "prova", "area", "cargo", "branca"]);
+const raiz = (w: string) => w.slice(0, 6);
+function casar(capa: string, blocos: { titulo: string }[]) {
+  const pc = new Set(norm(capa).split(" ").filter((w) => w.length > 3).map(raiz));
+  const palavras = (s: string) => [...new Set(norm(s).split(" ").filter((w) => w.length > 3 && !GENERICAS.has(w)).map(raiz))];
+  // Título "Cargo - Área - Especialidade – TIPO 1": o primeiro pedaço (cargo) e o ÚLTIMO (especialidade) têm de estar
+  // inteiros na capa; entre os candidatos fica o de especialidade mais longa (o mais específico). Empate: não arrisca.
+  const cand = blocos.map((b, i) => {
+    const partes = b.titulo.replace(/[–-]\s*TIPO\s*\d.*$/i, "").split(/\s+[-–]\s+|\s*[-–]\s*(?=[A-ZÁÉÍÓÚ])/).map((s) => s.trim()).filter(Boolean);
+    const cargo = palavras(partes[0] ?? ""), esp = palavras(partes[partes.length - 1] ?? "");
+    const ok = cargo.every((w) => pc.has(w)) && esp.length > 0 && esp.every((w) => pc.has(w));
+    const meio = esp.filter((w) => pc.has(w)).length / Math.max(1, esp.length);
+    return { i, ok, meio, nEsp: esp.length, tam: esp.length + palavras(b.titulo).length / 100 };
+  });
+  const ok = cand.filter((x) => x.ok).sort((a, b) => b.tam - a.tam);
+  if (!ok.length || (ok.length > 1 && ok[0].tam === ok[1].tam)) return -1;
+  // trava: um bloco de especialidade MAIOR bate pela metade ou mais com a capa ("Oficial de Justiça Avaliador...")
+  // e não foi o escolhido → a capa provavelmente é dele: não arrisca.
+  if (cand.some((x) => x.i !== ok[0].i && !x.ok && x.nEsp > ok[0].nEsp && x.meio >= 0.5)) return -1;
+  return ok[0].i;
+}
+
+async function concurso(slug: string): Promise<string> {
+  const r = await fetch(`${SITE}/concursos/${slug}`, { headers: HEADERS });
+  if (!r.ok) return `${slug}: página ${r.status}`;
+  const html = await r.text();
+  const links = [...html.matchAll(/href="([^"]+\.pdf)"/gi)].map((m) => m[1].startsWith("http") ? m[1] : SITE + m[1]);
+  const gab = links.find((u) => /gabarito/i.test(u) && /definitiv/i.test(u));
+  const provas = links.filter((u) => /tipo[_-]?1\.pdf$/i.test(u) && !/gabarito|resultado|padrao|discursiva/i.test(u));
+  if (!gab || !provas.length) return `${slug}: ${provas.length} provas, ${gab ? "com" : "sem"} gabarito definitivo`;
+  const dir = `${SAIDA}/${slug}`;
+  Deno.mkdirSync(dir, { recursive: true });
+  if (!(await baixar(gab, `${dir}/_gabarito_definitivo.pdf`))) return `${slug}: gabarito não baixou`;
+  const blocos = lerGabarito(texto(`${dir}/_gabarito_definitivo.pdf`, true));
+  let ok = 0, itens = 0;
+  const avisos: string[] = [];
+  for (const u of provas) {
+    const nome = decodeURIComponent(u.split("/").pop()!);
+    if (!(await baixar(u, `${dir}/${nome}`))) { avisos.push(`${nome}: não baixou`); continue; }
+    const t = texto(`${dir}/${nome}`, false);
+    const capa = t.split(/\r?\n/).slice(0, 12).join(" ");
+    const b = casar(capa, blocos);
+    if (b < 0) { avisos.push(`${nome}: não achei o bloco do gabarito com certeza`); continue; }
+    const resp = (blocos[b] as Json).resp as Map<number, string>;
+    const qs = lerProva(t, resp.size);
+    const saida = qs.map((q) => ({ ...q, gabarito: resp.get(q.numero), anulada: !/^[A-E]$/.test(resp.get(q.numero) ?? ""), temFigura: /figura|gráfico|tabela|imagem|foto|ilustra/i.test(q.enunciado) }));
+    Deno.writeTextFileSync(`${dir}/${nome.replace(/\.pdf$/i, "")}.json`, JSON.stringify({
+      banca: "FGV", concurso: slug, ano: Number(capa.match(/20\d\d/)?.[0]) || null, prova: blocos[b].titulo, arquivo: nome, url: u, gabaritoUrl: gab,
+      questoesNoGabarito: resp.size, extraidas: saida.length, completas: saida.filter((q) => q.ok).length, questoes: saida,
+    }, null, 1));
+    ok++; itens += saida.filter((q) => q.ok && !q.anulada).length;
+    if (saida.filter((q) => q.ok).length < resp.size) avisos.push(`${nome}: ${saida.filter((q) => q.ok).length} de ${resp.size} completas`);
+  }
+  return `${slug}: ${ok} de ${provas.length} provas, ${itens} questões completas` + (avisos.length ? "\n   " + avisos.join("\n   ") : "");
+}
+
+// --catalogo: percorre a listagem paginada de conhecimento.fgv.br/concursos (?page=0,1,2...) até não aparecer
+// concurso novo, mais os dos editais.
+async function catalogo(): Promise<string[]> {
+  const set = new Set<string>(concursosDosEditais());
+  for (let p = 0; p < 200; p++) {
+    const html = await (await fetch(`${SITE}/concursos?page=${p}`, { headers: HEADERS })).text();
+    const antes = set.size;
+    for (const m of html.matchAll(/href="\/concursos\/([a-z0-9_-]+)"/gi)) set.add(m[1]);
+    if (set.size === antes) break;
+    await sleep(1500);
+  }
+  return [...set];
+}
+const lista = Deno.args.includes("--catalogo") ? await catalogo() : Deno.args.includes("--todos") ? concursosDosEditais() : Deno.args.filter((a) => !a.startsWith("--"));
+if (!lista.length) { console.log("uso: deno run -A scripts/oficiais/fgv.ts trt16 | --todos"); Deno.exit(1); }
+for (const s of lista) {
+  try { console.log(await concurso(s)); } catch (e) { console.log(`${s}: erro ${String((e as Error).message ?? e).slice(0, 150)}`); }
+}

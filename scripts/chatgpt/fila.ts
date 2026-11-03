@@ -116,10 +116,21 @@ if (cmd === "montar") {
     try { Deno.statSync(`${ROOT}conteudo/entrada/materias-codex-2/${i.nome}.json`); comCodex = true; } catch { /* não começou */ }
     if (comCodex) i.enviado = "pulado (Codex)";
   }
-  const sel = livres().slice(0, n);
+  // Explicações das questões de prova real (scripts/oficiais/pedidos.ts): 1 de cada 5 pedidos do ChatGPT
+  // (o Gemini, que só faz QUESTOES, não recebe), até a fila delas acabar.
+  const FILA_OFICIAIS = `${ROOT}work/oficiais/fila.json`;
+  let oficiais: Array<{ pedido: string; enviado: string | null }> = [];
+  if (!tipo) try { oficiais = JSON.parse(Deno.readTextFileSync(FILA_OFICIAIS)); } catch { /* sem fila de oficiais */ }
+  const vezOficiais = oficiais.filter((p) => !p.enviado).slice(0, Math.max(1, Math.floor(n / 5)));
+  const sel = livres().slice(0, n - vezOficiais.length);
   const agora = new Date().toLocaleString("pt-BR");
   for (const i of sel) i.enviado = agora;
   Deno.writeTextFileSync(FILA, JSON.stringify(f, null, 1));
+  if (vezOficiais.length) {
+    for (const p of vezOficiais) p.enviado = agora;
+    Deno.writeTextFileSync(FILA_OFICIAIS, JSON.stringify(oficiais));
+    for (const p of vezOficiais) console.log(p.pedido);
+  }
   // Matérias pedidas ao ChatGPT ficam reservadas para o Codex não escrever a mesma.
   const res = new Set(Deno.readTextFileSync(RESERVA).split(/\s+/).filter(Boolean));
   for (const i of sel) if (i.tipo === "MATERIA") res.add(i.nome);

@@ -16,7 +16,13 @@ const words = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerC
   .filter((w) => w.length >= 3 && !STOP.has(w) && !/^\d+$/.test(w));
 
 // ------------------------------------------------------------ índice das matérias
-const docs: { id: string; title: string; tf: Map<string, number> }[] = [];
+// Matéria local (estado, município, órgão, estatuto ou regimento próprio) só vale para prova de lá:
+// sem isso uma questão geral de LGPD caía no decreto de LGPD de Belo Horizonte.
+const AREAS_LOCAIS = new Set(("acre alagoas amapa amazonas bahia ceara distrito-federal espirito-santo goias manaus maranhao mato-grosso " +
+  "mato-grosso-do-sul minas-gerais para paraiba parana pernambuco piaui rio-de-janeiro rio-grande-do-norte rio-grande-do-sul rondonia " +
+  "roraima santa-catarina santos sao-paulo sergipe tocantins tce-sc trt23 trt8 stj mpu caixa legislacao-estadual legislacao-municipal").split(" "));
+const GENERICAS = new Set("estatuto regimento geral interno organica decreto lei servidores carreira cargos plano codigo etica conduta normas".split(" "));
+const docs: { id: string; title: string; tf: Map<string, number>; local: string[] | null }[] = [];
 for (const area of Deno.readDirSync(`${ROOT}conteudo/materias`)) {
   if (!area.isDirectory) continue;
   for (const f of Deno.readDirSync(`${ROOT}conteudo/materias/${area.name}`)) {
@@ -30,7 +36,9 @@ for (const area of Deno.readDirSync(`${ROOT}conteudo/materias`)) {
     ];
     const tf = new Map<string, number>();
     for (const w of words(parts.join(" "))) tf.set(w, (tf.get(w) ?? 0) + 1);
-    docs.push({ id: m.id, title: m.title, tf });
+    const local = AREAS_LOCAIS.has(area.name) || /(estatuto|regimento|lei-organica|pccr|plano-de-cargos)/.test(m.id)
+      ? words(String(m.id).replace(/[.-]/g, " ")).filter((w) => w.length >= 4 && !GENERICAS.has(w)) : null;
+    docs.push({ id: m.id, title: m.title, tf, local });
   }
 }
 const df = new Map<string, number>();
@@ -43,7 +51,7 @@ docs.forEach((d, i) => {
   const norm = Math.hypot(...vec.map(([, v]) => v)) || 1;
   for (const [w, v] of vec) { if (v <= 0) continue; (inv.get(w) ?? inv.set(w, []).get(w)!).push([i, v / norm]); }
 });
-function candidatos(text: string, k = 5): Array<{ id: string; title: string; score: number }> {
+function candidatos(text: string, contexto: string, k = 5): Array<{ id: string; title: string; score: number }> {
   const tf = new Map<string, number>();
   for (const w of words(text)) tf.set(w, (tf.get(w) ?? 0) + 1);
   const score = new Map<number, number>();
@@ -54,6 +62,8 @@ function candidatos(text: string, k = 5): Array<{ id: string; title: string; sco
     for (const [i, dv] of inv.get(w) ?? []) score.set(i, (score.get(i) ?? 0) + v * dv);
   }
   norm = Math.sqrt(norm) || 1;
+  const ctx = new Set(words(contexto));
+  for (const [i, s] of score) { const l = docs[i].local; if (l && !l.some((w) => ctx.has(w))) score.set(i, s * 0.3); }
   return [...score].sort((a, b) => b[1] - a[1]).slice(0, k)
     .map(([i, s]) => ({ id: docs[i].id, title: docs[i].title, score: Math.round((s / norm) * 1000) / 1000 }));
 }
@@ -81,7 +91,7 @@ for (const banca of ["cebraspe", "fgv", "fundatec"]) {
         : n === 0 && !/^[CE]$/.test(q.gabarito) ? "gabarito C/E inválido" : n === 5 && !/^[A-E]$/.test(q.gabarito) ? "gabarito inválido" : null;
       if (motivo) { fora[motivo] = (fora[motivo] ?? 0) + 1; continue; }
       const texto = `${base.length < 600 ? base : ""} ${q.enunciado} ${(q.alternativas ?? []).join(" ")}`;
-      const cands = candidatos(texto);
+      const cands = candidatos(texto, `${j.nomeConcurso ?? ""} ${j.concurso} ${j.cargo ?? ""} ${j.prova ?? ""} ${j.url}`);
       // Firme: a primeira matéria se destaca bem da segunda.
       const firme = cands.length > 1 && cands[0].score >= 0.2 && cands[0].score >= cands[1].score * 1.35;
       if (firme) firmes++;

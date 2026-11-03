@@ -29,7 +29,8 @@ Deno.serve({ hostname: "127.0.0.1", port: 8788 }, async (req) => {
     // Só nomes simples (letras, números, ponto e hífen; nada de caminho).
     if (!/^[a-z0-9][a-z0-9.-]{3,150}$/.test(String(nome ?? "")) || String(nome).includes("..")) return json({ ok: false, erro: "nome inválido" }, 400);
     try { JSON.parse(conteudo); } catch { log(`${nome}: JSON inválido, não gravado`); return json({ ok: false, erro: "json inválido" }, 400); }
-    const destino = `${SAIDA}/${nome}.json`;
+    // Explicações das questões de prova real vão para a pasta delas (o juntar.ts não as confunde com questões).
+    const destino = String(nome).startsWith("oficial-") ? `${ROOT}conteudo/entrada/oficiais/respostas/${nome}.json` : `${SAIDA}/${nome}.json`;
     try { Deno.statSync(destino); return json({ ok: true, ja: true }); } catch { /* novo */ }
     Deno.writeTextFileSync(destino, conteudo);
     log(`gravado ${nome}.json`);

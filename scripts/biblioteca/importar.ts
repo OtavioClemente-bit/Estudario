@@ -92,6 +92,27 @@ for (const { path, value } of await jsonFiles("recortes")) {
   }
 }
 
+// Questões de prova real (conteudo/recortes-oficiais, de scripts/oficiais/montar.ts): entram no fim do
+// recorte da mesma banca e matéria. Sem recorte da banca, esperam até ele existir. OFICIAIS=0 publica
+// sem nenhuma delas (para tirá-las de vez; para esconder na hora, OFFICIAL_QUESTIONS_ENABLED=false).
+let oficiaisAguardando = 0;
+if (Deno.env.get("OFICIAIS") !== "0") {
+  for (const { path, value } of await jsonFiles("recortes-oficiais")) {
+    const boardNorm = normalizeBoard(String(value.board));
+    const target = notes.find((n) => n.topic === String(value.topic) && n.boardNorm === boardNorm && n.roleNorm === "");
+    const real = ((value.questions as Json[] | undefined) ?? []).filter((q) => q.sourceType === "REAL");
+    if (!target) { oficiaisAguardando += real.length; continue; }
+    const merged = { ...target.value, questions: [...((target.value.questions as Json[] | undefined) ?? []), ...real] };
+    try {
+      validateBoardNote(merged, materials.get(target.topic)!);
+      target.value = merged;
+    } catch (error) {
+      report(path, error);
+    }
+  }
+  if (oficiaisAguardando) console.log(`${oficiaisAguardando} questões de prova real esperando recorte da banca`);
+}
+
 // Editais: cada texto do edital vira um apelido da matéria a que foi ligado.
 const missing: string[] = [];
 const materialAliases = new Set(aliasOwner.keys());
