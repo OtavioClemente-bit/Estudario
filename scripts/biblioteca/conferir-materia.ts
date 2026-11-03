@@ -7,6 +7,10 @@ const m = JSON.parse(await Deno.readTextFile(Deno.args[0]));
 const problemas: string[] = [];
 try { validateLibraryMaterial(m); } catch (e) { problemas.push(...((e as { problems?: string[] }).problems ?? [String(e)])); }
 if (Deno.args.includes("--estrito")) {
+  // Acentos corrompidos (UTF-8 lido duas vezes, "jurÃ­dicas", ou o caractere de troca "�"): reprovaram 32 rascunhos em 03/11.
+  const bruto = await Deno.readTextFile(Deno.args[0]);
+  const corrompidos = (bruto.match(/Ã[\u0080-¿]|�/g) ?? []).length;
+  if (corrompidos > 3) problemas.push(`texto com acentos corrompidos (${corrompidos} trechos como "Ã©" ou "�"): regrave o arquivo inteiro em UTF-8 com os acentos certos`);
   type Q = { options?: { text: string }[] };
   ((m.questions ?? []) as Q[]).forEach((q, i) => {
     const textos = (q.options ?? []).map((o) => o.text.trim().toLowerCase().replace(/[.!]$/, ""));

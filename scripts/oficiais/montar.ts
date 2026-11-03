@@ -65,6 +65,9 @@ for (const arquivo of arquivos) {
     };
     const chave = `${slug(q.banca)}/${escolhida}`;
     const grupo = porRecorte.get(chave) ?? { banca: q.banca, topic: escolhida, questions: [] as Json[] };
+    // A mesma questão cai em provas de vários cargos do mesmo concurso (conhecimentos básicos): entra uma vez só.
+    const chaveEnunciado = norm(statement).replace(/[^a-z0-9]+/g, " ").trim();
+    if (grupo.questions.some((x) => norm(String(x.statement)).replace(/[^a-z0-9]+/g, " ").trim() === chaveEnunciado)) continue;
     grupo.questions.push(questao);
     porRecorte.set(chave, grupo);
     contagem.aceitas++;
