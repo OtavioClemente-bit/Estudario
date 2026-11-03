@@ -15,7 +15,10 @@ const log = (m: string) => {
   Deno.writeTextFileSync(LOG, l + "\n", { append: true });
 };
 const total = Deno.readTextFileSync(LISTA).trim().split("\n").length - 1;
-const feitos = () => { try { return [...Deno.readDirSync(SAIDA)].filter((e) => /^\d{3,4}\.json$/.test(e.name)).length; } catch { return 0; } };
+// \d{3,}: passou de 10000 decisões (03/11) e o contador antigo (\d{3,4}) parou de ver os arquivos de 5 dígitos.
+const numeros = () => { try { return new Set([...Deno.readDirSync(SAIDA)].map((e) => e.name.match(/^(\d{3,})\.json$/)?.[1]).filter(Boolean).map(Number)); } catch { return new Set<number>(); } };
+const feitos = () => numeros().size;
+const primeiroFaltando = () => { const s = numeros(); let n = 1; while (s.has(n)) n++; return n; };
 
 const PEDIDO = `Leia AGENTS.md e conteudo/fila/PEDIDO-CODEX-ITENS-SEM-MATERIA.md e continue a lista
 conteudo/fila/itens-sem-materia.tsv a partir da primeira linha que ainda não tem decisão gravada em
@@ -26,13 +29,23 @@ antes, confira em conteudo/entrada/itens-sem-materia/ se outra decisão já crio
 Cada decisão vai num arquivo próprio, escrito por você (sem script). Não pare para perguntar; trabalhe o máximo
 de linhas que conseguir nesta rodada.`;
 
+// Várias contas do Codex rodam este ciclo: só uma decide itens por vez (as decisões são numeradas em sequência).
+const TRAVA = `${SAIDA}/.decidindo`;
+try {
+  if (Date.now() - Deno.statSync(TRAVA).mtime!.getTime() < 45 * 60_000) { console.log("outra conta já está decidindo itens"); Deno.exit(0); }
+} catch { /* ninguém decidindo */ }
+const marcar = () => Deno.writeTextFileSync(TRAVA, String(Deno.pid));
+marcar();
+const vigia = setInterval(marcar, 5 * 60_000);
+globalThis.addEventListener("unload", () => { try { Deno.removeSync(TRAVA); } catch { /* já saiu */ } });
 log(`loop do Codex iniciado: ${feitos()} de ${total} itens já decididos`);
 let semAvanco = 0;
 while (feitos() < total) {
   const antes = feitos();
-  log(`rodada começando no item ${antes + 1}`);
+  const inicio = primeiroFaltando();
+  log(`rodada começando no item ${inicio}`);
   const o = await new Deno.Command("node", {
-    args: [CODEX_JS, "exec", "-c", `model_reasoning_effort="${Deno.env.get("CODEX_ESFORCO") ?? "medium"}"`, "-s", "workspace-write", "--skip-git-repo-check", "-C", ROOT, PEDIDO],
+    args: [CODEX_JS, "exec", "-c", `model_reasoning_effort="${Deno.env.get("CODEX_ESFORCO") ?? "medium"}"`, "-s", "workspace-write", "--skip-git-repo-check", "-C", ROOT, `${PEDIDO}\nA primeira linha sem decisão é a ${inicio} (arquivo ${String(inicio).padStart(3, "0")}.json).`],
     stdin: "null", stdout: "piped", stderr: "piped",
   }).output();
   const txt = new TextDecoder().decode(o.stdout) + new TextDecoder().decode(o.stderr);
@@ -47,3 +60,5 @@ while (feitos() < total) {
   await sleep(espera * 60_000);
 }
 log("lista concluída");
+clearInterval(vigia);
+try { Deno.removeSync(TRAVA); } catch { /* já saiu */ }

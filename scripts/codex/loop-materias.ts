@@ -95,9 +95,12 @@ async function trabalhador(n: number) {
   const fila = pendentes(so).filter((p) => (falhas.get(p.id) ?? 0) < 6 && (total[p.id] ?? 0) < MAX_TOTAL && !emAndamento.has(p.id));
   if (so) fila.splice(0, fila.length, ...fila.filter((p) => so.has(p.id)));
   // Segunda conta do Codex (CODEX_ORDEM=reversa): pega do fim da lista, para não disputar a mesma matéria com a primeira.
-  if (Deno.env.get("CODEX_ORDEM") === "reversa") fila.reverse();
-  // Terceira conta (CODEX_ORDEM=meio): começa do meio da lista.
-  if (Deno.env.get("CODEX_ORDEM") === "meio") fila.push(...fila.splice(0, Math.floor(fila.length / 2)));
+  const metade = (id: string) => [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 2;
+  // Desde 03/11 a conta 1 só decide itens e as contas 2 e 3 escrevem matérias. A fila vem ordenada pelo número de
+  // editais que a matéria cobre; para as duas pegarem as mais usadas sem disputar a mesma, uma fica com as posições
+  // metade (pelo id, que não muda quando a fila anda) e a outra com a outra metade ("reversa" e "meio" são os nomes que os .cmd delas já usam).
+  if (Deno.env.get("CODEX_ORDEM") === "reversa") fila.splice(0, fila.length, ...fila.filter((p) => metade(p.id) === 0));
+  if (Deno.env.get("CODEX_ORDEM") === "meio") fila.splice(0, fila.length, ...fila.filter((p) => metade(p.id) === 1));
   if (!fixo && !fila.length) { log(`[${n}] nada mais a pegar`); break; }
   const alvo: { id: string; itens: string[] } = fixo ?? fila[0];
   fixo = null;
