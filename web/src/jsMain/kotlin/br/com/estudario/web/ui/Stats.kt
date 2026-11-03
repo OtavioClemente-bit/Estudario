@@ -454,6 +454,39 @@ fun SettingsScreen() {
                     }
                 }
             }
+            // O fundo do caderno, do jeito da pessoa (vale no claro e no escuro).
+            Div({ classes("stack"); attr("style", "gap:12px;padding:12px 4px") }) {
+                B { Text("Fundo do caderno") }
+                Div({ classes("paper-pick") }) {
+                    br.com.estudario.web.Paper.patterns.forEach { (key, label) ->
+                        Button({ classes(*listOfNotNull(if (br.com.estudario.web.Paper.pattern == key) "on" else null).toTypedArray()); onClick { br.com.estudario.web.Paper.set(pattern = key) } }) { Text(label) }
+                    }
+                }
+                Span({ classes("small", "muted") }) { Text("Cor da tinta (também pinta o botão principal)") }
+                Div({ classes("paper-pick") }) {
+                    br.com.estudario.web.Paper.inks.forEach { (label, rgb, hex) ->
+                        Button({ classes(*listOfNotNull("dot", if (br.com.estudario.web.Paper.ink == rgb) "on" else null).toTypedArray()); attr("title", label); attr("aria-label", label); attr("style", "background:$hex"); onClick { br.com.estudario.web.Paper.set(ink = rgb) } })
+                    }
+                }
+                Span({ classes("small", "muted") }) { Text("Luz no canto") }
+                Div({ classes("paper-pick") }) {
+                    br.com.estudario.web.Paper.lights.forEach { (label, rgb, hex) ->
+                        if (rgb.isEmpty()) Button({ classes(*listOfNotNull(if (br.com.estudario.web.Paper.light == rgb) "on" else null).toTypedArray()); onClick { br.com.estudario.web.Paper.set(light = rgb) } }) { Text(label) }
+                        else Button({ classes(*listOfNotNull("dot", if (br.com.estudario.web.Paper.light == rgb) "on" else null).toTypedArray()); attr("title", label); attr("aria-label", label); attr("style", "background:$hex"); onClick { br.com.estudario.web.Paper.set(light = rgb) } })
+                    }
+                }
+                Span({ classes("small", "muted") }) { Text("Força das linhas") }
+                org.jetbrains.compose.web.dom.Input(org.jetbrains.compose.web.attributes.InputType.Range) {
+                    classes("paper-range"); attr("min", "0"); attr("max", "2"); attr("step", "0.1"); value(br.com.estudario.web.Paper.strength.toString())
+                    onInput { e -> e.value?.toString()?.toDoubleOrNull()?.let { br.com.estudario.web.Paper.set(strength = it) } }
+                }
+                Span({ classes("small", "muted") }) { Text("Grão de papel") }
+                org.jetbrains.compose.web.dom.Input(org.jetbrains.compose.web.attributes.InputType.Range) {
+                    classes("paper-range"); attr("min", "0"); attr("max", "2"); attr("step", "0.1"); value(br.com.estudario.web.Paper.grain.toString())
+                    onInput { e -> e.value?.toString()?.toDoubleOrNull()?.let { br.com.estudario.web.Paper.set(grain = it) } }
+                }
+                Div { Btn("Voltar ao padrão", { br.com.estudario.web.Paper.reset() }, style = "ghost", small = true, icon = "restart_alt") }
+            }
             SetRow("volume_up", "Sons do Estudário", "Acerto, erro, toque no Folha, tarefas e comemorações") {
                 Switch(som, "Sons do Estudário") { v -> som = v; runCatching { kotlinx.browser.window.asDynamic().estudarioSom.set(v); if (v) kotlinx.browser.window.asDynamic().estudarioSom.play("acerto") } }
             }
