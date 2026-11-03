@@ -82,7 +82,14 @@ function montar(): Item[] {
       const estilo = String(r.board ?? banca.name);
       const nome = `${prefixo}${rodada}`;
       if (ja.has(nome)) continue;
-      lotes.push({ k: nome, peso: n / (qs + 10), item: { nome, tipo: "QUESTOES", pedido: `QUESTÕES: banca=${estilo}; topico=${topico}; formato=${ce ? "Certo/Errado" : "múltipla escolha"}; quantidade=40; secoes=${secoes.join(" | ")}; nome=${nome}` } });
+      // Rodada 2+ repetia ~40% das questões já publicadas (03/11): manda as seções menos cobertas primeiro e o
+      // começo de alguns enunciados que já existem, para o ChatGPT cobrar outros pontos.
+      const porSecao = new Map<string, number>();
+      for (const q of r.questions ?? []) porSecao.set(q.section, (porSecao.get(q.section) ?? 0) + 1);
+      secoes.sort((x, y) => (porSecao.get(x) ?? 0) - (porSecao.get(y) ?? 0));
+      const existentes = (r.questions ?? []).map((q: any) => String(q.statement ?? "").replace(/\s+/g, " ").slice(0, 70)).filter(Boolean);
+      const evitar = existentes.length ? `; evitar (já existem, cobre outros pontos): ${existentes.filter((_: string, i: number) => i % Math.max(1, Math.floor(existentes.length / 15)) === 0).slice(0, 15).join(" / ")}` : "";
+      lotes.push({ k: nome, peso: n / (qs + 10), item: { nome, tipo: "QUESTOES", pedido: `QUESTÕES: banca=${estilo}; topico=${topico}; formato=${ce ? "Certo/Errado" : "múltipla escolha"}; quantidade=40; secoes=${secoes.join(" | ")}${evitar}; nome=${nome}` } });
     }
   }
   lotes.sort((x, y) => y.peso - x.peso);
