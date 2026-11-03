@@ -1,0 +1,1858 @@
+{
+  "id": "informatica.sistemas-arquivos-journaling-links-fragmentacao",
+  "subject": "Informática",
+  "title": "Sistemas de arquivos: journaling, links e fragmentação",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Journaling em sistemas de arquivos",
+    "Links simbólicos e links físicos",
+    "Fragmentação de arquivos em disco",
+    "Sistemas de arquivos journaling",
+    "Hard links e symbolic links",
+    "Fragmentação interna e externa",
+    "Integridade após falha de energia",
+    "Organização de arquivos em blocos",
+    "Journaling, links e fragmentação"
+  ],
+  "scope": {
+    "covers": "Journaling em sistemas de arquivos, incluindo finalidade, recuperação por replay e distinção entre metadados e dados; modos de journaling do ext4; links físicos e simbólicos em Linux e links físicos, simbólicos e junctions no NTFS; nomes, inodes, alvos, limites e links pendentes; fragmentação de arquivos e do espaço livre, fragmentação interna por unidade de alocação, efeitos em HDD e SSD, desfragmentação e TRIM.",
+    "excludes": "Administração avançada de volumes, recuperação forense, comandos completos de particionamento, algoritmos internos detalhados de alocação e comparação exaustiva entre todos os sistemas de arquivos."
+  },
+  "theoryTitle": "Journaling, links e fragmentação em sistemas de arquivos",
+  "chapters": [
+    {
+      "title": "1. Journaling e recuperação consistente",
+      "markdown": "### O problema que este assunto resolve\n\nUma operação simples, como criar um arquivo, altera mais do que seus bytes: o sistema precisa reservar blocos, atualizar metadados do arquivo e registrar uma entrada no diretório. Se a energia acaba no meio, algumas dessas gravações podem ter chegado ao disco e outras não. O journaling registra operações ou metadados em um diário antes de consolidá-los na localização definitiva. Após uma interrupção, o sistema verifica as transações concluídas e pode reaplicá-las (replay), evitando que a estrutura fique presa em uma atualização parcial.\n\n> **Siglas e termos deste capítulo**\n> - **Journal (diário):** área reservada para registrar transações do sistema de arquivos.\n> - **Metadados:** informações que descrevem arquivos e sua localização, como tamanho, permissões, inode e entradas de diretório.\n> - **Replay:** reaplicação de transações completas registradas no journal durante a recuperação.\n> - **Commit:** marca que indica que a transação foi registrada como completa.\n> - ** ext4:** sistema de arquivos Linux que usa journaling por meio do subsistema JBD2.\n\n### O que o journal protege\n\nJournaling reduz o risco de inconsistências estruturais; ele não equivale a backup e não garante que todo dado recém-gravado esteja intacto. No ext4, o modo usual `data=ordered` registra metadados e ordena a gravação dos blocos de dados associados antes de confirmar os metadados no journal. Em `data=writeback`, não há a mesma ordenação entre dados e metadados: dados pendentes podem ser gravados depois dos metadados. Em `data=journal`, dados e metadados passam pelo journal antes da posição final, com custo maior de escrita.\n\n| Modo ext4 | O que vai ao journal | Consequência típica |\n| --- | --- | --- |\n| `data=ordered` | Metadados; blocos de dados relacionados são gravados antes do commit dos metadados | Equilíbrio entre desempenho e consistência estrutural; dados não têm garantia geral de conteúdo após falha |\n| `data=writeback` | Metadados | Sem ordenação dos blocos de dados em relação aos metadados; pode expor conteúdo antigo após falha |\n| `data=journal` | Dados e metadados | Proteção mais ampla do conteúdo, com mais escrita e menor desempenho em muitos casos |\n\nSe uma transação não tiver registro de commit válido, o replay não a trata como concluída. Uma falha de energia ainda pode causar perda de alterações recentes que não chegaram a ser confirmadas. Portanto, journal melhora a recuperação do sistema de arquivos, mas não substitui salvamento da aplicação, sincronização de dados nem cópia de segurança.\n\n### Como cai na prova\n\n- Journal é associado à consistência e à recuperação estrutural, não a backup nem a proteção absoluta contra perda de dados.\n- No ext4 padrão, journaling de metadados não significa que o conteúdo de todos os arquivos esteja garantido após uma queda.\n- `data=ordered` grava os blocos de dados relacionados antes de confirmar os metadados; `data=writeback` não mantém essa ordem; `data=journal` envia dados e metadados pelo diário."
+    },
+    {
+      "title": "2. Links: nomes diferentes, objeto compartilhado ou caminho de referência",
+      "markdown": "### O problema que este assunto resolve\n\nUm link permite que um objeto do sistema de arquivos seja alcançado por outro nome ou caminho. A distinção central é o que o link representa: um hard link é outra entrada que aponta para o mesmo objeto; um link simbólico é um arquivo especial cujo conteúdo guarda um caminho. A diferença afeta o que acontece quando o nome original é removido, quando o destino é movido e quando se cruza um sistema de arquivos.\n\n> **Siglas e termos deste capítulo**\n> - **Inode:** identificador do objeto e conjunto de metadados em sistemas Unix, ao qual nomes de diretório fazem referência.\n> - **Hard link (link físico):** outra entrada de diretório que referencia o mesmo inode/arquivo.\n> - **Symlink (link simbólico):** objeto especial com o caminho textual de outro objeto.\n> - **Dangling link:** link simbólico cujo caminho de destino não existe ou não pode ser resolvido.\n> - **Junction:** tipo de link de diretório do Windows/NTFS, distinto do hard link de arquivo.\n\n| Característica | Hard link | Link simbólico\n| --- | --- | --- |\n| O que guarda | Referência ao mesmo objeto/inode | Caminho para outro objeto |\n| Se o nome original for apagado | Outros nomes continuam acessando o objeto | O destino pode ficar inacessível e o link, pendente |\n| Pode atravessar sistemas de arquivos | Em geral, não | Pode apontar para caminho em outro sistema de arquivos |\n| Pode apontar para diretório no Linux | Normalmente não | Sim |\n\nNo Linux, abrir um hard link ou o nome original acessa o mesmo arquivo: alterar o conteúdo por um nome é visível pelo outro. O arquivo só deixa de existir quando não restam nomes (hard links) e referências abertas. Um symlink pode apontar para diretório, caminho relativo ou absoluto, e pode existir mesmo se o alvo ainda não existir. Ao mover um symlink relativo para outro diretório, seu caminho pode passar a resolver para lugar diferente.\n\nNo NTFS, hard links são nomes adicionais para o mesmo arquivo no mesmo volume; o arquivo é removido quando o último hard link é excluído. Windows também oferece links simbólicos e junctions para caminhos, especialmente de diretórios. Os tipos e restrições variam por sistema: não generalize a regra específica de NTFS como se todo sistema de arquivos suportasse os mesmos links.\n\n### Como cai na prova\n\n- Hard link compartilha o objeto; symlink aponta por um caminho e pode ficar pendente.\n- No Linux, hard links comuns não apontam para diretórios e não atravessam sistemas de arquivos. Symlinks podem fazer ambos.\n- Apagar o nome original não apaga imediatamente o objeto se existe outro hard link. Apagar o alvo pode deixar um symlink sem destino."
+    },
+    {
+      "title": "3. Fragmentação, alocação e desempenho",
+      "markdown": "### O problema que este assunto resolve\n\nArquivos ocupam unidades de alocação, frequentemente chamadas blocos ou clusters. Quando um arquivo cresce e não há espaço livre contíguo suficiente, partes dele podem ser alocadas em regiões separadas. Essa fragmentação externa do arquivo obriga um disco rígido mecânico a movimentar a cabeça entre regiões para ler o conteúdo sequencial. A fragmentação também pode ocorrer no espaço livre: o total disponível pode ser grande, mas dividido em trechos pequenos.\n\n> **Siglas e termos deste capítulo**\n> - **Bloco/cluster:** unidade de espaço que o sistema de arquivos aloca a um arquivo.\n> - **Fragmentação externa:** arquivo ou espaço livre dividido em regiões não contíguas.\n> - **Fragmentação interna:** espaço não utilizado dentro da última unidade de alocação reservada a um arquivo.\n> - **Desfragmentação:** reorganização de dados para aproximar ou tornar contíguas as partes de arquivos.\n> - **SSD:** unidade de estado sólido, sem cabeças mecânicas móveis.\n> - **TRIM:** indicação ao dispositivo de blocos que não contêm mais dados válidos e podem ser preparados para limpeza interna.\n\nA fragmentação interna é diferente: se o tamanho da unidade de alocação é maior que o espaço restante do arquivo, a sobra dentro do cluster reservado não pode ser usada por outro arquivo. Em geral, clusters maiores podem aumentar essa sobra, embora a ocupação real dependa do conjunto de arquivos.\n\nEm HDD, reduzir a dispersão de partes de arquivos sequenciais pode diminuir deslocamentos mecânicos e melhorar leituras. A desfragmentação também pode consolidar espaço livre. Em SSD, o acesso não depende do movimento de cabeças; por isso, desfragmentar repetidamente não oferece a mesma vantagem e implica escritas. A otimização de SSD costuma envolver TRIM, que informa quais blocos podem ser reciclados pelo controlador. Sistemas atuais podem automatizar a otimização conforme o tipo de unidade.\n\n| Fenômeno | Onde está o desperdício ou a dispersão | Exemplo/efeito\n| --- | --- | --- |\n| Externa do arquivo | Partes do mesmo arquivo em regiões distintas | Mais busca mecânica em HDD para leitura sequencial\n| Externa do espaço livre | Espaço livre dividido em lacunas | Uma nova extensão contígua pode não caber apesar de haver espaço total\n| Interna | Sobra dentro do cluster já alocado | Arquivo pequeno consome um cluster e deixa espaço ocioso nele\n\n### Como cai na prova\n\n- Fragmentação externa descreve dispersão em regiões; fragmentação interna descreve sobra dentro da unidade alocada.\n- Desfragmentar não aumenta magicamente a capacidade total; pode reorganizar arquivos e consolidar espaço livre.\n- HDD e SSD têm características físicas diferentes: desfragmentação beneficia principalmente acesso mecânico; TRIM auxilia o gerenciamento de blocos em SSD e não é sinônimo de desfragmentação."
+    },
+    {
+      "title": "4. Diagnóstico e armadilhas de prova",
+      "markdown": "### O problema que este assunto resolve\n\nAs questões misturam mecanismos de integridade, atalhos de nomes e desempenho. Para resolver cenários, identifique primeiro o objeto em discussão: consistência após interrupção aponta para journaling; dois caminhos para um mesmo conteúdo apontam para links; leitura lenta por dispersão em HDD aponta para fragmentação externa. Pergunte também se o enunciado fala de metadados ou de bytes do arquivo, do próprio link ou do destino, e de HDD ou SSD.\n\n> **Siglas e termos deste capítulo**\n> - **Consistência:** coerência das estruturas e relações mantidas pelo sistema de arquivos.\n> - **Alvo:** objeto ou caminho para o qual um link simbólico aponta.\n> - **Nome de diretório:** entrada que associa um nome a um objeto do sistema de arquivos.\n> - **Unidade mecânica:** HDD, que usa discos e cabeças móveis para localizar dados.\n> - **Unidade flash:** SSD, cujo acesso não depende de deslocamento de cabeças.\n\n### Roteiro de análise\n\n1. **Falha durante atualização:** journal pode reaplicar transação confirmada e descartar transação incompleta; verifique o modo para saber o que foi registrado.\n2. **Remoção ou mudança de nome:** hard link continua associado ao objeto compartilhado; symlink depende de resolver o caminho armazenado.\n3. **Arquivo em pedaços:** diferencie dispersão do arquivo (externa) de sobra no cluster (interna).\n4. **Ação de manutenção:** em HDD, desfragmentação pode reduzir deslocamentos; em SSD, a otimização inclui TRIM, que comunica blocos liberados.\n\n| Afirmação | Avaliação correta\n| --- | --- |\n| “Journaling recupera qualquer arquivo apagado.” | Falsa: não é mecanismo de backup ou undelete.\n| “Symlink e hard link são cópias sincronizadas.” | Falsa: hard links são nomes para o mesmo objeto; symlink armazena caminho.\n| “A fragmentação interna é a divisão do arquivo em várias áreas.” | Falsa: isso descreve fragmentação externa; interna é sobra na unidade alocada.\n| “Todo disco deve ser desfragmentado com a mesma frequência.” | Falsa: HDD e SSD usam tecnologias diferentes; o sistema operacional pode aplicar otimização apropriada.\n\n### Como cai na prova\n\n- Uma palavra como “sempre” costuma esconder a confusão entre metadados e conteúdo dos arquivos.\n- Se a remoção do nome original deixa o acesso funcionando por outro nome, pense em hard link; se o caminho guardado deixa de existir, o symlink fica pendente.\n- Identifique a unidade antes de escolher a manutenção: TRIM não junta fragmentos e desfragmentação não substitui journaling."
+    }
+  ],
+  "summary": "Journaling registra transações para permitir recuperação consistente da estrutura do sistema de arquivos após falhas, mas não substitui backup nem garante todos os dados recentes. No ext4, `data=ordered` registra metadados e grava dados associados antes do commit; `data=writeback` não mantém a mesma ordem; `data=journal` passa dados e metadados pelo journal. Hard link é outro nome para o mesmo objeto/inode; no Linux não atravessa sistemas de arquivos nem aponta normalmente para diretórios. Symlink guarda um caminho, pode apontar para diretório ou outro sistema de arquivos e pode ficar pendente quando o alvo some. No NTFS, hard links compartilham um arquivo no mesmo volume, e Windows também oferece symlinks e junctions. Fragmentação externa dispersa partes de arquivos ou espaço livre; interna é a sobra dentro de unidades de alocação. A dispersão causa mais busca mecânica em HDD; desfragmentação reorganiza dados, enquanto SSD se beneficia de TRIM para indicar blocos liberados.",
+  "flashcards": [
+    {
+      "front": "Qual problema o journaling procura reduzir?",
+      "back": "Inconsistências estruturais quando uma falha interrompe uma atualização do sistema de arquivos."
+    },
+    {
+      "front": "O journaling é um tipo de backup?",
+      "back": "Não. Ele registra transações para recuperação consistente, mas não mantém cópia histórica para restaurar arquivos apagados ou perdidos."
+    },
+    {
+      "front": "O que significa replay do journal?",
+      "back": "Reaplicar na recuperação as transações completas registradas no diário."
+    },
+    {
+      "front": "O que acontece com uma transação sem commit válido?",
+      "back": "Ela não é tratada como completa no replay e pode ser descartada."
+    },
+    {
+      "front": "O que o modo data=ordered do ext4 registra no journal?",
+      "back": "Metadados; os blocos de dados relacionados são gravados antes do commit dos metadados."
+    },
+    {
+      "front": "Como data=writeback difere de data=ordered?",
+      "back": "Em writeback não se preserva a mesma ordem entre gravação dos dados e commit dos metadados."
+    },
+    {
+      "front": "O que data=journal envia ao journal?",
+      "back": "Dados e metadados, com maior volume de escrita e custo de desempenho em muitos casos."
+    },
+    {
+      "front": "O que é um inode?",
+      "back": "Estrutura que identifica um objeto de arquivo e guarda seus metadados; nomes de diretório apontam para ele."
+    },
+    {
+      "front": "O que um hard link representa?",
+      "back": "Uma entrada de diretório adicional que referencia o mesmo objeto/inode."
+    },
+    {
+      "front": "O que um symlink armazena?",
+      "back": "Um caminho textual para outro objeto, em vez de uma referência direta ao inode do alvo."
+    },
+    {
+      "front": "O que é um symlink pendente?",
+      "back": "Um link cujo caminho armazenado não pode ser resolvido porque o destino não existe ou está inacessível."
+    },
+    {
+      "front": "O que ocorre ao apagar um dos nomes de um arquivo com hard links?",
+      "back": "O objeto continua acessível pelos outros hard links; só é removido após desaparecerem as referências de nome restantes."
+    },
+    {
+      "front": "Um hard link Linux pode cruzar sistemas de arquivos?",
+      "back": "Não, pois o inode é válido dentro do sistema de arquivos que o contém."
+    },
+    {
+      "front": "Um symlink pode apontar para diretório?",
+      "back": "Sim; symlinks podem apontar para arquivos ou diretórios."
+    },
+    {
+      "front": "O que é junction no Windows?",
+      "back": "Um tipo de link de diretório do NTFS, diferente de hard link de arquivo."
+    },
+    {
+      "front": "Defina fragmentação externa de arquivo.",
+      "back": "Distribuição das partes do arquivo em regiões não contíguas do dispositivo."
+    },
+    {
+      "front": "Defina fragmentação interna.",
+      "back": "Espaço ocioso que sobra dentro da unidade de alocação reservada ao arquivo."
+    },
+    {
+      "front": "Por que fragmentação externa pode afetar HDD?",
+      "back": "A cabeça mecânica pode precisar buscar várias regiões para ler partes sequenciais do arquivo."
+    },
+    {
+      "front": "Para que serve desfragmentar um HDD?",
+      "back": "Reorganizar partes de arquivos e, em alguns casos, consolidar espaço livre para reduzir deslocamentos mecânicos."
+    },
+    {
+      "front": "O que TRIM comunica a um SSD?",
+      "back": "Que certos blocos deixaram de conter dados válidos e podem ser preparados para limpeza interna."
+    }
+  ],
+  "tips": [
+    "Associe journal a recuperação estrutural após falha; não marque como backup ou garantia absoluta dos bytes gravados.",
+    "Em ext4, guarde a sequência: ordered ordena dados antes dos metadados confirmados; writeback não preserva essa ordem; journal registra dados e metadados.",
+    "Hard link = mesmo objeto; symlink = caminho. A remoção do nome original afeta essas duas situações de modo diferente.",
+    "No Linux, hard link comum não atravessa sistema de arquivos nem aponta para diretório; symlink pode apontar para ambos.",
+    "Externa significa dispersão entre regiões; interna significa espaço perdido dentro do cluster alocado.",
+    "Associe desfragmentação sobretudo ao HDD e TRIM ao aviso de blocos liberados para SSD."
+  ],
+  "traps": [
+    "A questão diz que o journal restaura arquivos apagados após qualquer falha. Isso descreve backup/recuperação de dados, não o objetivo do journaling.",
+    "A questão chama data=ordered de journaling completo dos dados. No ext4 ele registra metadados e ordena a gravação de blocos associados.",
+    "A questão diz que hard link é um atalho que guarda caminho. Essa é a característica do symlink; hard link é outro nome para o mesmo objeto.",
+    "A questão afirma que remover o arquivo pelo nome original sempre invalida hard links. O objeto permanece enquanto existir outra entrada de hard link.",
+    "A questão confunde fragmentação interna com partes de arquivo espalhadas pelo disco. Partes dispersas caracterizam fragmentação externa.",
+    "A questão recomenda desfragmentar SSD como se tivesse cabeça mecânica. O acesso flash não depende de busca mecânica; TRIM comunica blocos liberados."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique o fluxo básico de uma atualização protegida por journal e a recuperação após falha.",
+      "answer": "A transação é registrada no diário e marcada como concluída; depois seus dados são consolidados na localização final. Após uma falha, o sistema reproduz transações completas e não considera completas as que não têm commit válido."
+    },
+    {
+      "question": "Por que journaling não elimina a necessidade de backup?",
+      "answer": "Ele ajuda a preservar consistência estrutural, mas não conserva versões históricas e não garante o conteúdo de toda gravação recente."
+    },
+    {
+      "question": "Compare os modos ext4 data=ordered, data=writeback e data=journal.",
+      "answer": "Ordered registra metadados e grava os dados associados antes de confirmá-los; writeback registra metadados sem manter essa ordem; journal passa dados e metadados pelo diário."
+    },
+    {
+      "question": "Por que dois hard links mostram alterações feitas por qualquer um dos nomes?",
+      "answer": "Eles são entradas que apontam para o mesmo objeto/inode, não cópias independentes."
+    },
+    {
+      "question": "Quando um symlink vira pendente e por que mover um link relativo pode afetá-lo?",
+      "answer": "Fica pendente se o caminho armazenado não puder ser encontrado. Link relativo é resolvido a partir da localização do link; mover essa localização pode alterar o caminho resultante."
+    },
+    {
+      "question": "Quais limites distinguem hard links e symlinks comuns no Linux?",
+      "answer": "Hard links não atravessam sistemas de arquivos e normalmente não apontam para diretórios; symlinks guardam caminho, podem referir diretórios e cruzar sistemas de arquivos."
+    },
+    {
+      "question": "Compare fragmentação externa e interna com exemplos.",
+      "answer": "Externa: partes do arquivo ficam em regiões separadas ou o espaço livre forma lacunas. Interna: sobra espaço inutilizado dentro do cluster já reservado ao arquivo."
+    },
+    {
+      "question": "Como escolher entre desfragmentação e TRIM em um cenário?",
+      "answer": "Considere o tipo de unidade: reorganização de partes pode reduzir buscas mecânicas em HDD; TRIM informa ao SSD quais blocos já estão livres para sua limpeza interna."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Journaling tratado como backup",
+      "summary": "Journal apoia consistência estrutural e recuperação de transações; não restaura arquivos apagados nem garante todos os bytes recentes."
+    },
+    {
+      "key": "e2",
+      "title": "Modos de journaling confundidos",
+      "summary": "No ext4, ordered ordena dados associados antes do commit de metadados; writeback não mantém a ordem; journal inclui dados e metadados no diário."
+    },
+    {
+      "key": "e3",
+      "title": "Hard link confundido com symlink",
+      "summary": "Hard link é outro nome para o mesmo objeto; symlink armazena um caminho e pode ficar pendente."
+    },
+    {
+      "key": "e4",
+      "title": "Fragmentação interna e externa trocadas",
+      "summary": "Externa é dispersão entre regiões; interna é sobra dentro da unidade de alocação. HDD e SSD também não respondem da mesma forma à desfragmentação."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Após uma queda de energia durante a atualização de um diretório, qual recurso ajuda o sistema de arquivos a evitar uma estrutura parcialmente atualizada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Journaling que registra transações e permite recuperar operações completas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desfragmentação que reúne automaticamente todos os dados recentes em uma região segura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Symlink que mantém cópia alternativa da entrada de diretório no mesmo volume.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "TRIM que reconstrói metadados perdidos a partir dos blocos livres do dispositivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Hard link que armazena a sequência de comandos de cada gravação no arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O journaling registra transações do sistema de arquivos para que, na recuperação, operações completas possam ser reaplicadas e atualizações incompletas não deixem a estrutura no meio do caminho. Ele não cria cópias de segurança como um hard link, não reorganiza blocos como a desfragmentação e não usa TRIM para reconstruir metadados.",
+      "section": "1. Journaling e recuperação consistente",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No ext4 em modo data=ordered, os blocos de dados associados são gravados antes do commit dos metadados no journal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Nesse modo, o ext4 registra metadados no journal e força a gravação dos blocos de dados relacionados antes de confirmar esses metadados. Isso não significa que todo conteúdo recente esteja integralmente protegido contra qualquer falha.",
+      "section": "1. Journaling e recuperação consistente",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve com precisão o objetivo central do journaling?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registrar transações para apoiar a consistência estrutural após interrupções inesperadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Preservar uma cópia histórica de cada arquivo para restauração seletiva após exclusão acidental.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir o mecanismo de permissões por um histórico recuperável de acessos ao volume.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eliminar toda possibilidade de perda de dados, inclusive gravações ainda não confirmadas pelo disco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mover arquivos fragmentados para uma partição de recuperação antes de cada desligamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "O journal mantém registros de transações do sistema de arquivos e ajuda a restaurar uma estrutura coerente se uma falha interromper uma operação. Não é arquivo histórico, sistema de permissões, promessa contra toda perda de dados nem mecanismo de desfragmentação.",
+      "section": "1. Journaling e recuperação consistente",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modo data=writeback do ext4, a ordem entre a gravação dos blocos de dados e a confirmação dos metadados é preservada da mesma forma que em data=ordered.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Em writeback os metadados são registrados no journal, mas não se preserva a mesma ordenação dos blocos de dados em relação a eles. Assim, após falha, os metadados podem já ter sido confirmados enquanto dados associados ainda não chegaram à sua localização final.",
+      "section": "1. Journaling e recuperação consistente",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de uma queda de energia, um administrador espera que o journal recupere também documentos apagados na semana anterior. Qual avaliação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O journal recupera os documentos se eles estavam no mesmo diretório da transação interrompida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O journal reconstrói arquivos apagados quando encontra seus nomes no registro de commit.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O journal substitui backup quando o modo ordered é usado por todo o volume.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O journal recupera a exclusão somente se a unidade também tiver sido desfragmentada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O journal apoia consistência estrutural, mas não é histórico para desfazer exclusões antigas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Journaling é voltado a transações e consistência do sistema de arquivos após falha, e não à preservação de versões ou à recuperação de exclusões ocorridas antes. Para restaurar documentos apagados, seria necessário um mecanismo de cópia ou recuperação de dados adequado.",
+      "section": "1. Journaling e recuperação consistente",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modo data=journal do ext4, dados de arquivo e metadados passam pelo journal antes de seguirem para sua localização final.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esse modo inclui dados e metadados no journaling, ao custo de mais escrita. A descrição o diferencia dos modos que registram metadados sem journal completo do conteúdo dos arquivos.",
+      "section": "1. Journaling e recuperação consistente",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação do journal não tem registro de commit válido. Como ela deve ser tratada na recuperação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela deve ser considerada concluída porque qualquer bloco de dados já foi gravado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela deve ser convertida em backup e arquivada numa pasta temporária do volume.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela deve ser repetida integralmente, mesmo sem comprovação de conclusão no journal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela deve ser preservada como link simbólico para execução após o próximo login.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela não é tratada como transação completa para replay.",
+          "correct": true
+        }
+      ],
+      "explanation": "A recuperação usa o registro de commit para reconhecer uma transação completa. Sem commit válido, ela não deve ser tratada como concluída e pode ser descartada no replay, evitando que uma operação parcial seja apresentada como completa.",
+      "section": "1. Journaling e recuperação consistente",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como regra geral, o journaling assegura que o conteúdo de todo arquivo recém-gravado estará íntegro após qualquer desligamento abrupto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O journaling busca a consistência das operações do sistema de arquivos, e a cobertura de dados depende do modo empregado. No ext4 padrão, dados de arquivo não têm garantia geral de estado consistente após uma falha; alterações recentes ainda podem se perder.",
+      "section": "1. Journaling e recuperação consistente",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comparação entre os modos de journaling do ext4 está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Writeback e ordered registram dados completos no journal, mas divergem no tamanho do inode.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Journal não registra metadados, pois trabalha somente com conteúdo de arquivos abertos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ordered registra metadados e ordena dados associados antes do commit; journal inclui dados e metadados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ordered e journal evitam gravações de metadados para preservar espaço livre no volume.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Writeback mantém ordem mais estrita que ordered para liberar o replay do sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em data=ordered, o ext4 registra metadados no diário e grava primeiro os dados associados; em data=journal, dados e metadados passam pelo journal. Writeback não mantém a mesma ordem de dados e metadados, ao contrário do que afirmam as alternativas incorretas.",
+      "section": "1. Journaling e recuperação consistente",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O replay do journal tem a finalidade de reaplicar operações sem commit válido como se estivessem completas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O replay pode reaplicar transações reconhecidas como completas, com commit válido. Uma transação incompleta não é promovida a operação concluída; ela pode ser descartada durante a recuperação.",
+      "section": "1. Journaling e recuperação consistente",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em journaling, o commit sinaliza que uma transação foi interrompida e não pode ser reconhecida como concluída na recuperação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O registro de commit é usado para reconhecer uma transação completa. A ausência de commit válido, e não sua presença, indica que a operação não deve ser tratada como concluída no replay.",
+      "section": "1. Journaling e recuperação consistente",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é uma consequência típica de data=journal em relação ao modo padrão ordered?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O modo journal reduz escritas ao retirar do diário as alterações de diretório e inode.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O modo journal elimina metadados e registra apenas dados de aplicações em segundo plano.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O modo journal impede replay porque os dados não precisam de commit no diário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O modo journal passa dados e metadados pelo diário, ampliando cobertura e volume de escrita.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O modo journal tem o mesmo caminho de gravação de ordered, mas muda o nome do journal.",
+          "correct": false
+        }
+      ],
+      "explanation": "No modo journal, os dados e metadados são registrados no diário antes de serem gravados na localização final, o que amplia a cobertura em relação ao padrão ordered. Esse caminho envolve mais escrita e tende a custar desempenho, não menos operações de journal.",
+      "section": "1. Journaling e recuperação consistente",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o arquivo de journal fica no próprio volume, isso transforma o journaling em uma cópia de segurança externa contra defeito físico do disco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O journal é usado para registrar transações do sistema de arquivos e auxiliar a recuperação, em geral no próprio sistema de armazenamento. Uma falha física que destrua o volume pode destruir também o journal; backup externo é uma proteção distinta.",
+      "section": "1. Journaling e recuperação consistente",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário ilustra adequadamente a finalidade do journal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter uma versão mensal dos documentos para o usuário comparar alterações antigas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Guardar cópias de todas as permissões para reverter qualquer mudança administrativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Registrar a criação de uma entrada e metadados para recuperar consistência após queda no meio da operação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Armazenar caminhos alternativos para que links quebrados encontrem seus destinos automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transferir arquivos recém-criados para blocos contíguos antes da primeira leitura sequencial.",
+          "correct": false
+        }
+      ],
+      "explanation": "O journal lida com transações e consistência do sistema de arquivos interrompidas por uma falha. Histórico de versões, auditoria geral de permissões, resolução de links e organização de blocos são funções diferentes.",
+      "section": "1. Journaling e recuperação consistente",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Linux, um hard link comum cria um inode independente, de modo que mudanças em um nome não aparecem no outro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um hard link é outra referência de nome ao mesmo inode/objeto, não uma cópia com inode independente. Alterações feitas através de um nome aparecem quando o mesmo arquivo é acessado pelo outro.",
+      "section": "2. Links: nomes diferentes, objeto compartilhado ou caminho de referência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa criou um hard link e depois removeu o nome original. O que ocorre com o conteúdo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O conteúdo some imediatamente, pois o hard link armazena apenas um caminho textual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O conteúdo é copiado para o journal e fica disponível por tempo limitado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O conteúdo vira somente leitura até que o nome original seja recriado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O conteúdo continua acessível pelo hard link que permaneceu no diretório.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O conteúdo é movido para o diretório pai e recebe um novo inode automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Hard links são nomes adicionais para o mesmo objeto. Remover um dos nomes não elimina o arquivo enquanto outro hard link continuar apontando para ele (e não houver outras condições de referência). O comportamento de dependência de caminho é próprio do symlink.",
+      "section": "2. Links: nomes diferentes, objeto compartilhado ou caminho de referência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um link simbólico contém um caminho para outro objeto e sua resolução pode falhar se o alvo não existir.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Symlink é um objeto especial cujo conteúdo é o caminho referenciado. A criação não exige que o alvo exista; nesse caso, o link é pendente até que o caminho possa ser resolvido.",
+      "section": "2. Links: nomes diferentes, objeto compartilhado ou caminho de referência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual diferença explica por que hard links e links simbólicos reagem de forma distinta à remoção do alvo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Hard link é cópia de bytes; symlink é cópia de metadados reconstruída em cada abertura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Hard link compartilha o objeto; symlink guarda caminho que precisa ser resolvido.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Hard link guarda caminho absoluto; symlink usa sempre um inode compartilhado no diretório.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Hard link existe só em memória; symlink é o único tipo registrado no disco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Hard link aponta para uma pasta; symlink só pode apontar para arquivo regular.",
+          "correct": false
+        }
+      ],
+      "explanation": "Hard link cria mais uma referência de nome ao mesmo objeto. Symlink guarda um caminho textual; se o alvo for removido ou movido de modo que o caminho não resolva, o symlink pode ficar pendente. Nenhum dos dois é uma cópia independente dos bytes.",
+      "section": "2. Links: nomes diferentes, objeto compartilhado ou caminho de referência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um symlink pode apontar para um diretório e pode referir um caminho localizado em outro sistema de arquivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Como symlink guarda um caminho, ele pode referir arquivos ou diretórios e o caminho pode atravessar fronteiras de sistemas de arquivos. Isso o distingue do hard link comum no Linux.",
+      "section": "2. Links: nomes diferentes, objeto compartilhado ou caminho de referência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Linux, por que um hard link comum não pode referenciar arquivo em outro sistema de arquivos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O inode não é uma referência global compartilhada entre sistemas de arquivos distintos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O journal só permite criar links na partição que contém o diretório raiz.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O kernel converte todo hard link entre volumes em uma cópia independente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O sistema reserva hard links exclusivamente para nomes criados pelo superusuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O link físico precisa guardar caminho absoluto, recurso reservado aos symlinks.",
+          "correct": false
+        }
+      ],
+      "explanation": "O hard link aponta ao mesmo inode, cuja identidade e tabela pertencem ao sistema de arquivos em que o objeto existe. Por isso o hard link comum não atravessa esse limite; um symlink pode guardar um caminho para outro volume.",
+      "section": "2. Links: nomes diferentes, objeto compartilhado ou caminho de referência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Hard links e symlinks são cópias independentes do arquivo original, de modo que mudanças feitas em um nome não afetam o outro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Hard links referenciam o mesmo objeto, e acessos a qualquer um dos nomes alteram ou leem o mesmo arquivo. Symlink direciona operações ao alvo quando seguido; também não mantém uma cópia independente do conteúdo.",
+      "section": "2. Links: nomes diferentes, objeto compartilhado ou caminho de referência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que pode acontecer quando um symlink relativo é movido para outro diretório?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O sistema converte o symlink em hard link para manter o inode do destino.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O destino é duplicado no novo diretório e o symlink passa a apontar à cópia.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O caminho relativo pode resolver de forma diferente e o link deixar de funcionar.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O destino recebe novo nome automaticamente, pois symlinks controlam renomeações globais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O journal altera o caminho armazenado para preservar o significado original do link.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um caminho relativo é interpretado em relação à localização do symlink. Ao mover o link, a base usada para resolver esse caminho muda, então ele pode apontar para outro lugar ou não encontrar mais o alvo. O link não duplica nem renomeia automaticamente o destino.",
+      "section": "2. Links: nomes diferentes, objeto compartilhado ou caminho de referência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No NTFS, um arquivo com vários hard links só é removido do sistema de arquivos quando todos esses links são excluídos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cada hard link é uma entrada de diretório para o mesmo arquivo. Enquanto houver ao menos um desses nomes, programas podem abrir o objeto e as alterações continuam sendo feitas no mesmo conteúdo.",
+      "section": "2. Links: nomes diferentes, objeto compartilhado ou caminho de referência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa criar no Linux um atalho para uma pasta que pode estar em outro volume. Qual escolha atende ao caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar hard link de diretório, que atravessa volumes quando a pasta tem permissões de leitura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar symlink para o caminho da pasta, que pode apontar através de sistemas de arquivos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Criar um segundo inode com hard link e copiar os metadados do diretório original.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar uma junction NTFS, formato nativo de diretório obrigatório no Linux.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ativar data=journal no ext4, pois esse modo transforma nomes em referências entre volumes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Symlink guarda um caminho e pode apontar para diretórios e para caminhos de outro sistema de arquivos. Hard links comuns no Linux não referenciam diretórios e não cruzam sistemas de arquivos; junction é um conceito do NTFS, e journaling não altera semântica de nomes.",
+      "section": "2. Links: nomes diferentes, objeto compartilhado ou caminho de referência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma entrada de diretório pode ser vista como um nome associado ao objeto que o sistema de arquivos localiza e administra.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O nome é uma referência dentro da árvore de diretórios. No modelo Unix, nomes apontam a inodes; vários hard links podem associar nomes diferentes ao mesmo inode.",
+      "section": "2. Links: nomes diferentes, objeto compartilhado ou caminho de referência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Linux, é permitido criar hard links comuns para diretórios e para arquivos de qualquer sistema de arquivos montado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Hard links comuns não são permitidos para diretórios no uso normal e não atravessam sistemas de arquivos. As restrições evitam problemas na árvore de diretórios e decorrem da identidade local do inode. Symlinks atendem referências a diretórios e caminhos em outros volumes.",
+      "section": "2. Links: nomes diferentes, objeto compartilhado ou caminho de referência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição é correta para os tipos de link destacados no NTFS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Hard link aponta para o mesmo arquivo no volume; symlink e junction referem caminhos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Junction é uma cópia de dados; hard link guarda caminho textual em arquivo especial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Symlink e hard link são sinônimos exclusivos de atalhos exibidos na área de trabalho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Hard link atravessa livremente volumes e preserva o caminho mesmo após remover o alvo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Junction é o journal do NTFS e registra transações de diretório para replay.",
+          "correct": false
+        }
+      ],
+      "explanation": "No NTFS, hard links são nomes adicionais para o mesmo arquivo no mesmo volume. Links simbólicos e junctions são mecanismos de referência a caminhos, com regras próprias. Junction não é journaling, e hard link não é cópia nem caminho textual.",
+      "section": "2. Links: nomes diferentes, objeto compartilhado ou caminho de referência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um symlink pendente pode existir como objeto no diretório mesmo que o caminho de destino não exista.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Criar um symlink não exige que o caminho referenciado exista. O objeto link permanece presente, mas operações que o seguem não conseguem alcançar o alvo até que o caminho se torne válido.",
+      "section": "2. Links: nomes diferentes, objeto compartilhado ou caminho de referência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo grande cresceu em várias extensões separadas no HDD. Qual fenômeno pode tornar a leitura sequencial mais lenta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fragmentação interna, pois os bytes válidos estão duplicados dentro de cada cluster reservado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Journaling, pois o journal precisa reler cada setor de dados antes da aplicação abrir o arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fragmentação externa, pois a cabeça mecânica pode buscar partes em regiões distintas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "TRIM, pois o comando força toda leitura a percorrer o espaço livre do volume.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Link físico, pois cada nome adicional divide o arquivo em novos blocos de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando partes de um arquivo ficam em regiões não contíguas, há fragmentação externa. Em HDD, a cabeça pode precisar se deslocar entre essas regiões durante leitura sequencial. Fragmentação interna é sobra dentro de um cluster, e links não repartem os bytes do arquivo.",
+      "section": "3. Fragmentação, alocação e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A sobra de espaço dentro do último cluster reservado a um arquivo é exemplo de fragmentação interna.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A unidade de alocação é reservada ao arquivo, mas a parcela que excede seu tamanho útil fica ociosa e não pode ser ocupada por outro arquivo. Esse desperdício dentro da unidade alocada caracteriza fragmentação interna.",
+      "section": "3. Fragmentação, alocação e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação representa fragmentação externa do espaço livre?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada cluster de um arquivo pequeno tem bytes sem uso após o fim do conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O espaço livre total está dividido em lacunas que podem ser pequenas demais para uma extensão contígua.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Os metadados do volume são registrados em uma área de journal antes do commit.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um symlink armazena um caminho e deixa de alcançar seu destino depois de uma remoção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O SSD recebe aviso de blocos liberados para que o controlador os trate internamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Fragmentação externa do espaço livre ocorre quando o espaço disponível fica distribuído em áreas separadas. Pode haver bastante espaço total, mas uma solicitação de região contígua não encontrar uma lacuna grande o suficiente. Sobra dentro de cluster é fragmentação interna.",
+      "section": "3. Fragmentação, alocação e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No HDD, fragmentação externa de arquivos sequenciais pode aumentar os deslocamentos de busca da cabeça mecânica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Partes dispersas do arquivo podem exigir reposicionamento da cabeça entre regiões. A penalidade está relacionada ao movimento mecânico; não se deve transportar essa explicação diretamente para SSDs.",
+      "section": "3. Fragmentação, alocação e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que a desfragmentação pode fazer em um volume com arquivos dispersos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar uma cópia histórica de cada arquivo e manter restauração após exclusões futuras.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o espaço físico total do volume sem remover arquivos ou ampliar a unidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter hard links em symlinks para que cada arquivo passe a ter um caminho exclusivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Registrar transações pendentes e reproduzir operações interrompidas no desligamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reorganizar partes de arquivos e eventualmente consolidar regiões de espaço livre.",
+          "correct": true
+        }
+      ],
+      "explanation": "Desfragmentar reorganiza dados para reduzir a dispersão das partes dos arquivos e pode reunir espaço livre em áreas maiores. Isso não cria capacidade física, não é backup, não muda tipos de link e não substitui o journal.",
+      "section": "3. Fragmentação, alocação e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A desfragmentação aumenta a capacidade total do disco porque transforma todo espaço livre disperso em novos bytes físicos disponíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Desfragmentar reorganiza a alocação existente; pode consolidar espaço livre contíguo, mas não adiciona capacidade física ao dispositivo. O espaço total ocupado e livre não passa a incluir bytes novos por causa da reorganização.",
+      "section": "3. Fragmentação, alocação e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um SSD, TRIM informa ao dispositivo quais blocos já não contêm dados válidos e podem ser tratados como livres.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. TRIM permite ao sistema operacional comunicar ao dispositivo que certos blocos não precisam preservar dados válidos. O controlador pode organizar a limpeza interna; TRIM não é uma ferramenta para juntar partes de arquivos.",
+      "section": "3. Fragmentação, alocação e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação de unidade e técnica está mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "HDD: TRIM reposiciona a cabeça; SSD: desfragmentação reduz seek mecânico entre trilhas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "HDD: journaling consolida espaço; SSD: hard link limpa células sem uso no controlador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "HDD: symlink reúne arquivos; SSD: journal reduz o número de blocos apagados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "HDD: desfragmentação pode reduzir buscas mecânicas; SSD: TRIM sinaliza blocos liberados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "HDD e SSD: fragmentação exige o mesmo processo de movimentação física de cabeças.",
+          "correct": false
+        }
+      ],
+      "explanation": "A desfragmentação pode reduzir os deslocamentos de cabeça mecânica em HDD. SSD não tem esse mecanismo de busca; a otimização inclui TRIM para informar blocos liberados ao dispositivo. Journaling e links têm funções distintas.",
+      "section": "3. Fragmentação, alocação e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Fragmentação interna descreve a dispersão de diferentes partes de um arquivo por regiões não contíguas do disco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Partes distribuídas em regiões distintas são fragmentação externa. Fragmentação interna é espaço não usado dentro da unidade de alocação já reservada ao arquivo, como a sobra no último cluster.",
+      "section": "3. Fragmentação, alocação e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cluster maior pode elevar o desperdício interno de um conjunto de arquivos pequenos, embora o resultado dependa da distribuição dos tamanhos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Como a alocação reserva unidades inteiras, a sobra após o conteúdo do arquivo não pode ser compartilhada por outro arquivo. Aumentar o tamanho da unidade pode aumentar essa sobra em muitos arquivos pequenos, mas o efeito agregado depende do perfil real dos dados.",
+      "section": "3. Fragmentação, alocação e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um HDD, qual resultado é plausível após desfragmentar arquivos muito dispersos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O conteúdo dos arquivos passa a ter proteção equivalente a journal completo de dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A busca mecânica pode diminuir, pois partes sequenciais ficam mais próximas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O sistema elimina a sobra interna em cada cluster e reduz o tamanho lógico dos arquivos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Todos os nomes alternativos viram hard links para uma área de cópia de segurança.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O volume ganha espaço físico adicional igual ao total de blocos movidos na operação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ao colocar partes de arquivos mais próximas, a desfragmentação pode reduzir deslocamentos mecânicos durante leituras sequenciais em HDD. Ela não altera a proteção do journal, não reduz logicamente o conteúdo, não converte links nem cria capacidade física.",
+      "section": "3. Fragmentação, alocação e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em unidades SSD, o acesso aos dados não depende do deslocamento de uma cabeça mecânica entre trilhas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. SSD usa memória flash e não lê os dados movendo cabeças como um HDD. Isso muda o efeito da fragmentação e explica por que a otimização de SSD inclui TRIM em vez de depender da mesma justificativa mecânica para desfragmentar.",
+      "section": "3. Fragmentação, alocação e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise mostra bastante espaço livre total, porém nenhuma lacuna grande o bastante para uma extensão contígua. Qual conceito explica o caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fragmentação interna, causada pelo excesso de espaço no journal de metadados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Link pendente, pois os caminhos relativos dividem o espaço livre em diretórios.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fragmentação externa do espaço livre, com lacunas separadas entre regiões ocupadas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "TRIM, pois os blocos sem dados são sempre contabilizados como espaço indisponível.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Hard link, pois nomes duplicados repartem a área contígua em clusters menores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Fragmentação externa do espaço livre é a dispersão do espaço disponível em lacunas. O total pode ser suficiente, mas não existir uma região contígua do tamanho solicitado. Isso é diferente da sobra interna em uma unidade alocada a um arquivo.",
+      "section": "3. Fragmentação, alocação e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A otimização automática do Windows pode tratar HDDs com desfragmentação e SSDs com TRIM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação Microsoft distingue desfragmentação para discos rígidos e operação de trim para SSDs dentro da ferramenta de otimização. O tratamento adequado depende do tipo de unidade, não de uma rotina idêntica para todas.",
+      "section": "3. Fragmentação, alocação e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador pretende usar desfragmentação para recuperar um arquivo removido e o journal para juntar os blocos do arquivo. Qual correção é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Journal registra caminhos, enquanto desfragmentação reconstrói arquivos apagados no diretório.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Hard links recuperam exclusões, enquanto symlinks consolidam blocos contíguos no volume.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "TRIM recupera o arquivo e data=journal move seus fragmentos para uma área segura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desfragmentação restaura nomes; journaling compensa a falta de cópia de segurança externa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "São funções diferentes: journal ajuda na consistência; desfragmentação reorganiza partes de arquivos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Journaling e desfragmentação resolvem problemas distintos. O primeiro registra transações para recuperação estrutural; a segunda reorganiza alocação de arquivos. Nenhum deles substitui backup para restaurar um arquivo removido, e TRIM comunica blocos liberados ao SSD.",
+      "section": "4. Diagnóstico e armadilhas de prova",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para classificar um enunciado sobre links, é útil perguntar se o objeto guarda um caminho ou se dois nomes referem o mesmo objeto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essa pergunta separa symlink, que armazena um caminho, de hard link, que é uma referência adicional ao mesmo objeto. A distinção prevê o efeito de apagar um nome ou remover o destino.",
+      "section": "4. Diagnóstico e armadilhas de prova",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma questão afirma que TRIM reúne os fragmentos de um arquivo e reduz a movimentação da cabeça do SSD. Qual interpretação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "TRIM reorganiza os arquivos em áreas contíguas e por isso reduz buscas de cabeça flash.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "TRIM indica blocos liberados ao SSD; não é desfragmentação nem envolve cabeça mecânica.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "TRIM reproduz transações de metadados para recuperar arquivos após desligamento inesperado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "TRIM cria links físicos para substituir todas as referências a blocos não contíguos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "TRIM marca conteúdo válido no journal e impede a limpeza do controlador do SSD.",
+          "correct": false
+        }
+      ],
+      "explanation": "TRIM comunica ao SSD quais blocos não precisam mais manter dados válidos, permitindo que o controlador os prepare para limpeza interna. Não junta fragmentos, não existe cabeça mecânica no SSD e não é mecanismo de journaling ou criação de links.",
+      "section": "4. Diagnóstico e armadilhas de prova",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Journaling, links e fragmentação tratam respectivamente de transações estruturais, nomes/referências a objetos e alocação dispersa ou sobra de espaço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. São conceitos independentes: o journal auxilia recuperação após interrupção; links oferecem nomes ou caminhos para objetos; fragmentação descreve dispersão de blocos ou espaço ocioso dentro da unidade de alocação.",
+      "section": "4. Diagnóstico e armadilhas de prova",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma afirmação que promete recuperação de todo conteúdo recente deve ser conferida contra o modo de journaling e contra o estado de confirmação das gravações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Modos diferentes têm coberturas distintas de dados e metadados, e gravações ainda não confirmadas podem se perder. A existência de journal, sozinha, não autoriza concluir que todo byte recente está preservado.",
+      "section": "4. Diagnóstico e armadilhas de prova",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual regra de decisão evita confundir fragmentação interna e externa em uma questão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se o journal contém uma transação, a fragmentação é interna; sem commit, é externa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Se um nome referencia o mesmo inode, há fragmentação externa; se guarda caminho, interna.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se o dispositivo é SSD, toda sobra de cluster é fragmentação externa por definição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sobra dentro da unidade alocada é interna; partes em regiões distintas são externas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Qualquer espaço livre indica fragmentação interna, mesmo sem arquivo ou unidade reservada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A diferença está na localização do desperdício/dispersão. Espaço sobrando dentro do cluster já reservado a um arquivo é fragmentação interna; arquivo ou espaço livre dividido entre regiões separadas caracteriza fragmentação externa. Journaling e links não alteram essas definições.",
+      "section": "4. Diagnóstico e armadilhas de prova",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo pode ter tamanho lógico menor que o espaço físico reservado, pois a unidade de alocação não costuma ser dividida entre arquivos distintos.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A sobra dentro da unidade alocada caracteriza fragmentação interna.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A sobra é um journal pendente que será devolvido ao arquivo após o replay.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A diferença prova que o arquivo tem hard links apontando para regiões vazias.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A diferença é fragmentação externa, que sempre indica blocos do arquivo em áreas distintas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A sobra é TRIM, que o sistema operacional contabiliza como bytes do arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando o sistema reserva clusters inteiros, a parte final não ocupada pelo conteúdo permanece ociosa dentro da unidade. Essa é fragmentação interna. Fragmentação externa trata de dispersão entre regiões, enquanto journal, links e TRIM têm outras funções.",
+      "section": "3. Fragmentação, alocação e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema monta um volume ext4 após uma queda, encontra uma transação completa no journal e a reproduz antes de disponibilizar a estrutura atualizada.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A ação demonstra TRIM, que reaplica dados recentes em todos os arquivos do volume.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A ação demonstra desfragmentação, que reorganiza transações sem mover blocos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A ação demonstra hard linking, que repete automaticamente operações interrompidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ação demonstra uma junction, que consolida metadados de diretório após uma falha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ação é replay do journal para recuperar consistência após interrupção.",
+          "correct": true
+        }
+      ],
+      "explanation": "O replay reaplica transações completas reconhecidas no journal durante a recuperação. TRIM comunica blocos liberados; desfragmentação reorganiza alocação; links fornecem nomes ou caminhos para objetos. Esses mecanismos não substituem o replay.",
+      "section": "4. Diagnóstico e armadilhas de prova",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "ext4 General Information — The Linux Kernel documentation",
+      "publisher": "Linux Kernel Documentation",
+      "reference": "Modos de journaling data=ordered, data=writeback e data=journal; comportamento de recuperação e opções ext4.",
+      "url": "https://docs.kernel.org/admin-guide/ext4.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Journal (jbd2) — The Linux Kernel documentation",
+      "publisher": "Linux Kernel Documentation",
+      "reference": "Finalidade do journal ext4, commit, replay, proteção de metadados e dados e diário externo.",
+      "url": "https://www.kernel.org/doc/html/latest/filesystems/ext4/journal.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "symlink(7) — Linux manual page",
+      "publisher": "Linux man-pages",
+      "reference": "Diferença entre hard links e symlinks, inode, limites de hard links, caminhos, links pendentes e resolução de symlinks.",
+      "url": "https://www.man7.org/linux/man-pages/man7/symlink.7.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "File and Directory Linking — Win32 apps",
+      "publisher": "Microsoft Learn",
+      "reference": "Links em NTFS, hard links, junctions e rastreamento distribuído de links.",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/fileio/file-and-directory-linking",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "fsutil hardlink",
+      "publisher": "Microsoft Learn",
+      "reference": "Hard links no NTFS, nomes para o mesmo arquivo e remoção somente após excluir todos os links.",
+      "url": "https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/fsutil-hardlink",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Defragment / optimize your data drives in Windows",
+      "publisher": "Microsoft Support",
+      "reference": "Desfragmentação de HDD, TRIM de SSD e otimização agendada por tipo de unidade.",
+      "url": "https://support.microsoft.com/en-au/windows/experience/storage-filemanagement/defragment-optimize-your-data-drives-in-windows",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

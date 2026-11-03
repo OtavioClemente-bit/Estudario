@@ -1,0 +1,1918 @@
+{
+  "id": "informatica.programacao-funcional-fundamentos",
+  "subject": "Informática",
+  "title": "Fundamentos de programação funcional",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Conceitos de programação funcional",
+    "Fundamentos da programação funcional",
+    "Paradigma de programação funcional",
+    "Estilo funcional de programação",
+    "Funções puras e efeitos colaterais",
+    "Imutabilidade em programação funcional",
+    "Funções de primeira classe",
+    "Funções de ordem superior",
+    "Map filter e reduce funcionais",
+    "Transparência referencial em funções",
+    "Composição de funções e currying",
+    "Recursão e programação funcional"
+  ],
+  "scope": {
+    "covers": "Conceitos fundamentais do paradigma funcional: funções puras, determinismo e transparência referencial, efeitos colaterais e sua delimitação, dados imutáveis, funções como valores de primeira classe, funções de ordem superior, lambdas, closures, composição, map, filter, reduce/fold, recursão e tratamento explícito de ausência e falha; comparação prática com programação imperativa e orientação a objetos.",
+    "excludes": "Sintaxe aprofundada de uma linguagem específica, provas formais de cálculo lambda, teoria avançada de categorias, implementação de compiladores, otimizações de runtime e bibliotecas particulares."
+  },
+  "theoryTitle": "Pensar em valores e transformações",
+  "chapters": [
+    {
+      "title": "1. Paradigma funcional e funções puras",
+      "markdown": "### O problema que este assunto resolve\n\nEm um programa que altera variáveis globais, lê o relógio e grava arquivos no meio de qualquer rotina, o mesmo trecho pode produzir resultados diferentes a cada execução. Também fica difícil descobrir qual etapa causou uma mudança. A programação funcional organiza a lógica como **transformações de valores**: uma função recebe dados, calcula um resultado e deixa os efeitos observáveis fora do núcleo de cálculo sempre que possível.\n\n> **Siglas e termos deste capítulo**\n> - **Paradigma**: conjunto de ideias que orienta como estruturar programas.\n> - **Função pura**: para os mesmos argumentos, devolve o mesmo resultado e não causa efeitos observáveis fora dela.\n> - **Determinismo**: previsibilidade do resultado a partir das entradas consideradas.\n> - **Efeito colateral**: interação observável além do valor retornado, como alterar estado compartilhado, imprimir ou gravar arquivo.\n> - **Transparência referencial**: uma expressão pode ser substituída por seu resultado sem mudar o comportamento do programa.\n\n### Função pura: entrada e saída claras\n\nConsidere `dobro(x) = x * 2`. Para a entrada 7, o resultado é 14 em toda chamada; a função não muda `x`, não escreve em arquivo e não consulta uma variável externa. Já `precoFinal(preco)` que consulta uma taxa global mutável pode retornar resultados diferentes para o mesmo argumento. A função aparentemente recebe um valor, mas depende também de estado que não aparece na chamada.\n\nUma função que consulta a hora atual, sorteia um número ou lê uma variável global não é pura em relação a essas entradas aparentes. Ela pode continuar sendo útil, mas a dependência precisa ser reconhecida. Uma técnica comum é fazer a borda do programa obter o horário, número aleatório ou dado externo e passá-lo como argumento ao cálculo puro. Assim, o núcleo fica simples de testar: `aplicarDesconto(preco, taxa)` depende dos dois valores recebidos.\n\nA transparência referencial decorre da previsibilidade: se `quadrado(4)` sempre vale 16 e não produz efeito, trocar a chamada pelo literal `16` preserva a semântica. Não se pode fazer essa substituição com `lerArquivo()` quando o conteúdo pode mudar ou com `imprimir a mensagem`, pois a chamada tem uma interação observável.\n\n### Efeitos não desaparecem: ficam nas bordas\n\nAplicações reais precisam de entrada e saída: recebem requisições, consultam banco, mostram telas e persistem dados. Programação funcional não significa que um sistema jamais faça isso. A ideia é separar o cálculo previsível da interação: obter os dados, transformá-los com funções puras e então executar o efeito necessário. O limite reduz o número de lugares em que o estado pode mudar e torna explícito onde a ordem de execução importa.\n\n| Operação | Natureza típica | Motivo |\n| --- | --- | --- |\n| `total(itens) = soma(itens)` | Pura | Depende dos itens recebidos e retorna um valor |\n| `logar(mensagem)` | Efeito | Produz saída observável no sistema de logs |\n| `saldo = saldo + valor` em estado compartilhado | Efeito | Modifica um local que outras partes podem observar |\n| `buscarPorId(lista, id)` | Pura | Apenas calcula uma seleção a partir dos argumentos |\n\n### Como cai na prova\n\n- A função é pura quando repetir a chamada com as mesmas entradas relevantes resulta no mesmo valor e nenhum efeito observável é produzido.\n- Uma rotina não se torna pura só porque retorna um número: alterar uma variável global ou enviar uma mensagem também conta.\n- A presença de entrada e saída em um aplicativo não invalida o paradigma; a questão é onde os efeitos ficam e se a lógica de cálculo está separada deles.\n- Em transparência referencial, pode-se substituir uma expressão pura pelo resultado correspondente sem alterar a semântica."
+    },
+    {
+      "title": "2. Imutabilidade e estado",
+      "markdown": "### O problema que este assunto resolve\n\nUma estrutura mutável pode ser modificada por qualquer trecho que tenha uma referência a ela. Uma função recebe uma lista, muda um elemento, e outro componente que compartilha a mesma lista observa a alteração inesperada. A **imutabilidade** evita esse tipo de surpresa: depois de criado, um valor não é alterado; uma transformação produz outro valor.\n\n> **Siglas e termos deste capítulo**\n> - **Estado**: conjunto de valores que descreve uma entidade em certo momento.\n> - **Mutação**: alteração in-place do conteúdo ou estado de um objeto existente.\n> - **Imutabilidade**: propriedade de um valor que não pode ser modificado após sua criação.\n> - **Estrutura persistente**: coleção imutável que pode compartilhar partes internas entre versões sem alterar as anteriores.\n> - **Alias**: referência adicional ao mesmo objeto.\n\n### Transformar em vez de modificar\n\nSe `nomes = [ana, rui]`, uma operação imutável de acréscimo não muda essa lista; devolve uma nova, por exemplo `[ana, rui, bia]`. A variável pode passar a apontar para o novo resultado, mas o valor anterior continua disponível. Em linguagens com listas imutáveis, `nomes.map(...)` e `nomes.filter(...)` retornam coleções resultantes, sem modificar a original. Em outras linguagens, é possível adotar a mesma disciplina por convenção ou por tipos e bibliotecas.\n\nImutabilidade não significa que o programa nunca possa representar mudança. Para alterar um cadastro, produz-se uma nova versão com o campo atualizado, preservando a anterior. Isso facilita histórico, comparação e compartilhamento: dois consumidores podem consultar o mesmo valor sem receio de que um deles o modifique silenciosamente. Estruturas persistentes tornam essa abordagem eficiente reutilizando trechos imutáveis, em vez de copiar obrigatoriamente todos os elementos.\n\nÉ importante distinguir uma variável não reassociável de um objeto profundamente imutável. Uma referência constante pode apontar para um objeto cujos campos internos ainda mudam. Por exemplo, em JavaScript, declarar um array com `const` impede reatribuir a variável, mas não impede, por si só, chamar `push` e alterar o array. Imutabilidade profunda depende da estrutura, do tipo ou de disciplina adicional.\n\n### Concorrência e previsibilidade\n\nQuando não há mutação compartilhada, duas partes podem ler a mesma estrutura sem disputar quem a altera. Isso reduz uma fonte frequente de condições de corrida e simplifica raciocinar sobre snapshots. Ainda pode existir estado mutável em uma borda controlada, por exemplo ao atualizar uma tela ou gravar no banco; o objetivo é evitar que ele se espalhe pela lógica.\n\nA troca tem custos possíveis: criar muitos valores pode demandar memória ou trabalho, e a equipe precisa compreender o fluxo de versões. Implementações eficientes usam compartilhamento estrutural e coleta de lixo; a escolha deve considerar a linguagem e o caso. Não se conclui que qualquer uso de mutação é sempre incorreto: trata-se de controlar mutações e privilegiar valores imutáveis onde isso melhora a clareza.\n\n### Como cai na prova\n\n- `const` ou `val` pode impedir reatribuição de uma variável sem tornar automaticamente imutável o objeto apontado por ela.\n- Método funcional de coleção retorna uma nova coleção; não deve ser confundido com alteração da coleção original.\n- Imutabilidade facilita compartilhamento e concorrência porque leitores não observam mudanças feitas por outros consumidores.\n- O estado pode evoluir pela produção de novas versões imutáveis; imutabilidade não equivale a ausência de mudança de negócio."
+    },
+    {
+      "title": "3. Funções como valores e funções de ordem superior",
+      "markdown": "### O problema que este assunto resolve\n\nMuitas tarefas percorrem uma coleção, mas diferem na operação realizada em cada elemento: converter valores, selecionar os que atendem a um critério ou combinar todos num resultado. Copiar o mesmo laço para cada finalidade cria repetição. No estilo funcional, a operação de percurso recebe a regra como uma **função**.\n\n> **Siglas e termos deste capítulo**\n> - **Função de primeira classe**: função tratada como valor, que pode ser armazenada, passada como argumento ou devolvida.\n> - **Função de ordem superior**: função que recebe uma ou mais funções como argumento, ou retorna uma função.\n> - **Lambda**: expressão que define uma função sem necessariamente lhe dar um nome.\n> - **Closure (fechamento)**: função junto com as variáveis do ambiente léxico que ela captura.\n> - **Callback**: função passada para outra operação para ser chamada por ela.\n\n### Uma regra reutilizável como argumento\n\nEm Scala, `numeros.map(n => n * 2)` passa uma lambda para `map`; o resultado contém cada elemento transformado. `filter(n => n > 0)` passa um predicado e conserva somente os elementos para os quais ele retorna verdadeiro. O método de coleção é de ordem superior porque recebe a função. Funções de primeira classe permitem também armazenar `n => n * 2` numa variável e passá-la adiante.\n\nA função passada pode capturar valores do escopo em que foi criada. Se `limite = 10` e uma closure testa `n > limite`, a regra usa esse limite capturado. É preciso considerar se o ambiente capturado é imutável: capturar uma referência mutável pode fazer o resultado depender de mudanças posteriores, reduzindo a previsibilidade.\n\nFunções de ordem superior não são exclusivas do paradigma funcional; são uma ferramenta que linguagens de paradigmas diferentes podem oferecer. Por exemplo, `sort` pode receber um comparador, e um botão pode receber uma callback de clique. O uso funcional tende a combinar essa capacidade com funções sem efeitos e dados imutáveis.\n\n### Tipos de transformação de coleção\n\n| Operação | Entrada funcional | Resultado | Exemplo de intenção |\n| --- | --- | --- | --- |\n| `map` | Uma função por elemento | Coleção transformada, geralmente com a mesma quantidade | Converter preços para valores com imposto |\n| `filter` | Predicado que responde verdadeiro/falso | Subconjunto, possivelmente vazio | Manter apenas pedidos pagos |\n| `reduce` / `fold` | Função de combinação e acumulador | Um valor agregado ou estrutura acumulada | Somar valores ou agrupar por categoria |\n\n`map` preserva a correspondência de cada posição, enquanto `filter` pode reduzir a quantidade. Uma redução combina elementos segundo uma operação; soma é um exemplo, e não significa necessariamente executar em paralelo. Em um `fold`, costuma-se fornecer um valor inicial para o acumulador, o que também define o resultado para coleção vazia. A ordem importa para operadores que não são associativos.\n\n### Como cai na prova\n\n- A função é de ordem superior se recebe uma função ou produz uma função; apenas chamar outra função não basta.\n- `map` transforma elementos; `filter` seleciona; `fold`/`reduce` combina elementos num acumulado.\n- Lambda é uma forma de escrever uma função; callback é o papel que uma função assume ao ser fornecida para outra operação.\n- Closure inclui o comportamento da função e o ambiente léxico capturado, não é sinônimo de qualquer função anônima."
+    },
+    {
+      "title": "4. Composição, recursão e tratamento explícito",
+      "markdown": "### O problema que este assunto resolve\n\nCálculos maiores podem ser montados a partir de transformações menores. Em vez de uma rotina que altera vários campos passo a passo, cada etapa pode receber um valor e devolver o próximo. Essa composição deixa visível o fluxo dos dados e permite testar cada parte separadamente.\n\n> **Siglas e termos deste capítulo**\n> - **Composição**: combinação de funções, em que a saída de uma alimenta a entrada da próxima.\n> - **Recursão**: definição em que uma função resolve um caso chamando-se para um subproblema menor.\n> - **Caso-base**: condição que encerra a recursão sem outra chamada recursiva.\n> - **Option/Maybe**: tipo que representa um valor possivelmente ausente de forma explícita.\n> - **Either/Result**: tipo que representa um resultado de sucesso ou uma falha com informação.\n\n### Encadear transformações\n\nConsidere uma lista de pedidos: filtrar os pagos, extrair seus valores e somá-los. Em forma funcional, a intenção é `pedidos.filter(pago).map(valor).fold(0)(somar)`. Cada etapa recebe um valor e retorna outro; a lista original não precisa ser alterada. A composição matemática `f(g(x))` aplica primeiro `g` e depois `f`. Em APIs encadeadas, a ordem visual pode acompanhar essa sequência da esquerda para a direita.\n\nAs funções precisam ter tipos compatíveis: se uma produz texto e a seguinte espera número, a conexão não é válida sem uma transformação intermediária. Decompor uma cadeia em funções pequenas melhora reutilização, mas uma sequência excessivamente fragmentada pode esconder o objetivo; nomes concretos ajudam.\n\n### Recursão e terminação\n\nUma função recursiva precisa progredir para um caso menor e alcançar um caso-base. Para somar uma lista, o caso vazio pode valer zero; para uma lista não vazia, soma-se a cabeça ao resultado da soma da cauda. Sem caso-base, ou sem reduzir o problema, há chamadas sem fim até falha de execução.\n\nRecursão expressa naturalmente processamento de estruturas recursivas, como árvores e listas encadeadas. Em linguagens sem otimização de chamada de cauda, recursão profunda pode consumir a pilha; laços ou estruturas iterativas podem ser mais adequados. Portanto, não é correto afirmar que programação funcional exige recursão em todo processamento ou que toda recursão é automaticamente eficiente.\n\n### Ausência e erro como dados\n\nUma busca pode não encontrar cadastro. Retornar `null` sem contrato claro obriga cada chamador a adivinhar se a ausência é possível. Um tipo como `Option<Cliente>` informa que há `Some(cliente)` ou `None`; o consumidor trata os dois casos. `Either<Erro, Cliente>` ou `Result<Cliente, Erro>` pode distinguir sucesso de diferentes falhas. Isso torna caminhos alternativos explícitos e reduz exceções usadas para fluxo normal.\n\nTipos de resultado não eliminam todo erro nem substituem validação. Eles documentam alternativas esperadas no tipo. Erros excepcionais, como falhas de infraestrutura, ainda exigem decisões apropriadas de fronteira, registro e recuperação.\n\n### Como cai na prova\n\n- Em `f(g(x))`, `g` executa primeiro; a saída de `g` precisa ser aceita por `f`.\n- Recursão correta progride em direção ao caso-base; sem isso, pode não terminar.\n- Programação funcional não proíbe laços universalmente; recursão é uma forma de expressar repetição, com custos dependentes da implementação.\n- `Option` representa presença ou ausência; tipos `Either`/`Result` podem representar sucesso ou erro sem ocultar o ramo de falha."
+    }
+  ],
+  "summary": "Programação funcional estrutura o software como transformações de valores. Funções puras dependem de entradas explícitas, produzem resultados previsíveis e não causam efeitos observáveis; por isso admitem transparência referencial. Dados imutáveis não são alterados in-place: cada atualização produz nova versão. Funções são valores de primeira classe e funções de ordem superior recebem ou devolvem funções; lambdas e closures permitem expressar regras e capturar seu ambiente. Em coleções, map transforma, filter seleciona e fold/reduce agrega. Composição encadeia transformações compatíveis. Recursão resolve subproblemas menores até um caso-base, enquanto Option/Maybe e Either/Result tornam ausência e falhas esperadas explícitas. Sistemas concretos ainda fazem entrada, saída e persistência, normalmente concentrando esses efeitos nas bordas e mantendo o cálculo central previsível.",
+  "flashcards": [
+    {
+      "front": "O que caracteriza uma função pura?",
+      "back": "Para as mesmas entradas relevantes, devolve o mesmo resultado e não causa efeitos observáveis fora dela."
+    },
+    {
+      "front": "O que é efeito colateral?",
+      "back": "Uma interação observável além do valor retornado, como alterar estado compartilhado, imprimir ou gravar arquivo."
+    },
+    {
+      "front": "O que é transparência referencial?",
+      "back": "Propriedade que permite substituir uma expressão pelo seu resultado sem mudar a semântica do programa."
+    },
+    {
+      "front": "O que é imutabilidade?",
+      "back": "Um valor imutável não é alterado depois de criado; uma transformação produz outro valor."
+    },
+    {
+      "front": "Imutabilidade impede toda mudança no programa?",
+      "back": "Não. O programa pode evoluir produzindo novas versões dos valores, sem modificar as versões anteriores."
+    },
+    {
+      "front": "O que é função de primeira classe?",
+      "back": "Função que pode ser usada como valor, armazenada, passada como argumento ou devolvida por outra função."
+    },
+    {
+      "front": "O que é função de ordem superior?",
+      "back": "Função que recebe outra função como argumento ou retorna uma função."
+    },
+    {
+      "front": "O que é lambda?",
+      "back": "Uma expressão que define uma função, normalmente sem declaração de nome separado."
+    },
+    {
+      "front": "O que é closure?",
+      "back": "Uma função acompanhada do ambiente léxico com as variáveis externas que capturou."
+    },
+    {
+      "front": "Qual é o papel de map?",
+      "back": "Aplicar uma função a cada elemento para produzir uma coleção transformada, em geral mantendo a quantidade de posições."
+    },
+    {
+      "front": "Qual é o papel de filter?",
+      "back": "Aplicar um predicado e conservar somente os elementos para os quais ele resulta verdadeiro."
+    },
+    {
+      "front": "Qual é o papel de fold ou reduce?",
+      "back": "Combinar elementos por uma função de acumulação para produzir um valor ou estrutura acumulada."
+    },
+    {
+      "front": "Por que fold costuma receber valor inicial?",
+      "back": "Ele define o acumulador inicial e o resultado da redução quando a coleção está vazia."
+    },
+    {
+      "front": "O que é composição de funções?",
+      "back": "Conectar funções de modo que a saída de uma seja entrada da próxima."
+    },
+    {
+      "front": "O que é caso-base na recursão?",
+      "back": "Condição que encerra as chamadas recursivas e fornece um resultado sem nova chamada."
+    },
+    {
+      "front": "Qual risco de recursão sem progresso?",
+      "back": "As chamadas podem não alcançar o caso-base e continuar até exceder recursos da execução."
+    },
+    {
+      "front": "O que representa Option ou Maybe?",
+      "back": "Um valor possivelmente ausente, distinguindo explicitamente presença de ausência."
+    },
+    {
+      "front": "O que representam Either ou Result?",
+      "back": "Um resultado que pode conter sucesso ou uma alternativa de erro explicitamente tipada."
+    },
+    {
+      "front": "`const` sempre torna um objeto profundamente imutável?",
+      "back": "Não. Pode impedir reatribuir a variável enquanto o objeto referenciado ainda permite mudanças internas."
+    },
+    {
+      "front": "Como reduzir efeitos numa aplicação real?",
+      "back": "Concentrar leitura, gravação e outras interações nas bordas; passar dados ao núcleo de cálculo previsível."
+    },
+    {
+      "front": "Uma função pura pode imprimir sem deixar de ser pura?",
+      "back": "Não. Imprimir produz um efeito observável além do valor retornado."
+    },
+    {
+      "front": "Funções de ordem superior são exclusivas de linguagens funcionais?",
+      "back": "Não. Linguagens de outros paradigmas também podem tratar funções como valores e recebê-las em operações."
+    },
+    {
+      "front": "O que diferencia map de filter?",
+      "back": "Map transforma cada elemento; filter decide quais elementos permanecem na coleção."
+    },
+    {
+      "front": "A ordem sempre pode ser ignorada ao combinar valores?",
+      "back": "Não. Reduções dependem da ordem quando a operação usada não é associativa ou não comutativa."
+    },
+    {
+      "front": "Como uma busca ausente pode ser modelada sem null ambíguo?",
+      "back": "Retornando Option/Maybe, cujo tipo obriga o consumidor a considerar presença e ausência."
+    }
+  ],
+  "tips": [
+    "Para avaliar pureza, verifique se as entradas visíveis determinam o resultado e se há interação observável.",
+    "Memorize o trio de coleções: map transforma, filter seleciona, fold/reduce acumula.",
+    "Ao analisar recursão, localize o caso-base e confirme que cada chamada se aproxima dele.",
+    "Separe variável não reatribuível de objeto imutável; são propriedades diferentes.",
+    "Na composição f(g(x)), acompanhe a saída de g até a entrada de f e confira a compatibilidade.",
+    "Em questões sobre sistemas reais, procure os efeitos nas bordas e o cálculo puro no núcleo."
+  ],
+  "traps": [
+    "Retornar um valor não torna pura uma função que também altera variável global ou imprime.",
+    "Imutabilidade não significa que o negócio nunca muda; versões novas substituem as anteriores.",
+    "`const` impede reatribuição da referência em algumas linguagens, mas não garante imutabilidade interna.",
+    "Lambda é uma forma de expressão de função; callback descreve uma função passada para ser chamada depois.",
+    "Map não seleciona elementos: esse é o papel de filter.",
+    "Recursão sem progresso rumo ao caso-base pode não terminar e pode consumir a pilha."
+  ],
+  "activeRecall": [
+    {
+      "question": "Uma rotina recebe x e retorna x+1, sem consultar ou alterar nada externo. Ela é pura?",
+      "answer": "Sim. O resultado depende apenas do argumento e não há efeito colateral."
+    },
+    {
+      "question": "Uma lista é percorrida para converter cada valor de Celsius para Fahrenheit. Qual operação descreve isso?",
+      "answer": "map, pois transforma cada elemento e devolve a coleção resultante."
+    },
+    {
+      "question": "Uma lista de pedidos deve conservar apenas os pagos. Qual operação se aplica?",
+      "answer": "filter, usando como predicado a condição de pagamento."
+    },
+    {
+      "question": "Por que um fold com soma costuma usar zero como acumulador inicial?",
+      "answer": "Zero é o elemento neutro da soma e também define o resultado para uma coleção vazia."
+    },
+    {
+      "question": "Uma variável const aponta para um array mutável. O array é necessariamente imutável?",
+      "answer": "Não. A variável pode não ser reatribuída, mas o conteúdo do array ainda pode ser alterado."
+    },
+    {
+      "question": "O que deve ser conferido numa função recursiva?",
+      "answer": "A existência de caso-base e o progresso de cada chamada para esse caso."
+    },
+    {
+      "question": "O que é capturado por uma closure?",
+      "answer": "Variáveis do ambiente léxico externo referenciadas pela função."
+    },
+    {
+      "question": "Como modelar uma consulta que pode não encontrar usuário?",
+      "answer": "Usar um tipo como Option/Maybe para representar explicitamente presença ou ausência."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confundir retorno com pureza",
+      "summary": "Função que retorna um dado ainda pode ser impura se também consulta estado externo ou produz efeitos observáveis."
+    },
+    {
+      "key": "e2",
+      "title": "Confundir referência constante com valor imutável",
+      "summary": "Impedir reatribuição de uma variável não congela necessariamente os campos do objeto que ela referencia."
+    },
+    {
+      "key": "e3",
+      "title": "Trocar map, filter e fold",
+      "summary": "Map transforma cada item, filter seleciona itens e fold/reduce acumula itens num resultado."
+    },
+    {
+      "key": "e4",
+      "title": "Ignorar o progresso recursivo",
+      "summary": "Sem caso-base alcançável e redução do subproblema, a recursão pode não terminar."
+    },
+    {
+      "key": "e5",
+      "title": "Achar que efeitos são proibidos no sistema todo",
+      "summary": "Aplicações fazem entrada e saída; o estilo funcional procura isolar efeitos e tornar o cálculo central explícito."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma função recebe dois números e retorna a soma sem alterar estado, consultar variáveis externas ou produzir saída. Qual descrição é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É pura: as entradas determinam o resultado e não há efeito observável adicional.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É impura: toda soma aritmética modifica necessariamente o estado da máquina.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É uma closure: qualquer função com parâmetros captura variáveis do ambiente externo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É de ordem superior: retornar um número equivale a devolver outra função.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É recursiva: calcular a soma de dois argumentos exige chamar a própria função.",
+          "correct": false
+        }
+      ],
+      "explanation": "A função depende dos argumentos e apenas calcula um valor. Ela não altera estado nem interage com o exterior, satisfazendo os critérios de pureza. Retornar número não cria função de ordem superior, e nenhuma chamada recursiva foi descrita.",
+      "section": "1. Paradigma funcional e funções puras",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função `proximo()` devolve o valor atual de uma variável global e o incrementa antes de terminar. Como ela deve ser classificada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pura, porque toda chamada termina entregando um valor numérico ao chamador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pura, desde que o contador global tenha sido inicializado com um número inteiro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Impura, pois consulta e modifica estado externo compartilhado pela rotina.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Imutável, porque o valor retornado não pode ser modificado pelo chamador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "De ordem superior, porque a variável global atua como função de retorno.",
+          "correct": false
+        }
+      ],
+      "explanation": "A rotina depende do contador global e o modifica. Duas chamadas sem argumentos podem devolver números diferentes, e a alteração é observável por outros trechos. O fato de haver retorno não remove esse efeito colateral.",
+      "section": "1. Paradigma funcional e funções puras",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O conceito de transparência referencial permite substituir uma chamada de função pelo resultado literal correspondente quando a função é pura. O que essa substituição preserva?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A ordem física em que os processadores executam cada instrução de máquina.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A quantidade de memória alocada por todas as versões do compilador utilizado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O tipo de licença sob a qual as bibliotecas do programa foram distribuídas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A semântica do programa, pois a expressão pura equivale àquele valor.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Os efeitos de rede da chamada, mesmo quando ela envia uma requisição externa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma expressão referencialmente transparente pode ser trocada pelo seu valor sem mudar o significado observável do programa. Essa propriedade não promete igualdade de alocação ou de ordem física de instruções e não se aplica a chamadas que enviam requisições externas.",
+      "section": "1. Paradigma funcional e funções puras",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema precisa consultar o relógio para calcular a validade de um token. Qual organização preserva melhor um núcleo de cálculo previsível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Consultar o relógio em toda função interna e ocultar a leitura em uma variável global.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ler o instante na borda e passá-lo como argumento à função que calcula validade.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Declarar a função de validade recursiva para que o relógio deixe de ser um efeito.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenar o instante em variável mutável e compartilhar a referência com os módulos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter a data em texto e imprimir o resultado dentro do cálculo de validade.",
+          "correct": false
+        }
+      ],
+      "explanation": "A leitura do relógio é um efeito e fornece uma dependência que varia com o tempo. Ao obtê-la na borda e passá-la como dado, o cálculo puro pode receber as mesmas entradas em testes e produzir resultado previsível. Ocultar o relógio em estado global mantém a dependência escondida.",
+      "section": "1. Paradigma funcional e funções puras",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina calcula o total de uma coleção e, além disso, escreve o resultado em um arquivo de auditoria. Qual afirmação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A rotina é pura, pois a gravação só acontece depois do cálculo aritmético.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A rotina é imutável, pois o arquivo recebe uma cópia do total calculado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A rotina é referencialmente transparente, porque arquivos não são valores de retorno.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A rotina é necessariamente uma closure, pois acessa o sistema de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A gravação é efeito observável, ainda que o valor do total seja determinístico.",
+          "correct": true
+        }
+      ],
+      "explanation": "Escrever arquivo altera o estado externo e pode ser observado por outras partes. Portanto, a rotina inteira tem efeito colateral mesmo que o cálculo do total seja previsível. Uma separação possível é calcular o total em função pura e gravá-lo numa etapa de borda.",
+      "section": "1. Paradigma funcional e funções puras",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois módulos leem a mesma estrutura imutável de configuração ao mesmo tempo. Qual consequência decorre diretamente dessa propriedade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um módulo não consegue alterar silenciosamente o valor que o outro está lendo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Os módulos ficam obrigados a executar em sequência por uma trava global.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A configuração é automaticamente atualizada quando qualquer leitor termina.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O valor passa a ser compartilhado apenas por cópias independentes em memória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A leitura concorrente converte a estrutura em um tipo de função de ordem superior.",
+          "correct": false
+        }
+      ],
+      "explanation": "Como o valor não pode ser modificado, leitores compartilham a mesma estrutura sem que um consumidor altere o que outro observa. Isso reduz uma fonte de disputa por estado, embora não elimine todos os problemas possíveis de concorrência do sistema.",
+      "section": "2. Imutabilidade e estado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em JavaScript, uma variável declarada com `const` contém uma referência a um array. Qual afirmação sobre essa declaração é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela congela recursivamente cada elemento e objeto que o array venha a referenciar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela permite trocar a referência, desde que o novo array tenha tamanho igual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela impede reatribuir a variável, mas não torna o array imutável por si só.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ela transforma automaticamente os métodos mutáveis em funções puras sem efeitos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela assegura que o array só pode ser observado pelo escopo atual.",
+          "correct": false
+        }
+      ],
+      "explanation": "`const` restringe a reatribuição do identificador; a referência continua apontando ao mesmo array. O conteúdo ainda pode ser alterado por operações mutáveis, salvo se outra medida ou estrutura impedir isso. Imutabilidade do objeto e reatribuição da variável são conceitos distintos.",
+      "section": "2. Imutabilidade e estado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação funcional de acréscimo recebe uma lista imutável `[2, 4]` e o elemento `6`. O que se espera como resultado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A lista original passa a conter 6, e a versão anterior deixa de existir.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma nova lista `[2, 4, 6]` é produzida, preservando a lista original.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A operação retorna apenas o índice que ocuparia o elemento acrescentado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A lista original é ordenada novamente antes da inclusão do elemento novo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O elemento é gravado numa variável global em vez de integrar uma coleção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em uma operação imutável, acrescentar significa calcular uma nova coleção com o elemento e manter o valor anterior disponível. Isso não implica que seja sempre necessário copiar fisicamente todos os nós: estruturas persistentes podem compartilhar partes internas.",
+      "section": "2. Imutabilidade e estado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma estrutura persistente implementa atualizações imutáveis de coleções. Qual técnica pode reduzir cópias completas sem mudar os valores antigos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir todas as coleções anteriores por uma estrutura global alterável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Copiar cada elemento e bloquear os consumidores durante toda a atualização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Modificar em segredo os nós antigos e recalcular seus valores depois da leitura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Compartilhar trechos internos que são imutáveis entre as versões da coleção.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Manter um único snapshot e apagar versões sempre que houver novo pedido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Estruturas persistentes podem reutilizar partes de uma coleção anterior porque esses trechos não são modificados. A nova versão contém o ajuste necessário e as versões antigas seguem válidas. A ideia evita exigir a cópia completa em toda atualização sem recorrer à mutação oculta.",
+      "section": "2. Imutabilidade e estado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cadastro de cliente é alterado sem mutação: o programa cria outro valor com endereço novo e preserva o original. Como interpretar a mudança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não houve mudança de negócio, pois valores imutáveis não representam estados sucessivos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A mudança foi proibida, pois qualquer atualização exige escrita in-place.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O cadastro perdeu sua identidade porque todo valor novo é necessariamente outro cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O endereço foi alterado por efeito colateral sobre o objeto preservado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma nova versão representa o estado atualizado sem modificar a versão anterior.",
+          "correct": true
+        }
+      ],
+      "explanation": "Imutabilidade descreve como valores são atualizados, não impede a evolução do estado de negócio. Produz-se uma versão nova que representa o cadastro com endereço atualizado, enquanto a anterior continua disponível para quem ainda a consulta.",
+      "section": "2. Imutabilidade e estado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma lista numérica, cada elemento precisa ser convertido de quilômetros para metros, sem selecionar nem remover elementos. Qual operação é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`filter`, porque seu predicado altera a unidade de cada item da lista.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`map`, porque aplica uma transformação a cada elemento da coleção.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`fold`, porque sempre preserva cada item e sua posição original.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`find`, porque deve devolver uma nova lista com todos os valores convertidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`sort`, porque ordenar uma lista também converte as unidades numéricas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Map recebe uma função aplicada a cada elemento e devolve a coleção transformada. Filter decide se cada elemento permanece; fold acumula vários elementos num resultado e não é a escolha para preservar um valor transformado por posição.",
+      "section": "3. Funções como valores e funções de ordem superior",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coleção de usuários deve conservar apenas quem possui conta ativa. Qual operação funcional corresponde diretamente ao requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`map`, pois transforma cada usuário em uma cópia ativa independentemente do estado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`fold`, pois combina todos os usuários num único resultado booleano final.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`filter`, usando como predicado a condição de conta ativa.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`compose`, pois compõe os usuários numa sequência de chamadas recursivas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`closure`, pois toda seleção de itens cria uma função capturada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Filter conserva os elementos para os quais o predicado é verdadeiro. A operação não precisa transformar usuários nem agregá-los num único booleano. Uma lambda pode ser usada como predicado, mas isso não muda o nome da operação de coleção.",
+      "section": "3. Funções como valores e funções de ordem superior",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação `map` recebe uma coleção com oito elementos e uma função que devolve exatamente um resultado para cada elemento. Qual tamanho é esperado para o resultado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Zero elementos, pois map sempre seleciona somente valores aceitos pelo predicado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um elemento, pois map reduz automaticamente a coleção a um acumulador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dezesseis elementos, pois cada chamada gera o original e uma cópia transformada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Oito elementos, um resultado transformado correspondente a cada entrada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Tamanho indefinido, pois a operação altera a coleção original durante o percurso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na forma usual de map sobre coleções finitas, cada elemento de entrada corresponde a um resultado, por isso a quantidade de posições permanece. A função poderia retornar outro tipo de dado, mas map não filtra nem acumula a coleção por definição.",
+      "section": "3. Funções como valores e funções de ordem superior",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual definição descreve uma função de ordem superior, independentemente da linguagem usada para implementá-la?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Recebe ou devolve uma função como parte de sua interface.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executa mais instruções que todas as funções de nível inferior do programa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Possui obrigatoriamente mais de um parâmetro numérico na assinatura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Retorna sempre uma coleção com quantidade maior que a entrada original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Altera estado compartilhado usando uma variável de escopo global.",
+          "correct": false
+        }
+      ],
+      "explanation": "O critério é receber uma função como argumento ou produzir uma função como resultado. Uma função de ordem superior pode fazer transformações simples e não precisa ter mais parâmetros, elevar valores ou alterar estado compartilhado.",
+      "section": "3. Funções como valores e funções de ordem superior",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função `aplicar` recebe como argumentos um número e uma função que calcula o seu quadrado, e devolve o resultado da aplicação. O que torna `aplicar` de ordem superior?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela realiza uma multiplicação, operação classificada como efeito colateral.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela usa recursão para avaliar todo número inteiro não negativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela recebe a regra de cálculo como uma função fornecida pelo chamador.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ela retorna somente valores numéricos em vez de retornar uma nova função.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela mantém o número original imutável em uma variável global compartilhada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A função recebe outra função (a regra que calcula o quadrado) como argumento, o que basta para classificá-la como de ordem superior. Não é necessário que ela devolva uma função. A multiplicação em si não é efeito colateral.",
+      "section": "3. Funções como valores e funções de ordem superior",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma lambda criada dentro de um método usa a variável externa `limite` para decidir se um número é grande o bastante. Como se chama a função que inclui esse ambiente capturado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um acumulador, porque todo valor externo é somado no final do percurso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma closure, pois a função conserva acesso ao ambiente léxico capturado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma expressão pura garantida, mesmo se `limite` mudar durante a execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma redução, pois comparar dois números combina a coleção inteira.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um caso-base, pois a variável externa encerra toda chamada recursiva.",
+          "correct": false
+        }
+      ],
+      "explanation": "Closure refere-se à função junto com o ambiente léxico das variáveis externas que ela captura. Se `limite` for mutável, a dependência pode afetar a previsibilidade; capturar uma variável não garante, por si só, pureza.",
+      "section": "3. Funções como valores e funções de ordem superior",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa somar os valores de uma coleção, inclusive quando ela está vazia. Qual forma de redução fornece explicitamente o resultado inicial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `filter` com zero como predicado inicial para conservar os elementos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `map` com a função identidade e descartar a coleção original.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar uma closure sem argumento que lê a soma de uma variável global.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `fold` com zero como acumulador e uma função de adição.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar recursão sem caso-base para garantir ao menos uma chamada de soma.",
+          "correct": false
+        }
+      ],
+      "explanation": "Fold com acumulador inicial igual a zero define o resultado para coleção vazia e combina cada valor com a soma corrente. Filter não agrega; map transforma e mantém vários resultados. O uso de estado global esconderia a dependência e complicaria o caso vazio.",
+      "section": "3. Funções como valores e funções de ordem superior",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao usar uma redução paralela para somar valores, por que a propriedade de associatividade da operação é relevante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque permite agrupar partes em ordens diferentes sem alterar o resultado matemático ideal.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Porque garante que qualquer concatenação textual seja comutativa e ordenada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque transforma automaticamente toda função de combinação em função pura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque impede que uma coleção vazia seja aceita pelo acumulador inicial.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque assegura que o operador possa modificar valores compartilhados durante a soma.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma redução paralela pode particionar e reagrupar o trabalho. Associatividade torna o agrupamento irrelevante para o resultado ideal, como em `a + (b + c) = (a + b) + c`. Operações não associativas podem dar resultados diferentes; em ponto flutuante, até soma tem ressalvas de arredondamento.",
+      "section": "3. Funções como valores e funções de ordem superior",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coleção é transformada, depois filtrada por uma condição, e finalmente reduzida a um total. Qual ordem descreve corretamente o propósito das operações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "filter soma os itens, map escolhe os elegíveis, e fold ordena os resultados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "fold cria uma transformação, map seleciona, e filter calcula o acumulador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "map transforma, filter seleciona, e fold combina os valores restantes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "map ordena, filter altera a lista original, e fold cria funções anônimas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "filter transforma, fold escolhe os elegíveis, e map encerra a recursão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Map calcula um valor transformado para cada elemento, filter conserva os que passam no predicado e fold agrega a coleção resultante. Cada operação tem papel distinto, embora possam ser encadeadas em uma única expressão ou etapa de processamento.",
+      "section": "3. Funções como valores e funções de ordem superior",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Considere a composição `f(g(x))`, em que ambas são funções de um argumento. Qual execução ocorre primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A função `f` recebe `x`, e depois seu resultado é passado para `g`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "As duas funções precisam executar ao mesmo tempo para compor a expressão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A composição dispensa argumentos porque substitui funções por valores imutáveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A função `g` recebe `x`; sua saída passa então para `f`.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A função `g` recebe o resultado final, sem que `f` seja chamada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A notação aplica primeiro a função mais interna: `g(x)`. O resultado precisa ser compatível com a entrada de `f`, que então produz a saída da composição. É necessário acompanhar os tipos ou formatos em cada fronteira.",
+      "section": "4. Composição, recursão e tratamento explícito",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função recursiva para somar uma lista devolve zero ao receber a lista vazia e, no restante, soma a cabeça ao resultado da cauda. Qual função do caso vazio é descrita?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O ambiente léxico, pois captura a cabeça da lista para uso posterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A closure, pois qualquer chamada com argumento vazio captura o escopo externo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A transparência referencial, pois toda chamada recursiva retorna o mesmo valor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O predicado de filter, pois decide se a lista deve ser descartada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O caso-base, pois encerra a recursão sem uma nova chamada recursiva.",
+          "correct": true
+        }
+      ],
+      "explanation": "A lista vazia fornece o caso-base e seu resultado, zero. Para listas não vazias, a definição reduz o problema à cauda, que é menor, aproximando a execução do caso de encerramento.",
+      "section": "4. Composição, recursão e tratamento explícito",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função recursiva chama a si mesma com os mesmos argumentos e sem condição alternativa de encerramento. Qual problema é mais provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A execução pode continuar chamando a função até esgotar recursos disponíveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A função torna-se automaticamente pura por repetir a mesma entrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O compilador converte qualquer chamada repetida em uma redução finita.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A função é transformada num filtro que remove os argumentos repetidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A recursão passa a retornar `None` após a primeira chamada repetida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sem caso-base ou progresso que alcance um encerramento, as chamadas se repetem sem fim. Em implementações comuns, isso consome a pilha até ocorrer falha. Repetir a mesma entrada não produz automaticamente pureza nem uma redução finita.",
+      "section": "4. Composição, recursão e tratamento explícito",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma busca de usuário pode não encontrar correspondência. Qual tipo expressa diretamente essa possibilidade sem usar um valor nulo sem contrato?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma lista ordenada, que sempre contém ao menos um usuário encontrado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um tipo `Option` ou `Maybe`, com alternativas explícitas de presença e ausência.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma closure, que registra o usuário inexistente no ambiente de execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um fold sem acumulador, que elimina a possibilidade de coleção vazia.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma função pura, que garante que toda consulta encontre um cadastro existente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Option/Maybe representa um valor possivelmente ausente, por exemplo `Some(usuario)` ou `None`. O tipo comunica a alternativa ao chamador, que deve tratá-la. Pureza não garante que o dado exista e closure não é mecanismo para representar ausência.",
+      "section": "4. Composição, recursão e tratamento explícito",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função de domínio pode retornar sucesso ou uma falha de validação com mensagem específica. Qual tipo algébrico costuma representar esses dois caminhos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um `map`, que seleciona sucesso e converte a falha em ausência silenciosa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um `filter`, que contém um valor válido e um predicado inválido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um `Either` ou `Result`, com alternativas tipadas de êxito e erro.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma closure, que registra a exceção em todas as variáveis externas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um acumulador, que obriga a falha a ser somada ao resultado correto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Either/Result codifica uma das alternativas: sucesso com valor ou erro com informação. O chamador pode tratar ambos os casos de modo explícito. Isso não elimina todos os erros, mas torna os resultados previstos visíveis no contrato da função.",
+      "section": "4. Composição, recursão e tratamento explícito",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe argumenta que o uso de programação funcional obriga a aplicação inteira a deixar de ler arquivos, bancos de dados e requisições externas. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Correta, pois aplicações funcionais não podem receber dados do ambiente externo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Correta, porque qualquer entrada ou saída torna impossível usar funções puras.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Incorreta, pois sistemas funcionais frequentemente isolam efeitos nas bordas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Incorreta, pois funções puras são definidas como escritas em banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Correta, desde que todos os efeitos sejam executados por chamadas recursivas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sistemas reais precisam interagir com o ambiente. O estilo funcional busca organizar e delimitar essas interações, mantendo o núcleo de transformação de dados mais puro e previsível. A existência de efeitos numa borda não transforma todo cálculo puro em impuro.",
+      "section": "1. Paradigma funcional e funções puras",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe compõe `formatar(validar(entrada))`. A função `validar` retorna um resultado tipado que pode ser erro, e `formatar` só aceita um valor já validado. O que precisa acontecer para a composição ser correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Formatar deve ser executada antes de validar para criar o tipo de entrada adequado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A validação deve modificar a entrada e esconder qualquer falha antes da composição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A composição ignora o tipo intermediário e sempre entrega o valor original a formatar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É preciso tratar o resultado de validação e só então chamar formatar no sucesso.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A função formatar deve ser convertida em recursão para aceitar um resultado alternativo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A composição direta exige compatibilidade entre a saída de validar e a entrada de formatar. Como validar pode falhar, a alternativa de erro deve ser tratada; no caminho de sucesso, o valor validado pode ser passado à função de formatação.",
+      "section": "4. Composição, recursão e tratamento explícito",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função de ordenação recebe uma função comparadora escolhida pelo chamador, por exemplo para ordenar nomes por sobrenome. Qual característica funcional essa interface evidencia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ordenação sempre transforma os elementos sem preservar a coleção recebida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A comparadora é um valor funcional passado a uma operação de ordem superior.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A comparadora é um caso-base que encerra a recursão ao achar nomes iguais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ordenação é necessariamente pura, mesmo se comparar dados mutáveis externos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A operação torna a lista imutável apenas por receber uma função como argumento.",
+          "correct": false
+        }
+      ],
+      "explanation": "A função comparadora é fornecida como argumento à operação de ordenação, que por isso é de ordem superior. Isso não determina, por si só, se a ordenação altera a coleção nem se o comparador é puro; essas propriedades dependem da implementação e das dependências usadas.",
+      "section": "3. Funções como valores e funções de ordem superior",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa calcular o total de valores monetários em uma coleção vazia ou não vazia. Qual característica do valor inicial de uma redução por soma é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O valor inicial deve ser uma função que filtre os itens negativos antes da soma.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O valor inicial precisa ser o primeiro elemento, tornando impossível tratar lista vazia.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A redução deve ignorar o acumulador para conservar cada valor original separado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma variável global mutável deve guardar o total para todas as chamadas futuras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Zero inicia o acumulador e fornece o total quando não há elementos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Zero é elemento neutro da soma e pode iniciar o fold. Assim, a coleção vazia produz zero sem exigir acesso a um primeiro elemento. Guardar o total global criaria estado compartilhado e acoplamento entre execuções.",
+      "section": "3. Funções como valores e funções de ordem superior",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma closure captura um objeto mutável e consulta sua propriedade a cada chamada. O objeto é alterado entre duas chamadas feitas com os mesmos argumentos explícitos. Qual conclusão é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O resultado pode mudar por causa do ambiente capturado, apesar dos argumentos iguais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A função é pura, pois closures não podem observar mudanças em valores capturados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O objeto fica congelado automaticamente no instante em que a closure é criada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A mudança transforma a closure em uma função map aplicada à propriedade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As chamadas devem produzir o mesmo valor porque a variável capturada é léxica.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma closure captura o ambiente, mas isso não significa que todos os valores capturados sejam cópias imutáveis. Se a propriedade consultada muda, a chamada depende desse estado externo mutável e pode apresentar resultados diferentes para os mesmos argumentos explícitos.",
+      "section": "3. Funções como valores e funções de ordem superior",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação recursiva processa uma árvore binária e chama a si mesma nos filhos existentes. Qual condição é essencial para que a travessia termine em uma árvore finita?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada nó deve ser copiado para uma variável global antes da chamada recursiva.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A função precisa devolver uma closure para cada filho visitado na árvore.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os nós com dois filhos devem interromper a travessia mesmo quando há descendentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cada nó deve gerar duas chamadas, mesmo quando seus filhos não existem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A estrutura visitada deve ser finita e a recursão deve parar nos nós sem filhos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Numa árvore finita, terminar exige que os subproblemas caminhem para folhas ou nós sem filhos e que esses nós sejam tratados sem nova chamada recursiva. Se a estrutura tiver ciclos ou a implementação não encerrar nos casos terminais, a recursão pode não terminar.",
+      "section": "4. Composição, recursão e tratamento explícito",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função pura pode produzir resultados diferentes para os mesmos argumentos, desde que não altere estado externo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Pureza requer que as mesmas entradas relevantes determinem o mesmo resultado e que não haja efeitos observáveis além do retorno; não alterar estado, por si só, não basta.",
+      "section": "1. Paradigma funcional e funções puras",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função que imprime uma mensagem pode ser pura se também retornar um valor calculado a partir dos argumentos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A impressão é um efeito observável além do valor retornado. O cálculo pode ser separado numa função pura, mas a rotina que imprime não é pura.",
+      "section": "1. Paradigma funcional e funções puras",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Transparência referencial permite trocar uma expressão pura pelo valor que ela sempre produz para aquelas entradas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A substituição preserva a semântica do programa justamente porque a expressão é previsível e não possui efeitos adicionais.",
+      "section": "1. Paradigma funcional e funções puras",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função que depende da hora atual, mas não recebe o horário como argumento, tem todas as suas dependências explícitas na assinatura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O relógio é uma dependência externa que não aparece nos argumentos. Obter o instante na borda e passá-lo ao cálculo torna a entrada explícita e facilita testes previsíveis.",
+      "section": "1. Paradigma funcional e funções puras",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Imutabilidade impede que o estado de negócio de uma entidade seja representado em momentos diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Cada momento pode ser representado por uma nova versão imutável. A versão anterior continua intacta para consumidores que ainda a utilizam.",
+      "section": "2. Imutabilidade e estado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma variável não reatribuível garante, em qualquer linguagem, que todos os campos do objeto referenciado também são imutáveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A restrição pode valer apenas para a variável, enquanto o objeto continua permitindo alterações internas. É necessário distinguir reatribuição da referência e mutabilidade do valor.",
+      "section": "2. Imutabilidade e estado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Coleções imutáveis podem ser compartilhadas por leitores sem risco de um deles modificar diretamente o valor lido pelo outro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Sem mutação do valor compartilhado, leitores não interferem entre si por meio de alterações naquele objeto, o que reduz uma fonte de problemas de concorrência.",
+      "section": "2. Imutabilidade e estado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Estruturas persistentes podem compartilhar partes internas imutáveis entre versões sem alterar os valores anteriores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Como os trechos compartilhados não mudam, versões novas podem reutilizá-los e acrescentar apenas a estrutura necessária para a atualização.",
+      "section": "2. Imutabilidade e estado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Map normalmente transforma cada elemento e preserva a correspondência de uma saída por posição de entrada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Map aplica uma função a cada item e retorna os resultados correspondentes. A operação não tem como finalidade selecionar ou eliminar elementos.",
+      "section": "3. Funções como valores e funções de ordem superior",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Filter é a operação indicada para converter cada elemento de uma coleção em um valor de outro tipo, mantendo todos eles.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Map é usado para transformar cada elemento. Filter conserva apenas elementos cujo predicado resulta verdadeiro e pode reduzir a quantidade da coleção.",
+      "section": "3. Funções como valores e funções de ordem superior",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função que recebe um comparador fornecido pelo chamador é uma função de ordem superior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Receber uma função como argumento satisfaz a definição de ordem superior, independentemente do nome da operação que usa o comparador.",
+      "section": "3. Funções como valores e funções de ordem superior",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Closure é o nome exclusivo de qualquer lambda, mesmo quando ela não usa nenhum valor externo do escopo léxico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Closure designa a função junto ao ambiente léxico que captura. Lambda é uma forma sintática de escrever uma função; os conceitos não são sinônimos perfeitos.",
+      "section": "3. Funções como valores e funções de ordem superior",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Fold ou reduce combina elementos por uma função de acumulação, podendo resultar em um único valor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A cada passo, a função combina o acumulado com um elemento. O resultado pode ser soma, produto ou outra estrutura definida pela combinação.",
+      "section": "3. Funções como valores e funções de ordem superior",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma recursão bem formulada não precisa de caso-base desde que cada chamada invoque novamente a mesma função.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Sem um encerramento alcançável, as chamadas podem não terminar e consumir recursos. O caso-base interrompe a expansão recursiva.",
+      "section": "4. Composição, recursão e tratamento explícito",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em f(g(x)), a saída de g precisa ser compatível com o tipo de entrada esperado por f.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A composição aplica g primeiro e passa seu resultado para f. Sem compatibilidade entre a saída de g e a entrada de f, a cadeia não está bem tipada ou precisa de uma conversão intermediária.",
+      "section": "4. Composição, recursão e tratamento explícito",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Option ou Maybe pode tornar explícita a alternativa entre um valor presente e uma ausência esperada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esse tipo representa presença, como Some, ou ausência, como None, de modo que o chamador considere ambos os caminhos.",
+      "section": "4. Composição, recursão e tratamento explícito",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Result ou Either pode representar uma alternativa de sucesso e uma alternativa de falha com informação associada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esses tipos discriminam caminhos de resultado, permitindo que o chamador trate o valor de sucesso ou a informação de erro explicitamente.",
+      "section": "4. Composição, recursão e tratamento explícito",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de programação funcional exige que nenhuma operação de entrada ou saída exista em qualquer parte da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Aplicações reais interagem com o exterior. O estilo pode concentrar esses efeitos nas bordas e manter as transformações centrais previsíveis.",
+      "section": "1. Paradigma funcional e funções puras",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Scala 3 — Scala Features: A Functional Programming Language",
+      "publisher": "Scala Documentation",
+      "reference": "Funções como valores, funções de ordem superior, lambdas, imutabilidade e coleções funcionais",
+      "url": "https://docs.scala-lang.org/scala3/book/scala-features.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Scala 3 — Immutable Values",
+      "publisher": "Scala Documentation",
+      "reference": "Valores e coleções imutáveis, map, filter e criação de novas versões de dados",
+      "url": "https://docs.scala-lang.org/scala3/book/fp-immutable-values.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Scala Glossary — Functional style and Referential transparency",
+      "publisher": "Scala Documentation",
+      "reference": "Estilo funcional, ausência de efeitos, dados imutáveis e transparência referencial",
+      "url": "https://docs.scala-lang.org/glossary/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "JavaScript Glossary — First-class Function",
+      "publisher": "MDN Web Docs",
+      "reference": "Funções de primeira classe e funções de ordem superior",
+      "url": "https://developer.mozilla.org/en-US/docs/Glossary/First-class_Function",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "JavaScript Glossary — Immutable",
+      "publisher": "MDN Web Docs",
+      "reference": "Distinção entre valores imutáveis e objetos/arrays mutáveis em JavaScript",
+      "url": "https://developer.mozilla.org/en-US/docs/Glossary/Immutable",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

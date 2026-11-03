@@ -1,0 +1,1747 @@
+{
+  "id": "infra-ti.clusterizacao-alta-disponibilidade-escalabilidade",
+  "subject": "Informática",
+  "title": "Clusterização, alta disponibilidade e escalabilidade",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Conceitos de clusterização, alta disponibilidade e escalabilidade",
+    "Clusterização de servidores e aplicações",
+    "Alta disponibilidade em clusters de infraestrutura",
+    "Escalabilidade horizontal e vertical em sistemas",
+    "Arquiteturas de cluster para serviços de TI",
+    "Tolerância a falhas em ambientes clusterizados",
+    "Redundância e continuidade de serviços de TI",
+    "Balanceamento de carga entre nós de cluster",
+    "Quorum e divisão de cérebro em clusters",
+    "Replicação e failover em sistemas distribuídos",
+    "Dimensionamento e elasticidade de infraestrutura",
+    "Clusters de aplicação e de banco de dados"
+  ],
+  "scope": {
+    "covers": "Conceitos fundamentais de clusterização: nós, recursos compartilhados, serviços distribuídos, escalonamento, balanceamento e tipos de cluster; alta disponibilidade, redundância, detecção de falhas, failover, domínios de falha, quorum e riscos de split-brain; escalabilidade horizontal e vertical, elasticidade, capacidade, gargalos, métricas, limites e relação entre escala e disponibilidade. Exemplos concretos com arquitetura Kubernetes, etcd, réplicas de workloads e distribuição por nós e zonas.",
+    "excludes": "Instalação e administração detalhada de Kubernetes, sintaxe completa de produtos de cluster, configuração de armazenamento ou redes específicas, comandos de fornecedores, cálculos contratuais de SLA e desenho completo de recuperação de desastres."
+  },
+  "theoryTitle": "Como clusters mantêm serviços disponíveis e acompanham a demanda",
+  "chapters": [
+    {
+      "title": "1. O que é um cluster e como seus nós trabalham juntos",
+      "markdown": "### O problema que este assunto resolve\n\nUm servidor isolado concentra processamento, memória, sistema operacional e, muitas vezes, a própria execução do serviço. Se ele falha ou fica pequeno para a carga, o serviço pode parar ou responder lentamente. Um **cluster** reúne dois ou mais computadores independentes, chamados **nós**, e coordena o uso deles para executar uma aplicação, distribuir trabalho ou manter um serviço disponível.\n\nClusterização não significa que os computadores se tornam uma única máquina física. Cada nó mantém processador, memória, sistema operacional e falhas próprias. A camada de coordenação apresenta um serviço ou conjunto de recursos de forma controlada e decide onde executar tarefas. Um cluster pode ser formado por servidores físicos, máquinas virtuais ou nós de contêineres.\n\n> **Siglas e termos deste capítulo**\n> - **Nó (node)**: computador ou instância que participa do cluster.\n> - **Workload**: aplicação, tarefa ou serviço executado no cluster.\n> - **Plano de controle**: componentes que mantêm o estado desejado e coordenam decisões do cluster.\n> - **Nó trabalhador**: máquina que executa as cargas de trabalho.\n> - **Plano de dados**: caminho pelo qual as requisições e os dados da aplicação trafegam.\n> - **Orquestração**: alocação e acompanhamento automatizados dos workloads nos nós.\n\n### Componentes e funções\n\nEm um cluster Kubernetes, por exemplo, o plano de controle administra nós e Pods. O `kube-scheduler` escolhe um nó para Pods ainda sem colocação, considerando requisitos de recursos e restrições. O controlador de nós percebe mudanças de estado dos nós. Em cada nó, o `kubelet` acompanha os contêineres declarados para os Pods e busca mantê-los em execução. O `etcd` armazena de forma consistente os dados do cluster usados pelo plano de controle. Essas funções são diferentes: o escalonador escolhe onde iniciar, o kubelet acompanha a execução local e o armazenamento persistente guarda o estado administrativo.\n\n| Termo | Função | Exemplo\n| --- | --- | ---\n| Nó | Fornece CPU, memória, rede e armazenamento local | Uma VM que executa Pods\n| Plano de controle | Observa o estado e coordena decisões | Seleciona nó para Pod pendente\n| Workload | Executa a função de negócio | Serviço web com várias réplicas\n| Balanceador | Encaminha requisições aos destinos elegíveis | Distribui conexões entre servidores saudáveis\n\n### Tipos de organização\n\nUm cluster pode agrupar nós para **alta disponibilidade**, para **distribuir carga**, para **processar tarefas em paralelo** ou para compartilhar recursos de armazenamento. Um cluster de computação de alto desempenho divide tarefas adequadas em partes executáveis em paralelo. Um cluster de aplicação pode executar diversas instâncias do mesmo serviço. Em um cluster ativo-passivo, um nó atende e outro permanece pronto para assumir; em ativo-ativo, vários nós atendem simultaneamente. A escolha depende do serviço, do estado que precisa ser compartilhado e do modo de recuperação.\n\nTer vários nós, por si só, não torna uma aplicação altamente disponível. O serviço precisa ser capaz de iniciar ou continuar em outro nó, os dados precisam permanecer acessíveis e os clientes precisam conseguir alcançar a instância sobrevivente. Uma dependência compartilhada única pode manter o ponto único de falha mesmo quando a camada web tem várias máquinas.\n\n### Como cai na prova\n\n- Cluster é um conjunto coordenado de nós; não é sinônimo de um servidor maior.\n- Diferencie a escolha de posicionamento de um workload da execução local dele.\n- A redundância de nós só ajuda se a aplicação e suas dependências também tiverem caminhos alternativos.\n- Ativo-ativo distribui atendimento entre instâncias; ativo-passivo mantém uma instância de reserva para assumir."
+    },
+    {
+      "title": "2. Alta disponibilidade, redundância e recuperação de falhas",
+      "markdown": "### O problema que este assunto resolve\n\n**Alta disponibilidade (HA, de high availability)** é a capacidade de um serviço permanecer acessível durante falhas e manutenções, limitando a interrupção percebida pelos usuários. Ela não promete que nada falhará. O projeto presume que componentes podem falhar e prepara detecção, isolamento e recuperação. **Tolerância a falhas** enfatiza continuar operando apesar de determinadas falhas; alta disponibilidade costuma aceitar uma interrupção curta enquanto ocorre a recuperação.\n\n> **Siglas e termos deste capítulo**\n> - **HA**: alta disponibilidade, desenho para reduzir interrupções do serviço.\n> - **Redundância**: existência de componente ou caminho alternativo.\n> - **Failover**: transferência do atendimento ou da função para um componente que pode assumir.\n> - **Failback**: retorno planejado ao componente preferencial depois da recuperação.\n> - **Ponto único de falha (SPOF)**: componente cuja falha interrompe o serviço por não haver alternativa funcional.\n> - **Domínio de falha**: conjunto de recursos atingidos por uma mesma causa, como um nó, rack, zona ou região.\n\n### Caminho da recuperação\n\nUma estratégia de HA normalmente combina redundância, monitoramento, detecção, decisão segura de failover, redirecionamento de clientes e recuperação dos dados. Por exemplo: duas instâncias do serviço recebem tráfego por um balanceador; uma verificação de saúde identifica que uma instância não responde; o balanceador deixa de encaminhar novas requisições para ela. Em um orquestrador, o controlador pode recriar um Pod que deixou de cumprir o estado desejado. Isso pode recuperar o número de réplicas, mas não garante que uma requisição em andamento ou uma transação não confirmada seja preservada.\n\n| Estratégia | Durante operação normal | Efeito de falha\n| --- | --- | ---\n| Ativo-passivo | Um nó atende; outro aguarda | Reserva assume após detecção e decisão\n| Ativo-ativo | Mais de um nó atende | Nós saudáveis absorvem parte da carga remanescente\n| Replicação síncrona | Confirmação depende da gravação nos participantes definidos | Pode reduzir perda de gravações confirmadas, com custo de latência e dependência de comunicação\n| Replicação assíncrona | A origem confirma antes de toda réplica receber a alteração | Pode haver dados recentes ainda não copiados na falha da origem\n\n### Quorum e split-brain\n\nEm sistemas que elegem líder ou replicam estado por consenso, **quorum** é o número mínimo de participantes que precisa concordar para uma decisão válida. A documentação do etcd explica o uso de maioria: em um grupo de três membros, dois formam a maioria; uma falha pode ser tolerada, mas a perda de dois impede formar quorum para aceitar atualizações. Essa regra evita que partições concorrentes tratem ambas como autoridade.\n\n**Split-brain** ocorre quando duas partes isoladas acreditam poder atuar como primárias ao mesmo tempo. Se ambas aceitarem gravações, os estados podem divergir. Quorum, fencing (impedir que o nó antigo continue acessando recursos) e eleição controlada de líder são mecanismos usados para reduzir esse risco. A resposta de segurança pode ser interromper gravações quando não há maioria, sacrificando temporariamente disponibilidade para preservar consistência.\n\n### Domínios de falha e limites\n\nDuas réplicas no mesmo servidor não protegem contra a falha desse servidor. Duas máquinas no mesmo rack ainda podem compartilhar energia e rede. Distribuir instâncias entre nós e zonas diferentes reduz a chance de uma falha local derrubar todas, mas requer capacidade suficiente nos domínios restantes e dependências também distribuídas. A documentação Kubernetes permite orientar a distribuição de Pods por hostname ou zona com restrições de topologia; sem capacidade ou rótulos consistentes, a intenção pode não ser atendida.\n\n### Como cai na prova\n\n- HA reduz duração ou impacto de indisponibilidade; não significa ausência absoluta de falhas.\n- Failover é a transferência para a alternativa; failback é o retorno planejado.\n- Réplica assíncrona pode ficar atrasada; replicação não é automaticamente backup.\n- Um cluster de três membros de consenso precisa de dois para maioria; sem maioria, não deve haver duas autoridades aceitando escrita."
+    },
+    {
+      "title": "3. Escalabilidade horizontal, vertical e elasticidade",
+      "markdown": "### O problema que este assunto resolve\n\n**Escalabilidade** é a capacidade de aumentar a capacidade de um sistema para atender mais demanda, mantendo desempenho e operação aceitáveis. A escala pode crescer com mais recursos em um componente ou com mais componentes. **Elasticidade** é ajustar esses recursos para cima e para baixo conforme a variação da demanda; por isso pode reduzir capacidade ociosa fora dos picos, desde que o ajuste ocorra a tempo.\n\n> **Siglas e termos deste capítulo**\n> - **Escala vertical (scale up/down)**: aumentar ou reduzir CPU, memória ou outros recursos de uma instância.\n> - **Escala horizontal (scale out/in)**: adicionar ou remover instâncias que atendem ao workload.\n> - **Elasticidade**: ajustar capacidade dinamicamente às mudanças de carga.\n> - **Autoscaling**: alteração automática do número de réplicas, dos recursos ou dos nós conforme políticas e métricas.\n> - **Capacidade**: carga que o sistema consegue atender sob critérios definidos de desempenho.\n> - **Gargalo**: recurso ou etapa que limita o desempenho total.\n\n### Scale up e scale out\n\nEscala vertical amplia os recursos de uma máquina ou instância. Pode ser simples para uma aplicação que já usa bem uma máquina maior, mas é limitada pelos tamanhos disponíveis e mantém dependência daquela instância. Escala horizontal adiciona réplicas e divide a carga entre elas. Ela pode oferecer crescimento por etapas e ajudar na disponibilidade, mas exige que a aplicação aceite múltiplas instâncias, distribuição de tráfego, controle de estado e coordenação dos dados.\n\n| Abordagem | O que muda | Limite ou cuidado\n| --- | --- | ---\n| Vertical | Recursos atribuídos a cada réplica | Teto de hardware/plataforma; pode exigir reinício ou redimensionamento\n| Horizontal | Quantidade de réplicas ou nós | Depende da capacidade de dividir carga e evitar estado local incompatível\n| Elasticidade | Quantidade ou tamanho muda com a demanda | Métrica, atraso de inicialização, cotas e limites precisam ser considerados\n\nNo Kubernetes, o HorizontalPodAutoscaler ajusta periodicamente o número de réplicas de um workload com base em métricas observadas, como utilização de CPU ou memória. O autoscaler de nós opera em outra camada: pode provisionar nós quando há Pods que não cabem na capacidade atual e consolidar nós subutilizados. Assim, aumentar Pods não garante capacidade se não houver espaço nos nós; aumentar nós também não resolve automaticamente um gargalo no banco de dados.\n\n### Métricas e limites\n\nCPU e memória ajudam a identificar pressão, mas não descrevem toda carga. Uma aplicação pode ser limitada por latência de banco, conexões, fila, I/O, bloqueios, banda de rede ou limite externo de API. Uma métrica inadequada pode escalar réplicas sem reduzir a causa do atraso. Medir latência, taxa de requisições, erros, saturação e tamanho de fila permite observar tanto experiência como utilização de recursos. Deve haver limites superiores e capacidade de reserva: autoscaling não cria recursos além das cotas do provedor nem elimina o tempo de inicialização de novas instâncias.\n\nEscalar horizontalmente exige avaliar sessões e estado. Se uma sessão só existe na memória local de uma instância, outra réplica pode não reconhecê-la; pode-se externalizar a sessão ou adotar afinidade de sessão, entendendo as consequências. Escritas simultâneas em dados compartilhados também exigem consistência e controle de concorrência. Uma arquitetura sem estado local tende a facilitar a substituição e a distribuição de réplicas, mas continua dependendo dos serviços de dados.\n\n### Como cai na prova\n\n- Mais CPU e memória na mesma instância é escala vertical; mais instâncias é escala horizontal.\n- Elasticidade descreve ajuste à demanda; não é apenas possuir capacidade máxima.\n- HPA altera réplicas do workload; autoscaler de nós altera capacidade da infraestrutura.\n- Se um banco ou serviço externo for o gargalo, adicionar réplicas de aplicação pode apenas deslocar o gargalo."
+    },
+    {
+      "title": "4. Balanceamento, replicação e distribuição por domínios",
+      "markdown": "### O problema que este assunto resolve\n\nTer diversas instâncias permite distribuir requisições, mas alguém precisa direcionar cada conexão para destinos válidos. O **balanceador de carga** distribui conexões ou requisições conforme uma política e pode retirar temporariamente destinos que falham em verificações de saúde. Ele não cria capacidade por si só: se todos os destinos estiverem saturados, o balanceador apenas reparte uma sobrecarga.\n\n> **Siglas e termos deste capítulo**\n> - **Health check**: verificação para avaliar se um destino pode receber tráfego.\n> - **Round robin**: distribuição sequencial entre destinos elegíveis.\n> - **Afinidade de sessão**: tentativa de encaminhar um cliente repetidamente à mesma instância.\n> - **Replicação**: manutenção de cópias de dados ou estado em mais de um local.\n> - **Consistência**: regra sobre quando atualizações se tornam visíveis entre participantes.\n> - **Zona de disponibilidade**: domínio de infraestrutura separado dentro de uma região de nuvem.\n\n### Tráfego e estado\n\nPolíticas simples incluem round robin e distribuição por conexões menos ocupadas. Uma verificação de saúde deve representar a prontidão real para atender: um processo pode responder a uma porta enquanto depende de um banco indisponível. Verificações excessivamente agressivas também podem retirar e recolocar destinos repetidamente. Para evitar falha em cascata, sistemas podem limitar concorrência, aplicar timeouts e rejeitar carga acima da capacidade com respostas controladas.\n\nDistribuir Pods por hostname busca evitar que todas as réplicas caiam com um único nó; distribuir por zona protege contra a perda de um domínio maior. No Kubernetes, `topologySpreadConstraints` define chaves de topologia, como hostname ou zona, e o comportamento quando não é possível manter a distribuição desejada. `DoNotSchedule` pode deixar um Pod pendente se a regra não puder ser satisfeita; `ScheduleAnyway` trata o equilíbrio como preferência. Logo, política de distribuição é uma decisão explícita com efeito sobre disponibilidade e posicionamento.\n\n### Replicação não é sinônimo de cópia de segurança\n\nUma réplica ajuda a manter o dado acessível e atualizado, mas pode replicar exclusões acidentais, corrupção lógica ou credenciais comprometidas. Backup recuperável preserva um ponto anterior e deve ser restaurado e verificado em exercícios. Replicação síncrona normalmente aguarda confirmação dos participantes definidos e tende a aumentar latência; a assíncrona reduz a espera no caminho da escrita, mas admite uma janela de alterações ainda não copiadas. A política depende da tolerância a perda de dados e da distância entre locais.\n\n### Como cai na prova\n\n- Balanceador encaminha tráfego; autoscaler muda quantidade ou tamanho de recursos.\n- Health check influencia a elegibilidade do destino, mas não comprova que todas as funções do serviço estão saudáveis.\n- Mais réplicas no mesmo domínio não protegem contra a falha desse domínio.\n- Replicação melhora disponibilidade de dados, enquanto backup atende recuperação histórica; uma não substitui automaticamente a outra."
+    },
+    {
+      "title": "5. Planejamento de capacidade, disponibilidade efetiva e operação",
+      "markdown": "### O problema que este assunto resolve\n\nProjetar um cluster envolve equilibrar desempenho, custo e risco. A soma dos recursos nominais dos nós não é igual à capacidade útil: parte é consumida pelo sistema e pelos componentes do cluster, e parte precisa ficar disponível para absorver picos ou a perda de um nó. Uma implantação que utiliza toda a capacidade normal pode ficar sem margem justamente quando uma falha exige realocar workloads.\n\n> **Siglas e termos deste capítulo**\n> - **SLA**: compromisso de nível de serviço entre partes; pode definir metas e consequências contratuais.\n> - **SLO**: objetivo interno ou acordado para uma característica mensurável do serviço.\n> - **SLI**: indicador observado, como proporção de requisições bem-sucedidas ou latência.\n> - **RTO**: tempo-alvo para restabelecer um serviço após interrupção.\n> - **RPO**: perda de dados máxima aceitável expressa como intervalo de recuperação.\n> - **Capacidade N+1**: arranjo com margem para suportar a perda de um componente, conforme a carga e o dimensionamento previstos.\n\n### Disponibilidade é propriedade de um caminho completo\n\nO usuário depende de uma cadeia: rede, balanceador, aplicação, autenticação, banco, armazenamento, DNS e serviços externos. Se qualquer componente indispensável for ponto único de falha, ele limita a disponibilidade percebida do conjunto. Redundância precisa incluir energia, rede, acesso aos dados, configuração, monitoramento e operação. Um balanceador único sem redundância pode se tornar o próprio SPOF. Uma réplica em outra zona pouco ajuda se ambas dependem de uma única conexão ou de um único banco sem recuperação.\n\nIndicadores devem medir o serviço que importa. Um processo ativo pode responder a uma verificação simples sem conseguir completar a operação de negócio. Acompanhe disponibilidade percebida, latência, taxa de erro, saturação e filas, relacionando cada sinal a uma resposta operacional. Testes de failover, restauração de backup e perda de domínio revelam dependências não percebidas no diagrama.\n\n### Capacidade durante falha e manutenção\n\nConsidere três nós que juntos sustentam a carga normal. Se cada um já opera perto do limite, a falha de um deles pode sobrecarregar os outros dois, mesmo que as réplicas sejam recriadas. Dimensionar para continuar durante manutenção planejada ou perda de nó requer margem calculada com a carga de pico, recursos reservados, distribuição de workloads e tempo necessário para adicionar capacidade. Políticas de afinidade, limites de réplicas, cotas e restrições de zona também afetam onde um workload pode ser iniciado.\n\nNa arquitetura HA do kubeadm, a documentação descreve topologia com control plane empilhado (membros do etcd junto aos nós de controle) e topologia com etcd externo (componentes separados). Separar etcd exige mais máquinas e operação, mas separa domínios de componentes; a escolha deve refletir os requisitos e a infraestrutura. Para o plano de controle, um balanceador de API pode encaminhar a nós saudáveis. Isso não elimina a necessidade de manter quorum do etcd e conectividade entre os membros.\n\n### Como cai na prova\n\n- Disponibilidade fim a fim é limitada por dependências essenciais e pontos únicos de falha.\n- Capacidade de pico precisa incluir margem para a falha prevista e para componentes do próprio cluster.\n- SLA, SLO e SLI descrevem compromisso, objetivo e indicador, respectivamente.\n- Monitoramento e teste de recuperação verificam o desenho real; contar máquinas não comprova alta disponibilidade."
+    }
+  ],
+  "summary": "Cluster é um conjunto coordenado de nós que executa workloads ou oferece serviços por meio de recursos distribuídos. Em Kubernetes, o plano de controle administra os nós, o scheduler escolhe onde colocar Pods, kubelet acompanha a execução local e etcd mantém estado do cluster. Alta disponibilidade reduz o impacto e o tempo de interrupções mediante redundância, detecção, failover e distribuição por domínios de falha; não elimina falhas nem garante que dados ou transações em andamento sejam preservados. Quorum exige maioria para decisões de consenso: três membros do etcd precisam de dois; perder a maioria impede aceitar atualizações. Split-brain é o risco de partes isoladas aceitarem autoridade simultânea. Escala vertical adiciona recursos à instância; horizontal adiciona réplicas ou nós; elasticidade ajusta a capacidade à demanda. HPA altera réplicas de workload, enquanto autoscaling de nós adiciona ou consolida capacidade de infraestrutura. Balanceadores distribuem tráfego, réplicas de dados mantêm cópias, e backups permitem recuperar estados anteriores. O resultado depende de capacidade de reserva, métricas adequadas, tratamento de estado e eliminação de dependências únicas em toda a cadeia do serviço.",
+  "flashcards": [
+    {
+      "front": "O que caracteriza um cluster de computadores?",
+      "back": "Conjunto de nós independentes coordenados para executar workloads, distribuir trabalho ou oferecer um serviço comum."
+    },
+    {
+      "front": "O que é um nó?",
+      "back": "Uma máquina física, VM ou instância que participa do cluster e fornece recursos de processamento, memória, rede ou armazenamento."
+    },
+    {
+      "front": "Qual é a função do kube-scheduler?",
+      "back": "Selecionar um nó adequado para Pods que ainda não foram atribuídos, considerando recursos e restrições."
+    },
+    {
+      "front": "Qual é a função do kubelet?",
+      "back": "Agente executado em cada nó que acompanha a execução dos contêineres declarados para os Pods daquele nó."
+    },
+    {
+      "front": "O que significa alta disponibilidade?",
+      "back": "Projetar o serviço para reduzir interrupções e seu impacto por meio de redundância, detecção e recuperação."
+    },
+    {
+      "front": "O que é failover?",
+      "back": "Transferir o atendimento ou função para uma instância alternativa após falha ou indisponibilidade detectada."
+    },
+    {
+      "front": "O que é failback?",
+      "back": "Retorno planejado ao componente preferencial depois da recuperação do componente original."
+    },
+    {
+      "front": "O que é ponto único de falha?",
+      "back": "Componente sem alternativa funcional cuja falha pode interromper o serviço."
+    },
+    {
+      "front": "O que é um domínio de falha?",
+      "back": "Conjunto de recursos sujeitos a uma causa comum de falha, como nó, rack ou zona."
+    },
+    {
+      "front": "O que é quorum em um cluster de consenso?",
+      "back": "Número mínimo de participantes que precisam concordar para uma decisão válida; em etcd, a maioria."
+    },
+    {
+      "front": "Quantos membros de um cluster etcd com três precisam estar disponíveis para maioria?",
+      "back": "Dois membros. Um pode falhar mantendo maioria; a perda de dois elimina o quorum."
+    },
+    {
+      "front": "O que é split-brain?",
+      "back": "Situação em que partes isoladas do cluster acreditam ser a autoridade ativa e podem aceitar operações conflitantes."
+    },
+    {
+      "front": "O que distingue escala vertical de horizontal?",
+      "back": "Vertical altera os recursos de uma instância; horizontal altera a quantidade de instâncias ou nós."
+    },
+    {
+      "front": "O que significa elasticidade?",
+      "back": "Ajustar a capacidade para cima ou para baixo conforme a variação da demanda."
+    },
+    {
+      "front": "O que faz o HorizontalPodAutoscaler?",
+      "back": "Ajusta periodicamente o número de réplicas do workload com base em métricas observadas."
+    },
+    {
+      "front": "O que faz um autoscaler de nós?",
+      "back": "Provisiona nós quando workloads não cabem na capacidade existente e pode consolidar nós subutilizados."
+    },
+    {
+      "front": "Qual o papel de um balanceador de carga?",
+      "back": "Encaminhar conexões ou requisições para destinos elegíveis segundo uma política e verificações de saúde."
+    },
+    {
+      "front": "O que é replicação síncrona?",
+      "back": "Modelo em que a confirmação da escrita aguarda confirmação dos participantes definidos, com possível custo de latência."
+    },
+    {
+      "front": "Qual risco acompanha a replicação assíncrona?",
+      "back": "Uma falha pode ocorrer antes de alterações recentes chegarem às réplicas, causando perda dessas atualizações."
+    },
+    {
+      "front": "Por que replicação não substitui backup?",
+      "back": "A réplica pode copiar exclusões e corrupção; backup preserva pontos recuperáveis anteriores que devem ser testados."
+    },
+    {
+      "front": "O que mede um SLI?",
+      "back": "Um indicador observado do serviço, como latência ou proporção de requisições bem-sucedidas."
+    },
+    {
+      "front": "O que é RTO?",
+      "back": "Tempo-alvo para restabelecer o serviço após interrupção."
+    },
+    {
+      "front": "O que é RPO?",
+      "back": "Intervalo de perda de dados máximo aceitável, definido como objetivo de recuperação."
+    }
+  ],
+  "tips": [
+    "Quando o cenário disser adicionar CPU ou memória a uma VM existente, identifique escala vertical; mais réplicas indicam escala horizontal.",
+    "Mapeie a cadeia de dependências antes de declarar HA: aplicação, balanceador, rede, dados e autenticação podem conter SPOFs.",
+    "Para quorum de consenso, conte a maioria dos membros votantes; em três membros, a maioria é dois.",
+    "Separe escalonamento de Pods de escalonamento de nós: são mecanismos de camadas diferentes e podem precisar atuar em conjunto.",
+    "Verifique onde as réplicas estão distribuídas: espalhar por nós ajuda contra falha de nó; espalhar por zonas amplia o domínio protegido.",
+    "Ao comparar replicação e backup, pergunte se a solução preserva versões históricas e se uma restauração foi testada."
+  ],
+  "traps": [
+    "Confundir várias instâncias com alta disponibilidade sem conferir se compartilham um balanceador, banco ou zona únicos.",
+    "Afirmar que failover garante continuidade sem interrupção; detecção, eleição, redirecionamento e recuperação levam tempo.",
+    "Tratar escalabilidade horizontal como simples aumento de CPU na mesma instância, que é escala vertical.",
+    "Supor que adicionar réplicas de aplicação resolve um gargalo localizado no banco, na rede ou em uma API externa.",
+    "Confundir consistência e disponibilidade durante uma partição: sem quorum, sistemas podem recusar escritas para evitar autoridades concorrentes.",
+    "Considerar replicação como backup; mudanças destrutivas podem ser propagadas a todas as cópias."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique por que um cluster com vários nós ainda pode ter um ponto único de falha.",
+      "answer": "As instâncias podem depender de um componente comum sem redundância, como balanceador, banco, rede, autenticação ou energia."
+    },
+    {
+      "question": "Diferencie cluster ativo-ativo de ativo-passivo.",
+      "answer": "No ativo-ativo, vários nós atendem simultaneamente; no ativo-passivo, um atende e outro fica pronto para assumir."
+    },
+    {
+      "question": "Como o quorum reduz o risco de split-brain?",
+      "answer": "Exige maioria para decisões, impedindo que uma minoria isolada continue sendo autoridade válida ao mesmo tempo que outra partição."
+    },
+    {
+      "question": "Compare scale up e scale out com um exemplo de cada.",
+      "answer": "Scale up aumenta recursos da instância atual, como memória; scale out adiciona instâncias do serviço para dividir a carga."
+    },
+    {
+      "question": "Por que autoscaling de Pods pode exigir autoscaling de nós?",
+      "answer": "Novas réplicas precisam ser alocadas; se não há CPU ou memória disponível nos nós atuais, elas ficam pendentes até surgir capacidade."
+    },
+    {
+      "question": "Que risco operacional distingue replicação assíncrona da síncrona?",
+      "answer": "A assíncrona pode deixar gravações confirmadas na origem ainda não copiadas; a síncrona aguarda confirmação definida e pode elevar latência."
+    },
+    {
+      "question": "Por que uma política de topologia deve considerar zona além de hostname?",
+      "answer": "Réplicas em hosts diferentes ainda podem compartilhar a mesma zona e ser afetadas por uma falha comum daquela zona."
+    },
+    {
+      "question": "Que sinais além de CPU podem indicar gargalo?",
+      "answer": "Latência, erros, tamanho de filas, conexões, memória, I/O, rede e saturação de banco ou serviços externos."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Cluster confundido com servidor de maior porte",
+      "summary": "Cluster reúne nós independentes coordenados; cada nó preserva recursos e modos de falha próprios."
+    },
+    {
+      "key": "e2",
+      "title": "Redundância tratada como disponibilidade automática",
+      "summary": "Serviço, dados, rede e dependências também precisam de caminhos alternativos; um SPOF pode interromper toda a cadeia."
+    },
+    {
+      "key": "e3",
+      "title": "Quorum e split-brain invertidos",
+      "summary": "Quorum é a maioria necessária para decisões; sem maioria, uma minoria não deve aceitar escrita concorrente como autoridade."
+    },
+    {
+      "key": "e4",
+      "title": "Escala horizontal, vertical e elasticidade misturadas",
+      "summary": "Vertical muda recursos por instância; horizontal muda o número de instâncias; elasticidade ajusta capacidade à demanda."
+    },
+    {
+      "key": "e5",
+      "title": "Camadas e proteção de dados confundidas",
+      "summary": "Balanceador encaminha tráfego, HPA altera réplicas, autoscaler altera nós, replicação mantém cópias e backup permite recuperar versões anteriores."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe executa quatro instâncias de um serviço em computadores diferentes, sob coordenação comum, para dividir trabalho e apresentar um serviço integrado. Como se denomina esse arranjo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cluster de nós coordenados para executar workloads",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Servidor vertical ampliado com vários processadores e memória adicional",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Backup completo distribuído entre computadores",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Rede de armazenamento sem execução de aplicações",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Balanceador isolado sem servidores de aplicação",
+          "correct": false
+        }
+      ],
+      "explanation": "Cluster reúne nós independentes coordenados para executar cargas ou oferecer um serviço integrado. Não é apenas um servidor maior, cópia de segurança ou equipamento de rede.",
+      "section": "1. O que é um cluster e como seus nós trabalham juntos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um cluster Kubernetes, um Pod novo ainda não foi atribuído a nenhum nó. Qual componente decide em qual nó adequado ele deverá ser executado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O kubelet do primeiro nó que responder e aceitar o contêiner",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O armazenamento etcd ao escolher um host",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O kube-scheduler ao avaliar nós elegíveis",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O balanceador ao selecionar um contêiner",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O controlador de serviço ao iniciar o banco",
+          "correct": false
+        }
+      ],
+      "explanation": "O kube-scheduler observa Pods sem nó atribuído e seleciona um nó considerando recursos e restrições. O kubelet acompanha contêineres no nó local; etcd armazena dados do cluster.",
+      "section": "1. O que é um cluster e como seus nós trabalham juntos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação atende em um nó principal e mantém outro nó pronto para assumir depois de falha detectada. Que modo de operação descreve o cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escala horizontal com todas as instâncias atendendo",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cluster de computação paralela sem reserva",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Replicação assíncrona entre nós ativos",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cluster ativo-passivo com failover",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Escala vertical com recursos compartilhados",
+          "correct": false
+        }
+      ],
+      "explanation": "No modo ativo-passivo, um componente atende e outro permanece disponível para assumir. A transferência do atendimento em razão da falha é failover.",
+      "section": "1. O que é um cluster e como seus nós trabalham juntos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação possui diversas réplicas, mas todas dependem de um único banco sem réplica nem recuperação alternativa. O que a falha desse banco representa para o serviço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escalabilidade horizontal ilimitada",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um ponto único de falha na cadeia do serviço",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um quorum completo de instâncias web",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um failback automático das aplicações",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma prova de tolerância integral a falhas",
+          "correct": false
+        }
+      ],
+      "explanation": "Mesmo com várias réplicas web, o banco indispensável e sem alternativa é um ponto único de falha. Alta disponibilidade depende das partes essenciais da cadeia, não só da camada de aplicação.",
+      "section": "1. O que é um cluster e como seus nós trabalham juntos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um cluster etcd de três membros, quantos membros precisam estar disponíveis para formar maioria e continuar aceitando atualizações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um membro, que pode confirmar atualizações sem consultar os outros votantes",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Três membros, mesmo após perda de um",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Nenhum membro, pois o líder guarda tudo",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os três membros e mais um balanceador",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dois membros, que formam a maioria do grupo",
+          "correct": true
+        }
+      ],
+      "explanation": "O etcd usa maioria como quorum. Em três membros, dois constituem a maioria e permitem tolerar a perda de um; perder dois impede formar quorum para atualizações.",
+      "section": "2. Alta disponibilidade, redundância e recuperação de falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação descreve de modo mais completo a alta disponibilidade de um serviço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Redundância, detecção de falhas e recuperação coordenada",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma máquina potente com reinício manual eventual",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumento de memória sem cópia ou monitoramento",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Backups guardados sem procedimento de restauração",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Várias instâncias no mesmo processo e servidor para reiniciar juntas",
+          "correct": false
+        }
+      ],
+      "explanation": "HA combina componentes ou caminhos alternativos com detecção e recuperação. Aumentar uma máquina ou manter cópias sem restauração não oferece, sozinho, continuidade do serviço.",
+      "section": "2. Alta disponibilidade, redundância e recuperação de falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma partição de rede deixa dois grupos isolados, e cada grupo passa a aceitar gravações como se fosse o primário. Que risco está ocorrendo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escala vertical por aumento de memória e CPU no nó principal",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Failback ordenado para o nó original",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Distribuição equilibrada de réplicas",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Split-brain com possibilidade de estados divergentes",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Consolidação automática de nós ociosos",
+          "correct": false
+        }
+      ],
+      "explanation": "Split-brain ocorre quando partições atuam simultaneamente como autoridade, podendo aceitar escritas conflitantes e divergir. Quorum e fencing ajudam a evitar essa condição.",
+      "section": "2. Alta disponibilidade, redundância e recuperação de falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe aumenta a memória e a quantidade de CPUs atribuídas à mesma máquina virtual para atender ao pico de uso. Qual estratégia está aplicando?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escala horizontal por aumento de réplicas",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Elasticidade por diminuição de instâncias",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escala vertical da instância existente",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Failover entre zonas independentes",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Balanceamento por conexões recebidas",
+          "correct": false
+        }
+      ],
+      "explanation": "A equipe aumentou os recursos de uma única instância, que é escala vertical. Escala horizontal adicionaria instâncias para repartir a carga.",
+      "section": "3. Escalabilidade horizontal, vertical e elasticidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço web passa de três para sete réplicas para repartir mais requisições entre instâncias. Qual forma de escala foi adotada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Vertical, pois cada réplica recebe mais memória",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Horizontal, pois a quantidade de réplicas aumentou",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Failback, pois a aplicação voltou ao nó inicial",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Replicação síncrona, pois os dados foram confirmados",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Quorum, pois a maioria passou a atender",
+          "correct": false
+        }
+      ],
+      "explanation": "A escala horizontal altera o número de instâncias do workload. A mudança não informa aumento de recursos por réplica nem descreve replicação de dados.",
+      "section": "3. Escalabilidade horizontal, vertical e elasticidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual mecanismo ajusta periodicamente a quantidade de réplicas de um workload Kubernetes conforme métricas observadas, como uso de CPU?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O etcd ao consolidar dados antigos do cluster",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O kubelet ao redimensionar cada nó físico",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O balanceador ao criar Pods adicionais quando a CPU ultrapassa a meta",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O autoscaler de nós ao alterar as réplicas",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O HorizontalPodAutoscaler ao ajustar réplicas do workload",
+          "correct": true
+        }
+      ],
+      "explanation": "O HPA ajusta o número de réplicas do workload de acordo com métricas observadas. Autoscaling de nós altera a infraestrutura e é uma camada diferente.",
+      "section": "3. Escalabilidade horizontal, vertical e elasticidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe aumenta o número de Pods, mas eles ficam pendentes porque os nós não têm CPU ou memória disponíveis. Qual capacidade precisa ser ampliada ou liberada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A quantidade de endereços IP públicos usados pelos serviços da aplicação",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A capacidade da infraestrutura de nós do cluster",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A taxa de replicação síncrona do banco de dados",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O quorum de membros do armazenamento distribuído",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O volume de réplicas de dados de backup",
+          "correct": false
+        }
+      ],
+      "explanation": "As réplicas do workload precisam ser alocadas em nós com recursos suficientes. O autoscaling de nós pode fornecer capacidade de infraestrutura para Pods que não cabem nos nós atuais.",
+      "section": "3. Escalabilidade horizontal, vertical e elasticidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção caracteriza elasticidade em uma infraestrutura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter capacidade fixa independentemente de toda variação",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar CPU uma única vez, sem medir a demanda nem rever a capacidade",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Distribuir gravações entre líderes concorrentes",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Recuperar uma cópia histórica após exclusão",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ajustar recursos para cima ou para baixo conforme a carga",
+          "correct": true
+        }
+      ],
+      "explanation": "Elasticidade é o ajuste da capacidade para cima ou para baixo conforme a variação de demanda. Aumentar uma vez sem acompanhar a carga não constitui ajuste elástico.",
+      "section": "3. Escalabilidade horizontal, vertical e elasticidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer reduzir interrupções durante a falha de uma zona inteira. Qual desenho oferece proteção mais direta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Espalhar réplicas por zonas distintas e manter capacidade após a perda de uma",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar todas as réplicas no mesmo nó para simplificar o acesso local",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar memória de uma instância localizada na zona principal",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar somente a frequência de verificações no mesmo domínio",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter uma cópia de backup no próprio volume da aplicação",
+          "correct": false
+        }
+      ],
+      "explanation": "Distribuir réplicas entre domínios de falha reduz a exposição a uma falha comum de zona. A capacidade remanescente e as dependências também precisam suportar a carga após a perda.",
+      "section": "4. Balanceamento, replicação e distribuição por domínios",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação aceita uma escrita na origem antes de copiá-la aos demais membros. Qual consequência é compatível com essa replicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A escrita aguarda sempre todas as cópias antes da confirmação",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma falha imediata pode deixar a atualização recente ausente nas réplicas",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A operação transforma automaticamente as réplicas em backups históricos",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O modo impede a existência de qualquer atraso de propagação",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A topologia passa a tolerar perda de todos os membros",
+          "correct": false
+        }
+      ],
+      "explanation": "Na replicação assíncrona, a origem pode confirmar antes da cópia terminar. Se falhar nesse intervalo, alterações recentes podem não existir nas réplicas.",
+      "section": "4. Balanceamento, replicação e distribuição por domínios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao configurar a distribuição de Pods, um administrador escolhe `DoNotSchedule` quando a regra de topologia não puder ser satisfeita. Qual efeito pode ocorrer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O scheduler inicia o Pod mesmo que viole a regra definida",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O balanceador muda automaticamente o rótulo da zona",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O Pod pode permanecer pendente até existir posicionamento elegível",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O nó é convertido em membro de quorum adicional",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A regra é aplicada apenas depois que o Pod começa a atender",
+          "correct": false
+        }
+      ],
+      "explanation": "Com `DoNotSchedule`, uma distribuição que não satisfaz a restrição pode impedir o posicionamento do Pod, deixando-o pendente. `ScheduleAnyway` expressa preferência por melhor distribuição.",
+      "section": "4. Balanceamento, replicação e distribuição por domínios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe usa round robin entre quatro destinos, mas todos atingem saturação. Qual afirmação descreve corretamente o efeito do balanceador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele aumenta por si só a CPU e memória disponíveis em cada destino",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele remove a necessidade de observar erros e latência ao encaminhar pedidos entre destinos",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele recupera gravações perdidas no banco de dados",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele divide o tráfego, mas não cria capacidade adicional nos destinos",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Ele garante que todos os destinos estejam em zonas distintas",
+          "correct": false
+        }
+      ],
+      "explanation": "O balanceador encaminha tráfego entre destinos, mas não adiciona recursos de processamento a eles. Destinos saturados continuam limitando a capacidade total.",
+      "section": "4. Balanceamento, replicação e distribuição por domínios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um health check valida somente se a porta TCP está aberta, embora o serviço dependa de um banco indisponível. Qual limitação existe nessa verificação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela pode marcar como elegível um destino que não conclui a função de negócio",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ela confirma a consistência de toda gravação entre zonas",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela adiciona automaticamente mais nós trabalhadores",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela transforma uma réplica assíncrona em síncrona",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela substitui o monitoramento de latência e erros",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma porta aberta prova apenas conectividade naquele nível, não que o serviço possa concluir uma operação útil ou acessar suas dependências. A prontidão deve refletir o comportamento que se pretende proteger.",
+      "section": "4. Balanceamento, replicação e distribuição por domínios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço mede CPU baixa, mas apresenta filas crescentes e alta latência ao aguardar o banco de dados. Qual decisão de capacidade é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escalar a aplicação com base somente na CPU baixa",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar medições de fila para evitar alarmes",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adicionar nós sem investigar o caminho de dados",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar réplicas até que o banco deixe de ser dependência",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Investigar latência, fila e saturação do banco antes de escolher a escala",
+          "correct": true
+        }
+      ],
+      "explanation": "CPU baixa não exclui gargalo. Filas e latência indicam espera em outra etapa; escalar réplicas sem tratar a dependência pode aumentar concorrência sobre o banco sem resolver a causa.",
+      "section": "3. Escalabilidade horizontal, vertical e elasticidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cluster precisa manter o serviço após a falha de um nó, mas cada nó já opera no limite durante a carga normal. Que risco de capacidade deve ser considerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O scheduler não pode observar a condição de saúde dos nós",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "As réplicas sobreviventes podem ficar saturadas ao absorver carga adicional",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O número de nós altera automaticamente a consistência do banco",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um failover elimina o tempo de recuperação de qualquer falha",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O balanceador passa a executar as tarefas da aplicação",
+          "correct": false
+        }
+      ],
+      "explanation": "Alta disponibilidade requer capacidade útil depois da falha prevista. Se os nós restantes já estão no limite, a redistribuição pode saturá-los e degradar ou interromper o serviço.",
+      "section": "5. Planejamento de capacidade, disponibilidade efetiva e operação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual relação entre SLI, SLO e SLA está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "SLI é compromisso contratual, SLO é máquina e SLA é indicador técnico",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SLI mede indicador, SLO define objetivo e SLA expressa compromisso de serviço",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "SLI é cópia de segurança, SLO é quorum e SLA é failover",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SLI e SLO são nomes alternativos para réplicas de aplicação",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SLA define a topologia de nós e SLI inicia a replicação",
+          "correct": false
+        }
+      ],
+      "explanation": "SLI é uma medida observada; SLO é uma meta para essa característica; SLA é compromisso de nível de serviço entre partes. Eles não são componentes físicos do cluster.",
+      "section": "5. Planejamento de capacidade, disponibilidade efetiva e operação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe mantém duas instâncias de banco replicadas em tempo real e supõe que isso protege contra exclusão acidental. Qual controle ainda é necessário para recuperar um estado anterior?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mais um balanceador de conexões sem cópia histórica",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mais réplicas que propaguem a exclusão rapidamente",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Afinidade de sessão para usuários autenticados",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma rotina de backup com restauração verificada",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Escala vertical da instância que recebeu a exclusão",
+          "correct": false
+        }
+      ],
+      "explanation": "A replicação pode propagar alterações destrutivas. Backup com pontos recuperáveis e procedimento de restauração testado permite recuperar um estado anterior.",
+      "section": "4. Balanceamento, replicação e distribuição por domínios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cluster Kubernetes usa HPA para criar mais Pods e autoscaler de nós para criar VMs quando os Pods ficam sem lugar. Como os mecanismos se relacionam?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambos alteram a mesma camada de CPU dentro de cada Pod",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O autoscaler de nós substitui o balanceador de requisições",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "HPA replica o etcd e o autoscaler reduz o quorum",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "HPA atua nas réplicas do workload e o autoscaler atua na capacidade de nós",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O HPA controla as zonas e o autoscaler grava os dados da aplicação",
+          "correct": false
+        }
+      ],
+      "explanation": "HPA ajusta a quantidade de réplicas do workload; autoscaling de nós provisiona ou consolida capacidade de infraestrutura. Em conjunto, os nós podem acomodar novas réplicas.",
+      "section": "3. Escalabilidade horizontal, vertical e elasticidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma implantação com três membros de consenso, dois ficam isolados dos outros, mas continuam conectados entre si. Qual partição forma a maioria?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O grupo de dois membros, pois contém a maioria do total",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O membro isolado, pois a menor partição decide primeiro e confirma o estado",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ambos os grupos, porque cada partição tem um líder local",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Nenhum, porque quorum exige todos os membros",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O balanceador de tráfego, pois encaminha as gravações",
+          "correct": false
+        }
+      ],
+      "explanation": "Com três votantes, a maioria é dois. O par pode formar quorum; o membro isolado não deve agir como autoridade de consenso. A decisão depende de membros votantes, não do balanceador.",
+      "section": "2. Alta disponibilidade, redundância e recuperação de falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um time mede apenas se o processo responde a uma porta e anuncia disponibilidade total, embora requisições reais estejam falhando. Qual melhoria é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover verificações para que não haja resultados negativos",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar a métrica por contagem de máquinas no inventário",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Medir sucesso e latência das operações relevantes ao usuário",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Contar apenas réplicas planejadas, mesmo se não estiverem prontas",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar CPU como prova suficiente de todas as funções",
+          "correct": false
+        }
+      ],
+      "explanation": "Disponibilidade percebida deve refletir operações úteis, como proporção de requisições bem-sucedidas e latência. Processo ativo ou porta aberta não comprova que dependências e funções estejam saudáveis.",
+      "section": "5. Planejamento de capacidade, disponibilidade efetiva e operação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na topologia empilhada de alta disponibilidade do kubeadm, como os membros do etcd se relacionam com os nós do plano de controle?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os membros do etcd ficam em hosts separados dos componentes de controle",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cada worker guarda a cópia principal do estado etcd local",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O balanceador replica o etcd antes de enviar chamadas ao API server",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O etcd deixa de usar consenso porque está no mesmo cluster",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os membros etcd ficam co-localizados com os nós do control plane",
+          "correct": true
+        }
+      ],
+      "explanation": "Na topologia empilhada, os membros etcd ficam junto dos nós do plano de controle. A topologia com etcd externo separa esses componentes e requer infraestrutura adicional; em ambas, o etcd continua dependendo de quorum.",
+      "section": "5. Planejamento de capacidade, disponibilidade efetiva e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: na escala vertical, a equipe adiciona réplicas do mesmo workload para repartir o tráfego.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Adicionar réplicas é escala horizontal. Na escala vertical, aumentam-se recursos atribuídos a uma instância, como CPU ou memória.",
+      "section": "3. Escalabilidade horizontal, vertical e elasticidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: o kubelet executado em cada nó acompanha os contêineres declarados para os Pods atribuídos àquele nó.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O kubelet é um agente do nó que busca manter em execução os contêineres descritos pelos Pods que lhe foram atribuídos.",
+      "section": "1. O que é um cluster e como seus nós trabalham juntos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: ter dois processos da aplicação no mesmo servidor protege o serviço contra a falha física desse servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os processos compartilham o mesmo domínio de falha físico: uma falha de energia, placa ou sistema operacional naquele servidor pode interromper ambos ao mesmo tempo. Para reduzir esse risco, as instâncias precisam estar em nós independentes, com capacidade e dependências adequadas para assumir o trabalho.",
+      "section": "2. Alta disponibilidade, redundância e recuperação de falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: failover transfere o atendimento para uma alternativa após uma falha, enquanto failback é o retorno planejado ao componente preferencial recuperado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Failover transfere o atendimento para uma alternativa depois que a falha é detectada e o mecanismo de decisão considera seguro assumir. Failback é o retorno planejado ao componente preferencial já recuperado, após confirmar que ele está estável. Esse retorno não deve ser confundido com a primeira transferência para o nó reserva.",
+      "section": "2. Alta disponibilidade, redundância e recuperação de falhas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: um balanceador distribui conexões entre destinos, mas não acrescenta CPU ou memória aos servidores de destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um balanceador encaminha conexões ou requisições entre destinos elegíveis e pode retirar um destino que falha na verificação configurada. Ele não acrescenta CPU ou memória aos servidores e não cria capacidade quando todos os destinos estão saturados.",
+      "section": "4. Balanceamento, replicação e distribuição por domínios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: distribuir Pods por hostname pode reduzir o risco de uma falha de nó derrubar todas as réplicas, desde que haja posicionamentos distintos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Hostnames distintos representam nós diferentes e ajudam a reduzir a concentração das réplicas em um único domínio de falha de nó.",
+      "section": "4. Balanceamento, replicação e distribuição por domínios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: uma réplica de dados é suficiente para recuperar exclusões acidentais, pois conserva automaticamente versões históricas anteriores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A replicação pode propagar a exclusão. Recuperar estado anterior requer backup ou mecanismo histórico apropriado, além de restauração verificada.",
+      "section": "4. Balanceamento, replicação e distribuição por domínios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: se um sistema não consegue escalar horizontalmente, aumentar recursos de uma instância pode ser uma opção de escala vertical, sujeita a limites.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Escala vertical aumenta recursos da instância existente e pode atender a uma necessidade, embora fique limitada às capacidades disponíveis e não remova dependências daquela instância.",
+      "section": "3. Escalabilidade horizontal, vertical e elasticidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: o autoscaler de nós e o HorizontalPodAutoscaler atuam necessariamente sobre a mesma quantidade de réplicas de aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. HPA ajusta réplicas do workload. O autoscaler de nós altera a capacidade de infraestrutura, provisionando ou consolidando nós.",
+      "section": "3. Escalabilidade horizontal, vertical e elasticidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: uma zona distinta pode representar um domínio de falha maior que um hostname, por isso distribuir réplicas por nós não garante distribuição entre zonas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Vários nós podem pertencer à mesma zona. Para proteção contra falha de zona, é preciso distribuir explicitamente por esse domínio e manter capacidade nele.",
+      "section": "4. Balanceamento, replicação e distribuição por domínios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: uma aplicação com várias réplicas web tem alta disponibilidade fim a fim mesmo que todas dependam de um único balanceador sem alternativa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O balanceador único é um ponto de falha comum que pode tornar todas as réplicas inacessíveis. Alta disponibilidade precisa cobrir a cadeia inteira de dependências.",
+      "section": "5. Planejamento de capacidade, disponibilidade efetiva e operação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: em um grupo de três membros etcd, a perda de dois membros deixa disponível a maioria necessária para aceitar atualizações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A maioria de três é dois. Perdendo dois, resta apenas um membro e não há quorum para aceitar atualizações com consenso.",
+      "section": "2. Alta disponibilidade, redundância e recuperação de falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: numa partição de rede sem maioria, impedir gravações em uma minoria pode preservar consistência, ainda que reduza temporariamente a disponibilidade de escrita.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Sistemas baseados em quorum podem recusar atualizações sem maioria para evitar que partições concorrentes aceitem decisões incompatíveis; há uma troca entre disponibilidade e consistência durante a partição.",
+      "section": "2. Alta disponibilidade, redundância e recuperação de falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: numa replicação assíncrona, uma falha logo após a confirmação na origem pode deixar alterações recentes ainda não copiadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A origem não aguarda necessariamente todas as réplicas; pode existir atraso de propagação e perda das atualizações mais recentes se a origem falhar nesse intervalo.",
+      "section": "4. Balanceamento, replicação e distribuição por domínios",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: `ScheduleAnyway` expressa preferência por um posicionamento que melhore a distribuição, sem bloquear o Pod apenas porque o equilíbrio não pode ser alcançado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essa política atribui preferência a topologias que reduzem o desequilíbrio; ao contrário de `DoNotSchedule`, não torna o equilíbrio condição obrigatória para posicionar o Pod.",
+      "section": "4. Balanceamento, replicação e distribuição por domínios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: aumentar réplicas da aplicação sempre resolve filas crescentes, mesmo quando elas são causadas por saturação de banco de dados compartilhado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O gargalo pode permanecer no banco, e mais réplicas podem elevar a concorrência sobre ele. Métricas de fila, latência e saturação ajudam a localizar a etapa limitante.",
+      "section": "3. Escalabilidade horizontal, vertical e elasticidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: se todos os nós restantes operarem no limite durante a carga normal, a perda de um nó ainda pode causar saturação mesmo que o cluster recrie réplicas automaticamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Recriar réplicas não cria imediatamente CPU ou memória livre. O dimensionamento precisa considerar margem para perda de nó, picos e consumo dos componentes do cluster.",
+      "section": "5. Planejamento de capacidade, disponibilidade efetiva e operação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: uma verificação que confirma somente a porta TCP pode identificar processo ativo sem confirmar que uma operação de negócio consegue acessar suas dependências.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma checagem de porta confirma conectividade limitada. O serviço ainda pode falhar ao acessar banco, autenticação ou outra dependência necessária para a operação útil.",
+      "section": "4. Balanceamento, replicação e distribuição por domínios",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: em um serviço distribuído, disponibilidade percebida depende também de rede, armazenamento e serviços de autenticação essenciais ao caminho da requisição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A operação fim a fim depende de cada componente indispensável da cadeia. Uma dependência essencial sem redundância pode limitar a disponibilidade percebida mesmo com a aplicação replicada.",
+      "section": "5. Planejamento de capacidade, disponibilidade efetiva e operação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Cluster Architecture",
+      "publisher": "Kubernetes Documentation",
+      "reference": "Componentes do plano de controle e dos nós, scheduler, etcd e kubelet",
+      "url": "https://kubernetes.io/docs/concepts/architecture/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Creating Highly Available Clusters with kubeadm",
+      "publisher": "Kubernetes Documentation",
+      "reference": "Topologias de control plane empilhado e etcd externo, quorum ímpar e balanceamento do API server",
+      "url": "https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/high-availability/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Autoscaling Workloads",
+      "publisher": "Kubernetes Documentation",
+      "reference": "Diferença entre escalabilidade horizontal e vertical, HPA e ajuste de réplicas",
+      "url": "https://kubernetes.io/docs/concepts/workloads/autoscaling/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Node Autoscaling",
+      "publisher": "Kubernetes Documentation",
+      "reference": "Provisionamento e consolidação de nós e coordenação com autoscaling de workloads",
+      "url": "https://kubernetes.io/docs/concepts/cluster-administration/node-autoscaling/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Pod Topology Spread Constraints",
+      "publisher": "Kubernetes Documentation",
+      "reference": "Distribuição de Pods por hostname, zona e domínios de falha",
+      "url": "https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Frequently Asked Questions",
+      "publisher": "etcd",
+      "reference": "Quorum por maioria, tolerância a falhas e consistência em partições de rede",
+      "url": "https://etcd.io/docs/v3.1/faq/",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

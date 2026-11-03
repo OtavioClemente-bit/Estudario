@@ -1,0 +1,2268 @@
+{
+  "id": "informatica.suporte-sistemas-rfid",
+  "subject": "Informática",
+  "title": "Suporte em sistemas RFID",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Suporte em RFID",
+    "Suporte a sistemas RFID",
+    "Atendimento técnico RFID",
+    "Diagnóstico de leitores RFID",
+    "Instalação de leitores RFID",
+    "Operação de etiquetas RFID",
+    "Identificação por radiofrequência",
+    "Sistemas de identificação RFID",
+    "Manutenção de equipamentos RFID",
+    "Integração de leitores RFID",
+    "RFID UHF e padrão EPC Gen2",
+    "Segurança em sistemas RFID"
+  ],
+  "scope": {
+    "covers": "Suporte técnico a sistemas de identificação por radiofrequência: componentes e fluxo entre etiqueta, antena, leitor, middleware, rede e aplicação; etiquetas passivas, ativas e semipassivas; noções de LF, HF e UHF e de EPC Gen2; bancos de memória EPC, TID, User e Reserved; leitura, inventário, escrita, filtragem, zona de interrogação e tratamento de eventos; diagnóstico de falhas de energia, conexão, configuração, interferência, posicionamento, etiqueta, duplicidade e integração; instalação, testes, registro de evidências, manutenção, segurança, privacidade e escalonamento.",
+    "excludes": "Projeto avançado de radiofrequência e cálculo de enlace, certificação de equipamentos, fabricação de chips e antenas, programação detalhada de cada fabricante, gestão completa de armazém e regras comerciais de codificação que não sejam necessárias para o suporte básico."
+  },
+  "theoryTitle": "Fundamentos, operação e diagnóstico de sistemas RFID",
+  "chapters": [
+    {
+      "title": "1. Componentes e fluxo de uma instalação RFID",
+      "markdown": "### O problema que este assunto resolve\n\nUm sistema RFID identifica objetos sem exigir que cada etiqueta seja apontada visualmente como um código de barras. No suporte, porém, uma leitura ausente pode ter origem em qualquer trecho do caminho: etiqueta, campo de rádio, antena, leitor, rede, middleware, cadastro ou aplicação. O diagnóstico eficiente segue o dado desde o objeto até o sistema que o consome.\n\n> **Siglas e termos deste capítulo**\n> - **RFID**: identificação por radiofrequência.\n> - **Tag ou etiqueta**: transponder fixado ao objeto, formado em geral por chip e antena.\n> - **Leitor ou interrogador**: equipamento que inicia a comunicação e recebe as respostas das etiquetas.\n> - **Middleware**: software intermediário que recebe leituras, filtra eventos e os entrega às aplicações.\n> - **Zona de interrogação**: região em que a combinação de leitor, antena, etiqueta e ambiente permite comunicação.\n> - **EPC**: código eletrônico do produto que pode identificar o objeto etiquetado.\n\n### Do objeto à aplicação\n\nEm uma instalação típica, o leitor transmite comandos e, conforme a tecnologia, energia de radiofrequência. A etiqueta responde; o leitor converte a resposta em dados e pode enviar leituras por uma interface de rede ao middleware. O middleware pode remover repetições, associar leitor, horário e local e publicar um evento para o sistema de estoque, controle de acesso ou rastreamento. Uma leitura vista no painel do leitor ainda não prova que o evento chegou à aplicação: cada fronteira precisa ser verificada.\n\n| Camada | O que verificar no suporte | Exemplo de sintoma\n| --- | --- | --- |\n| Etiqueta e objeto | tipo, integridade, fixação, orientação e compatibilidade com o material | somente certos itens não são lidos |\n| Antena e rádio | porta, cabo, polarização, potência autorizada e zona de leitura | falha restrita a uma área da passagem |\n| Leitor | energia, inicialização, perfil, região e modo de operação | nenhuma antena responde |\n| Rede e middleware | endereço, conectividade, serviço, filtros e fila | leitor lê localmente, aplicação não recebe |\n| Aplicação e cadastro | formato do identificador, vínculo do item e regra de negócio | evento recebido, mas item não reconhecido |\n\n### Categorias de etiqueta\n\nUma etiqueta **passiva** não tem transmissor próprio nem bateria para a comunicação normal: recebe energia do campo do leitor e responde modulando a reflexão do sinal. Uma etiqueta **ativa** tem fonte de energia e transmite seu próprio sinal. A denominação **semipassiva** costuma indicar bateria para alimentar circuitos ou sensores, mantendo a comunicação por resposta ao leitor; os detalhes dependem do projeto. Não conclua que uma etiqueta passiva está avariada apenas porque não responde a qualquer distância: alcance depende do conjunto e do ambiente.\n\nAs bandas LF, HF e UHF têm características e usos diferentes. Etiquetas e leitores devem operar em tecnologia compatível; possuir a palavra RFID no rótulo não garante interoperabilidade. Em UHF EPC Gen2, a comunicação entre leitor e etiqueta inclui inventário e acesso; o padrão GS1 descreve interfaces físicas e lógicas. O suporte deve confirmar padrão, banda e região configurada antes de comparar equipamentos.\n\n### Como cai na prova\n\nQuestões costumam distinguir leitura no leitor de entrega do evento à aplicação, etiqueta passiva de ativa e falha de rádio de falha de integração. Uma boa triagem percorre as camadas em ordem, usando uma etiqueta conhecida e um teste local antes de alterar o sistema inteiro. A leitura sem linha de visão é uma possibilidade da tecnologia, não uma garantia de leitura em qualquer posição ou material."
+    },
+    {
+      "title": "2. Etiquetas, memória e configuração de leitura",
+      "markdown": "### O problema que este assunto resolve\n\nO operador informa que o sistema leu um identificador diferente do que esperava ou que não conseguiu gravar dados. Para investigar, o suporte precisa separar a leitura do código, a interpretação do formato e a escrita na memória. Uma sequência hexadecimal apresentada pelo leitor é dado bruto; sua conversão para um identificador de negócio depende do padrão e da configuração usados.\n\n> **Siglas e termos deste capítulo**\n> - **EPC Gen2**: protocolo de interface aérea para RFID UHF, também associado à família ISO/IEC 18000-63.\n> - **EPC memory**: banco lógico que contém o código EPC na etiqueta Gen2.\n> - **TID**: identificador da etiqueta, com informações de identificação do chip e recursos suportados.\n> - **User memory**: memória opcional para dados definidos pela aplicação.\n> - **Reserved memory**: banco lógico reservado a senhas de acesso e de desativação, quando implementadas.\n> - **Inventário**: processo em que o leitor identifica etiquetas presentes na zona de leitura.\n\n### Bancos lógicos Gen2\n\nO padrão Gen2 organiza a memória em quatro bancos lógicos. O banco EPC contém o EPC e campos de controle associados; o TID oferece dados de identificação da etiqueta; User é opcional e pode não existir ou ter capacidade variável; Reserved pode conter senhas de acesso e de kill, se implementadas. O fato de haver um banco User no protocolo não significa que todo modelo de etiqueta possua memória de usuário. Antes de tentar gravar, confirme o modelo, a capacidade, o endereço, o bloqueio e as credenciais autorizadas.\n\nA memória lógica não é necessariamente um mapa físico idêntico entre fabricantes. O padrão separa os bancos e as operações de um banco não acessam endereços de outro. Em atendimento, registre qual banco e faixa foram lidos ou gravados; dizer apenas que a etiqueta foi escrita é insuficiente para reproduzir uma falha. Uma gravação no banco errado pode ser tecnicamente bem-sucedida e ainda assim não alterar o identificador que a aplicação usa.\n\n### EPC, codificação e interpretação\n\nEPC é uma forma de identificar o objeto; não é necessariamente uma descrição completa dele nem substitui o cadastro corporativo. O leitor pode apresentar o conteúdo binário em hexadecimal, enquanto a aplicação espera um identificador decodificado conforme o esquema aplicável. GS1 mantém o EPC Tag Data Standard para codificação, decodificação e conteúdo de etiquetas Gen2. Se um EPC conhecido aparece em hexadecimal, mas a tela exibe produto desconhecido, verifique o decodificador, o esquema de codificação, os dados mestres e a transformação no middleware antes de regravar a etiqueta.\n\n### Parâmetros de operação\n\nO inventário pode filtrar etiquetas por critérios configurados, como conteúdo de memória ou porta da antena. Filtros excessivos podem ocultar uma etiqueta presente. Potência, perfil de rádio, número de antenas, sessão e parâmetros de inventário alteram cobertura e comportamento; não aumente potência de forma indiscriminada. A configuração deve respeitar equipamento, ambiente e regras de radiofrequência aplicáveis. Ao comparar antes e depois, mude uma variável por vez e anote a configuração original.\n\n### Como cai na prova\n\nA banca pode perguntar qual banco guarda EPC, qual é opcional, por que um hexadecimal não é automaticamente uma descrição do produto ou como investigar falha de escrita. O procedimento correto confirma capacidade e permissões, endereço e banco de memória, lê o resultado de volta e valida sua decodificação na aplicação."
+    },
+    {
+      "title": "3. Instalação e diagnóstico de falhas de leitura",
+      "markdown": "### O problema que este assunto resolve\n\nUma instalação pode ler bem na bancada e falhar em uma doca, corredor ou sala com objetos metálicos, líquidos, pessoas e outras fontes de rádio. O suporte deve reproduzir a condição real, delimitar onde a falha ocorre e coletar evidências antes de trocar peças. A radiofrequência interage com o ambiente; distância nominal de catálogo não garante cobertura uniforme.\n\n> **Siglas e termos deste capítulo**\n> - **RSSI**: indicação de intensidade do sinal recebido, quando exposta pelo equipamento.\n> - **Zona morta**: área em que a etiqueta não é detectada de modo confiável.\n> - **Polarização**: orientação do campo da antena; o acoplamento pode mudar com a orientação da etiqueta.\n> - **Multipercurso**: chegada de sinais refletidos por caminhos diferentes, que pode reforçar ou cancelar a recepção localmente.\n> - **SNR**: relação entre sinal útil e ruído, quando medida pelo sistema.\n> - **PoE**: alimentação elétrica fornecida pelo cabo Ethernet, se suportada pelo leitor e pela infraestrutura.\n\n### Roteiro de triagem\n\n1. Delimite o sintoma: uma etiqueta, um lote, uma antena, um leitor, uma área ou toda a aplicação? Anote horário, item, posição e operação.\n2. Verifique alimentação, indicadores de estado, inicialização, conectores, cabos, antenas habilitadas e alarmes do leitor. Confirme se o leitor está acessível na rede.\n3. Teste uma etiqueta compatível e conhecida junto à antena, usando ferramenta local do fabricante ou painel de diagnóstico. Não execute escrita destrutiva em etiqueta de produção sem autorização.\n4. Repita o teste no ponto de uso com a etiqueta instalada no objeto. Observe orientação, distância, velocidade de passagem e materiais próximos. Líquidos podem absorver energia e metais podem bloquear ou alterar o campo; há etiquetas específicas para essas superfícies.\n5. Se a leitura local existe, siga o evento pela rede, middleware, fila e aplicação. Confira filtros, deduplicação, formato e cadastro. Preserve logs e carimbos de tempo.\n6. Após corrigir, repita o mesmo cenário e registre resultado, configuração alterada e plano de reversão.\n\n| Padrão observado | Hipóteses a testar primeiro | Evidência útil\n| --- | --- | --- |\n| Nenhuma etiqueta é lida por um leitor | energia, estado, configuração, antena, cabo ou região | painel local, LEDs e logs do equipamento\n| Uma área ou orientação falha | posição, polarização, zona morta, metal ou líquido | mapa dos pontos e etiqueta no objeto real\n| A leitura aparece localmente, mas não no sistema | rede, serviço, filtro, fila ou decodificação | log do leitor e rastreamento do evento\n| Duplicatas aparecem em excesso | leituras repetidas, zona sobreposta ou filtro de eventos | contagem por EPC, antena e horário\n| A gravação falha | memória ausente, bloqueada, senha, endereço ou sinal instável | leitura de retorno e código de erro\n\n### Mudanças seguras e escalonamento\n\nNão tente resolver toda falha elevando a potência. Isso pode ampliar a zona além do processo desejado, gerar leituras de itens vizinhos e aumentar interferência. Verifique também se o cabo de antena está conectado à porta configurada, se o tipo de antena é compatível e se a orientação da etiqueta é repetível. O suporte pode trocar temporariamente por componente conhecido, mas deve guardar a peça original e anotar cada substituição para isolar causa.\n\nEscalone ao fabricante ou à equipe de RF quando houver suspeita de defeito físico, configuração de região, coexistência de radiofrequência ou conformidade regulatória. Envie modelo e firmware, logs sem segredos, topologia, fotos do posicionamento, passos de reprodução e resultado dos testes. Não exponha chaves ou senhas em chamados.\n\n### Como cai na prova\n\nA resposta mais forte é uma sequência de testes controlados que localiza a camada defeituosa. “Aumentar potência”, “trocar todas as etiquetas” ou “reiniciar a aplicação” sem evidência não é diagnóstico. Interferência, orientação e material do objeto podem explicar falhas seletivas, enquanto leitura local bem-sucedida direciona a investigação para integração e regras de software."
+    },
+    {
+      "title": "4. Integração, operação e segurança do suporte RFID",
+      "markdown": "### O problema que este assunto resolve\n\nO leitor captura identificadores, mas o processo só funciona se a aplicação receber eventos corretos e se o sistema não expuser dados ou equipamentos indevidamente. O suporte deve tratar confiabilidade, rastreabilidade e segurança como partes da mesma operação: um evento duplicado pode afetar estoque; uma configuração administrativa aberta pode permitir alteração de leitores ou etiquetas.\n\n> **Siglas e termos deste capítulo**\n> - **API**: interface usada por sistemas para trocar dados.\n> - **EPCIS**: padrão GS1 para compartilhar eventos de visibilidade da cadeia de suprimentos.\n> - **ACL**: lista ou política de controle de acesso a recursos.\n> - **Firmware**: software embarcado no leitor ou equipamento.\n> - **Log**: registro cronológico de eventos e operações.\n> - **Least privilege**: concessão do menor privilégio necessário à tarefa.\n\n### Da leitura ao evento de negócio\n\nA leitura bruta costuma precisar de processamento antes de virar evento útil. O middleware pode associar identidade do leitor, antena, local e horário; agrupar leituras repetidas de uma etiqueta; aplicar filtros; e enviar a informação à aplicação. A deduplicação deve refletir o processo: eliminar repetição técnica não pode apagar uma nova passagem legítima. Relógios desalinhados, filas acumuladas e reconexões podem atrasar ou reordenar eventos. Investigue identificador, horário de captura e horário de entrega separadamente.\n\nUma integração confiável valida conectividade, autenticação, formato do payload, resposta da aplicação, política de repetição e tratamento de mensagens inválidas. Se a aplicação rejeita um EPC, confira se a leitura chegou, se o valor foi interpretado no esquema esperado e se o cadastro do objeto existe. Não corrija um erro de mapeamento regravando etiquetas sem demonstrar que o conteúdo gravado está incorreto.\n\n### Segurança, privacidade e ciclo de vida\n\nA publicação do NIST sobre segurança RFID recomenda incorporar controles ao ciclo de vida, da política e projeto à operação e retirada. Etiquetas têm recursos computacionais limitados; muitas não oferecem autenticação, controle de acesso e criptografia comparáveis aos sistemas de TI comuns. Recursos variam por tecnologia e fabricante. Portanto, o suporte não deve presumir que senha em etiqueta equivale a criptografia nem que toda etiqueta aceita comandos de bloqueio.\n\nProteja a administração de leitores e middleware com contas individuais, privilégios mínimos, atualização planejada e segmentação de rede apropriada. Gerencie senhas de acesso e kill com distribuição e armazenamento controlados quando a tecnologia as utilizar. Restrinja protocolos de gerenciamento e interfaces externas; mantenha registros de alterações e acesso. Ao compartilhar dados entre organizações, defina responsabilidades, dados compartilhados e proteção em trânsito e em repouso. Avalie minimização de dados, finalidade de uso e riscos de rastreamento com as áreas responsáveis por privacidade e segurança.\n\n### Rotina de suporte e encerramento\n\nRegistre ativo, local, versão de firmware e configuração relevante; descrição objetiva do impacto; início e frequência do incidente; testes executados e resultados; alterações realizadas; responsável e confirmação do usuário. Faça backup da configuração antes de manutenção quando o equipamento permitir. Planeje janela, autorização, teste pós-mudança e reversão. Em incidente de segurança, preserve evidências e siga o processo institucional, sem apagar logs nem fazer reconfiguração que destrua dados úteis.\n\n### Como cai na prova\n\nDesconfie de afirmações de que todo RFID criptografa a etiqueta, de que aumentar potência sempre melhora o processo ou de que o leitor sozinho garante o registro no sistema. Segurança depende dos recursos concretos do produto e de controles em todo o ciclo. Para integração, prove o caminho do evento com logs correlacionados e diferencie captura, processamento e consumo pela aplicação."
+    }
+  ],
+  "summary": "O suporte a RFID acompanha o caminho da identificação desde a etiqueta e o campo de rádio até leitor, rede, middleware e aplicação. Etiquetas passivas obtêm energia do campo do leitor e respondem por modulação da reflexão; ativas têm fonte própria. Tecnologia, banda e padrão precisam ser compatíveis. No Gen2, EPC, TID, User opcional e Reserved são bancos lógicos distintos; EPC não é descrição completa do produto e pode exigir decodificação segundo o padrão GS1. O diagnóstico delimita se a falha afeta etiqueta, antena, leitor, rede ou software; testa uma etiqueta conhecida localmente e depois no ambiente real, onde orientação, metal, líquido e reflexões influenciam a leitura. Alterações devem ser controladas, registradas e revertíveis. Na integração, middleware pode filtrar e deduplicar leituras antes de enviar eventos; logs ajudam a localizar atrasos, rejeições e duplicidades. Segurança exige controles compatíveis com os recursos limitados das etiquetas, proteção da administração, credenciais controladas, registro de alterações e consideração de privacidade ao longo do ciclo de vida.",
+  "flashcards": [
+    {
+      "front": "Quais são os componentes básicos de uma instalação RFID?",
+      "back": "Etiqueta ou transponder, antena, leitor/interrogador e software que encaminha ou processa as leituras; rede e aplicação completam o fluxo de negócio."
+    },
+    {
+      "front": "Como uma etiqueta RFID passiva responde ao leitor?",
+      "back": "Recebe energia do campo do leitor e modula a reflexão do sinal para transmitir sua resposta; não usa transmissor de rádio próprio na comunicação normal."
+    },
+    {
+      "front": "O que distingue uma etiqueta ativa?",
+      "back": "Ela possui fonte de energia e transmissor próprio para emitir seu sinal; o comportamento depende do modelo e da aplicação."
+    },
+    {
+      "front": "O que é a zona de interrogação?",
+      "back": "A região em que o conjunto leitor, antena, etiqueta e ambiente consegue estabelecer comunicação de forma adequada."
+    },
+    {
+      "front": "Quais são os quatro bancos lógicos Gen2?",
+      "back": "Reserved, EPC, TID e User; User é opcional e sua presença e capacidade dependem da etiqueta."
+    },
+    {
+      "front": "Onde fica o EPC numa etiqueta Gen2?",
+      "back": "No banco EPC, junto de campos de controle definidos pelo padrão; o banco EPC não é sinônimo de toda a memória da etiqueta."
+    },
+    {
+      "front": "O que o TID ajuda a identificar?",
+      "back": "A etiqueta/chip e informações sobre comandos ou recursos suportados, conforme a implementação."
+    },
+    {
+      "front": "Por que um hexadecimal lido pode não ser reconhecido pela aplicação?",
+      "back": "Pode faltar decodificação do esquema EPC, transformação no middleware ou cadastro correspondente do identificador."
+    },
+    {
+      "front": "Qual é a primeira etapa diante de falha de leitura?",
+      "back": "Delimitar o sintoma: etiquetas, área, antena, leitor, horário e aplicação afetados, registrando passos para reproduzir."
+    },
+    {
+      "front": "O que testar quando nenhuma etiqueta responde a um leitor?",
+      "back": "Alimentação, estado do leitor, antena habilitada, cabos e conectores, configuração e teste local com etiqueta compatível conhecida."
+    },
+    {
+      "front": "Por que uma leitura na bancada pode falhar no local de uso?",
+      "back": "Orientação, distância, materiais, metal, líquidos, reflexões e interferência do ambiente real mudam as condições do enlace de rádio."
+    },
+    {
+      "front": "O que significa leitura local bem-sucedida, mas ausência no sistema?",
+      "back": "A investigação deve avançar para rede, middleware, filas, filtros, decodificação e aplicação, em vez de partir da troca de etiqueta."
+    },
+    {
+      "front": "Por que não se deve elevar a potência sem diagnóstico?",
+      "back": "Pode ampliar a zona de leitura, capturar objetos fora do processo e causar interferência, sem resolver falhas de software ou etiqueta."
+    },
+    {
+      "front": "Como verificar uma gravação de memória?",
+      "back": "Confirmar banco, endereço, capacidade e permissões; executar a gravação autorizada e ler o conteúdo de volta para validar."
+    },
+    {
+      "front": "Que função pode exercer o middleware RFID?",
+      "back": "Filtrar ou agrupar leituras, associar contexto como leitor e horário e encaminhar eventos às aplicações."
+    },
+    {
+      "front": "Qual risco existe ao deduplicar leituras?",
+      "back": "Uma regra excessiva pode descartar uma nova passagem legítima; a janela e a chave de deduplicação devem seguir o processo."
+    },
+    {
+      "front": "Quais dados registrar num chamado técnico?",
+      "back": "Ativo, local, firmware, sintoma, horário, passos, configuração relevante, testes e resultados, impacto e mudanças realizadas."
+    },
+    {
+      "front": "Toda etiqueta RFID fornece criptografia e autenticação?",
+      "back": "Não. Os recursos variam; muitas etiquetas têm capacidade limitada e não oferecem proteções típicas de sistemas de TI."
+    },
+    {
+      "front": "Como proteger a administração dos leitores?",
+      "back": "Usar contas controladas e privilégios mínimos, restringir interfaces e protocolos, segmentar acessos e registrar alterações."
+    },
+    {
+      "front": "O que verificar antes de regravar uma etiqueta desconhecida?",
+      "back": "Confirmar o conteúdo efetivamente gravado, o padrão de codificação e o cadastro; corrigir primeiro a interpretação se os dados estiverem certos."
+    },
+    {
+      "front": "Para que serve o EPC Tag Data Standard da GS1?",
+      "back": "Define esquemas de codificação e decodificação EPC e especifica conteúdo de memória de etiquetas Gen2 compatíveis."
+    },
+    {
+      "front": "Como distinguir atraso de captura e atraso de entrega?",
+      "back": "Comparar horário da leitura no leitor com horário de processamento ou recebimento na aplicação, correlacionando logs e filas."
+    },
+    {
+      "front": "O que é teste controlado no troubleshooting?",
+      "back": "Reproduzir cenário conhecido e alterar uma variável por vez, conservando o estado original e registrando o resultado de cada teste."
+    },
+    {
+      "front": "Quando escalar um incidente RFID?",
+      "back": "Quando há possível falha física, interferência ou conformidade de rádio, defeito persistente ou necessidade de análise especializada, com evidências sem segredos."
+    },
+    {
+      "front": "Que cuidados cercam a retirada ou troca de equipamento?",
+      "back": "Planejar autorização, preservação de configuração e logs, atualização do inventário de ativos e descarte conforme controles de dados e segurança."
+    }
+  ],
+  "tips": [
+    "Trace cada evento do objeto até a aplicação; uma leitura na tela do leitor não prova que o sistema de negócio a recebeu.",
+    "Quando um problema é seletivo, compare etiqueta no objeto real, posição e ambiente antes de trocar todo o equipamento.",
+    "Mude um parâmetro de cada vez e preserve configuração anterior para tornar o teste reproduzível e reversível.",
+    "Separe identificador EPC, conteúdo hexadecimal e descrição do produto: a aplicação pode precisar decodificar e consultar cadastro.",
+    "Use logs correlacionados para distinguir captura, fila, transformação e consumo do evento.",
+    "Registre evidências técnicas sem incluir senhas, chaves ou dados pessoais desnecessários no chamado."
+  ],
+  "traps": [
+    "RFID não significa alcance ilimitado nem leitura garantida em qualquer orientação ou material.",
+    "Ter banco User no padrão não significa que toda etiqueta o implemente ou tenha espaço disponível.",
+    "Um EPC não é, por si só, a ficha completa do produto nem prova que o cadastro está correto.",
+    "Mais potência pode ampliar leituras indesejadas e não corrige falha de rede, filtro ou decodificação.",
+    "Não presuma criptografia, autenticação ou senha em toda etiqueta; os recursos dependem do modelo.",
+    "Deduplicação não pode eliminar uma nova ocorrência real só porque o mesmo identificador foi visto antes."
+  ],
+  "activeRecall": [
+    {
+      "question": "Que sequência de componentes permite localizar em qual camada uma leitura RFID se perde?",
+      "answer": "Etiqueta/objeto, antena e campo de rádio, leitor, rede, middleware e aplicação/cadastro; testar cada fronteira com logs ou ferramenta local."
+    },
+    {
+      "question": "Como a etiqueta passiva UHF responde ao interrogador?",
+      "answer": "Usa a energia recebida do campo e devolve dados por modulação da reflexão (backscatter), sem transmissor próprio na comunicação normal."
+    },
+    {
+      "question": "Quais bancos lógicos existem em Gen2 e qual é opcional?",
+      "answer": "Reserved, EPC, TID e User; User pode não estar implementado e sua capacidade varia por etiqueta."
+    },
+    {
+      "question": "Por que confirmar o banco e o endereço antes de escrever?",
+      "answer": "Uma gravação pode atingir outro campo, memória inexistente, protegida ou bloqueada; leitura de retorno confirma o conteúdo efetivo."
+    },
+    {
+      "question": "Que testes ajudam a distinguir falha de rádio de falha de integração?",
+      "answer": "Testar etiqueta conhecida localmente e no cenário real; se o leitor captura, verificar conectividade, filas, filtros, transformação, cadastro e aplicação."
+    },
+    {
+      "question": "Quais fatores físicos podem causar leitura inconsistente?",
+      "answer": "Orientação e polarização, distância, velocidade, posicionamento, metal, líquidos, reflexões e fontes de interferência."
+    },
+    {
+      "question": "Quais proteções não devem ser presumidas numa etiqueta RFID?",
+      "answer": "Autenticação, criptografia e controles de acesso robustos; a capacidade de segurança varia e etiquetas podem ser limitadas."
+    },
+    {
+      "question": "O que deve acompanhar o encerramento de uma mudança de suporte?",
+      "answer": "Autorização, configuração anterior, evidências, alteração aplicada, teste de validação, resultado observado e possibilidade de reversão."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Leitura não é o evento completo",
+      "summary": "O leitor pode capturar a etiqueta e ainda assim o middleware ou a aplicação perder, filtrar, atrasar ou rejeitar o evento. Separe captura local, transporte, processamento e consumo."
+    },
+    {
+      "key": "e2",
+      "title": "Compatibilidade de etiqueta e rádio",
+      "summary": "RFID abrange bandas e protocolos distintos. Etiqueta, leitor, antena e região de operação precisam ser compatíveis; nome comercial genérico não garante comunicação."
+    },
+    {
+      "key": "e3",
+      "title": "Memória e codificação",
+      "summary": "Bancos lógicos, capacidade e bloqueios variam. Conteúdo hexadecimal deve ser interpretado segundo o padrão e o sistema consumidor; nem toda etiqueta tem User memory."
+    },
+    {
+      "key": "e4",
+      "title": "Ambiente altera desempenho",
+      "summary": "Orientação, metais, líquidos, reflexões e configuração influenciam a leitura. Aumentar potência sem teste pode ampliar leituras fora da zona desejada."
+    },
+    {
+      "key": "e5",
+      "title": "Segurança proporcional à tecnologia",
+      "summary": "Recursos de segurança dependem do modelo de etiqueta e leitor. Combine controles técnicos possíveis com proteção de rede, credenciais, registros, privacidade e ciclo de vida."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma etiqueta passiva UHF está diante do leitor. Qual descrição explica sua resposta típica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazena a leitura apenas na antena até receber conexão com a rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Gera energia pelo cabo Ethernet do sistema e envia um pacote IP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usa bateria para transmitir continuamente sua posição ao servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Acende uma luz visível que o leitor converte em código digital.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Recebe energia do campo e modula a reflexão para devolver dados.",
+          "correct": true
+        }
+      ],
+      "explanation": "Na etiqueta passiva, o campo do leitor fornece energia ao circuito e a resposta ocorre por modulação da reflexão do sinal. Transmissão própria com fonte de energia caracteriza outra categoria de etiqueta; luz e cabo de rede não descrevem o mecanismo passivo.",
+      "section": "1. Componentes e fluxo de uma instalação RFID",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um leitor mostra o EPC de uma etiqueta no diagnóstico local, mas o sistema de estoque não registra o item. Qual etapa deve ser investigada a seguir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar todas as etiquetas do estoque antes de conferir o fluxo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir o banco de dados por uma memória User na etiqueta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar ao máximo a potência da antena para a aplicação receber.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Regravar o banco Reserved com a descrição comercial do produto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Verificar a rede, os filtros do middleware e o cadastro do item.",
+          "correct": true
+        }
+      ],
+      "explanation": "A captura local já foi demonstrada, então a investigação deve seguir o evento para rede e software: transporte, regras de filtragem, conversão do EPC e correspondência com o cadastro. Trocar etiquetas ou alterar memória sem evidência não localiza a perda entre leitor e aplicação.",
+      "section": "1. Componentes e fluxo de uma instalação RFID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No padrão EPC Gen2, qual banco lógico pode não existir na etiqueta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O banco User, cuja implementação é opcional no padrão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O banco TID, que identifica a etiqueta e recursos do chip.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O banco EPC, que guarda o identificador usado no inventário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O banco Reserved, associado a senhas quando implementadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Todos os bancos, pois Gen2 não organiza memória em bancos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A especificação Gen2 separa bancos Reserved, EPC, TID e User. A memória User é opcional, portanto o suporte não deve supor sua presença ou capacidade antes de consultar o modelo e testar a etiqueta.",
+      "section": "2. Etiquetas, memória e configuração de leitura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma etiqueta funciona na bancada, mas falha quando fixada em uma embalagem com líquido. Qual conduta inicial é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concluir que o leitor está defeituoso e encerrar o atendimento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Elevar a potência até capturar qualquer etiqueta próxima.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar filtros de segurança e repetir a produção normal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Testar no objeto real a etiqueta e sua posição.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Apagar o cadastro do produto para forçar nova leitura.",
+          "correct": false
+        }
+      ],
+      "explanation": "O material e a montagem da embalagem alteram a interação de rádio; uma etiqueta adequada a superfície líquida e um posicionamento validado podem ser necessários. O teste deve reproduzir o cenário real antes de substituir o leitor ou mudar parâmetros em produção.",
+      "section": "3. Instalação e diagnóstico de falhas de leitura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma leitura RFID pode ser capturada pelo leitor e depois filtrada pelo middleware antes de chegar à aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Middleware pode aplicar filtros, agrupamento e deduplicação às leituras antes de publicar eventos. Por isso, a ausência do registro no sistema não prova, isoladamente, que a etiqueta deixou de responder ao leitor.",
+      "section": "1. Componentes e fluxo de uma instalação RFID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Toda etiqueta compatível com RFID possui uma bateria que alimenta seu transmissor durante a leitura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Etiquetas passivas comuns não precisam de bateria para a resposta: recebem energia do campo do leitor e devolvem dados por modulação da reflexão. Existem etiquetas ativas e semipassivas, mas não se pode generalizar seu funcionamento a todas.",
+      "section": "1. Componentes e fluxo de uma instalação RFID",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A existência de um banco User no protocolo Gen2 garante que toda etiqueta tenha memória de usuário disponível para gravação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A especificação torna o banco User opcional e a capacidade varia entre modelos. O suporte precisa identificar a etiqueta, confirmar a memória existente e verificar bloqueios antes de orientar uma gravação.",
+      "section": "2. Etiquetas, memória e configuração de leitura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma antena e uma etiqueta RFID de bandas incompatíveis podem comunicar normalmente porque ambas usam radiofrequência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. RFID reúne bandas e protocolos distintos. O leitor, a antena e a etiqueta precisam ser compatíveis em tecnologia e configuração; o rótulo genérico RFID não assegura interoperabilidade.",
+      "section": "1. Componentes e fluxo de uma instalação RFID",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A primeira triagem de um chamado RFID deve delimitar se o problema afeta uma etiqueta, uma área, um leitor ou todo o fluxo até a aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Delimitar o alcance do sintoma direciona os testes e permite separar falha localizada de problema sistêmico. Horário, local, objeto, antena e passos de reprodução tornam a triagem verificável.",
+      "section": "3. Instalação e diagnóstico de falhas de leitura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Elevar a potência do leitor é sempre a correção mais segura para qualquer ausência de leitura RFID.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Potência maior pode ampliar a zona e causar leituras de objetos fora do processo; não corrige etiqueta incompatível, cabo desconectado nem falha de rede ou aplicação. A alteração deve ser testada e controlada.",
+      "section": "3. Instalação e diagnóstico de falhas de leitura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma decodificação incorreta do EPC pode fazer a aplicação rejeitar um identificador que o leitor capturou corretamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O leitor pode entregar dados binários ou hexadecimais válidos, enquanto a aplicação espera um identificador interpretado conforme um esquema específico. O mapeamento e o cadastro devem ser verificados antes de regravar a etiqueta.",
+      "section": "2. Etiquetas, memória e configuração de leitura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao investigar uma gravação, registrar o banco de memória e o endereço usados ajuda a reproduzir o procedimento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Bancos e endereços distintos guardam dados diferentes. Registrar esses parâmetros, além do modelo e resultado de leitura de retorno, evita confundir uma operação no EPC com outra em User ou Reserved.",
+      "section": "2. Etiquetas, memória e configuração de leitura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O NIST recomenda que controles de segurança RFID sejam considerados ao longo do ciclo de vida do sistema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A orientação do NIST abrange política e projeto, implantação, operação e retirada. A escolha dos controles deve considerar as capacidades concretas da tecnologia implantada e os riscos do ambiente.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um EPC lido representa necessariamente a descrição completa do produto e dispensa consulta a cadastro ou decodificação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. EPC é um identificador codificado segundo um esquema; a descrição comercial e outros dados podem estar em sistemas corporativos. O valor pode precisar de decodificação e consulta ao cadastro para ser interpretado pela aplicação.",
+      "section": "2. Etiquetas, memória e configuração de leitura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila de middleware acumulada pode atrasar a entrega de leituras que o leitor já capturou.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Eventos podem ser capturados e aguardarem processamento ou transmissão. Comparar horários e logs do leitor, da fila e da aplicação ajuda a identificar se a demora ocorre na captura ou na entrega.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Toda etiqueta RFID oferece criptografia e autenticação equivalentes às de um computador corporativo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O NIST observa que etiquetas frequentemente têm capacidade computacional limitada e podem não suportar autenticação, controle de acesso ou criptografia comuns em sistemas de TI. Os recursos dependem do padrão e do produto.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas etiquetas com o mesmo identificador podem gerar leituras repetidas por sobreposição da zona de antenas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Zonas sobrepostas e inventários repetidos podem produzir várias observações do mesmo identificador. O sistema deve tratar repetição de acordo com o processo, sem descartar uma passagem nova legítima.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A troca de uma etiqueta por outra de tecnologia compatível dispensa testar o funcionamento no material real do objeto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Compatibilidade de protocolo é necessária, mas o material, a orientação e a fixação ainda podem alterar o desempenho. A validação deve ocorrer em condições reais de uso e com o processo pretendido.",
+      "section": "3. Instalação e diagnóstico de falhas de leitura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A deduplicação deve eliminar todo evento do mesmo EPC recebido mais de uma vez, independentemente do intervalo e do local.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O mesmo item pode passar legitimamente por locais ou momentos distintos. A regra deve considerar contexto e objetivo do processo, pois uma deduplicação irrestrita pode apagar um movimento real.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Antes de alterar potência, filtros ou configuração de antenas, o suporte deve registrar estado inicial e definir como validar o resultado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Registrar a configuração permite comparar efeitos e restaurar o estado anterior. Teste com hipótese delimitada, autorização e critérios de sucesso reduz mudanças sem evidência e facilita reversão.",
+      "section": "3. Instalação e diagnóstico de falhas de leitura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O banco TID é o destino padrão para gravar a descrição comercial completa de cada produto etiquetado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. TID contém identificação da etiqueta e informações de recursos, não é o banco indicado para descrição comercial. O EPC identifica o objeto segundo um esquema e User pode armazenar dados adicionais se existir e se a aplicação assim definir.",
+      "section": "2. Etiquetas, memória e configuração de leitura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma falha em uma única antena, com outras antenas do mesmo leitor operando, justifica conferir porta, cabo e configuração dessa antena antes de trocar o leitor inteiro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O padrão localizado aponta para componentes ou configuração específicos do caminho dessa antena. Verificar conexão, porta habilitada e cabo com teste controlado isola a causa com menos mudanças desnecessárias.",
+      "section": "3. Instalação e diagnóstico de falhas de leitura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que recurso oficial da GS1 define esquemas para codificar e decodificar EPC em etiquetas Gen2?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A configuração de potência da antena para cada corredor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O registro de inventário do sistema operacional de cada leitor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A tabela de endereços IP usada pelo serviço de middleware.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O arquivo local de catálogo mantido pela equipe de suporte.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O EPC Tag Data Standard, com regras de conteúdo e representação.",
+          "correct": true
+        }
+      ],
+      "explanation": "A GS1 mantém o EPC Tag Data Standard, que define o EPC e especifica conteúdos de memória de etiquetas Gen2, além de esquemas de codificação e decodificação. Endereços, cadastros e potência podem ser importantes para a instalação, mas não substituem esse padrão.",
+      "section": "2. Etiquetas, memória e configuração de leitura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um operador relata que os EPCs aparecem no leitor, mas alguns itens não são associados a produtos. Qual conjunto de verificações é mais pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar potência, substituir cabos e reiniciar todos os leitores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Verificar apenas a orientação da etiqueta na embalagem do item.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Regravar todos os EPCs usando dados obtidos de outra unidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conferir decodificação, formato entregue e cadastro dos identificadores.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Apagar o TID das etiquetas para permitir busca no catálogo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Como há leitura, o foco passa a ser a interpretação e associação do identificador: esquema EPC, transformação no middleware, formato da aplicação e cadastro mestre. Alterar potência ou regravar dados pode mascarar a causa e criar inconsistências em itens que já estejam corretos.",
+      "section": "2. Etiquetas, memória e configuração de leitura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um leitor de doca captura etiquetas de caixas vizinhas que não deveriam gerar evento. Qual ajuste deve ser avaliado com teste controlado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar ainda mais a potência para reduzir a zona ativa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Rever posicionamento, antenas, potência e filtro de eventos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Remover os cadastros das caixas que ficam perto da doca.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar o registro de horário para ocultar as leituras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Gravar os EPCs das caixas vizinhas no banco Reserved.",
+          "correct": false
+        }
+      ],
+      "explanation": "A cobertura física e o processamento precisam ser ajustados ao limite do processo: posicionamento, antenas, potência controlada e regras de filtro podem reduzir capturas indesejadas. Apagar cadastro ou ocultar horários não corrige a leitura fora da área.",
+      "section": "3. Instalação e diagnóstico de falhas de leitura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O leitor registra horários corretos, mas o aplicativo recebe lotes com atraso crescente. Qual evidência deve ser examinada primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cor física das etiquetas usadas nos itens atrasados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O mapa de memória TID do lote de produtos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Filas, conectividade e logs de processamento do middleware.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A orientação do manual de instalação impresso na caixa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A troca da banda de operação sem análise de cobertura.",
+          "correct": false
+        }
+      ],
+      "explanation": "A captura com horário correto indica que o leitor detecta as etiquetas. Atraso crescente na aplicação pode decorrer de fila, serviço parado, rede ou processamento lento; correlacionar logs e horários localiza a etapa sem alterar o enlace de rádio sem motivo.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma gravação autorizada retorna sucesso, mas o EPC esperado não aparece no inventário posterior. Qual sequência de verificação é mais consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir a gravação indefinidamente até que a tela mostre o produto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conferir banco e endereço e validar pela leitura de retorno.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Alterar a senha Reserved sem verificar o bloqueio da etiqueta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir o middleware para limpar a memória da etiqueta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar a potência do leitor para modificar os dados gravados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma resposta de sucesso não garante que o valor tenha sido gravado no banco e endereço esperados nem que o inventário o interprete como previsto. Ler de volta, conferir bloqueios e decodificar o conteúdo separa erro de escrita de erro de interpretação sem repetir operações às cegas.",
+      "section": "2. Etiquetas, memória e configuração de leitura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após mudança na disposição de uma área de leitura, surgem pontos sem detecção apesar de etiquetas funcionarem em outros locais. Qual plano favorece diagnóstico confiável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reiniciar a aplicação e considerar o incidente resolvido se ela subir.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar em massa as etiquetas sem mapear sua posição ou material.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Testar posições e orientação com etiqueta conhecida.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desligar todas as antenas exceto uma e não registrar a alteração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atribuir o problema ao banco de dados sem observar logs do leitor.",
+          "correct": false
+        }
+      ],
+      "explanation": "A mudança física e o caráter localizado sugerem interação com geometria e ambiente. Mapear pontos, testar etiqueta conhecida em posição reproduzível e comparar orientação e materiais permite identificar zona morta ou alteração de campo antes de modificar configuração geral.",
+      "section": "3. Instalação e diagnóstico de falhas de leitura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cuidado é essencial ao interpretar uma etiqueta que contém uma sequência hexadecimal válida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tratá-la como descrição completa e ignorar padrão de codificação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Assumir que o hexadecimal contém sempre preço e validade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter os dados usando qualquer tabela local disponível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar o valor caso a aplicação não exiba o nome do item.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Identificar esquema EPC e validar decodificação e cadastro associado.",
+          "correct": true
+        }
+      ],
+      "explanation": "A representação hexadecimal é uma forma de exibir bits, não uma descrição comercial universal. O padrão de codificação determina como interpretar os campos; depois, a aplicação pode consultar o cadastro corporativo para obter os dados do produto.",
+      "section": "2. Etiquetas, memória e configuração de leitura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma antena está conectada, porém o software não registra resposta naquela porta; outras portas do leitor funcionam. Qual ação de suporte isola melhor a causa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar cabo, porta habilitada e configuração usando troca controlada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Alterar o EPC de toda etiqueta que passa pelo equipamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar os logs para reduzir ruído no diagnóstico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reinstalar o sistema de estoque sem validar o leitor localmente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar potência em todas as portas sem identificar qual falha.",
+          "correct": false
+        }
+      ],
+      "explanation": "A falha restrita a uma porta aponta para o caminho físico ou configuração correspondente. Trocar cabo de modo controlado, confirmar porta habilitada e registrar resultados permite atribuir causa; mudanças globais podem criar outros problemas.",
+      "section": "3. Instalação e diagnóstico de falhas de leitura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O suporte encontra mensagens rejeitadas pela aplicação depois de uma atualização do middleware. Qual evidência orienta melhor a análise?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A distância nominal publicada para qualquer etiqueta do mercado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A posição da antena antes da atualização do serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os logs correlacionados, formato do evento e versão implantada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A cor dos cabos de rede usados no rack da unidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O identificador TID substituindo o EPC no cadastro de itens.",
+          "correct": false
+        }
+      ],
+      "explanation": "A coincidência temporal com atualização e a rejeição pela aplicação direcionam o exame para versão, transformação e formato do evento. Logs correlacionados permitem comparar antes e depois e localizar se a mudança alterou payload, autenticação ou regra de envio.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa compartilhar leituras com um parceiro externo. Qual medida de segurança é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enviar credenciais de etiqueta junto com cada evento sem proteção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir dados e responsabilidades e proteger a transmissão.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Publicar leitores na internet para simplificar suporte remoto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar uma única conta administrativa para todas as organizações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover logs para impedir que o parceiro veja atividades.",
+          "correct": false
+        }
+      ],
+      "explanation": "Compartilhamento entre organizações requer delimitar dados, responsabilidades, autenticação e proteção em trânsito e em repouso, com controle de terceiros conforme aplicável. Credenciais não devem circular sem proteção e leitores não devem ser expostos sem controles.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um auditor pede reprodução de falha intermitente sem expor segredos do sistema. Qual registro técnico atende melhor ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o nome do usuário que percebeu o primeiro erro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma captura de tela sem hora, local ou configuração do leitor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O conteúdo integral de senhas e chaves no chamado público.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ativo, horário, passos, resultados, versão e logs sanitizados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A afirmação de que o sistema falhou por causa da antena.",
+          "correct": false
+        }
+      ],
+      "explanation": "Reprodução precisa de ativo e contexto, horário, passos e resultados, versões e evidências correlacionáveis. Logs devem ser tratados para não divulgar credenciais ou dados desnecessários; uma conclusão sem testes não permite auditoria técnica.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O padrão Gen2 descreve bancos lógicos separados, de modo que uma operação endereçada a um banco não acessa automaticamente outro banco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A especificação separa Reserved, EPC, TID e User e afirma que operações em um banco lógico não acessam posições de outro. Por isso, diagnóstico de leitura ou escrita deve identificar explicitamente o banco tratado.",
+      "section": "2. Etiquetas, memória e configuração de leitura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta positiva do leitor durante gravação prova que a aplicação reconhecerá o valor como item cadastrado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A confirmação de escrita não valida decodificação nem existência do cadastro. Deve-se ler o conteúdo de volta, interpretá-lo segundo o esquema adotado e conferir o vínculo com o registro mestre da aplicação.",
+      "section": "2. Etiquetas, memória e configuração de leitura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um incidente com leituras atrasadas, comparar o horário capturado no leitor com o recebimento na aplicação pode revelar onde a demora surge.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Horários correlacionados ajudam a separar captura tardia de espera em fila ou transporte. É necessário considerar relógios sincronizados e logs das camadas intermediárias para atribuir a demora corretamente.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma atualização de firmware deve ser aplicada em todos os leitores sem janela ou plano de reversão porque a etiqueta continuará igual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Firmware pode alterar compatibilidade e comportamento operacional. Mudanças devem seguir autorização, janela apropriada, cópia de configuração, teste pós-atualização e estratégia de retorno ao estado anterior.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma etiqueta funciona em espaço aberto, a mesma leitura está garantida quando ela é instalada em qualquer produto metálico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Metal pode bloquear ou modificar o campo e exigir etiqueta projetada para essa superfície ou montagem específica. O funcionamento deve ser testado no produto e posição reais, não inferido de um ensaio em espaço aberto.",
+      "section": "3. Instalação e diagnóstico de falhas de leitura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Restringir contas administrativas e registrar alterações do leitor contribui para proteger a infraestrutura RFID.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Controle de acesso e trilha de auditoria reduzem alterações não autorizadas e ajudam a investigar incidentes. Devem ser combinados com proteção de rede, credenciais e controles compatíveis com os equipamentos.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma etiqueta pode ser inventariada corretamente pelo leitor mesmo que o sistema não saiba associar seu identificador a um produto cadastrado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Inventário confirma detecção e resposta da etiqueta, não a existência ou correção do cadastro de negócio. A aplicação precisa interpretar o EPC e localizar a associação correspondente em seus dados mestres.",
+      "section": "2. Etiquetas, memória e configuração de leitura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A segmentação de rede e a restrição de protocolos de gerenciamento podem reduzir exposição de leitores e middleware.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Restringir conexões entre os componentes RFID e redes corporativas ou externas limita caminhos de acesso. Tais controles devem integrar política, configuração, monitoramento e proteção das credenciais de administração.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao trocar uma etiqueta defeituosa, basta confirmar que o novo chip responde; não é necessário validar seu identificador na aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A resposta de rádio comprova apenas comunicação. O identificador precisa estar codificado e decodificado no formato esperado, associado ao objeto correto e aceito pela aplicação antes de liberar o processo.",
+      "section": "2. Etiquetas, memória e configuração de leitura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre leitura sem linha de visão é tecnicamente mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela pode ocorrer, mas depende da zona e das condições de rádio.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ela elimina a influência de orientação, material e interferência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela ocorre sempre, mesmo com etiqueta incompatível e sem energia.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela exige que toda etiqueta transmita por Wi-Fi ao leitor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela significa que o leitor detectará objetos fora da instalação.",
+          "correct": false
+        }
+      ],
+      "explanation": "RFID pode permitir leitura sem alinhamento visual direto, mas a comunicação depende de compatibilidade, energia, orientação, materiais, distância e configuração. A ausência de linha de visão não torna o enlace infalível nem ilimitado.",
+      "section": "1. Componentes e fluxo de uma instalação RFID",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que tipo de evidência ajuda a investigar se uma leitura foi perdida antes ou depois do middleware?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente a nota fiscal do equipamento instalado na unidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O nome do produto sem seu identificador lido pelo leitor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma medição de potência sem horário ou antena associada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Logs correlacionados do leitor, serviço e aplicação por horário.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A senha de acesso administrativo copiada no chamado técnico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Logs com identificador e horário permitem verificar se o leitor capturou a etiqueta, se o middleware recebeu e processou a mensagem e se a aplicação aceitou o evento. Senhas não são evidência apropriada e dados sem contexto não localizam a perda.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual procedimento deve anteceder uma gravação em etiqueta usada por um processo operacional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar autorização, banco, capacidade e efeito da escrita.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aplicar qualquer senha padrão e tentar gravar todos os bancos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir o identificador sem consultar o cadastro do objeto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar logs e realizar a operação durante o fluxo normal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Escrever na memória TID porque ela existe em todo modelo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Escrita pode alterar identificação ou dados usados pelo processo e deve ser autorizada. Confirmar memória, faixa, capacidade, bloqueios e impacto evita danificar dados ou escrever no banco errado; leitura de retorno valida o resultado.",
+      "section": "2. Etiquetas, memória e configuração de leitura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório aponta duplicidade de eventos de passagem, mas o leitor vê o mesmo EPC em antenas diferentes. Que análise é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar o identificador do cadastro para impedir novas leituras.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Examinar cobertura, contexto e regra de deduplicação do processo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Gravar o horário atual na memória Reserved de cada etiqueta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desconectar a rede para que o leitor pare de detectar itens.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tratar todas as observações do mesmo EPC como erro técnico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Leituras de antenas distintas podem decorrer de zonas sobrepostas, mas também podem representar eventos reais em pontos diferentes. Analisar local, horário e objetivo operacional permite ajustar a cobertura e a deduplicação sem apagar movimentos legítimos.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conduta reduz risco ao atualizar um leitor RFID em operação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atualizar sem autorização e remover a configuração anterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar controles de rede para acelerar o download.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Planejar janela, registrar versão e prever teste e reversão.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar firmware de outro modelo por ter número mais recente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Concluir o chamado antes de verificar a leitura após a mudança.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma atualização pode afetar compatibilidade e funcionamento. Autorização, janela, compatibilidade de modelo, preservação de configuração, teste posterior e plano de reversão reduzem impacto e tornam a mudança auditável.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante uma falha, qual conjunto de dados torna o chamado mais útil para escalonamento ao fabricante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descrição, modelo, firmware, topologia, passos e logs sanitizados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A senha administrativa e a chave secreta do parceiro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente a afirmação de que a etiqueta não funciona.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fotos sem posição, horário ou indicação de equipamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Toda a base de dados corporativa anexada ao chamado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O escalonamento deve permitir reprodução e análise: identificar equipamento e firmware, topologia, configuração relevante, passos e resultados, além de logs sem credenciais. Expor segredos ou bases completas amplia risco sem melhorar a evidência.",
+      "section": "3. Instalação e diagnóstico de falhas de leitura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática é compatível com o princípio de menor privilégio na administração RFID?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Compartilhar a conta administrativa entre técnicos e parceiros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover os registros de acesso depois de cada manutenção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Deixar interfaces de gerenciamento abertas para qualquer rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar senhas de etiqueta como senha da aplicação corporativa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conceder a cada operador somente acesso necessário à tarefa.",
+          "correct": true
+        }
+      ],
+      "explanation": "Menor privilégio significa limitar permissões ao necessário para a função. Contas individuais e trilhas de auditoria ajudam a atribuir alterações e reduzem o impacto de credenciais comprometidas ou uso indevido.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um teste comparativo, alterar antena, potência, filtro e etiqueta ao mesmo tempo facilita descobrir qual mudança corrigiu a falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Muitas alterações simultâneas impedem atribuir causa e podem introduzir efeitos novos. Testar uma variável por vez, com estado inicial registrado e cenário reproduzível, oferece evidência mais clara.",
+      "section": "3. Instalação e diagnóstico de falhas de leitura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A memória EPC inclui campos de controle além do identificador codificado, segundo a organização lógica descrita em Gen2.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A especificação descreve CRC armazenado e palavra de controle de protocolo no banco EPC, além do código EPC. A interpretação técnica não deve tratar todo o banco como uma única sequência sem estrutura.",
+      "section": "2. Etiquetas, memória e configuração de leitura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um leitor RFID sempre determina sozinho a localização precisa de cada etiqueta sem software ou configuração adicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma leitura identifica uma etiqueta na zona associada ao leitor ou antena, mas localização precisa depende do desenho do sistema, dos dados disponíveis e do processamento. A tecnologia não garante coordenadas exatas por si só.",
+      "section": "1. Componentes e fluxo de uma instalação RFID",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma senha de acesso suportada por determinada etiqueta deve ser considerada equivalente à criptografia de todo dado transmitido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Senhas de acesso podem restringir certos comandos ou memória, mas não implicam criptografia geral nem oferecem o mesmo nível de proteção em todas as tecnologias. É preciso conhecer recursos específicos e proteger todo o sistema.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma etiqueta passiva que responde em um leitor de bancada pode apresentar desempenho diferente quando acoplada ao objeto final.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O objeto e a montagem podem absorver, refletir ou modificar o campo de rádio, alterando o acoplamento. Por isso, o teste de aceitação deve usar embalagem, orientação e movimento representativos da operação.",
+      "section": "3. Instalação e diagnóstico de falhas de leitura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma aplicação rejeita mensagens de um leitor após alteração de filtro, qual risco de suporte deve ser considerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O TID deixou automaticamente de existir em todas as etiquetas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A etiqueta ativa perdeu a bateria por causa do cadastro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O evento pode estar sendo descartado ou transformado no middleware.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A antena passou a gravar descrição do produto sem solicitação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A banda de rádio mudou por causa do formato da mensagem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma mudança de filtro pode impedir o encaminhamento de eventos ou alterar seu conteúdo. Compare configurações e logs antes e depois, verificando se o leitor capturou a etiqueta e em que ponto o middleware descartou ou transformou a mensagem.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao receber suspeita de alteração não autorizada em um leitor, qual ação preserva melhor evidências?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar os logs e restaurar as configurações sem registrar o estado atual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Preservar registros e seguir o processo institucional de incidente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Compartilhar a senha administrativa no grupo de atendimento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desconectar todos os leitores e excluir suas contas de auditoria.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atualizar firmware imediatamente sem autorização ou coleta de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em incidente de segurança, logs e estado atual podem ser necessários para apuração. Preserve evidências, limite acesso e siga o processo institucional antes de ações que alterem ou destruam dados relevantes; credenciais não devem ser divulgadas.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação recebe um mesmo EPC em instantes diferentes e em pontos distintos da cadeia. A eliminação automática de todas as ocorrências repetidas pode apagar movimentos válidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O mesmo objeto pode participar de eventos legítimos em locais e momentos distintos. Deduplicação precisa considerar contexto e finalidade do evento, em vez de tratar qualquer repetição do identificador como ruído.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma etiqueta é lida corretamente em uma área, mas não em uma segunda área com outro leitor. A confirmação do padrão da etiqueta e da configuração dos equipamentos ajuda a excluir incompatibilidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Diferenças de banda, protocolo, região ou perfil podem afetar a comunicação entre componentes. Confirmar compatibilidade é etapa necessária, embora posição, ambiente e conexão também precisem ser testados para explicar a falha localizada.",
+      "section": "1. Componentes e fluxo de uma instalação RFID",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A existência de senha de kill em algumas etiquetas significa que o comando pode ser executado sem autorização ou cuidado operacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Comandos de desativação podem impedir usos futuros da etiqueta e devem ser tratados como operações sensíveis. A disponibilidade e proteção variam; autorização, controle de credenciais e confirmação do impacto são essenciais.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um incidente de leitura, o suporte deve distinguir a falha reproduzida da hipótese ainda não confirmada sobre sua causa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Separar observação de hipótese evita declarar defeito sem evidência e orienta testes que possam confirmar ou refutar a causa. O registro claro também melhora o escalonamento e a revisão posterior.",
+      "section": "3. Instalação e diagnóstico de falhas de leitura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração de configuração aprovada deve ser validada no cenário operacional afetado antes do encerramento do chamado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A validação comprova que o sintoma foi corrigido nas condições reais e que o processo continua funcionando. Registrar resultado e eventual reversão encerra o ciclo de mudança com evidência.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe recebe identificadores EPC válidos, mas precisa confirmar se as etiquetas foram associadas aos objetos corretos. Qual prática de controle é mais eficaz?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confiar na resposta do leitor sem comparar o item físico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Atribuir um identificador aleatório a cada leitura recebida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar o TID como substituto universal do cadastro de produto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conferir etiqueta, objeto e cadastro antes de liberar.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desativar a validação de duplicidade para aceitar qualquer valor.",
+          "correct": false
+        }
+      ],
+      "explanation": "A qualidade da associação deve ser verificada no processo de etiquetagem: o EPC lido precisa corresponder ao identificador atribuído ao objeto e ao cadastro esperado. Uma leitura válida comprova comunicação, mas não garante que a etiqueta correta foi aplicada ao item correto.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma etiqueta RFID lida pelo equipamento pode ser considerada autenticada e confiável sem verificar os recursos de segurança do modelo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A resposta de rádio comprova comunicação, não autenticação ou integridade do objeto. Recursos de segurança variam por etiqueta e padrão, e muitas etiquetas têm capacidades limitadas; o suporte deve verificar o modelo e os controles usados.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O banco EPC de uma etiqueta Gen2 contém sempre a descrição textual completa do produto, seu preço e o cadastro corporativo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O EPC é um identificador codificado conforme um esquema; não representa necessariamente uma ficha comercial completa. A descrição e o preço costumam ser consultados no sistema de cadastro depois da decodificação e associação.",
+      "section": "2. Etiquetas, memória e configuração de leitura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na retirada de um leitor RFID, configurações e registros podem ser apagados sem inventário nem preservação de evidências, pois pertencem apenas ao equipamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Configurações e logs podem ser necessários para continuidade, auditoria ou análise de incidente. A retirada deve seguir o processo de ativos e segurança, documentando a mudança e protegendo os dados conforme a política institucional.",
+      "section": "4. Integração, operação e segurança do suporte RFID",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "EPC Radio-Frequency Identity Protocols Generation-2 UHF RFID Standard, Release 2.1",
+      "publisher": "GS1",
+      "reference": "Interfaces físicas e lógicas; inventário, acesso e quatro bancos de memória Gen2",
+      "url": "https://ref.gs1.org/standards/gen2/2.1.0/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "EPC Tag Data Standard",
+      "publisher": "GS1",
+      "reference": "Definição do EPC e conteúdo de memória de etiquetas Gen2; esquemas de codificação e decodificação",
+      "url": "https://ref.gs1.org/standards/tds/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "How does an RFID system work?",
+      "publisher": "GS1 Customer Service",
+      "reference": "Componentes de um sistema RFID e funcionamento básico de etiquetas passivas e ativas",
+      "url": "https://support.gs1.org/support/solutions/articles/43000734380-how-does-an-rfid-system-work-",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "GS1 System Architecture",
+      "publisher": "GS1",
+      "reference": "Fluxo AIDC/EPC-RFID, leitores, etiquetas, decodificação e integração com aplicações",
+      "url": "https://ref.gs1.org/architecture/system-architecture/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Guidelines for Securing Radio Frequency Identification (RFID) Systems, SP 800-98",
+      "publisher": "NIST",
+      "reference": "Controles de segurança, limitações de etiquetas e ciclo de vida de sistemas RFID",
+      "url": "https://nvlpubs.nist.gov/nistpubs/legacy/sp/nistspecialpublication800-98.pdf",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

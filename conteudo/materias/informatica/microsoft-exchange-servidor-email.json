@@ -1,0 +1,2078 @@
+{
+  "id": "informatica.microsoft-exchange-servidor-email",
+  "subject": "Informática",
+  "title": "Microsoft Exchange: servidor de correio eletrônico",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Conhecimentos de ambiente Microsoft: Exchange",
+    "Microsoft Exchange Server e correio eletrônico",
+    "Servidor Microsoft Exchange",
+    "Administração do Exchange Server",
+    "Ambiente Microsoft Exchange Server",
+    "Correio eletrônico com Microsoft Exchange",
+    "Exchange e serviços de e-mail corporativo",
+    "Exchange Server: caixas e destinatários",
+    "Exchange Server: fluxo de mensagens",
+    "Exchange Server: transporte de correio",
+    "Exchange Server: alta disponibilidade",
+    "Exchange Server: administração e segurança"
+  ],
+  "scope": {
+    "covers": "Conhecimentos de ambiente Microsoft Exchange Server: arquitetura de servidores Mailbox e Edge Transport; serviços Client Access e transporte; Active Directory; caixas postais e tipos de destinatários; conectores, fluxo de mensagens SMTP, regras de fluxo, filas e rastreamento; EAC e Exchange Management Shell; grupos de disponibilidade de banco de dados (DAG), cópias de bancos e conceitos de resiliência.",
+    "excludes": "Administração de Exchange Online e licenciamento do Microsoft 365, migrações híbridas detalhadas, comandos e parâmetros específicos de uma versão, configuração de DNS e certificados em nível de infraestrutura, recuperação forense e políticas corporativas particulares."
+  },
+  "theoryTitle": "Exchange Server: correio, transporte e administração",
+  "chapters": [
+    {
+      "title": "1. Arquitetura e componentes do Exchange",
+      "markdown": "### O problema que este assunto resolve\n\nUma organização precisa receber e enviar mensagens, armazená-las em caixas postais e permitir que pessoas acessem e-mail e calendário por clientes diferentes. O Exchange Server reúne esses serviços em uma plataforma integrada, com diretório, transporte e armazenamento coordenados.\n\n> **Siglas e termos deste capítulo**\n> - **Mailbox server**: servidor Exchange que contém bancos de caixa postal, serviços de transporte e serviços de acesso de cliente.\n> - **Edge Transport**: função voltada ao fluxo de mensagens com redes externas, normalmente posicionada na rede de perímetro.\n> - **Client Access**: serviços que autenticam conexões de clientes e as encaminham ao servidor que atende a caixa.\n> - **EAC**: Exchange admin center, interface web de administração.\n> - **EMS**: Exchange Management Shell, ambiente PowerShell com cmdlets de administração Exchange.\n\n### Mailbox concentra os serviços internos\n\nNas versões modernas do Exchange Server documentadas pela Microsoft, a função Mailbox reúne a armazenagem de caixas, componentes de transporte e Client Access. O cliente chega aos serviços de acesso, que funcionam como porta de entrada e encaminham ou fazem proxy da conexão ao serviço de backend que possui a cópia ativa da caixa. A conexão não é feita diretamente pelo cliente ao backend da caixa. Os serviços de acesso são sem estado: não mantêm o conteúdo da caixa nem deixam mensagens em fila.\n\nO **Edge Transport** pode ser instalado na rede de perímetro para tratar o correio de entrada e de saída da organização. Ele oferece uma camada de transporte na fronteira e pode aplicar proteção antispam e regras de fluxo. A sincronização EdgeSync publica no Edge informações necessárias, como destinatários e configuração, sem transformar o servidor de perímetro no repositório de caixas.\n\n| Componente | Responsabilidade principal | Não confundir com |\n| --- | --- | --- |\n| Client Access | Autenticar e encaminhar conexões dos clientes | Banco que armazena mensagens |\n| Transport service | Categorizar e rotear mensagens SMTP | Serviço de acesso a Outlook |\n| Mailbox Transport | Buscar mensagens da caixa para envio e entregar mensagens à caixa | Front End Transport |\n| Edge Transport | Intermediar correio externo na borda | Servidor de armazenamento de caixas |\n\n### Active Directory é parte da dependência\n\nO Exchange consulta o Active Directory para obter informações de configuração da organização e dos destinatários. Os atributos Exchange associados a uma caixa ficam no objeto de usuário do diretório; o conteúdo da caixa fica no banco de dados do Exchange. Por isso, indisponibilidade ou inconsistência do diretório afeta descoberta de destinatários, configuração e operação dos servidores.\n\n### Como cai na prova\n\n- Atribuir ao Client Access o armazenamento da caixa ou a fila de mensagens está errado: ele autentica e encaminha conexões.\n- O Mailbox moderno reúne funções antes tratadas em papéis separados; não se deve presumir uma instalação autônoma de Client Access nas versões atuais.\n- Edge Transport atua na fronteira externa; bancos de caixa postal residem nos servidores Mailbox."
+    },
+    {
+      "title": "2. Caixas postais e destinatários",
+      "markdown": "### O problema que este assunto resolve\n\nO Exchange precisa distinguir quem possui uma caixa armazenada, quem só representa um endereço de distribuição e quem aponta para um sistema externo. A classificação correta orienta armazenamento, entrega, permissões e administração.\n\n> **Siglas e termos deste capítulo**\n> - **Destinatário**: objeto reconhecido pelo Exchange para endereçamento de mensagens.\n> - **Mailbox**: caixa postal cujo conteúdo é armazenado em banco do Exchange.\n> - **Mail user**: usuário habilitado para e-mail que tem endereço externo, sem caixa local no Exchange.\n> - **Mail contact**: contato de correio que representa um destinatário externo, sem credenciais de usuário para a organização.\n> - **Distribution group**: grupo usado para distribuir mensagens a seus membros.\n> - **Public folder**: estrutura compartilhada para conteúdo acessível por usuários autorizados.\n\n### Objeto de diretório e conteúdo da caixa\n\nUma caixa de usuário associa um objeto de usuário do Active Directory aos dados armazenados em um banco de caixas postais. O objeto contém atributos de configuração e endereçamento; as mensagens, compromissos, tarefas e demais itens ficam no banco. Criar a caixa para um usuário existente habilita atributos Exchange no diretório; a área de dados pode ser materializada quando a caixa recebe mensagem ou o usuário entra nela.\n\nA caixa compartilhada serve a um grupo de pessoas que precisa acessar um endereço comum, como suporte ou atendimento. A caixa de recurso representa, por exemplo, sala ou equipamento que pode ser reservado. Uma caixa de usuário é associada a uma identidade individual. Em todos os casos, permissões de acesso e delegação devem ser configuradas de forma apropriada: conhecer o endereço não concede automaticamente acesso ao conteúdo.\n\n| Tipo | Tem conteúdo em caixa local? | Uso típico |\n| --- | --- | --- |\n| User mailbox | Sim | E-mail e calendário de uma pessoa |\n| Shared mailbox | Sim | Endereço funcional acessado por delegados |\n| Resource mailbox | Sim | Agendamento de sala ou equipamento |\n| Distribution group | Não é uma caixa de armazenamento | Distribuir uma mensagem aos membros |\n| Mail contact | Não | Endereçar destinatário externo conhecido |\n| Mail user | Não há caixa local | Usuário interno cujo destino de correio é externo |\n\n### Listas e grupos não são caixas\n\nUm grupo de distribuição expande o endereço para os membros durante o processamento da mensagem; não guarda, por si só, um arquivo de mensagens como uma caixa. Um grupo de segurança habilitado para e-mail pode servir tanto a controle de acesso quanto a distribuição, conforme sua configuração. Um contato de correio é uma representação de destinatário externo, ao passo que um mail user é associado a uma conta de usuário da organização.\n\n### Como cai na prova\n\n- Pergunta sobre local de armazenamento: dados da caixa ficam no banco Exchange; atributos e configuração do usuário ficam no Active Directory.\n- Grupo de distribuição entrega a vários membros, mas não equivale a caixa postal compartilhada.\n- Contato externo não é usuário autenticável da organização; mail user possui objeto de usuário, mas entrega para endereço externo."
+    },
+    {
+      "title": "3. Fluxo de mensagens e transporte",
+      "markdown": "### O problema que este assunto resolve\n\nUma mensagem atravessa conexões SMTP, validação de destinatário, categorização, roteamento e entrega. Entender a sequência permite localizar se a falha está na borda, no transporte interno, na resolução de destino ou na gravação na caixa.\n\n> **Siglas e termos deste capítulo**\n> - **SMTP**: protocolo usado no transporte de mensagens entre serviços e servidores de correio.\n> - **Receive connector**: ponto de entrada SMTP com escopo e permissões definidos.\n> - **Send connector**: rota de saída para um destino, como a Internet ou outro espaço de endereçamento.\n> - **Categorizer**: componente que resolve destinatários e escolhe rotas para a mensagem.\n> - **Queue**: conjunto de mensagens aguardando uma etapa de processamento ou entrega.\n> - **Shadow redundancy**: cópia redundante de mensagem ainda em trânsito.\n\n### As etapas no servidor Mailbox\n\nO Front End Transport recebe conexões SMTP externas e atua como proxy sem estado: não inspeciona o conteúdo da mensagem nem mantém fila local. O serviço Transport recebe as mensagens para a organização, categoriza, inspeciona conteúdo segundo a configuração e as encaminha. O serviço Mailbox Transport faz a ponte entre SMTP e o banco local: Submission lê mensagens submetidas nas caixas e as envia ao Transport; Delivery recebe mensagens do Transport e grava-as no banco por RPC.\n\nCom Edge Transport, a mensagem externa chega primeiro ao serviço Transport do Edge por um Receive connector. Um Send connector de EdgeSync a encaminha ao Mailbox; no fluxo sem Edge, a conexão externa entra pelo Receive connector Front End do Mailbox. Para saída externa, o roteamento usa os conectores de envio configurados para os espaços de destino. Conector não é simplesmente uma caixa postal: define como o transporte aceita ou encaminha conexões.\n\n**Regras de fluxo de mensagens** (transport rules) avaliam mensagens durante o transporte e podem aplicar condições, exceções e ações, como adicionar avisos, redirecionar ou restringir envio. Regras de caixa de entrada são diferentes: em geral atuam depois da entrega, sobre mensagens da caixa do usuário.\n\n### Diagnóstico de entrega\n\nAcompanhe o caminho com rastreamento de mensagens, estado das filas e registros de protocolo. Primeiro identifique remetente, destinatário e janela de tempo; depois veja se houve recebimento, categorização, roteamento, tentativa de entrega ou rejeição. Uma fila crescendo pode apontar falha de próximo salto, DNS/rede, destino indisponível ou problema de transporte; não prova que o banco de caixa esteja corrompido. Uma mensagem entregue à caixa e ausente de uma pasta esperada pode envolver regra de caixa, cliente ou retenção, não necessariamente o fluxo SMTP.\n\n### Como cai na prova\n\n- Front End Transport é proxy stateless; o Transport categoriza e mantém filas; Mailbox Transport conversa com o banco local.\n- Regras de transporte agem na mensagem em trânsito; regra de caixa de entrada atua no contexto da caixa.\n- Rastreamento de mensagem e inspeção das filas ajudam a localizar a etapa da falha; aumentar limites de tamanho não corrige uma rota indisponível."
+    },
+    {
+      "title": "4. Administração, acesso e segurança operacional",
+      "markdown": "### O problema que este assunto resolve\n\nAdministrar o Exchange envolve criar destinatários, definir rotas, controlar acesso, verificar configuração e diagnosticar incidentes sem confundir interface com serviço. A administração deve refletir a configuração distribuída no Active Directory e nos servidores.\n\n> **Siglas e termos deste capítulo**\n> - **EAC**: console web de administração do Exchange.\n> - **EMS**: Exchange Management Shell, PowerShell com cmdlets Exchange.\n> - **RBAC**: controle de acesso baseado em funções administrativas.\n> - **TLS**: protocolo que protege conexões de rede por criptografia.\n> - **Virtual directory**: configuração de endpoint web usada por serviços de acesso do Exchange.\n\n### EAC e Exchange Management Shell\n\nO Exchange Admin Center permite executar tarefas comuns de administração por interface web. A Exchange Management Shell oferece cmdlets para tarefas equivalentes, automação, consulta detalhada e operações em lote. Ambos dependem de permissões administrativas; estar conectado ao servidor não significa ter autorização para qualquer cmdlet. O modelo de funções administrativas limita os comandos e objetos que cada administrador pode gerir.\n\nUse os cmdlets próprios do Exchange para criar e administrar destinatários, conectores e bancos. Para diagnosticar uma caixa, confira tanto o objeto correspondente no diretório quanto o banco que hospeda seus dados. Para verificar transporte, examine conectores, filas e rastreamento de mensagens. Para acesso de cliente, confira nomes de serviço, certificados, autenticação e configurações de diretório virtual.\n\n### Acesso seguro e separação de responsabilidades\n\nClient Access aceita conexões, autentica e as encaminha ao backend. TLS protege o tráfego de rede quando corretamente configurado, mas não substitui autorização, higiene de credenciais ou atualização dos servidores. Restrinja privilégios administrativos, aplique atualizações suportadas e monitore logs. Na borda, Edge Transport pode reduzir exposição direta dos Mailbox e aplicar controles de mensagens externas, mas não elimina a necessidade de proteção nos demais componentes.\n\n### Procedimento de diagnóstico\n\nPara problema de acesso, separe autenticação, resolução do endpoint, certificado/conexão e proxy ao backend. Para mensagem que não chega, use rastreamento e filas antes de alterar regras. Para falha em uma caixa, verifique estado do banco e cópia ativa, conectividade ao diretório e permissões. Registre o sintoma e a mudança realizada: alterações simultâneas em várias camadas tornam a causa mais difícil de identificar.\n\n### Como cai na prova\n\n- EAC e EMS são meios administrativos; não são serviços que entregam ou armazenam mensagens.\n- TLS protege transporte, mas não substitui controle de acesso nem resolve uma configuração de destinatário incorreta.\n- Uma operação deve ser investigada na camada correspondente: cliente, transporte, diretório ou banco."
+    },
+    {
+      "title": "5. Bancos, DAG e continuidade do serviço",
+      "markdown": "### O problema que este assunto resolve\n\nFalha de disco, servidor ou rede pode indisponibilizar uma caixa e interromper a entrega. O Exchange oferece cópias de banco e grupos de disponibilidade para manter cópias sincronizadas e permitir mudança da cópia ativa.\n\n> **Siglas e termos deste capítulo**\n> - **DAG**: Database Availability Group, grupo de disponibilidade de bancos.\n> - **Active Manager**: componente que administra ativações e failovers de bancos em uma DAG.\n> - **Database copy**: réplica de banco de caixas mantida em outro servidor membro da DAG.\n> - **Switchover**: mudança planejada da cópia ativa para outra cópia.\n> - **Failover**: ativação após falha da cópia ou servidor ativo.\n> - **Witness**: servidor testemunha usado em cenários de quórum do cluster.\n\n### DAG reúne servidores e cópias\n\nUma DAG é o elemento fundamental de alta disponibilidade de Mailbox. Na documentação atual do Exchange Server, uma DAG pode conter até 16 servidores Mailbox. Membros precisam executar a mesma versão do Exchange. Uma base pode ter cópias em servidores diferentes pertencentes à DAG, e cópias de banco não são replicadas para servidores fora dela. O Active Manager coordena ativações e failovers.\n\nO banco tem uma cópia ativa que atende operações e cópias passivas que recebem replicação. Em uma falha, a ativação de uma cópia saudável pode recuperar o serviço no nível do banco; isso não é o mesmo que restaurar um backup histórico. Replicação ajuda disponibilidade e resiliência, mas exclusão ou corrupção lógica pode propagar-se, por isso backup continua sendo necessário para recuperação histórica.\n\nA rede e o dimensionamento precisam suportar replicação e a carga quando membros estiverem indisponíveis. Um witness participa da decisão de quórum em determinadas configurações; ele não armazena uma cópia de caixa nem substitui um membro Mailbox. A DAG também pode abranger sites do Active Directory para resiliência de site, respeitados projeto e conectividade.\n\n### Como cai na prova\n\n- DAG fornece disponibilidade e recuperação no nível do banco; não é ferramenta de backup.\n- O limite documentado de membros da DAG e a exigência de versão homogênea são fatos de arquitetura que podem ser cobrados.\n- Cópias passivas replicadas, failover, witness e backup têm papéis diferentes; não os trate como sinônimos."
+    }
+  ],
+  "summary": "O Exchange Server combina diretório, caixas postais, transporte e acesso de clientes. O Mailbox reúne armazenamento, Transport e Client Access; Edge Transport pode intermediar o correio externo. Atributos do destinatário residem no Active Directory e os itens da caixa em banco Exchange. O fluxo passa por conectores SMTP, categorização e entrega via Mailbox Transport. EAC e Exchange Management Shell são interfaces de administração. DAG mantém cópias de bancos para alta disponibilidade; não substitui backup.",
+  "flashcards": [
+    {
+      "front": "Qual é a função do Mailbox server nas versões modernas do Exchange?",
+      "back": "Hospeda bancos de caixas, serviços de transporte e Client Access."
+    },
+    {
+      "front": "Para que serve Edge Transport?",
+      "back": "Intermediar o fluxo de mensagens externo na rede de perímetro; pode aplicar proteção antispam e regras."
+    },
+    {
+      "front": "O que faz Client Access?",
+      "back": "Autentica conexões de clientes e encaminha ou faz proxy para o backend da caixa."
+    },
+    {
+      "front": "Onde ficam atributos de configuração da caixa de usuário?",
+      "back": "No objeto de usuário correspondente do Active Directory."
+    },
+    {
+      "front": "Onde fica o conteúdo de uma caixa?",
+      "back": "No banco de caixas postais do Exchange."
+    },
+    {
+      "front": "O que faz o Front End Transport?",
+      "back": "Atua como proxy SMTP stateless de entrada e, conforme a configuração, saída."
+    },
+    {
+      "front": "Qual componente categoriza mensagens?",
+      "back": "O serviço Transport do Mailbox."
+    },
+    {
+      "front": "O que faz Mailbox Transport Submission?",
+      "back": "Lê mensagens da caixa local e as submete por SMTP ao serviço Transport."
+    },
+    {
+      "front": "O que faz Mailbox Transport Delivery?",
+      "back": "Recebe mensagens do Transport e as entrega ao banco local por RPC."
+    },
+    {
+      "front": "Qual é a diferença de regra de transporte e regra de caixa de entrada?",
+      "back": "A primeira atua durante o fluxo; a segunda atua na caixa após a entrega."
+    },
+    {
+      "front": "O que define um Receive connector?",
+      "back": "Um ponto de entrada SMTP com escopo e permissões de conexão definidos."
+    },
+    {
+      "front": "O que define um Send connector?",
+      "back": "Como o Exchange encaminha mensagens para um espaço de destino."
+    },
+    {
+      "front": "Um grupo de distribuição armazena mensagens como uma caixa?",
+      "back": "Não. Ele distribui mensagens aos membros."
+    },
+    {
+      "front": "Para que serve uma shared mailbox?",
+      "back": "Oferecer endereço e conteúdo comum a usuários delegados, como suporte."
+    },
+    {
+      "front": "O que representa uma resource mailbox?",
+      "back": "Um recurso agendável, como sala ou equipamento."
+    },
+    {
+      "front": "O que significa DAG?",
+      "back": "Database Availability Group, grupo de disponibilidade de bancos."
+    },
+    {
+      "front": "O que gerencia ativações de banco em uma DAG?",
+      "back": "Active Manager."
+    },
+    {
+      "front": "O que é failover de banco?",
+      "back": "Ativar outra cópia após falha da cópia ou servidor ativo."
+    },
+    {
+      "front": "DAG substitui backup?",
+      "back": "Não. Replicação sustenta disponibilidade; backup permite recuperação histórica."
+    },
+    {
+      "front": "Quais ferramentas administrativas são centrais no Exchange?",
+      "back": "Exchange Admin Center e Exchange Management Shell."
+    }
+  ],
+  "tips": [
+    "Associe Front End Transport a proxy SMTP stateless e o Transport a categorização e filas.",
+    "Separe metadados no Active Directory do conteúdo da caixa no banco Exchange.",
+    "Leia o tipo de destinatário pelo que ele faz: caixa armazena, grupo distribui, contato referencia endereço externo.",
+    "Use rastreamento e filas para localizar a etapa do fluxo antes de alterar conectores.",
+    "Regras de fluxo atuam em trânsito; regras da caixa atuam após a entrega.",
+    "DAG oferece resiliência de banco; mantenha backup para recuperação de dados históricos."
+  ],
+  "traps": [
+    "Chamar Client Access de local de armazenamento: ele encaminha conexões, não contém o conteúdo da caixa.",
+    "Confundir mail contact com mail user: o segundo está associado a usuário do diretório.",
+    "Afirmar que Front End Transport categoriza e mantém fila: ele funciona como proxy sem estado.",
+    "Confundir regra de transporte com regra de caixa de entrada pelo momento em que atua.",
+    "Tratar grupo de distribuição como caixa postal que arquiva mensagens.",
+    "Dizer que DAG é backup ou que witness armazena caixas: ambos os papéis são diferentes."
+  ],
+  "activeRecall": [
+    {
+      "question": "Quais responsabilidades modernas são reunidas no Mailbox server?",
+      "answer": "Bancos de caixa postal, serviços de transporte e Client Access."
+    },
+    {
+      "question": "Como uma conexão de cliente chega à caixa ativa?",
+      "answer": "Client Access autentica e encaminha ou faz proxy ao backend no servidor que atende a cópia ativa."
+    },
+    {
+      "question": "Que dados ficam no diretório e que dados ficam no banco?",
+      "answer": "Atributos e configuração do destinatário ficam no Active Directory; conteúdo fica no banco Exchange."
+    },
+    {
+      "question": "Descreva a função dos serviços Front End Transport, Transport e Mailbox Transport.",
+      "answer": "Front End faz proxy SMTP; Transport categoriza e roteia; Mailbox Transport submete e entrega entre transporte e banco."
+    },
+    {
+      "question": "Como distinguir grupo de distribuição e caixa compartilhada?",
+      "answer": "O grupo expande destinatários para os membros; a caixa compartilhada armazena itens em um endereço comum."
+    },
+    {
+      "question": "Quais evidências ajudam a localizar mensagem retida?",
+      "answer": "Rastreamento de mensagens, estado das filas, conectores e logs de protocolo."
+    },
+    {
+      "question": "O que uma DAG protege e o que não substitui?",
+      "answer": "Protege disponibilidade do banco por cópias e failover; não substitui backup para restauração histórica."
+    },
+    {
+      "question": "Quais são os dois meios comuns de administrar Exchange?",
+      "answer": "EAC, a interface web, e Exchange Management Shell, com cmdlets PowerShell."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Serviços de acesso confundidos com armazenamento",
+      "summary": "Client Access autentica e encaminha conexões. O conteúdo reside no banco; Front End Transport é proxy, enquanto Transport categoriza e mantém filas."
+    },
+    {
+      "key": "e2",
+      "title": "Destinatários tratados como equivalentes",
+      "summary": "Caixas guardam conteúdo; grupos distribuem; contatos apontam para destinatários externos; mail users têm objeto de usuário associado a destino externo."
+    },
+    {
+      "key": "e3",
+      "title": "Etapas de transporte trocadas",
+      "summary": "Receive e Send connectors governam conexões. Front End faz proxy, Transport categoriza e Mailbox Transport faz a ponte com o banco local."
+    },
+    {
+      "key": "e4",
+      "title": "Alta disponibilidade confundida com backup",
+      "summary": "DAG e replicação permitem cópias e failover; backup é necessário para recuperar estados históricos ou dados removidos."
+    },
+    {
+      "key": "e5",
+      "title": "Regras e ferramentas administrativas confundidas",
+      "summary": "Regras de transporte agem em trânsito; regras de caixa após entrega. EAC e EMS são consoles, não serviços de entrega ou armazenamento."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em uma implantação moderna do Exchange Server, o servidor Mailbox reúne bancos de caixa, serviços de transporte e serviços de acesso de cliente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A função Mailbox concentra esses componentes; o Edge Transport é uma função adicional possível para a fronteira externa.",
+      "section": "1. Arquitetura e componentes do Exchange",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os serviços Client Access armazenam mensagens em filas locais enquanto o servidor de backend da caixa está indisponível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Client Access é stateless e não armazena dados nem mantém filas; o transporte é responsável por filas de mensagens.",
+      "section": "1. Arquitetura e componentes do Exchange",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual componente normalmente fica na rede de perímetro para tratar mensagens que entram e saem da organização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mailbox Transport Delivery, que recebe o SMTP da Internet e grava em banco remoto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Client Access, que mantém uma fila de correio externa até autenticar cada usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Edge Transport, que intermedeia o fluxo externo e pode aplicar filtros de mensagens.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Active Manager, que recebe mensagens externas e decide a caixa de destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exchange Admin Center, que opera como gateway SMTP da organização.",
+          "correct": false
+        }
+      ],
+      "explanation": "Edge Transport é a função de borda para o fluxo de correio externo. Os demais componentes cuidam de entrega local, conexões de cliente, ativações de banco ou administração.",
+      "section": "1. Arquitetura e componentes do Exchange",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde aos serviços Client Access nas versões atuais do Exchange Server?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autenticam conexões e encaminham pedidos ao backend que atende a caixa do usuário.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Gravam mensagens e calendários no Active Directory de cada controlador de domínio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Categorizam mensagens SMTP e mantêm as filas de saída da organização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criam cópias de bancos em servidores membros para ativação automática.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Distribuem mensagens de grupos sem consultar configuração de destinatários.",
+          "correct": false
+        }
+      ],
+      "explanation": "Client Access atua como porta de entrada, autentica e encaminha conexões ao backend apropriado. Armazenamento, transporte e disponibilidade de banco são tarefas de outros componentes.",
+      "section": "1. Arquitetura e componentes do Exchange",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em relação ao Exchange e ao Active Directory, qual combinação descreve corretamente a localização das informações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O conteúdo fica no Active Directory e os atributos da caixa ficam no banco Exchange.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O diretório contém apenas senhas; toda configuração de Exchange fica no Outlook.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A caixa e os atributos Exchange são armazenados juntos exclusivamente no cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Atributos e configuração ficam no objeto do diretório; os itens ficam no banco de caixas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Os dois tipos de informação ficam em filas SMTP até o usuário iniciar sessão.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Exchange usa Active Directory para dados de configuração e destinatários, enquanto mensagens e demais itens da caixa são armazenados no banco Exchange.",
+      "section": "1. Arquitetura e componentes do Exchange",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O EdgeSync torna o Edge Transport o repositório principal das caixas postais e dos calendários da organização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. EdgeSync sincroniza informações de destinatários e configuração necessárias ao transporte de borda; caixas e calendários permanecem nos bancos Mailbox.",
+      "section": "1. Arquitetura e componentes do Exchange",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ferramenta oferece interface web para tarefas de administração do Exchange?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Active Manager, console web que cria objetos de destinatário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Exchange Admin Center, interface web para administrar a organização.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Mailbox Transport Submission, painel web para acompanhar calendários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "EdgeSync, portal web para distribuir permissões administrativas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transport Rule Agent, console web de criação de caixas postais.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Exchange Admin Center é a interface web administrativa. Active Manager e agentes são componentes de serviço, não consoles para tarefas administrativas comuns.",
+      "section": "4. Administração, acesso e segurança operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a diferença entre uma caixa compartilhada e um grupo de distribuição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambos são grupos sem armazenamento, diferenciados só pela cor no catálogo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A caixa compartilhada existe apenas no diretório; o grupo armazena todo o correio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O grupo distribui mensagens a membros; a caixa compartilhada mantém conteúdo acessível por delegados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O grupo representa sala agendável; a caixa compartilhada aponta para endereço externo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A caixa compartilhada encaminha SMTP, enquanto o grupo autentica clientes Outlook.",
+          "correct": false
+        }
+      ],
+      "explanation": "A shared mailbox possui conteúdo armazenado e pode ser acessada por delegados. O grupo de distribuição expande destinatários para seus membros, sem ser uma caixa de armazenamento.",
+      "section": "2. Caixas postais e destinatários",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma caixa de recurso pode representar uma sala ou equipamento cujo uso é agendado por usuários.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Caixas de recurso representam itens como salas e equipamentos para fins de agendamento e reserva. Elas são destinatários com capacidade de armazenamento e calendário, não simples grupos de distribuição nem endereços externos.",
+      "section": "2. Caixas postais e destinatários",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual objeto representa um destinatário externo sem ser uma conta de usuário autenticável da organização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma caixa de usuário com arquivo local e login corporativo habilitado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma caixa compartilhada, acessível a delegados com permissões de pasta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um grupo de distribuição, composto por destinatários internos e externos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um mail contact, objeto de contato usado para endereçar correio externo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um banco de caixas, que resolve nomes para endereços externos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mail contact representa um destinatário externo para endereçamento e não é uma conta de usuário autenticável da organização. Mail user está associado a um objeto de usuário.",
+      "section": "2. Caixas postais e destinatários",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um mail user e um mail contact são ambos representações de correio externo, mas o mail user está associado a um objeto de usuário do diretório.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O mail user associa um usuário da organização a um destino de correio externo; o contato de correio não corresponde a uma conta de usuário autenticável.",
+      "section": "2. Caixas postais e destinatários",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma caixa de usuário existente recebeu atributos do Exchange no Active Directory, mas ainda não há dados da caixa no banco. Qual explicação é compatível com esse estado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os atributos surgem após a primeira mensagem ou entrada do usuário, enquanto o banco cria o conteúdo antes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A caixa precisa ser representada como grupo de distribuição antes de criar dados de usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A caixa não é possível porque todo usuário precisa de um banco separado no Exchange.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O objeto pode estar habilitado; os dados associados podem ser criados quando houver uso inicial.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O estado indica que os atributos foram gravados no Edge Transport, não no diretório.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ao habilitar uma caixa, atributos necessários são adicionados ao objeto do usuário. Os dados associados podem ser criados quando a caixa recebe mensagem ou o usuário entra nela.",
+      "section": "2. Caixas postais e destinatários",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a função de um grupo de distribuição no endereçamento de mensagens?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Expandir o endereço do grupo para os membros que devem receber a mensagem.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenar mensagens e calendários em uma caixa com acesso delegado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter uma cópia passiva do banco em um servidor de perímetro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Autenticar clientes Outlook e encaminhar a sessão ao banco de destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir o Active Directory como catálogo de atributos dos destinatários.",
+          "correct": false
+        }
+      ],
+      "explanation": "O grupo de distribuição é um endereço que expande para seus membros durante o processamento da mensagem; não é o mecanismo de armazenamento de uma caixa.",
+      "section": "2. Caixas postais e destinatários",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual serviço recebe mensagens do Transport e as grava na caixa postal local?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Front End Transport, que entrega por RPC diretamente à caixa remota.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mailbox Transport Delivery, que recebe SMTP e acessa o banco local por RPC.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Client Access, que categoriza destinatários e envia ao banco por HTTPS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mailbox Transport Submission, que encaminha mensagens recebidas ao Outlook.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "EdgeSync, que persiste mensagens dentro do Active Directory local.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mailbox Transport Delivery recebe mensagens do serviço Transport por SMTP e as entrega ao banco local por RPC. Submission faz o movimento inverso para mensagens enviadas pela caixa.",
+      "section": "3. Fluxo de mensagens e transporte",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O serviço Mailbox Transport Submission lê mensagens da caixa local e as submete ao serviço Transport para roteamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Submission acessa a caixa local, obtém a mensagem e a envia por SMTP ao Transport, que a categoriza e roteia. O serviço complementar Delivery recebe mensagens do Transport e as grava no banco local, realizando o caminho inverso.",
+      "section": "3. Fluxo de mensagens e transporte",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente o Front End Transport em um servidor Mailbox?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazena as mensagens de forma permanente e grava o histórico das caixas no diretório.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Categoriza todas as mensagens e usa RPC para ler o conteúdo do banco remoto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atua como proxy SMTP stateless e não inspeciona conteúdo nem mantém filas locais.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Aplica regras da caixa de entrada depois que a mensagem é entregue ao usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Hospeda as cópias passivas e coordena o failover de bancos membros da DAG.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Front End Transport é um proxy SMTP sem estado; não categoriza conteúdo nem mantém fila local. Transporte e entrega são responsabilidades dos serviços internos correspondentes.",
+      "section": "3. Fluxo de mensagens e transporte",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As regras de fluxo de mensagens atuam sobre mensagens em trânsito, enquanto regras de caixa de entrada normalmente operam após a entrega.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Regras de transporte são aplicadas no pipeline; regras de caixa de entrada atuam no conteúdo já entregue à caixa do usuário.",
+      "section": "3. Fluxo de mensagens e transporte",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador quer descobrir se a mensagem foi recebida, categorizada, roteada ou rejeitada. Qual recurso deve consultar primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Relatório de reservas de caixas de recurso, que registra eventos SMTP externos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A lista de membros da DAG, que registra cada salto de mensagem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A configuração de temas do Outlook, que mantém o estado de entrega do servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O catálogo de endereços offline, que mostra o processamento de cada fila.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O rastreamento de mensagens, complementado pela inspeção das filas e logs.",
+          "correct": true
+        }
+      ],
+      "explanation": "Message tracking ajuda a reconstruir etapas de processamento e entrega. Filas e logs complementam o diagnóstico quando há mensagem retida ou falha de conexão.",
+      "section": "3. Fluxo de mensagens e transporte",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Receive connector define um ponto de entrada SMTP e suas condições de conexão, enquanto um Send connector descreve rotas de saída.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Receive connectors aceitam conexões de entrada segundo escopo e permissões; Send connectors encaminham mensagens a destinos configurados.",
+      "section": "3. Fluxo de mensagens e transporte",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila de saída aumenta e o rastreamento mostra tentativas sem conexão ao próximo salto. Qual linha de investigação é mais coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Recriar a caixa do remetente, pois uma fila SMTP registra somente itens de calendário locais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Verificar rota, conectividade e disponibilidade do próximo destino antes de alterar a caixa.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desativar Client Access, porque o serviço de proxy armazena as mensagens retidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar a quota da caixa de destino, mesmo sem tentativa de entrega ao banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover o Active Manager, pois ele categoriza mensagens enviadas à Internet.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma fila com falhas de conexão ao próximo salto aponta para rota, rede ou indisponibilidade do destino. A evidência não indica, por si só, problema na caixa ou em quota.",
+      "section": "3. Fluxo de mensagens e transporte",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Exchange Admin Center e o Exchange Management Shell são ferramentas de administração, não componentes de armazenamento de mensagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. EAC é uma interface web e EMS fornece cmdlets PowerShell para administração; o conteúdo fica nos bancos de caixa.",
+      "section": "4. Administração, acesso e segurança operacional",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual abordagem é apropriada para automatizar a criação e a consulta de vários destinatários Exchange?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar cmdlets da Exchange Management Shell com as permissões administrativas adequadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Editar diretamente arquivos de dados das caixas enquanto o serviço está ativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar cada destinatário como regra de fluxo e deixar o Transport gerar o usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar o Outlook de cada pessoa, pois o cliente controla todos os objetos do diretório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Modificar filas SMTP manualmente para criar os atributos de destinatário no Active Directory.",
+          "correct": false
+        }
+      ],
+      "explanation": "EMS oferece cmdlets Exchange apropriados para administração e automação, respeitando as funções e permissões atribuídas ao operador.",
+      "section": "4. Administração, acesso e segurança operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de TLS nas conexões do Exchange elimina a necessidade de controlar permissões administrativas e proteger credenciais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. TLS protege o tráfego de rede, mas autorização, gestão de credenciais, atualizações e monitoramento continuam necessários.",
+      "section": "4. Administração, acesso e segurança operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário não consegue abrir o Outlook na web, mas a entrega SMTP à caixa funciona. Qual sequência separa melhor as camadas do problema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alterar o Send connector externo, depois apagar as filas e recriar o banco inteiro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar a DAG e testar a caixa usando uma cópia ainda não ativada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Verificar endpoint, autenticação, TLS/certificado e encaminhamento ao backend.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Editar regras de transporte para incluir o usuário em cada mensagem recebida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar o tipo da caixa para grupo de distribuição e repetir o acesso web.",
+          "correct": false
+        }
+      ],
+      "explanation": "Como a entrega SMTP ocorre, o diagnóstico deve focar conexão de cliente, endpoint, autenticação, TLS e proxy ao backend, sem alterar a rota de transporte de mensagens.",
+      "section": "4. Administração, acesso e segurança operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O controle de acesso baseado em funções administrativas limita as tarefas que um operador pode executar no Exchange.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. RBAC concede permissões administrativas por funções, reduzindo operações disponíveis a cada administrador conforme sua responsabilidade.",
+      "section": "4. Administração, acesso e segurança operacional",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a função fundamental de uma DAG do Exchange Server?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Distribuir mensagens de grupos para caixas de usuários sem manter cópias de bancos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter cópias de bancos entre servidores Mailbox e permitir recuperação no nível do banco.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituir o Active Directory por um diretório local de destinatários externos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Atuar como proxy HTTP para conexões do Outlook sem autenticação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Guardar backups históricos de todas as mensagens fora da organização.",
+          "correct": false
+        }
+      ],
+      "explanation": "DAG agrupa servidores Mailbox para replicar bancos e oferecer recuperação automática no nível do banco após falhas. Ela delimita as cópias e mudanças de cópia ativa entre membros, sem assumir as funções de transporte SMTP ou de backup histórico.",
+      "section": "5. Bancos, DAG e continuidade do serviço",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma DAG pode incluir servidores Mailbox de versões diferentes do Exchange, desde que tenham cópias de bancos independentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os membros de uma DAG devem executar a mesma versão do Exchange; cópias de banco também não são replicadas entre versões diferentes.",
+      "section": "5. Bancos, DAG e continuidade do serviço",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quantos servidores Mailbox podem compor uma DAG segundo a arquitetura documentada pela Microsoft para Exchange Server?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Até quatro servidores, todos com uma única caixa compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Até oito servidores, desde que não haja replicação entre sites.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Até doze servidores, com banco obrigatoriamente em cada nó.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Até dezesseis servidores, que podem hospedar cópias dos bancos membros.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Sem limite definido, pois a DAG é apenas um objeto do Active Directory.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação oficial estabelece até dezesseis servidores Mailbox em uma DAG. Os membros mantêm cópias dos bancos e participam da disponibilidade do serviço.",
+      "section": "5. Bancos, DAG e continuidade do serviço",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Active Manager executa a categorização SMTP e escolhe o Send connector para cada mensagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Active Manager gerencia ativações e failovers de banco dentro da DAG; categorização e roteamento de mensagens são funções do Transport.",
+      "section": "5. Bancos, DAG e continuidade do serviço",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cópia passiva de banco está em outro membro da DAG. O servidor ativo falha; qual mecanismo pode restabelecer o acesso ao banco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma regra de caixa de entrada que redireciona todas as mensagens antigas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma regra de fluxo que converte o banco passivo em caixa compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma nova conexão do EdgeSync com o objeto de usuário no diretório.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um Receive connector que copia mensagens do servidor indisponível.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ativação da cópia saudável por failover coordenado na DAG.",
+          "correct": true
+        }
+      ],
+      "explanation": "A DAG coordena failover e pode ativar uma cópia saudável do banco em outro servidor membro. Conectores e regras tratam mensagens, não a ativação do banco.",
+      "section": "5. Bancos, DAG e continuidade do serviço",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O servidor witness de uma DAG é uma cópia passiva que armazena o conteúdo completo das caixas postais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Witness participa do quórum em determinados cenários; cópias de bancos residem em servidores Mailbox membros da DAG.",
+      "section": "5. Bancos, DAG e continuidade do serviço",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação distingue corretamente a resiliência da DAG e o backup?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A DAG mantém cópias para disponibilidade; backup permite recuperar estados e itens históricos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "DAG e backup são sinônimos e ambos dependem de uma única cópia ativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Backup mantém a cópia ativa e DAG guarda somente arquivos antigos em fita.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DAG impede qualquer exclusão lógica e torna desnecessário guardar backups.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Backup executa o proxy SMTP e a DAG aplica as regras da caixa de entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Replicação e failover oferecem continuidade diante de certas falhas; backup fornece recuperação histórica e continua necessário para exclusões ou corrupção lógica.",
+      "section": "5. Bancos, DAG e continuidade do serviço",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Shadow redundancy mantém cópia redundante de mensagens em trânsito, e Safety Net conserva cópias de mensagens já entregues para ressubmissão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Shadow redundancy protege mensagens durante o transporte; Safety Net mantém redundância de mensagens entregues para recuperação conforme a arquitetura de transporte.",
+      "section": "5. Bancos, DAG e continuidade do serviço",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer impor aviso de confidencialidade a mensagens externas que contêm determinado padrão, antes que cheguem aos destinatários. Qual recurso é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma cópia passiva de banco, configurada para alterar o texto enquanto replica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um mail contact, que acrescenta avisos ao conteúdo no catálogo de endereços.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma regra de fluxo de mensagens, avaliada durante o transporte.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma regra de caixa de entrada, executada antes do envio pelo servidor SMTP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um servidor witness, que reescreve conteúdo para manter quórum.",
+          "correct": false
+        }
+      ],
+      "explanation": "Regras de fluxo avaliam mensagens durante o pipeline e podem aplicar ações baseadas em condições. Regras de caixa de entrada atuam depois da entrega à caixa.",
+      "section": "3. Fluxo de mensagens e transporte",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma falha de transporte para a Internet, aumentar a quota da caixa do remetente corrige a indisponibilidade do próximo salto SMTP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Quota limita armazenamento da caixa; rota e conectividade ao próximo salto devem ser investigadas para uma falha de transporte externo.",
+      "section": "3. Fluxo de mensagens e transporte",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conduta reduz a dificuldade de diagnosticar uma mensagem que não chega ao destinatário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alterar vários conectores e regras simultaneamente para observar qual mudança parece surtir efeito.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Identificar remetente, destinatário e horário, e então correlacionar rastreamento, filas e logs.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Excluir os registros de protocolo para evitar que estados antigos influenciem a entrega.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter caixas dos dois usuários em grupos antes de consultar o caminho da mensagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reiniciar todos os bancos de caixas antes de confirmar se a mensagem entrou no pipeline.",
+          "correct": false
+        }
+      ],
+      "explanation": "Correlacionar identificadores e horário com rastreamento, filas e logs permite localizar a etapa e preserva evidências. Mudanças simultâneas obscurecem a causa.",
+      "section": "3. Fluxo de mensagens e transporte",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Exchange consulta o Active Directory para obter informações sobre destinatários e configuração da organização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O Exchange armazena no diretório informações de configuração e destinatários e depende da disponibilidade do Active Directory.",
+      "section": "1. Arquitetura e componentes do Exchange",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização precisa de um endereço de atendimento usado por vários atendentes, com histórico comum de mensagens. Qual tipo atende melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um grupo de distribuição, pois mantém uma pasta comum com todo o histórico recebido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um mail contact, pois os membros autenticam diretamente na caixa externa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma caixa de recurso, que reserva o endereço para reuniões dos atendentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma caixa compartilhada, com acesso concedido aos atendentes delegados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um Send connector, que armazena mensagens comuns antes da entrega.",
+          "correct": false
+        }
+      ],
+      "explanation": "A caixa compartilhada oferece armazenamento comum de mensagens e pode ser acessada por usuários delegados. Um grupo distribui mensagens, mas não oferece a mesma caixa compartilhada.",
+      "section": "2. Caixas postais e destinatários",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os servidores de uma DAG devem executar a mesma versão do Exchange, e cópias de banco são mantidas dentro dos membros da DAG.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A DAG exige versão Exchange homogênea entre membros e delimita a replicação das cópias de banco. Essa restrição evita combinar servidores incompatíveis na mesma unidade de alta disponibilidade e aplica-se também às cópias de bancos replicadas.",
+      "section": "5. Bancos, DAG e continuidade do serviço",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição caracteriza melhor o Mailbox Transport em relação ao Transport service?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mailbox Transport realiza proxy HTTP e autenticação de clientes antes do Outlook.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mailbox Transport mantém a configuração global dos destinatários no diretório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mailbox Transport conecta SMTP ao banco local para submissão e entrega de mensagens.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Mailbox Transport é o único serviço que categoriza mensagens e seleciona rotas externas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mailbox Transport hospeda EdgeSync e publica dados de antispam na Internet.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mailbox Transport tem Submission e Delivery, que conectam o banco local ao serviço Transport. A categorização e o roteamento organizacional são tarefas do Transport service.",
+      "section": "3. Fluxo de mensagens e transporte",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor witness da DAG é usado como substituto de um servidor Mailbox quando uma cópia ativa falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O witness auxilia o quórum em configurações aplicáveis, enquanto a cópia de banco é ativada em um servidor Mailbox membro da DAG.",
+      "section": "5. Bancos, DAG e continuidade do serviço",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual benefício decorre do caráter stateless dos serviços Client Access em versões modernas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os clientes podem gravar dados diretamente no banco sem autenticação de backend.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O serviço guarda toda mensagem em fila e garante entrega mesmo sem Transport.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A caixa ativa deixa de depender de Active Directory e passa ao frontend.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Edge Transport deixa de ser necessário em qualquer topologia de correio externo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As solicitações de um cliente podem ser encaminhadas sem exigir afinidade de sessão no balanceador.",
+          "correct": true
+        }
+      ],
+      "explanation": "Como o processamento da caixa ocorre no backend, o frontend stateless pode receber requisições sem afinidade persistente a uma instância específica do Client Access.",
+      "section": "1. Arquitetura e componentes do Exchange",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um mail contact possui necessariamente uma conta de usuário corporativa e uma caixa local no Exchange.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Mail contact representa destinatário externo sem credenciais de usuário da organização e sem caixa local. Um mail user, por sua vez, está associado a um objeto de usuário, embora seu endereço de entrega aponte para fora da organização.",
+      "section": "2. Caixas postais e destinatários",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o papel de um Send connector em uma organização Exchange?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Receber conexões de clientes Outlook e autenticar usuários via HTTP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar atributos de usuário no Active Directory quando chega uma mensagem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenar a cópia ativa de todos os bancos em um servidor de perímetro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter grupos de distribuição em caixas postais compartilhadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir como mensagens são encaminhadas para destinos ou espaços de endereço externos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Send connectors definem as rotas de saída para destinos configurados. Recepção SMTP e acesso de clientes têm componentes e conectores próprios.",
+      "section": "3. Fluxo de mensagens e transporte",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "EAC e EMS podem administrar tarefas semelhantes, embora a EMS permita automação por cmdlets.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. EAC oferece interface web e Exchange Management Shell permite administrar por cmdlets PowerShell, inclusive em fluxos automatizados.",
+      "section": "4. Administração, acesso e segurança operacional",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem foi aceita pelo Front End Transport, mas ainda precisa ser categorizada e roteada pela organização. Qual serviço faz esse trabalho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O Active Manager, por escolher o membro da DAG com menor fila SMTP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O serviço Client Access, por converter SMTP em tráfego de banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O Exchange Admin Center, por executar categorização administrativa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Transport service, que categoriza, inspeciona e roteia as mensagens.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O serviço Mailbox Transport Delivery, que seleciona destinos na Internet.",
+          "correct": false
+        }
+      ],
+      "explanation": "Transport realiza categorização e roteamento organizacional. Front End faz proxy e Mailbox Transport entrega entre transporte e banco local.",
+      "section": "3. Fluxo de mensagens e transporte",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cópia replicada em DAG, por si só, preserva uma versão histórica de uma mensagem excluída dias antes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Cópias replicadas sustentam disponibilidade e podem refletir alterações lógicas; recuperação de estado histórico requer estratégia de backup ou retenção apropriada.",
+      "section": "5. Bancos, DAG e continuidade do serviço",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em que cenário a camada Edge Transport é mais útil na arquitetura de correio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para hospedar caixas de usuário e dispensar a existência de servidores Mailbox.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Para substituir o diretório e resolver nomes de todos os clientes internos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para receber conexões HTTPS do Outlook e renderizar o conteúdo das caixas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para manter as cópias ativas de banco sem participação de uma DAG.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para colocar um componente de transporte na borda que intermedeie correio externo.",
+          "correct": true
+        }
+      ],
+      "explanation": "Edge Transport pode ser implantado no perímetro para tratar o fluxo externo, reduzindo exposição direta dos servidores Mailbox e aplicando controles de transporte.",
+      "section": "1. Arquitetura e componentes do Exchange",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A regra de transporte é aplicada durante o pipeline e pode avaliar condições da mensagem antes da entrega ao destinatário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Regras de fluxo operam em mensagens em trânsito e podem alterar seu tratamento antes da entrega. Elas podem avaliar condições e exceções no serviço de transporte, ao passo que regras de caixa de entrada tratam itens no contexto da caixa do usuário.",
+      "section": "3. Fluxo de mensagens e transporte",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma caixa compartilhada tem conteúdo armazenado e usuários delegados precisam de permissões para acessá-la.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A caixa compartilhada armazena mensagens e outros itens; o acesso dos usuários depende das permissões concedidas. O endereço comum não concede acesso automático, e os delegados usam a caixa conforme os direitos administrativos definidos.",
+      "section": "2. Caixas postais e destinatários",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Exchange recebe uma mensagem externa sem Edge Transport. Qual sequência geral é compatível com o pipeline de entrada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Front End recebe pelo Receive connector, Transport processa, Mailbox Transport Delivery grava no banco.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Transport categoriza primeiro, depois cliente Outlook inicia a conexão SMTP externa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Client Access aceita SMTP, EdgeSync encaminha e a DAG entrega ao grupo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mailbox Transport Delivery, depois Front End, então Active Manager grava no diretório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "EAC recebe o SMTP, cria uma caixa e envia ao Mailbox Transport Submission.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sem Edge, o Receive connector padrão do Front End recebe a mensagem. Ela segue ao Transport para processamento e ao Mailbox Transport Delivery para gravação na caixa local.",
+      "section": "3. Fluxo de mensagens e transporte",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar o número de cópias de banco dentro de uma DAG torna dispensável dimensionar a capacidade dos servidores para períodos de falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os membros precisam ter capacidade para suportar carga quando outros servidores ficam indisponíveis; cópias não eliminam requisitos de dimensionamento.",
+      "section": "5. Bancos, DAG e continuidade do serviço",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual responsabilidade corresponde ao serviço Transport em servidores Mailbox?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter sessões HTTP de clientes e armazenar seus calendários no frontend.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Categorizar mensagens, inspecionar conteúdo e roteá-las entre componentes de transporte.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Criar caixas locais por RPC sem participar do fluxo SMTP organizacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Administrar cópias de banco e selecionar a cópia ativa da caixa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sincronizar somente contas externas com o Edge sem transportar mensagens.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Transport trata o fluxo SMTP organizacional, categoriza mensagens e as roteia entre componentes. O Mailbox Transport é quem acessa o banco local.",
+      "section": "3. Fluxo de mensagens e transporte",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A DAG é o limite de replicação de bancos e de operações de switchover e failover para as cópias participantes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A DAG delimita replicação de banco, mudanças planejadas de cópia ativa e failovers dentro do grupo. Essas operações dizem respeito à disponibilidade das bases de caixa, e não ao roteamento de mensagens entre conectores SMTP.",
+      "section": "5. Bancos, DAG e continuidade do serviço",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador vai modificar acesso de cliente e não sabe se a causa é autenticação, certificado ou backend. Qual método é mais seguro para isolar a causa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reconfigurar simultaneamente todos os conectores e desabilitar TLS para comparar resultados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apagar a caixa e recriá-la, mantendo os mesmos endpoints e permissões de antes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Separar endpoint, autenticação, certificado/TLS e proxy ao backend, verificando logs por etapa.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Alterar a DAG antes de consultar se o usuário consegue alcançar a página de acesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar um grupo de distribuição para substituir o endereço de acesso web da caixa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Separar as etapas e correlacionar logs ajuda a localizar a falha de acesso sem introduzir alterações simultâneas que escondam a causa.",
+      "section": "4. Administração, acesso e segurança operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Exchange architecture",
+      "publisher": "Microsoft Learn",
+      "reference": "Funções Mailbox e Edge Transport, Client Access, Active Directory e alta disponibilidade",
+      "url": "https://learn.microsoft.com/en-us/exchange/architecture/architecture",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Mail flow and the transport pipeline",
+      "publisher": "Microsoft Learn",
+      "reference": "Serviços Front End Transport, Transport e Mailbox Transport e sequência de fluxo",
+      "url": "https://learn.microsoft.com/en-us/exchange/mail-flow/mail-flow",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Recipients in Exchange Server",
+      "publisher": "Microsoft Learn",
+      "reference": "Tipos de destinatários, caixas de usuário, grupos e contatos",
+      "url": "https://learn.microsoft.com/en-us/exchange/recipients/recipients?view=exchserver-2019",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Database availability groups",
+      "publisher": "Microsoft Learn",
+      "reference": "DAG, quantidade de servidores, versão comum e Active Manager",
+      "url": "https://learn.microsoft.com/en-us/exchange/high-availability/database-availability-groups/database-availability-groups",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Client Access services",
+      "publisher": "Microsoft Learn",
+      "reference": "Autenticação, proxy, serviços stateless e conexões de cliente",
+      "url": "https://learn.microsoft.com/en-us/exchange/architecture/client-access/client-access",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Mail flow rules in Exchange Server",
+      "publisher": "Microsoft Learn",
+      "reference": "Regras de fluxo aplicadas durante o transporte",
+      "url": "https://learn.microsoft.com/en-us/exchange/policy-and-compliance/mail-flow-rules/mail-flow-rules",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Access to Active Directory by Exchange servers",
+      "publisher": "Microsoft Learn",
+      "reference": "Informações de destinatários e configuração armazenadas no Active Directory",
+      "url": "https://learn.microsoft.com/en-us/exchange/plan-and-deploy/active-directory/ad-access",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

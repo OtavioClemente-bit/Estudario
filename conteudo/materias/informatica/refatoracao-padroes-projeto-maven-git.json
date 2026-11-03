@@ -1,0 +1,2131 @@
+{
+  "id": "informatica.refatoracao-padroes-projeto-maven-git",
+  "subject": "Informática",
+  "title": "Refatoração, padrões de projeto, Maven e Git",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Refatoração de código orientado a objetos",
+    "Refactoring e melhoria de código legado",
+    "Padrões de projeto de software GoF",
+    "Design Patterns criacionais e estruturais",
+    "Padrões comportamentais de software",
+    "Ciclo de vida de build no Apache Maven",
+    "Dependências e plugins do arquivo POM Maven",
+    "Versionamento de código-fonte com Git",
+    "Branches, merge e rebase no Git",
+    "Refactoring, Design Patterns, Maven e versionamento (Git)"
+  ],
+  "scope": {
+    "covers": "Conceito e processo de refatoração com preservação do comportamento; code smells e técnicas frequentes; princípios e famílias de padrões de projeto GoF, com exemplos de Factory Method, Abstract Factory, Builder, Adapter, Decorator, Facade, Strategy, Observer, Command e Template Method; estrutura POM, coordenadas de artefatos, dependências, escopos, dependências transitivas e ciclo de vida de build no Maven; repositório, área de trabalho, staging, commits, branches, merge, rebase, conflitos, reset, restore, revert e tags no Git.",
+    "excludes": "Implementação completa de cada padrão em uma linguagem específica; catálogo exaustivo de todos os padrões; configuração avançada de plugins e repositórios corporativos Maven; hospedagem de código, pipelines de integração contínua e administração de servidores Git."
+  },
+  "theoryTitle": "Melhorar, organizar, construir e versionar software",
+  "chapters": [
+    {
+      "title": "1. Refatoração: melhorar a estrutura sem mudar o comportamento",
+      "markdown": "### O problema que este assunto resolve\n\nUm programa pode continuar funcionando e, ainda assim, ficar caro de alterar. Condições duplicadas, métodos extensos e responsabilidades misturadas tornam uma correção arriscada. **Refatorar** é reorganizar a estrutura interna do software por meio de mudanças pequenas e controladas, preservando seu comportamento observável. O objetivo é facilitar compreensão e manutenção, não acrescentar uma funcionalidade nova sob esse rótulo.\n\n> **Siglas e termos deste capítulo**\n> - **Refatoração (refactoring)**: transformação estrutural que preserva o comportamento externo.\n> - **Code smell**: indício de que uma parte do desenho pode dificultar mudanças; não é, por si só, prova de defeito.\n> - **Teste de caracterização**: teste que registra o comportamento atual de um trecho legado antes de modificá-lo.\n> - **Regressão**: falha em comportamento que funcionava antes de uma mudança.\n\n### Um ciclo seguro e verificável\n\nAntes de mexer, entenda o que o trecho faz e quais são suas entradas, saídas e efeitos colaterais. Uma sequência prática é: obter uma base de testes confiável; executar os testes; fazer uma transformação pequena; executar novamente os testes; revisar o diff; repetir. Se a saída mudou porque foi introduzida uma regra de negócio, houve também mudança funcional, não apenas refatoração. Testes não provam ausência absoluta de defeitos, mas reduzem o risco e tornam explícitas as expectativas conhecidas.\n\n| Situação | Ação adequada |\n| --- | --- |\n| Método longo calcula partes conceitualmente distintas | Extrair método com nome que descreva a intenção |\n| Mesmo cálculo aparece em dois lugares | Extrair função ou método comum, após confirmar que as regras são iguais |\n| Método recebe muitos dados de um mesmo objeto | Mover comportamento para o objeto que conhece esses dados |\n| Uma classe muda por motivos independentes | Separar responsabilidades coesas, preservando contratos |\n| Código tem duplicação aparente, mas regras distintas | Investigar antes de unificar; duplicação textual nem sempre significa a mesma regra |\n\n### Técnicas comuns\n\n**Extract Function** cria uma função nomeada a partir de um bloco coeso; o nome substitui comentários que apenas narravam o código. **Rename** torna a intenção mais clara. **Move Method** coloca comportamento junto dos dados que ele usa com maior frequência. **Replace Conditional with Polymorphism** distribui comportamentos variantes entre tipos quando a variação é estável e o desenho fica mais claro. **Encapsulate Variable** reduz acesso direto a um dado para controlar suas alterações. Essas técnicas não são receitas automáticas: abstrair cada linha ou criar classes sem motivo também aumenta o custo.\n\n### Como cai na prova\n\nA característica decisiva é preservar o comportamento observável durante a transformação. Alterar um resultado esperado, adicionar regra de negócio ou corrigir um defeito muda o comportamento; pode ser uma mudança válida, mas não é refatoração pura. Code smell orienta inspeção, não determina sozinho qual técnica usar. Testes antes e depois, mudanças pequenas e revisão do diff ajudam a localizar regressões.",
+      "section": "1. Refatoração: melhorar a estrutura sem mudar o comportamento"
+    },
+    {
+      "title": "2. Padrões de projeto e vocabulário de soluções recorrentes",
+      "markdown": "### O problema que este assunto resolve\n\nQuando situações de desenho se repetem, uma equipe pode discutir soluções sem compartilhar os mesmos nomes. Um **padrão de projeto** descreve um problema recorrente, uma estrutura de colaboração e consequências típicas. Ele não é um trecho de código para copiar, nem uma norma que deve ser aplicada em todo sistema. A solução concreta depende dos requisitos, da linguagem e do custo de manutenção.\n\n> **Siglas e termos deste capítulo**\n> - **GoF**: apelido de Erich Gamma, Richard Helm, Ralph Johnson e John Vlissides, autores de *Design Patterns*.\n> - **Acoplamento**: grau de dependência entre componentes.\n> - **Coesão**: concentração de responsabilidades relacionadas em um componente.\n> - **Interface**: contrato que descreve operações oferecidas sem obrigar consumidores a conhecer a implementação.\n\n### As três famílias clássicas\n\n| Família | Questão principal | Exemplos |\n| --- | --- | --- |\n| Criacional | Como criar objetos sem espalhar detalhes de instanciação? | Factory Method, Abstract Factory, Builder, Prototype, Singleton |\n| Estrutural | Como compor objetos ou classes em estruturas úteis? | Adapter, Decorator, Facade, Composite, Proxy |\n| Comportamental | Como distribuir responsabilidades e comunicação? | Strategy, Observer, Command, Template Method, State |\n\n**Factory Method** deixa subclasses ou uma operação especializada escolher o produto concreto. **Abstract Factory** fornece uma interface para criar famílias de objetos relacionados, ajudando a manter compatibilidade dentro da família. **Builder** separa a construção passo a passo de uma representação complexa. **Adapter** traduz uma interface existente para a interface esperada pelo cliente. **Decorator** envolve um objeto e acrescenta responsabilidades compatíveis sem alterar sua classe. **Facade** oferece uma entrada mais simples para um subsistema. **Strategy** encapsula algoritmos intercambiáveis sob um contrato. **Observer** notifica assinantes quando o estado observado muda. **Command** encapsula uma solicitação como objeto. **Template Method** define o esqueleto de um algoritmo e delega etapas variáveis.\n\n### Escolher pelo problema, não pelo nome\n\nSe dois provedores implementam a mesma operação de envio e devem ser substituíveis, Strategy pode isolar essa variação. Se uma biblioteca legada usa nomes incompatíveis com o sistema, Adapter traduz a chamada. Se um sistema complexo precisa de uma operação de entrada simplificada, Facade pode coordenar o subsistema. O padrão acrescenta papéis e indireção; use-o quando essa estrutura resolver uma força real do problema.\n\n### Como cai na prova\n\nA banca costuma distinguir a intenção principal: criação de família de objetos aponta para Abstract Factory; conversão de interface, para Adapter; extensão por envolvimento, para Decorator; algoritmos substituíveis, para Strategy; notificação de dependentes, para Observer. A mesma aplicação pode combinar padrões, e sem o contexto uma classe chamada `Factory` não basta para determinar o padrão.",
+      "section": "2. Padrões de projeto e vocabulário de soluções recorrentes"
+    },
+    {
+      "title": "3. Maven: POM, dependências e construção do projeto",
+      "markdown": "### O problema que este assunto resolve\n\nCompilar manualmente cada classe e localizar bibliotecas uma a uma não oferece uma construção repetível. **Apache Maven** descreve o projeto e suas dependências num modelo declarativo e executa tarefas por meio de ciclos de vida, fases e plugins. O arquivo `pom.xml` é o POM (*Project Object Model*): nele ficam coordenadas do projeto, dependências, propriedades, módulos e configuração de build.\n\n> **Siglas e termos deste capítulo**\n> - **POM**: modelo de projeto Maven, normalmente serializado em `pom.xml`.\n> - **GAV**: coordenadas `groupId`, `artifactId` e `version` que identificam um artefato.\n> - **Plugin**: extensão Maven que fornece uma ou mais metas executáveis.\n> - **Goal**: tarefa específica de um plugin, por exemplo compilar código.\n> - **Repositório local/remoto**: cache local de artefatos e servidor compartilhado de artefatos, respectivamente.\n\n### Dependências e resolução\n\nUma dependência identifica uma biblioteca que o projeto usa. O Maven pode incluir dependências transitivas: bibliotecas exigidas pelas dependências diretas. Quando versões concorrentes aparecem no grafo, a mediação padrão escolhe a definição mais próxima do projeto; se a profundidade for igual, a primeira declaração vence. Declarar diretamente aquilo que o código usa documenta o projeto e evita depender acidentalmente de uma transitiva que outra biblioteca pode remover.\n\nEscopos definem em que classpaths a dependência participa. `compile` é o escopo padrão e participa da compilação e execução; `test` é restrito ao ambiente de testes; `provided` é esperado no ambiente de execução, embora esteja disponível para compilar e testar; `runtime` é necessário em execução, mas não para compilar o código principal. `dependencyManagement` centraliza versões e regras, mas não adiciona por si só a dependência ao classpath: o módulo ainda precisa declará-la em `dependencies`.\n\n### Fases do ciclo de vida\n\nMaven possui ciclos de vida `default`, `clean` e `site`. No ciclo `default`, chamar uma fase executa as fases anteriores desse ciclo na ordem. Em projeto Java comum, `compile` compila, `test` executa testes unitários, `package` produz o artefato, `verify` realiza verificações, `install` instala o artefato no repositório local e `deploy` publica no repositório remoto. `clean` pertence a outro ciclo e remove saídas de builds anteriores. Fase é um estágio do ciclo; goal é a tarefa de plugin vinculada a esse estágio.\n\n### Como cai na prova\n\n`mvn package` percorre as fases anteriores do ciclo `default` até empacotar, mas não equivale a publicar no repositório remoto. `install` é local; `deploy` é compartilhamento remoto. Plugins fornecem goals; o POM seleciona dependências e configurações. A declaração de uma dependência em `dependencyManagement` controla versões, mas não substitui a declaração de dependência no módulo consumidor.",
+      "section": "3. Maven: POM, dependências e construção do projeto"
+    },
+    {
+      "title": "4. Git: commits, branches e integração de mudanças",
+      "markdown": "### O problema que este assunto resolve\n\nGit registra snapshots do conteúdo do projeto e permite comparar e integrar linhas de desenvolvimento. É distribuído: cada clone contém objetos e histórico necessários para trabalhar localmente. Um commit registra uma versão do projeto com metadados e aponta para seus pais. A branch é uma referência móvel para uma sequência de commits; não é uma cópia independente de todos os arquivos.\n\n> **Siglas e termos deste capítulo**\n> - **Working tree**: arquivos de trabalho atualmente visíveis no diretório.\n> - **Index/staging area**: seleção preparada para o próximo commit.\n> - **HEAD**: referência ao commit ou branch atualmente verificado.\n> - **Branch**: referência nomeada que avança quando novos commits são criados nela.\n> - **Conflito**: situação em que Git não consegue combinar automaticamente alterações concorrentes.\n\n### Do arquivo ao commit\n\nEditar arquivos altera a working tree; `git status` mostra diferenças e arquivos não acompanhados. `git add` copia alterações selecionadas para o index. `git commit` registra o conteúdo preparado como novo commit. Assim, a área de staging permite montar um commit parcial mesmo que outros arquivos também tenham alterações. `git diff` compara estados e `git log` inspeciona commits anteriores.\n\n### Branch, merge e rebase\n\nUma branch permite desenvolver uma linha de trabalho separada. `git switch` muda a branch atual. `git merge` integra outra história à branch atual; quando há divergência, pode criar um commit de merge com dois pais. `git rebase` reaplica commits da branch sobre uma base diferente, criando novos commits com novos identificadores. O resultado pode apresentar histórico linear, mas os commits reaplicados não são os mesmos objetos originais.\n\nConflito ocorre quando as alterações não podem ser combinadas sem decisão humana. A pessoa edita os arquivos, remove os marcadores de conflito, testa a solução e conclui a operação com `git add` e o comando de continuação apropriado ou finaliza o merge. Não se deve aceitar cegamente um lado sem entender a intenção de ambos.\n\n### Como cai na prova\n\nA distinção mais importante é entre integração e reescrita: merge combina histórias; rebase reaplica commits sobre nova base. Staging separa seleção do registro. Em histórico já compartilhado, reescrever commits por rebase pode exigir atualização forçada e afetar colegas; coordene essa operação. Tags nomeiam pontos importantes, como uma versão publicada, e não se comportam como branches que avançam a cada commit.",
+      "section": "4. Git: commits, branches e integração de mudanças"
+    },
+    {
+      "title": "5. Recuperação, reversões e trabalho integrado",
+      "markdown": "### O problema que este assunto resolve\n\nUma ferramenta de versionamento é útil também quando uma alteração precisa ser corrigida. Escolher o comando depende de onde está a mudança: apenas na working tree, preparada no index ou já registrada em commit. Antes de descartar dados, examine o status e o diff.\n\n> **Siglas e termos deste capítulo**\n> - **Revert**: novo commit que aplica uma alteração inversa a um commit anterior.\n> - **Reset**: move a referência atual e, conforme o modo, também ajusta index e working tree.\n> - **Restore**: restaura arquivos na working tree ou no index a partir de uma fonte.\n> - **Stash**: guarda temporariamente alterações locais para reaplicação posterior.\n\n### Escolher o comando de recuperação\n\n`git restore arquivo` descarta a edição não preparada daquele arquivo, restaurando-o de uma fonte como o index. `git restore --staged arquivo` remove a seleção do index, preservando a edição na working tree. `git reset` move `HEAD`/a branch para outro commit; a opção padrão `--mixed` também atualiza o index, enquanto `--hard` atualiza index e working tree e pode eliminar alterações não salvas. `git revert <commit>` cria um commit novo que desfaz o efeito de um commit anterior, preservando a história existente.\n\n| Necessidade | Comando típico | Efeito principal |\n| --- | --- | --- |\n| Retirar arquivo do próximo commit e manter edição | `git restore --staged` | Atualiza o index |\n| Descartar edição ainda não preparada | `git restore` | Atualiza a working tree |\n| Desfazer commit já publicado sem apagar histórico | `git revert` | Cria commit inverso |\n| Reposicionar branch local | `git reset` | Move a referência e pode alterar index/arquivos |\n\n### Maven, Git e reprodutibilidade\n\nO código e o POM versionados juntos permitem reconstruir o que foi compilado, desde que as versões das dependências e ferramentas estejam suficientemente controladas e os repositórios estejam acessíveis. Um `pom.xml` alterado pode mudar o grafo de bibliotecas sem mudanças em arquivos Java; por isso, revise o diff do POM e as versões efetivamente resolvidas. A tag de Git pode marcar a revisão correspondente a uma entrega, enquanto Maven gera e instala ou publica o artefato.\n\n### Como cai na prova\n\n`restore`, `reset` e `revert` não são sinônimos. Para um commit público, `revert` normalmente comunica a reversão como novo evento. `reset --hard` é destrutivo para alterações locais. Uma tag aponta para uma revisão identificável; publicar uma versão não é o mesmo que simplesmente criar uma branch. Padrões de projeto e refatoração também dependem de revisão e testes para verificar se o desenho continua coerente.",
+      "section": "5. Recuperação, reversões e trabalho integrado"
+    }
+  ],
+  "summary": "Refatorar é melhorar a estrutura interna preservando o comportamento observável; testes e passos pequenos ajudam a proteger contra regressões. Padrões GoF nomeiam soluções recorrentes em famílias criacional, estrutural e comportamental, mas devem ser escolhidos conforme o problema. Maven descreve projeto e dependências no POM, resolve dependências transitivas e executa fases de ciclos de vida por meio de goals de plugins. Git separa working tree, staging e commits; branches organizam linhas de trabalho, merge integra histórias, rebase reaplica commits, restore e reset ajustam estados locais e revert registra uma reversão por novo commit.",
+  "flashcards": [
+    {
+      "front": "Qual é o objetivo central da refatoração?",
+      "back": "Melhorar a estrutura interna para facilitar compreensão e mudança, preservando o comportamento observável."
+    },
+    {
+      "front": "Code smell é sempre um bug?",
+      "back": "Não. É um indício de possível dificuldade de desenho e manutenção, que exige investigação."
+    },
+    {
+      "front": "O que faz Extract Function?",
+      "back": "Move um bloco coeso para uma função nomeada que expressa sua intenção."
+    },
+    {
+      "front": "O que é teste de caracterização?",
+      "back": "Teste que documenta o comportamento atual de código legado antes de sua transformação."
+    },
+    {
+      "front": "Quais são as três famílias clássicas de padrões GoF?",
+      "back": "Criacionais, estruturais e comportamentais."
+    },
+    {
+      "front": "Qual é a intenção de Abstract Factory?",
+      "back": "Criar famílias de produtos relacionados por interfaces sem acoplar o cliente às classes concretas."
+    },
+    {
+      "front": "Qual problema o Builder atende?",
+      "back": "Construção passo a passo de objetos complexos, separando processo e representação."
+    },
+    {
+      "front": "Qual é a função do Adapter?",
+      "back": "Converter a interface de um componente para a interface esperada pelo cliente."
+    },
+    {
+      "front": "Como Decorator estende um objeto?",
+      "back": "Envolve o objeto e acrescenta responsabilidade mantendo uma interface compatível."
+    },
+    {
+      "front": "O que Strategy encapsula?",
+      "back": "Algoritmos intercambiáveis sob um contrato comum."
+    },
+    {
+      "front": "Como Observer comunica mudanças?",
+      "back": "O sujeito notifica seus observadores inscritos quando ocorre uma mudança relevante."
+    },
+    {
+      "front": "O que descreve o POM do Maven?",
+      "back": "Metadados do projeto, dependências, módulos e configuração de construção."
+    },
+    {
+      "front": "O que representam groupId, artifactId e version?",
+      "back": "Coordenadas que identificam o grupo, o artefato e sua versão."
+    },
+    {
+      "front": "O que é dependência transitiva?",
+      "back": "Biblioteca requerida por outra dependência do projeto e incluída pela resolução do Maven."
+    },
+    {
+      "front": "O que faz dependencyManagement?",
+      "back": "Centraliza versões e regras de dependências; não adiciona sozinho a biblioteca ao classpath."
+    },
+    {
+      "front": "Para que serve o escopo test?",
+      "back": "Restringe a dependência ao classpath de compilação e execução dos testes."
+    },
+    {
+      "front": "O que faz mvn package?",
+      "back": "Executa fases anteriores do ciclo default até produzir o artefato empacotado."
+    },
+    {
+      "front": "Diferença entre install e deploy no Maven?",
+      "back": "install coloca o artefato no repositório local; deploy o publica em repositório remoto."
+    },
+    {
+      "front": "O que é staging area no Git?",
+      "back": "Área de seleção que define quais alterações entrarão no próximo commit."
+    },
+    {
+      "front": "O que registra um commit?",
+      "back": "Um snapshot versionado do projeto, metadados e referências a commits pais."
+    },
+    {
+      "front": "O que distingue merge de rebase?",
+      "back": "Merge combina histórias; rebase reaplica commits sobre outra base, gerando novos commits."
+    },
+    {
+      "front": "Qual comando cria um commit que desfaz outro?",
+      "back": "git revert."
+    },
+    {
+      "front": "Qual o risco de git reset --hard?",
+      "back": "Move a referência e sobrescreve index e arquivos, podendo eliminar alterações locais."
+    },
+    {
+      "front": "O que uma tag Git costuma marcar?",
+      "back": "Um ponto identificável do histórico, por exemplo uma versão liberada."
+    },
+    {
+      "front": "Quando um conflito de merge termina?",
+      "back": "Após resolver o conteúdo, preparar os arquivos e concluir a operação de integração."
+    }
+  ],
+  "tips": [
+    "Em refatoração, procure evidência de preservação do comportamento: testes, contrato e comparação de saídas.",
+    "Leia a intenção do padrão antes do nome da classe; nomes como Factory podem ser apenas nomes locais.",
+    "Não confunda fase Maven com goal: a fase ordena o ciclo e o goal executa uma tarefa de plugin.",
+    "No Maven, dependencyManagement gerencia versões; a dependência usada continua declarada em dependencies.",
+    "No Git, pergunte onde está a mudança: working tree, index ou commit, antes de escolher o comando.",
+    "Prefira revert para comunicar a correção de um commit compartilhado sem reescrever o histórico público."
+  ],
+  "traps": [
+    "Refatoração não é sinônimo de adicionar funcionalidade ou corrigir qualquer defeito; seu critério é preservar comportamento.",
+    "Um code smell é alerta para análise, não prova automática de que uma técnica específica é necessária.",
+    "Decorator acrescenta comportamento por composição; Adapter converte uma interface incompatível.",
+    "mvn install não publica no servidor remoto; essa finalidade pertence a deploy.",
+    "git add prepara conteúdo no index, mas não cria commit nem envia dados ao remoto.",
+    "git reset, git restore e git revert atuam em estados diferentes e podem ter consequências distintas."
+  ],
+  "activeRecall": [
+    "Explique por que refatorações pequenas tornam regressões mais fáceis de localizar.",
+    "Dê um exemplo em que duplicação de texto não deve ser removida por representar regras diferentes.",
+    "Compare Abstract Factory e Builder pela intenção de criação.",
+    "Compare Adapter, Decorator e Facade pelo papel que desempenham na estrutura.",
+    "Explique como uma dependência transitiva entra no projeto e por que declarar dependências usadas diretamente é útil.",
+    "Descreva a sequência entre compile, test, package, install e deploy no ciclo default.",
+    "Diferencie working tree, index e repositório de commits usando o caminho de uma alteração.",
+    "Escolha entre merge, rebase, reset e revert para quatro situações e justifique o impacto no histórico."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Refatorar e mudar comportamento",
+      "summary": "Preserve resultados observáveis ao transformar a estrutura do programa.",
+      "description": "A refatoração reorganiza internamente sem mudar resultados observáveis. Alteração de regra funcional pode ser válida, mas deve ser tratada como mudança de comportamento e verificada separadamente."
+    },
+    {
+      "key": "e2",
+      "title": "Confundir padrões próximos",
+      "summary": "Compare a intenção e a colaboração de cada padrão de projeto.",
+      "description": "Adapter traduz uma interface; Decorator envolve para acrescentar responsabilidades; Facade simplifica acesso a um subsistema. A intenção e a colaboração definem o padrão."
+    },
+    {
+      "key": "e3",
+      "title": "Fases e metas Maven",
+      "summary": "Diferencie estágios ordenados do ciclo de tarefas dos plugins.",
+      "description": "Fases pertencem a ciclos de vida e são executadas em ordem. Goals são tarefas de plugins, vinculadas a fases ou invocadas diretamente."
+    },
+    {
+      "key": "e4",
+      "title": "Áreas e comandos Git",
+      "summary": "Identifique se a mudança está na working tree, index ou histórico.",
+      "description": "Staging prepara seleção. Restore restaura arquivos, reset move referências e pode alterar áreas locais, e revert cria novo commit inverso."
+    },
+    {
+      "key": "e5",
+      "title": "Integração de histórias Git",
+      "summary": "Merge integra histórias; rebase reaplica commits sobre uma nova base.",
+      "description": "Merge preserva a relação entre histórias integradas; rebase reaplica commits e muda seus identificadores, sendo sensível quando os commits já foram compartilhados."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe extrai um bloco de cálculo para uma função nomeada, executa os mesmos testes antes e depois e confirma que as saídas observáveis não mudaram. Qual descrição corresponde à atividade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Refatoração, pois a estrutura foi melhorada sem alterar o comportamento observável.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Correção funcional, pois qualquer extração de método altera os resultados do programa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Migração de dados, pois a função passou a ter um nome independente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Otimização obrigatória, pois a extração garante menor tempo de execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reescrita total, pois testes foram executados em torno de código existente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A mudança descrita reorganiza o código, preserva a saída e melhora a expressão da intenção, caracterizando refatoração. Extrair função não garante desempenho maior e não implica mudança de regra, migração ou reescrita total.",
+      "section": "1. Refatoração: melhorar a estrutura sem mudar o comportamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método longo contém um bloco coeso que calcula o valor do frete. A equipe quer substituir a sequência de instruções por uma chamada cujo nome revele essa finalidade. Qual técnica é mais direta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Inline Function, incorporando o cálculo em todos os métodos chamadores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Replace Conditional with Polymorphism, mesmo sem variação entre tipos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Extract Function, criando uma função com nome que descreva o cálculo do frete.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Replace Constructor with Factory, removendo o bloco de cálculo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Encapsulate Variable, escondendo o valor calculado em um campo global.",
+          "correct": false
+        }
+      ],
+      "explanation": "Extract Function move um bloco coeso para uma função nomeada. O nome passa a comunicar o propósito sem exigir que o leitor decifre cada instrução. As demais opções atendem a problemas distintos e algumas aumentariam o acoplamento.",
+      "section": "1. Refatoração: melhorar a estrutura sem mudar o comportamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma base legada não tem testes para calcular descontos. Antes de alterar a organização do cálculo, a equipe registra com testes a saída atual para casos representativos. Qual é a principal utilidade desses testes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Provar que a regra atual é correta para todo cliente e toda situação futura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Documentar o comportamento existente e revelar regressões durante a transformação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituir a necessidade de revisar as alterações feitas no código.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter automaticamente o método legado em uma API pública estável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Garantir que uma mudança de regra não alterará a saída dos testes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Testes de caracterização registram o que o sistema faz hoje, ainda que a regra não esteja bem documentada, e ajudam a detectar mudanças acidentais. Eles não provam correção universal, não eliminam revisão e não impedem mudanças intencionais de regra.",
+      "section": "1. Refatoração: melhorar a estrutura sem mudar o comportamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe encontra duas sequências de código parecidas. Uma calcula tarifa para clientes comuns e outra calcula tarifa subsidiada, com regras que evoluem por razões diferentes. O que deve fazer antes de unificá-las?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Unificá-las obrigatoriamente, porque toda repetição literal causa defeito de compilação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Investigar se representam a mesma regra, pois semelhança textual não prova duplicação conceitual.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Transformar ambas em uma classe Singleton para compartilhar o código.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar uma implementação e encaminhar todos os casos para a outra.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Copiar ambas para um plugin Maven, que decide qual tarifa aplicar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Duplicação que merece extração é duplicação de conhecimento ou regra, e não apenas linhas parecidas. Se os motivos para mudar são diferentes, uma abstração comum pode acoplar políticas distintas e tornar mudanças futuras mais arriscadas.",
+      "section": "1. Refatoração: melhorar a estrutura sem mudar o comportamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe de relatório realiza consultas ao banco, calcula métricas e formata arquivos CSV. Ela muda frequentemente por motivos independentes. Qual diagnóstico é mais consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O problema é exclusivamente de herança; toda classe de relatório deve ter subclasses.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Há indício de responsabilidades distintas; separar comportamentos coesos pode reduzir razões independentes de mudança.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A classe deve tornar todos os métodos estáticos para estabilizar seu comportamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A solução é substituir Git por Maven, para que as mudanças fiquem isoladas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Nenhum problema de desenho existe enquanto a classe puder ser compilada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mudanças motivadas por consulta, cálculo e apresentação sugerem responsabilidades com coesão fraca. A separação precisa respeitar os limites do domínio e não obriga herança nem métodos estáticos; compilar não mede facilidade de manutenção.",
+      "section": "1. Refatoração: melhorar a estrutura sem mudar o comportamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma refatoração, qual sequência reduz o tamanho do passo e ajuda a identificar a origem de uma regressão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar testes, fazer uma mudança pequena, executar testes de novo e revisar o diff.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Alterar várias classes de uma vez e validar somente depois da publicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar testes antigos antes da alteração para evitar resultados conflitantes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mudar a regra de negócio junto com a estrutura e chamar tudo de refatoração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar os testes até que todas as mudanças estruturais estejam concluídas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Passos pequenos e verificações frequentes restringem o conjunto de mudanças que pode ter introduzido um problema. O diff permite revisar o que mudou; apagar ou adiar testes remove justamente a proteção necessária.",
+      "section": "1. Refatoração: melhorar a estrutura sem mudar o comportamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um indício de código difícil de manter, como método extenso ou duplicação, determina automaticamente qual refatoração aplicar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um code smell sinaliza uma possível dificuldade, mas a técnica depende da causa, do comportamento e do contexto. Um método extenso pode ter responsabilidades coesas ou exigir decomposição; o indício não escolhe sozinho a solução.",
+      "section": "1. Refatoração: melhorar a estrutura sem mudar o comportamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Renomear uma variável para expressar melhor sua finalidade pode ser uma refatoração desde que referências e comportamento permaneçam consistentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A renomeação melhora a legibilidade sem precisar alterar o valor calculado nem o contrato externo. A ferramenta deve atualizar referências pertinentes, e testes ou compilação ajudam a detectar usos que ficaram para trás.",
+      "section": "1. Refatoração: melhorar a estrutura sem mudar o comportamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao refatorar, a equipe pode alterar a saída para atender a uma nova regra e ainda classificar todo o trabalho como preservação do comportamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Implementar uma regra nova muda o comportamento observável. A equipe pode combinar uma mudança funcional e uma refatoração no mesmo trabalho, mas deve distinguir e verificar as duas intenções para saber se uma alteração estrutural causou regressão.",
+      "section": "1. Refatoração: melhorar a estrutura sem mudar o comportamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação descreve melhor a intenção do padrão Abstract Factory?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Traduzir uma interface antiga para outra que o cliente já espera utilizar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Notificar objetos inscritos quando o estado de um sujeito sofre mudança.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar famílias compatíveis de objetos relacionados sem expor suas classes concretas ao cliente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Envolver um objeto para adicionar responsabilidades sem alterar sua classe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registrar no Git uma fotografia do projeto pronta para ser publicada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Abstract Factory oferece uma interface de criação para famílias de produtos relacionados, mantendo coerência entre objetos da mesma família. Tradução de interface é Adapter, notificação é Observer e extensão por envolvimento é Decorator.",
+      "section": "2. Padrões de projeto e vocabulário de soluções recorrentes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa precisa criar um objeto complexo com várias etapas opcionais e quer separar a construção da representação final. Qual padrão atende melhor à intenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Observer avisa assinantes quando o estado observado muda.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Builder separa etapas de construção da representação final do produto.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Adapter traduz uma interface para o contrato esperado pelos clientes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Facade simplifica o acesso a operações de um subsistema complexo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Strategy encapsula algoritmos alternativos sob um contrato comum.",
+          "correct": false
+        }
+      ],
+      "explanation": "Builder separa o processo de construção de um objeto complexo de sua representação final e organiza etapas opcionais. Observer comunica mudanças, Adapter compatibiliza interfaces, Facade simplifica o acesso a um subsistema e Strategy encapsula algoritmos substituíveis; esses objetivos não correspondem à construção descrita.",
+      "section": "2. Padrões de projeto e vocabulário de soluções recorrentes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema espera a interface `Armazenamento.buscar`, mas uma biblioteca legada oferece a operação equivalente como `Localizador.encontrar`. Qual padrão pode intermediar a incompatibilidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Decorator envolve objeto compatível para acrescentar comportamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Observer notifica assinantes após mudanças no objeto observado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adapter expõe o contrato esperado e delega ao serviço incompatível.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Builder organiza a criação gradual de um objeto configurável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Template Method define um algoritmo com etapas redefiníveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Adapter traduz a interface disponibilizada pelo componente para o contrato esperado pelos clientes e pode delegar a operação à biblioteca legada. Decorator acrescenta comportamento mantendo uma interface compatível; Observer notifica interessados; Builder organiza criação e Template Method define etapas de algoritmo. Portanto, só Adapter resolve a incompatibilidade relatada.",
+      "section": "2. Padrões de projeto e vocabulário de soluções recorrentes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um objeto que implementa `Componente` é envolvido por outro objeto da mesma interface, que acrescenta registro de chamadas e delega a operação original. Qual padrão é mais compatível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adapter converte uma interface incompatível para o contrato requerido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Decorator exige herança e altera o contrato para substituir o objeto original.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Decorator envolve o componente sob a mesma interface e adiciona registro.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Observer publica notificações para objetos que se inscreveram.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Prototype cria novos objetos copiando uma instância existente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O objeto externo implementa a mesma interface de Componente, delega a operação ao objeto envolvido e acrescenta o registro de chamadas. Essa composição preserva o contrato e caracteriza Decorator. Adapter trataria incompatibilidade de interfaces; Abstract Factory cria famílias de produtos, Observer distribui notificações e Prototype copia uma instância, objetivos ausentes no cenário.",
+      "section": "2. Padrões de projeto e vocabulário de soluções recorrentes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação oferece um método `iniciarPagamento` que coordena validação, antifraude, autorização e registro, escondendo a sequência complexa do consumidor. Qual padrão pode representar essa entrada simplificada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Strategy encapsula uma variante de algoritmo selecionável pelo cliente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Facade oferece entrada simples que coordena serviços do subsistema.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Command representa uma solicitação para execução parametrizada ou posterior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Adapter converte o contrato de um objeto para o esperado pelo cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Builder constrói um produto por etapas e separa sua representação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Facade coordena operações de um subsistema por meio de uma entrada simplificada e de nível mais alto, escondendo do consumidor a sequência interna de serviços. Strategy varia algoritmos, Command representa solicitações, Adapter converte interfaces e Builder organiza a criação gradual de produtos; nenhum desses objetivos descreve a coordenação simplificada apresentada.",
+      "section": "2. Padrões de projeto e vocabulário de soluções recorrentes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço pode calcular frete por transportadora, retirada ou entrega expressa. Cada alternativa implementa o mesmo contrato, e o cliente escolhe uma conforme o pedido. Qual padrão é indicado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Observer, pois cada algoritmo deve observar os demais algoritmos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Strategy encapsula algoritmos substituíveis sob contrato comum.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Facade, pois um método simples cria uma família de produtos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Adapter, pois todos os provedores têm necessariamente interfaces incompatíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Singleton, pois somente um algoritmo pode existir na aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Strategy permite selecionar e substituir um algoritmo por outro que atende ao mesmo contrato. A situação não informa interfaces legadas incompatíveis, notificações ou exigência de instância única.",
+      "section": "2. Padrões de projeto e vocabulário de soluções recorrentes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sensor mantém uma lista de telas inscritas e as notifica quando uma nova medição é publicada. Qual padrão descreve melhor essa colaboração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Builder, com uma sequência de etapas para criar o sensor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Observer notifica inscritos quando o sujeito muda.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Adapter, com conversão da interface de medição para outra interface.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Command, com encapsulamento obrigatório de cada tela como produto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Prototype, com cópia de cada observador após a medição.",
+          "correct": false
+        }
+      ],
+      "explanation": "Observer representa a relação de publicação e inscrição: quando o sujeito muda, os observadores registrados recebem notificação. A descrição não envolve criação passo a passo, conversão de interfaces ou clonagem.",
+      "section": "2. Padrões de projeto e vocabulário de soluções recorrentes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual associação entre padrão e família clássica está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Builder é comportamental, Adapter é criacional e Observer é estrutural.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Builder é criacional; Adapter, estrutural; Observer, comportamental.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Builder é estrutural, Adapter é comportamental e Observer é criacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os três são criacionais porque todos podem ser implementados com classes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os três são estruturais porque colaboram com objetos em tempo de execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Builder trata de criação; Adapter organiza compatibilidade estrutural entre interfaces; Observer define comunicação comportamental entre sujeito e observadores. A implementação por classes não determina a família do padrão.",
+      "section": "2. Padrões de projeto e vocabulário de soluções recorrentes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Padrões de projeto são soluções prontas que devem ser aplicadas sempre que seus nomes puderem ser usados, mesmo quando não há o problema correspondente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Padrões descrevem soluções recorrentes e suas consequências, mas adicionam papéis e indireção. Aplicá-los sem uma força do problema pode complicar o desenho em vez de melhorá-lo.",
+      "section": "2. Padrões de projeto e vocabulário de soluções recorrentes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Strategy e Observer são padrões da família comportamental, embora um organize algoritmos intercambiáveis e o outro organize notificações entre objetos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Ambos tratam de colaboração e distribuição de comportamento: Strategy separa variantes de algoritmo, enquanto Observer define como dependentes recebem notificações sobre mudanças do sujeito.",
+      "section": "2. Padrões de projeto e vocabulário de soluções recorrentes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Adapter é identificado principalmente por acrescentar responsabilidades a um objeto sem alterar sua interface, enquanto Decorator converte uma interface incompatível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. As intenções estão trocadas. Adapter converte uma interface para outra que o cliente espera; Decorator envolve um componente compatível para acrescentar responsabilidades mantendo seu contrato.",
+      "section": "2. Padrões de projeto e vocabulário de soluções recorrentes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No POM de um projeto Maven, qual elemento declara uma biblioteca que o módulo utiliza diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O elemento modules, que substitui qualquer dependência externa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O elemento build, contendo exclusivamente nomes de branches Git.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O elemento reporting, que define o classpath de execução da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Declare a biblioteca usada diretamente em dependencies do POM.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O elemento scm, que descarrega e compila todas as bibliotecas usadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Dependências usadas pelo módulo são declaradas em `dependencies`. `build` configura plugins e construção, `modules` lista subprojetos de um agregador e metadados de SCM não substituem a resolução de bibliotecas.",
+      "section": "3. Maven: POM, dependências e construção do projeto",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um POM contém groupId `br.exemplo`, artifactId `catalogo` e version `2.1`. O que essas coordenadas identificam em conjunto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A ordem fixa dos três primeiros commits da branch principal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O nome do plugin, sua fase e o goal que será executado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Identificam grupo, artefato e versão do projeto.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A lista de todas as dependências transitivas da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O caminho absoluto do arquivo executável instalado no computador.",
+          "correct": false
+        }
+      ],
+      "explanation": "GroupId, artifactId e version são coordenadas Maven usadas para identificar um artefato. Elas não codificam o histórico Git, não substituem a declaração de plugin e não enumeram o grafo transitivo.",
+      "section": "3. Maven: POM, dependências e construção do projeto",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A biblioteca A depende de B, e o projeto inclui A sem declarar B diretamente. B entra no grafo do projeto por causa dessa relação. Como se chama essa relação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dependência de sistema, carregada exclusivamente por um caminho local fixo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tag Maven, que torna B imutável no repositório Git.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Meta de plugin, que executa código durante uma fase Maven.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Módulo agregado, que representa uma branch adicional do mesmo artefato.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dependência transitiva, herdada do grafo de dependências de outra biblioteca.",
+          "correct": true
+        }
+      ],
+      "explanation": "B é transitiva porque é requerida por uma dependência direta. Se o código do próprio projeto também usa B, declará-la diretamente documenta esse uso e evita depender de uma escolha interna de A que pode mudar.",
+      "section": "3. Maven: POM, dependências e construção do projeto",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma biblioteca é usada somente nos testes automatizados e não deve integrar o classpath principal de execução. Qual escopo Maven é o mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "compile, pois remove a biblioteca depois que o aplicativo inicia.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "provided, pois instala a biblioteca no repositório remoto ao final do build.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O escopo test limita a dependência ao classpath dos testes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "system, pois identifica automaticamente dependências transitivas de teste.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "runtime, pois impede que a biblioteca esteja disponível durante a execução dos testes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O escopo `test` limita a dependência ao classpath dos testes e impede que ela seja tratada como dependência de produção do módulo. Os demais escopos atendem outros contextos ou não executam a função descrita.",
+      "section": "3. Maven: POM, dependências e construção do projeto",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pai define a versão de uma biblioteca em dependencyManagement, mas um módulo não possui a dependência em dependencies. Qual é o efeito esperado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A biblioteca é sempre adicionada ao classpath de todos os módulos descendentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O Maven exclui a biblioteca de todos os repositórios remotos automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O Maven transforma a biblioteca em plugin e executa seu código em compile.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gerencia a versão futura; não adiciona a dependência ao módulo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A biblioteca é instalada no repositório local sem que o projeto a solicite.",
+          "correct": false
+        }
+      ],
+      "explanation": "`dependencyManagement` centraliza versões e regras que as declarações de dependência podem herdar. A seção não adiciona a biblioteca ao classpath por si só; o módulo que a usa ainda precisa declará-la em `dependencies`.",
+      "section": "3. Maven: POM, dependências e construção do projeto",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja gerar o artefato empacotado de um projeto Maven sem publicá-lo em um repositório remoto. Qual fase atende ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "deploy, que compila mas proíbe qualquer envio a repositórios remotos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "initialize, que executa apenas a meta de teste unitário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "clean, que cria o pacote e o instala no repositório central.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "site, que compila a aplicação e publica seu executável como documentação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Empacota o projeto após as fases anteriores do ciclo default.",
+          "correct": true
+        }
+      ],
+      "explanation": "A fase `package` empacota o resultado, como um JAR, depois das fases precedentes do ciclo `default`. Publicação remota é associada a `deploy`; `clean` remove saídas anteriores e `site` pertence à geração de documentação.",
+      "section": "3. Maven: POM, dependências e construção do projeto",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um build comum, o objetivo é compilar, testar, empacotar e disponibilizar o artefato no repositório Maven local para outros projetos da mesma máquina. Qual fase final deve ser chamada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "deploy, que apenas mostra o pacote sem copiá-lo a nenhum repositório.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "verify, que move o artefato para o repositório remoto compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A fase install instala o artefato no repositório local.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "test, que empacota e registra a versão no histórico Git.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "clean, que publica o artefato local e remove testes antigos.",
+          "correct": false
+        }
+      ],
+      "explanation": "`install` executa as fases anteriores do ciclo `default` e instala o artefato no repositório local. `deploy` publica para compartilhamento remoto; `verify` faz verificações e não instala o artefato como etapa final.",
+      "section": "3. Maven: POM, dependências e construção do projeto",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Maven, uma fase pode ter um ou mais goals de plugins vinculados. Ao chamar a fase, o que representa cada goal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um commit que precisa ser criado antes do início de qualquer ciclo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma branch local que aponta para o resultado final do empacotamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma dependência transitiva que substitui os metadados do POM.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma tarefa específica fornecida por um plugin Maven.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma versão de artefato que só pode ser publicada no ciclo clean.",
+          "correct": false
+        }
+      ],
+      "explanation": "Plugin fornece capacidades e seus goals são tarefas específicas. Uma fase organiza o estágio do ciclo; goals podem ser vinculados a uma fase ou invocados diretamente. Commit, dependência e branch são conceitos distintos do Git ou da resolução de artefatos.",
+      "section": "3. Maven: POM, dependências e construção do projeto",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando uma fase do ciclo default é chamada, as fases anteriores desse mesmo ciclo são executadas em sequência antes dela.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cada ciclo define uma ordem de fases e a invocação de uma fase executa a sequência até ela. Assim, alcançar `package` normalmente também executa etapas anteriores necessárias de compilação e teste conforme o packaging e as configurações.",
+      "section": "3. Maven: POM, dependências e construção do projeto",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A fase Maven install publica por padrão o artefato do projeto em um repositório remoto para todas as equipes da organização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `install` instala o pacote no repositório local da máquina, para uso por outros projetos locais. Publicação em repositório remoto compartilhado corresponde à finalidade da fase `deploy`.",
+      "section": "3. Maven: POM, dependências e construção do projeto",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O escopo provided indica que uma dependência é necessária para compilar e testar o projeto, mas é esperada do ambiente de execução e não deve ser empacotada como dependência normal da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `provided` descreve bibliotecas disponibilizadas pelo ambiente de execução, como uma API fornecida pelo servidor. Ela participa dos classpaths adequados de compilação e teste, mas não é tratada como dependência normal a ser levada ao runtime empacotado.",
+      "section": "3. Maven: POM, dependências e construção do projeto",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No fluxo comum do Maven, a fase deploy ocorre antes de package e gera apenas documentação HTML do projeto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `deploy` vem depois de empacotar e instalar o artefato no ciclo `default`; sua finalidade é copiá-lo para repositório remoto de compartilhamento. Geração de documentação pertence ao ciclo `site`.",
+      "section": "3. Maven: POM, dependências e construção do projeto",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Git, qual sequência descreve a preparação e gravação de uma alteração simples?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar uma tag, executar git restore e deixar o index criar um commit implícito.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Editar o repositório remoto, executar git log e aguardar um commit automático.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Editar a working tree, selecionar com git add e registrar o conteúdo preparado com git commit.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Executar git merge, que adiciona todos os arquivos ao staging e os envia ao servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar git status, pois esse comando prepara e grava todas as alterações locais.",
+          "correct": false
+        }
+      ],
+      "explanation": "A alteração começa na working tree; `git add` seleciona conteúdo para staging; `git commit` registra o conteúdo preparado no histórico local. Status inspeciona o estado, e merge e tag não substituem essa sequência.",
+      "section": "4. Git: commits, branches e integração de mudanças",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo contém mudanças úteis e experimentais, mas somente as úteis devem entrar no próximo commit. Qual recurso do Git permite separar essa seleção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A branch remota, que seleciona automaticamente linhas por importância.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Staging permite preparar a seleção desejada sem incluir toda a working tree.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A tag anotada, que remove as alterações experimentais do diretório.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O rebase, que envia apenas as linhas consideradas úteis ao commit.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Maven install, que detecta e separa mudanças Java por intenção.",
+          "correct": false
+        }
+      ],
+      "explanation": "O index, também chamado staging area, permite preparar parte do conteúdo para o próximo commit. A working tree pode continuar contendo outras alterações ainda não selecionadas; branches e comandos Maven não fazem essa triagem de conteúdo.",
+      "section": "4. Git: commits, branches e integração de mudanças",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma branch feature e a branch principal divergiram. A equipe quer integrar o trabalho registrando explicitamente a união das histórias, que pode ter dois commits pais. Qual comando expressa essa operação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "git tag, que combina as duas sequências sem criar integração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "git restore, que incorpora a história inteira ao index.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "git merge, executado na branch que receberá a integração.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "git stash, que reaplica commits de uma branch sobre outra base.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "git clean, que cria um commit com dois pais e remove arquivos rastreados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Merge integra outra história na branch atual e, quando as histórias divergiram, pode criar um commit de merge com dois pais. Restore atua sobre arquivos, tag nomeia um ponto e stash guarda alterações locais temporariamente.",
+      "section": "4. Git: commits, branches e integração de mudanças",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer reaplicar os commits de uma branch de trabalho sobre o topo atualizado da branch principal, obtendo uma sequência linear. Qual operação faz isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "git revert, que move todos os commits para uma branch com nome novo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "git merge --no-commit, que muda a base de cada commit existente sem registro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "git rebase reaplica commits na nova base, criando novos identificadores.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "git add, que reordena commits conforme as datas dos arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "git restore, que integra históricos e gera uma linha de ancestry linear.",
+          "correct": false
+        }
+      ],
+      "explanation": "Rebase reaplica os commits da branch sobre uma nova base, produzindo novos commits e com frequência um histórico linear. Não modifica os objetos antigos para manter seus identificadores; merge, por sua vez, combina histórias sem essa reaplicação.",
+      "section": "4. Git: commits, branches e integração de mudanças",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante um merge, Git detecta alterações concorrentes que não consegue combinar automaticamente. Qual procedimento é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar sempre o lado da branch atual e finalizar sem revisar a intenção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Resolver o conteúdo, preparar os arquivos e concluir o merge.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Rodar mvn deploy para remover os marcadores e gravar o commit de merge.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar uma tag antes de examinar o conflito, pois tags escolhem o trecho correto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar git reset --hard imediatamente para que Git escolha ambas as versões.",
+          "correct": false
+        }
+      ],
+      "explanation": "Conflito demanda decisão sobre o conteúdo de ambas as histórias. Depois da edição, os arquivos resolvidos são preparados e a operação é concluída. Descartar um lado sem análise pode perder trabalho; Maven e tags não resolvem conteúdo textual.",
+      "section": "4. Git: commits, branches e integração de mudanças",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja marcar a revisão exata que corresponde à versão 3.0 liberada, mantendo referências de desenvolvimento que continuarão avançando. Qual recurso do Git é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma branch que necessariamente muda de nome em cada arquivo editado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma tag apontando para o commit selecionado como versão liberada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O index, que permanece como referência histórica imutável para releases.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma dependência Maven que armazena o conteúdo fonte da revisão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma stash permanente que avança automaticamente com novos commits.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tag nomeia um ponto específico do histórico e é adequada para identificar uma versão. Branch é uma referência móvel de desenvolvimento; staging, stash e dependências Maven não servem como marcadores de release no histórico Git.",
+      "section": "4. Git: commits, branches e integração de mudanças",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comando permite inspecionar o estado da working tree e a relação entre alterações não preparadas, preparadas e arquivos não acompanhados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "git commit, que mostra o estado sem registrar nenhuma alteração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "git status, que resume o estado do diretório de trabalho e do index.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "git rebase, que lista arquivos não acompanhados sem mudar a história.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "git tag, que compara automaticamente working tree e repositório remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "git deploy, que é uma operação nativa para mostrar diferenças no Git.",
+          "correct": false
+        }
+      ],
+      "explanation": "`git status` informa quais arquivos têm alterações preparadas, não preparadas ou não acompanhadas. `git diff` fornece comparações detalhadas; commit, rebase e tag têm outras finalidades.",
+      "section": "4. Git: commits, branches e integração de mudanças",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A branch é uma cópia física completa e independente de todos os arquivos do projeto, que não guarda relação com commits.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma branch é essencialmente uma referência nomeada que aponta para um commit e avança quando novos commits são feitos nela. Os arquivos da working tree refletem o commit atualmente verificado, e o histórico é formado por commits relacionados.",
+      "section": "4. Git: commits, branches e integração de mudanças",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "git add seleciona conteúdo para o próximo commit no index, enquanto git commit registra no histórico local o conteúdo que já foi preparado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O fluxo separa a edição na working tree da seleção no staging e do registro no histórico. `git add` sozinho não cria commit e `git commit` não envia automaticamente a mudança a um servidor remoto.",
+      "section": "4. Git: commits, branches e integração de mudanças",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Merge e rebase sempre preservam exatamente os mesmos commits e os mesmos identificadores, diferindo apenas na mensagem apresentada ao usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Merge integra histórias e pode criar um commit de merge; rebase reaplica commits e, por isso, cria novos commits com identificadores diferentes. Essa diferença é relevante quando commits já foram compartilhados.",
+      "section": "4. Git: commits, branches e integração de mudanças",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um desenvolvedor adicionou um arquivo ao staging por engano, mas quer manter sua edição na working tree para continuar trabalhando. Qual ação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar git restore --staged para retirar a preparação e manter a edição na working tree.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar git restore sem opção para remover o arquivo do histórico de commits.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar git revert no arquivo para desfazer uma seleção ainda não commitada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar git reset --hard para limpar o staging sem alterar arquivos de trabalho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar git clean para retirar do index alterações rastreadas já preparadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "`git restore --staged` restaura o index em relação ao arquivo indicado e remove sua preparação, mantendo a edição local na working tree. `git restore` sem essa opção pode descartar mudanças do arquivo; `reset --hard` também pode eliminá-las. `revert` cria um commit inverso, enquanto `clean` remove arquivos não acompanhados, não a seleção preparada descrita.",
+      "section": "5. Recuperação, reversões e trabalho integrado",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um commit incorreto já foi compartilhado com colegas. A equipe precisa neutralizar sua alteração e deixar a correção registrada na história. Qual comando é normalmente apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "git restore, que apaga o commit remoto sem registrar uma alteração nova.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "git revert, que cria um commit inverso e conserva o histórico compartilhado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "git reset --hard, que move a referência local sem criar commit inverso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "git add, que prepara conteúdo de arquivos para um commit futuro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "git stash, que guarda temporariamente alterações locais não commitadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "`git revert` cria um novo commit cuja alteração inversa neutraliza os efeitos do commit selecionado, mantendo os commits anteriores no histórico compartilhado. `reset` move referências e pode reescrever a história local; `restore` atua sobre arquivos, `add` prepara conteúdo e `stash` guarda mudanças locais temporárias. Assim, revert é apropriado para corrigir com segurança uma mudança já compartilhada.",
+      "section": "5. Recuperação, reversões e trabalho integrado",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo rastreado tem uma edição local ainda não preparada, que deve ser descartada e restaurada a partir do estado preparado. Qual comando é mais direto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "git restore --staged arquivo, que retira a preparação e descarta a edição local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "git restore arquivo, que restaura a working tree a partir do index por padrão.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "git revert arquivo, que cria um commit inverso sem indicar um commit existente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "git merge arquivo, que combina branches e resolve automaticamente essa edição local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "git tag arquivo, que marca um commit sem restaurar o conteúdo do arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "`git restore arquivo` restaura por padrão a cópia da working tree a partir do index, substituindo a edição não preparada pelo conteúdo já preparado. `--staged` atua no sentido de retirar preparação e não descarta por si só a alteração de trabalho; revert, merge e tag têm outros objetos ou efeitos. Como a restauração perde essa edição local, convém conferir o diff antes do comando.",
+      "section": "5. Recuperação, reversões e trabalho integrado",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe quer mover a branch local para um commit anterior e atualizar index e arquivos de trabalho para corresponderem a ele. Qual opção do reset tem esse efeito mais amplo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "git reset --hard move a referência e ajusta index e working tree ao destino.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "git reset --soft move a referência, mas mantém index e working tree intactos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "git restore --staged altera o index de arquivos sem mover a branch.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "git revert cria commit inverso sem reposicionar a branch para trás.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "git stash guarda mudanças locais sem alterar o commit atualmente apontado.",
+          "correct": false
+        }
+      ],
+      "explanation": "`git reset --hard <commit>` move a referência atual para o destino e faz o index e a working tree refletirem esse commit. Por isso, mudanças locais que não estejam nele podem ser descartadas. `--soft` preserva index e arquivos, `restore --staged` altera a preparação sem mover a branch, `revert` registra um novo commit inverso e `stash` guarda mudanças sem mudar o commit apontado.",
+      "section": "5. Recuperação, reversões e trabalho integrado",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao revisar uma alteração que muda o POM, qual verificação é útil para entender seus efeitos sobre a construção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Examinar as dependências e versões resolvidas, além de revisar o diff do POM alterado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ignorar o POM, pois somente arquivos Java podem alterar o artefato produzido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar git tag, que imprime o grafo Maven transitivo com suas versões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover todas as versões para que o repositório remoto escolha uma ao acaso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar git reset --hard, que compara dependências atuais com as anteriores.",
+          "correct": false
+        }
+      ],
+      "explanation": "O POM pode alterar dependências, plugins e fases executadas, afetando o que é compilado e empacotado. Revisar o diff e inspecionar o grafo efetivamente resolvido ajuda a avaliar a mudança; Git tag e reset não analisam dependências Maven.",
+      "section": "5. Recuperação, reversões e trabalho integrado",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao marcar uma versão de entrega com Git, uma tag pode apontar para o commit escolhido enquanto a branch de desenvolvimento continua avançando para commits posteriores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma tag identifica um ponto particular do histórico; a branch é a referência de desenvolvimento que avança com novos commits. Por isso, a tag pode continuar identificando a revisão liberada depois que a branch avançar.",
+      "section": "5. Recuperação, reversões e trabalho integrado",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "git revert desfaz um commit compartilhado movendo a branch para trás e removendo o commit original do histórico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `git revert` cria um novo commit com alterações inversas e mantém o commit original na história. Mover a referência para trás é associado a reset; isso pode reescrever a história e afetar quem já a recebeu.",
+      "section": "5. Recuperação, reversões e trabalho integrado",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um commit criado em uma branch local é enviado automaticamente ao repositório remoto assim que git commit termina.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Commit registra mudanças no repositório local. Compartilhá-las com um remoto exige uma operação de envio, como `git push`, e pode depender da configuração da branch e das permissões do servidor.",
+      "section": "5. Recuperação, reversões e trabalho integrado",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma refatoração altera a estrutura e os testes continuam passando, a equipe não precisa revisar o diff porque os testes garantem que nenhum defeito foi introduzido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Testes cobrem comportamentos conhecidos e podem deixar casos sem cobertura. Revisar o diff permite detectar alterações acidentais, problemas de desenho ou testes insuficientes; nenhuma dessas verificações substitui completamente as demais.",
+      "section": "5. Recuperação, reversões e trabalho integrado",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual associação de comando Git e efeito está correta ao desfazer alterações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "restore atua sobre arquivos no index ou na working tree; reset reposiciona referência; revert cria commit inverso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "restore cria sempre um commit remoto; reset apenas lista diferenças; revert descarta staging.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "restore reescreve todos os commits; reset publica uma tag; revert altera só arquivos não rastreados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "restore integra branches; reset notifica observadores; revert instala artefatos no Maven.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "restore e reset são sinônimos sem risco; revert apaga permanentemente o commit original.",
+          "correct": false
+        }
+      ],
+      "explanation": "A associação separa corretamente os comandos: restore recupera conteúdo de arquivos, reset move HEAD/branch e pode atualizar outras áreas, e revert registra um commit inverso. Confundi-los pode descartar trabalho ou modificar uma história compartilhada de forma inesperada.",
+      "section": "5. Recuperação, reversões e trabalho integrado",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma dependência Maven declarada diretamente deve ser omitida se já aparecer de forma transitiva, pois a transitividade garante que ela nunca será retirada por uma atualização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Se o código do projeto usa diretamente uma biblioteca, declará-la diretamente documenta essa dependência e reduz a fragilidade diante de alterações nas dependências de terceiros. A presença transitiva pode mudar quando outra biblioteca evolui.",
+      "section": "5. Recuperação, reversões e trabalho integrado",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe deseja histórico linear em uma branch privada antes de compartilhá-la. Rebase pode reaplicar os commits sobre uma base atualizada, desde que se reconheça que os commits reaplicados terão novos identificadores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Rebase reaplica mudanças sobre outra base, o que costuma produzir uma sequência linear com novos commits. Em uma branch ainda privada, isso evita surpreender colaboradores que já dependam dos identificadores anteriores.",
+      "section": "5. Recuperação, reversões e trabalho integrado",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Refactoring: Improving the Design of Existing Code",
+      "publisher": "Martin Fowler",
+      "reference": "Definição de refatoração como sequência de transformações que preservam comportamento e referências de consulta",
+      "url": "https://martinfowler.com/books/refactoring.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Introduction to the Build Lifecycle",
+      "publisher": "Apache Maven Project",
+      "reference": "Ciclos default, clean e site; fases, goals, empacotamento, instalação e publicação",
+      "url": "https://maven.apache.org/guides/introduction/introduction-to-the-lifecycle.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Introduction to the Dependency Mechanism",
+      "publisher": "Apache Maven Project",
+      "reference": "Dependências transitivas, mediação de versões, escopos e dependencyManagement",
+      "url": "https://maven.apache.org/guides/introduction/introduction-to-dependency-mechanism.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Git Reference Manual",
+      "publisher": "Git Project",
+      "reference": "Comandos e conceitos de branch, merge, rebase, reset, restore, revert, status e commit",
+      "url": "https://git-scm.com/docs",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "COMPLEMENTAR",
+      "title": "Design Patterns: Elements of Reusable Object-Oriented Software",
+      "publisher": "Addison-Wesley; Erich Gamma, Richard Helm, Ralph Johnson e John Vlissides",
+      "reference": "Catálogo GoF, famílias criacional, estrutural e comportamental, intenções e colaborações dos padrões",
+      "url": "https://www.informit.com/store/design-patterns-elements-of-reusable-object-oriented-9780201633610",
+      "accessedAt": "2026-10-31"
+    }
+  ]
+}

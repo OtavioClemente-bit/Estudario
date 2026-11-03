@@ -1,0 +1,2402 @@
+{
+  "id": "informatica.videoconferencia-sip-h323-qos",
+  "subject": "Informática",
+  "title": "Videoconferência, SIP, H.323 e qualidade de serviço",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Noções de videoconferência e protocolos",
+    "Videoconferência por redes de pacotes",
+    "Protocolos SIP e H.323 em conferências",
+    "SIP Session Initiation Protocol",
+    "H.323 para comunicação multimídia",
+    "Qualidade de serviço em videoconferência",
+    "QoS Quality of Service em redes IP",
+    "Sinalização de chamadas SIP e H.323",
+    "Transporte de áudio e vídeo em tempo real",
+    "RTP RTCP e mídia em tempo real",
+    "Latência jitter e perda de pacotes",
+    "Codecs e negociação de mídia",
+    "Conferência multimídia em redes IP",
+    "Protocolos de comunicação audiovisual",
+    "Noções de vídeo conferência. Protocolos SIP (Session Initiation Protocol), H323 e Qualidade de serviços (QoS – Quality of Service)."
+  ],
+  "scope": {
+    "covers": "Conceitos e componentes de videoconferência; plano de sinalização e plano de mídia; funções e fluxo básico do SIP (agentes de usuário, registrar, proxy, métodos e respostas, SDP e RTP); arquitetura H.323 e funções de terminal, gatekeeper, gateway e unidade de controle multiponto; comparação entre SIP e H.323; codecs e interoperabilidade; QoS em redes IP, largura de banda, atraso, variação de atraso, perda, congestionamento, priorização e DiffServ; papel de RTP/RTCP e limites das garantias de qualidade.",
+    "excludes": "Configuração de produtos comerciais específicos, comandos de fabricante, dimensionamento numérico de rede, codificação detalhada de áudio e vídeo, negociação completa de SDP, segurança avançada de sinalização e garantia contratual de operadoras."
+  },
+  "theoryTitle": "Como a videoconferência funciona sobre redes IP",
+  "chapters": [
+    {
+      "title": "1. Da sala de reunião aos fluxos de rede",
+      "markdown": "### O problema que este assunto resolve\n\nUma videoconferência permite que pessoas em locais diferentes conversem com áudio, vídeo e, conforme a aplicação, compartilhamento de tela, arquivos ou dados de colaboração. Para que a conversa funcione, os equipamentos precisam descobrir para onde chamar, concordar sobre os formatos que conseguem usar e transportar fluxos de mídia com atraso suficientemente baixo para uma conversa natural.\n\nA chamada não é um único fluxo indivisível. Há uma parte de **sinalização**, que estabelece, altera e encerra a sessão, e uma parte de **mídia**, que carrega voz e imagem. SIP e H.323 são famílias de protocolos de sinalização e controle de conferências. RTP costuma transportar o áudio e o vídeo em tempo real; ele não substitui a sinalização e não reserva, por si só, recursos de rede.\n\n> **Siglas e termos deste capítulo**\n> - **IP**: Internet Protocol, protocolo de endereçamento e encaminhamento de pacotes.\n> - **Sinalização**: mensagens de controle usadas para localizar participantes e negociar uma sessão.\n> - **Mídia**: conteúdo audiovisual enviado durante a sessão.\n> - **Codec**: codificador e decodificador que representa áudio ou vídeo em formato comprimido.\n> - **RTP**: Real-time Transport Protocol, transporte de dados com características de tempo real.\n> - **RTCP**: RTP Control Protocol, mensagens associadas ao RTP que permitem monitorar a transmissão.\n\n### Etapas observáveis numa chamada\n\n1. **Preparação e descoberta**: o terminal identifica o destino e os serviços de sinalização disponíveis.\n2. **Convite e negociação**: os terminais trocam parâmetros, como tipos de mídia e formatos suportados.\n3. **Estabelecimento de mídia**: áudio e vídeo começam a fluir entre os participantes, diretamente ou por equipamentos intermediários.\n4. **Acompanhamento**: a aplicação pode observar estatísticas e adaptar resolução, taxa ou formato à rede e ao dispositivo.\n5. **Encerramento**: a sinalização informa que a sessão acabou; os fluxos de mídia são interrompidos.\n\nUma descrição de sessão, frequentemente expressa com SDP, informa aspectos como mídias oferecidas, formatos e endereços/portas para recebimento. A oferta não obriga o outro lado a aceitar tudo: o participante responde com os meios e parâmetros que consegue usar. O conjunto compatível define o que será efetivamente transmitido.\n\n### O que afeta a experiência\n\n| Fator | Efeito percebido | Exemplo de sintoma |\n| --- | --- | --- |\n| **Atraso (latência)** | O som e a imagem chegam tarde, tornando a conversa menos fluida | Participantes começam a falar ao mesmo tempo porque a resposta demora |\n| **Jitter (variação do atraso)** | Pacotes chegam em intervalos irregulares | Áudio picotado ou reprodução irregular |\n| **Perda de pacotes** | Parte da informação não chega ao destino | Blocos na imagem, cortes ou sílabas ausentes |\n| **Largura de banda insuficiente** | A taxa oferecida excede a capacidade do caminho | Redução de resolução, congelamento ou fila crescente |\n| **Codec incompatível** | Os lados não conseguem interpretar o mesmo formato | Sessão sinalizada, mas áudio ou vídeo não inicia |\n\nA aplicação pode usar buffer de reprodução para suavizar variações de chegada, mas um buffer maior aumenta o atraso. A escolha é um compromisso: reduzir o jitter aparente sem tornar a conversa excessivamente lenta.\n\n### Como cai na prova\n\n- Se a questão perguntar quem **estabelece e encerra** a sessão, pense em sinalização (por exemplo, SIP), não em RTP.\n- Se perguntar quem **transporta** os pacotes de áudio/vídeo em tempo real, RTP é a resposta usual; ele não garante entrega pontual.\n- Atraso, jitter e perda são problemas diferentes, embora possam ocorrer juntos durante congestionamento.\n- Vídeo de alta resolução consome mais recursos, mas a qualidade percebida também depende de codec, capacidade do caminho e comportamento da aplicação."
+    },
+    {
+      "title": "2. SIP: convite, negociação e controle de sessão",
+      "markdown": "### O problema que este assunto resolve\n\nO SIP (Session Initiation Protocol) é um protocolo de controle da camada de aplicação para criar, modificar e terminar sessões com um ou mais participantes. Ele também dá suporte a registro e localização: um usuário pode se registrar e associar seu identificador a um endereço de contato atual. SIP não transporta normalmente os quadros de vídeo e não reserva largura de banda da rede.\n\n> **Siglas e termos deste capítulo**\n> - **UA**: User Agent, agente de usuário que origina ou recebe solicitações SIP.\n> - **UAC**: lado cliente que envia uma solicitação; **UAS**: lado servidor que a recebe e responde.\n> - **Registrar**: servidor que recebe registros e atualiza associações de endereço.\n> - **Proxy**: servidor que encaminha solicitações em nome de um usuário ou domínio.\n> - **SDP**: Session Description Protocol, formato usado para descrever parâmetros de mídia.\n> - **URI**: identificador usado para endereçar um usuário ou serviço SIP.\n\n### Métodos que aparecem em questões\n\n| Método | Uso principal |\n| --- | --- |\n| `REGISTER` | Informa ao domínio SIP um endereço de contato associado ao usuário |\n| `INVITE` | Convida para uma sessão ou propõe alteração de seus parâmetros |\n| `ACK` | Confirma o recebimento da resposta final bem-sucedida a um `INVITE` |\n| `CANCEL` | Cancela uma solicitação `INVITE` que ainda está pendente |\n| `BYE` | Encerra uma sessão estabelecida dentro do diálogo |\n| `OPTIONS` | Consulta capacidades de um servidor ou agente |\n\nUm fluxo simplificado pode ser: o terminal envia `INVITE`; pode receber `100 Trying` enquanto a solicitação é processada e `180 Ringing` enquanto o destino toca; o destino aceita com `200 OK`; o iniciador responde com `ACK`; então a mídia acordada flui. O encerramento de uma sessão estabelecida usa `BYE`, seguido de uma resposta. Respostas SIP são agrupadas por classe: 1xx indica informação/progresso, 2xx sucesso, 3xx redirecionamento, 4xx erro do cliente, 5xx erro do servidor e 6xx falha global.\n\nO registro e o estabelecimento da chamada têm papéis diferentes. `REGISTER` atualiza a associação de contato; o proxy pode consultar essa informação para encaminhar uma chamada. Um servidor registrar e um proxy podem estar no mesmo equipamento, mas suas funções lógicas continuam distintas.\n\n### SDP e a separação entre sinalização e mídia\n\nO SIP carrega a negociação, mas uma descrição SDP pode estar no corpo de mensagens SIP para informar, por exemplo, se o participante oferece áudio, vídeo, quais formatos consegue decodificar e em que endereço/porta espera receber mídia. Os participantes precisam encontrar parâmetros compatíveis. Uma sessão pode aceitar áudio e rejeitar vídeo, ou escolher um codec comum entre vários propostos.\n\nO caminho dos pacotes de mídia pode ser diferente do caminho das mensagens SIP. Um proxy que encaminha a sinalização não necessariamente recebe ou retransmite o áudio e o vídeo. Também não se deve concluir que aceitar um codec equivale a garantir uma taxa ou uma latência na rede: negociação de formato não cria capacidade de transmissão.\n\nO SIP pode convidar participantes a uma conferência, mas não define, sozinho, todas as funções de controle da conferência, como arbitragem de fala ou votação. Esses serviços podem depender de outros protocolos ou da aplicação.\n\n### Como cai na prova\n\n- `REGISTER` associa identidade e contato; `INVITE` propõe sessão; `ACK` confirma o sucesso do `INVITE`; `BYE` encerra a sessão.\n- `CANCEL` trata de solicitação pendente; não substitui `BYE` para terminar uma sessão já estabelecida.\n- SIP é sinalização. RTP é o transporte de mídia; SDP descreve os parâmetros oferecidos e aceitos.\n- Proxy SIP não é sinônimo de gateway de mídia nem de garantia de QoS."
+    },
+    {
+      "title": "3. H.323: arquitetura multimídia e interoperação",
+      "markdown": "### O problema que este assunto resolve\n\nH.323 é uma recomendação da ITU-T para sistemas de comunicação multimídia em redes baseadas em pacotes, que podem não oferecer QoS garantida. As entidades H.323 podem fornecer comunicação em tempo real de áudio, vídeo e/ou dados. O áudio é obrigatório; vídeo e dados são opcionais, mas, quando um tipo de mídia é suportado, exige-se um modo comum de operação para que terminais que suportam aquela mídia possam interoperar.\n\n> **Siglas e termos deste capítulo**\n> - **ITU-T**: setor de padronização em telecomunicações da União Internacional de Telecomunicações.\n> - **Terminal H.323**: equipamento ou aplicação que participa diretamente da comunicação multimídia.\n> - **Gatekeeper**: entidade lógica que pode controlar admissão, endereçamento e outros serviços de uma zona H.323.\n> - **Gateway**: elemento que interconecta a rede H.323 a outra rede ou sistema de comunicação.\n> - **MCU**: Multipoint Control Unit, unidade que apoia conferências multiponto.\n> - **Zona**: conjunto administrativo associado ao controle de um gatekeeper.\n\n### Entidades e suas funções\n\n| Entidade | Papel característico |\n| --- | --- |\n| **Terminal** | Origina ou recebe áudio; pode também suportar vídeo e dados |\n| **Gatekeeper** | Faz funções de controle da zona, como tradução de endereço e controle de admissão quando configurado para isso |\n| **Gateway** | Faz a interconexão entre H.323 e redes ou terminais de outro tipo, traduzindo protocolos e meios conforme necessário |\n| **MCU** | Coordena os aspectos de uma conferência com múltiplos participantes; pode envolver um controlador multiponto e processadores de mídia |\n\nO gatekeeper é uma função lógica e não precisa ser entendido como equipamento físico dedicado em toda instalação. A presença do gatekeeper permite serviços de controle da zona, mas o fluxo audiovisual pode seguir por um caminho diferente. Gateway e MCU também têm funções distintas: o gateway interliga sistemas; a MCU apoia a comunicação multiponto.\n\n### Protocolos relacionados e ciclo de chamada\n\nH.323 é uma arquitetura composta, não um único mecanismo que realiza todas as tarefas. Em termos gerais, H.225.0 trata de sinalização de chamada e registro, admissão e status (RAS); H.245 negocia capacidades e controla canais lógicos; RTP/RTCP pode levar e monitorar a mídia. Os detalhes dependem do modo de operação escolhido. A chamada envolve localizar ou endereçar o terminal, solicitar admissão quando aplicável, estabelecer sinalização, negociar capacidades comuns, abrir canais de mídia e encerrar os canais e a chamada.\n\nA negociação de capacidades é essencial: cada lado informa os tipos de mídia e modos suportados, e a sessão usa combinações compatíveis. O protocolo não torna dois codecs incompatíveis interoperáveis por mágica. Um gateway pode converter mídia entre domínios diferentes, se tiver essa função e os recursos necessários.\n\n### Comparação útil com SIP\n\n| Aspecto | SIP | H.323 |\n| --- | --- | --- |\n| Origem do padrão | IETF, especificado em RFCs | ITU-T, família de recomendações |\n| Organização | Sinalização textual de requisição e resposta, extensível por métodos e cabeçalhos | Conjunto coordenado de protocolos e entidades para multimídia |\n| Exemplos de função | `INVITE`, `REGISTER`, proxy e registrar | RAS, sinalização H.225.0, controle H.245, gatekeeper |\n| Mídia | Negociação pode usar SDP; transporte normalmente ocorre em fluxos separados | Capacidades e canais são negociados; mídia pode ser transportada por RTP |\n\nAmbos podem estabelecer comunicação multimídia sobre redes IP e ambos separam controle e fluxo de mídia. Não existe uma regra universal de que um sempre tenha melhor qualidade ou seja sempre mais rápido: o resultado depende da implementação, codecs, rede, configuração e interoperabilidade.\n\n### Como cai na prova\n\n- Em H.323, áudio é obrigatório; vídeo e dados são opcionais.\n- Gatekeeper controla funções de zona; gateway interconecta sistemas; MCU apoia conferência multiponto.\n- H.245 negocia capacidades e canais; H.225.0 participa de sinalização e de RAS.\n- SIP e H.323 não são codecs nem mecanismos de reserva automática de banda."
+    },
+    {
+      "title": "4. QoS: administrar os efeitos da rede",
+      "markdown": "### O problema que este assunto resolve\n\nQoS (Quality of Service, qualidade de serviço) reúne mecanismos e políticas para tratar tráfegos de maneira diferenciada e controlar métricas de desempenho. Em áudio e vídeo interativos, entregar todos os pacotes eventualmente não basta: eles precisam chegar com atraso e variação aceitáveis para que a aplicação consiga reproduzir a conversa. A rede pode classificar tráfego, limitar taxas, organizar filas, priorizar certos pacotes e descartar tráfego excedente conforme políticas.\n\n> **Siglas e termos deste capítulo**\n> - **QoS**: qualidade de serviço, medida e tratamento do desempenho da rede.\n> - **DSCP**: Differentiated Services Code Point, marca no campo DS usada para selecionar tratamento por salto.\n> - **DiffServ**: arquitetura de serviços diferenciados para classificar e encaminhar tráfego por classes.\n> - **PHB**: Per-Hop Behavior, comportamento de encaminhamento aplicado em cada nó DiffServ.\n> - **Fila**: armazenamento temporário de pacotes aguardando transmissão.\n> - **Policiamento**: controle que mede e pode limitar tráfego em relação a um perfil.\n> - **Modelagem de tráfego**: suavização ou retenção de pacotes para adequar a taxa ao perfil.\n\n### Métricas e mecanismos concretos\n\n| Métrica ou mecanismo | O que representa | Implicação prática |\n| --- | --- | --- |\n| Largura de banda/capacidade | Taxa que o enlace consegue transportar | Se a carga exceder a capacidade, haverá filas ou descartes |\n| Atraso | Tempo de trânsito entre origem e destino | Atraso alto prejudica a interação em tempo real |\n| Jitter | Variação do atraso de chegada | Buffer pode suavizar a reprodução, acrescentando atraso |\n| Perda | Pacotes descartados ou que não chegam | Áudio pode ter falhas e o vídeo pode exibir artefatos |\n| Classificação e marcação | Identificação de pacotes segundo política | Permite aplicar tratamentos distintos em nós da rede |\n| Priorização e filas | Ordem e disciplina de encaminhamento | Reduz espera do tráfego prioritário, sujeito à capacidade e política |\n\nNo DiffServ, pacotes são classificados e marcados com um DSCP no campo DS do cabeçalho IP. Nós aplicam um comportamento por salto coerente com as políticas do domínio. Operações sofisticadas de classificação, marcação, policiamento e modelagem podem ocorrer nas bordas; o núcleo trata classes agregadas, favorecendo escalabilidade. A marcação não cria capacidade física nem garante que todos os roteadores da Internet respeitarão a prioridade. Ela só produz efeito onde a política e os equipamentos aplicam o tratamento correspondente.\n\nRTP inclui números de sequência e timestamps úteis para reconstrução e monitoramento. RTCP fornece relatórios de recepção que podem revelar perda e variação. Isso ajuda aplicações e operadores a observar a sessão, mas RTP/RTCP não reservam recursos nem garantem entrega dentro do prazo.\n\n### Diagnóstico por sintoma\n\n- **Todos falam com grande intervalo**: investigar atraso de propagação, filas, processamento e buffers.\n- **Áudio chega em blocos apesar de a média da rede parecer suficiente**: investigar jitter e tamanho/configuração do buffer.\n- **Pacotes desaparecem sob carga**: verificar congestionamento, descarte, capacidade e políticas de filas.\n- **Som limpo, mas vídeo congelado**: verificar taxa oferecida, codec, resolução, perdas específicas do fluxo e capacidade do terminal.\n- **Marca DSCP presente, mas sem melhora**: confirmar se cada domínio respeita a marca, se a política está configurada e se o gargalo está no caminho controlado.\n\n### Como cai na prova\n\n- QoS não significa velocidade ilimitada nem ausência absoluta de perda; é gestão de desempenho e tratamento de tráfego.\n- Prioridade pode reduzir atraso em filas, mas não elimina congestionamento ou falta de capacidade.\n- RTP transporta e permite acompanhar características temporais; a garantia depende de mecanismos de rede e políticas adicionais.\n- DSCP sinaliza uma classe de tratamento; sem política correspondente, a marca isolada não assegura prioridade fim a fim."
+    }
+  ],
+  "summary": "Videoconferência combina sinalização, negociação de mídia e transporte audiovisual em tempo real. SIP cria, modifica e encerra sessões e usa métodos como REGISTER, INVITE, ACK, CANCEL e BYE; SDP descreve formatos e parâmetros, enquanto RTP transporta áudio e vídeo e RTCP ajuda no monitoramento. H.323 é uma arquitetura da ITU-T com terminais, gatekeeper, gateway e MCU; áudio é obrigatório, vídeo e dados são opcionais. QoS administra capacidade, atraso, jitter e perda por classificação, filas, priorização e políticas. DiffServ usa DSCP e comportamento por salto, sem que uma marca isolada garanta qualidade fim a fim. RTP não reserva recursos nem assegura entrega pontual.",
+  "flashcards": [
+    {
+      "front": "Qual é o papel central do SIP?",
+      "back": "Criar, modificar e terminar sessões multimídia por sinalização; não é o transporte normal de áudio e vídeo."
+    },
+    {
+      "front": "O que faz o método REGISTER?",
+      "back": "Registra informação de contato do usuário no domínio SIP para auxiliar localização e roteamento."
+    },
+    {
+      "front": "Para que serve INVITE?",
+      "back": "Convidar para uma sessão ou propor modificação dos parâmetros de uma sessão existente."
+    },
+    {
+      "front": "Qual é a função de ACK após um INVITE aceito?",
+      "back": "Confirmar a resposta final bem-sucedida que estabeleceu a sessão SIP."
+    },
+    {
+      "front": "Quando usar CANCEL e quando usar BYE?",
+      "back": "CANCEL cancela INVITE ainda pendente; BYE encerra sessão já estabelecida."
+    },
+    {
+      "front": "Que papel tem o SDP numa chamada SIP?",
+      "back": "Descrever parâmetros de mídia oferecidos e aceitos, como tipo, formato e endereço/porta."
+    },
+    {
+      "front": "Qual é o papel usual de RTP?",
+      "back": "Transportar dados em tempo real com identificação de payload, sequência e timestamps."
+    },
+    {
+      "front": "RTP garante QoS?",
+      "back": "Não. RTP não garante entrega pontual nem reserva recursos de rede."
+    },
+    {
+      "front": "Para que contribui RTCP?",
+      "back": "Relatórios e monitoramento da qualidade de recepção associados aos fluxos RTP."
+    },
+    {
+      "front": "O que é jitter?",
+      "back": "Variação do atraso de chegada dos pacotes."
+    },
+    {
+      "front": "Qual efeito típico de atraso alto?",
+      "back": "Aumenta o intervalo entre fala e resposta e prejudica a interação."
+    },
+    {
+      "front": "Como diferenciar perda de jitter?",
+      "back": "Perda significa pacotes que não chegam; jitter significa variação nos tempos de chegada."
+    },
+    {
+      "front": "O que é H.323?",
+      "back": "Recomendação ITU-T para comunicação multimídia em redes baseadas em pacotes."
+    },
+    {
+      "front": "Quais mídias são obrigatórias ou opcionais em H.323?",
+      "back": "Áudio é obrigatório; vídeo e dados são opcionais."
+    },
+    {
+      "front": "O que faz o gatekeeper H.323?",
+      "back": "Executa funções de controle da zona, como tradução de endereços e controle de admissão, conforme a configuração."
+    },
+    {
+      "front": "O que faz um gateway H.323?",
+      "back": "Interconecta H.323 a outras redes ou sistemas, podendo traduzir protocolos e mídia."
+    },
+    {
+      "front": "O que faz uma MCU?",
+      "back": "Apoia o controle e a composição de conferências multiponto."
+    },
+    {
+      "front": "Que funções gerais se associam a H.225.0 e H.245?",
+      "back": "H.225.0 participa de RAS e sinalização de chamada; H.245 negocia capacidades e controla canais."
+    },
+    {
+      "front": "O que significa DSCP?",
+      "back": "Differentiated Services Code Point, marca do campo DS usada para selecionar tratamento DiffServ."
+    },
+    {
+      "front": "Uma marca DSCP isolada garante prioridade na Internet?",
+      "back": "Não. O domínio precisa reconhecer a marca e aplicar política e comportamento correspondentes."
+    }
+  ],
+  "tips": [
+    "Separe sempre sinalização (SIP ou H.323) de mídia (normalmente RTP).",
+    "Memorize o ciclo SIP: INVITE, resposta final, ACK; para terminar sessão, BYE.",
+    "CANCEL é para convite pendente; BYE é para sessão estabelecida.",
+    "No H.323, diferencie gatekeeper (controle de zona), gateway (interconexão) e MCU (multiponto).",
+    "Associe jitter à variação de chegada, atraso ao tempo de trânsito e perda à ausência de pacotes.",
+    "Ao avaliar DiffServ, pergunte se a rede no caminho aplica a política: DSCP não é garantia automática."
+  ],
+  "traps": [
+    "Afirmar que SIP carrega diretamente o áudio e o vídeo confunde sinalização com mídia.",
+    "Tratar CANCEL como encerramento de uma chamada já estabelecida ignora a função de BYE.",
+    "Afirmar que RTP reserva banda ou garante entrega pontual atribui a ele uma garantia que não oferece.",
+    "Confundir gateway com gatekeeper troca interconexão de redes por controle de uma zona H.323.",
+    "Dizer que H.323 exige vídeo ignora que a obrigatoriedade é de áudio; vídeo e dados são opcionais.",
+    "Supor que priorização resolve qualquer congestionamento ignora limites de capacidade e políticas do caminho."
+  ],
+  "activeRecall": [
+    "Descreva as etapas de uma sessão, da sinalização inicial ao encerramento.",
+    "Explique a diferença entre INVITE, ACK, CANCEL e BYE com um exemplo de uso.",
+    "Por que dois terminais podem completar a sinalização e ainda assim não exibir vídeo?",
+    "Quais informações uma descrição SDP ajuda os participantes a negociar?",
+    "Explique como se distinguem as funções de terminal, gatekeeper, gateway e MCU.",
+    "Como H.225.0, H.245 e RTP participam de uma comunicação H.323?",
+    "Diferencie atraso, jitter e perda e dê um sintoma possível de cada um.",
+    "Por que a marca DSCP não basta para garantir QoS fim a fim?"
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Sinalização e transporte de mídia",
+      "summary": "SIP e H.323 organizam controle; RTP costuma transportar áudio e vídeo. Sinalização não significa que a mídia passe pelo mesmo servidor."
+    },
+    {
+      "key": "e2",
+      "title": "Ciclo de vida das sessões SIP",
+      "summary": "REGISTER atualiza contato; INVITE propõe sessão; ACK confirma sucesso; CANCEL interrompe convite pendente; BYE encerra sessão estabelecida."
+    },
+    {
+      "key": "e3",
+      "title": "Entidades da arquitetura H.323",
+      "summary": "Gatekeeper controla a zona, gateway interconecta sistemas e MCU apoia conferências multiponto. As funções são distintas."
+    },
+    {
+      "key": "e4",
+      "title": "Métricas de QoS e limites de garantia",
+      "summary": "Atraso, jitter, perda e capacidade são aspectos diferentes. RTP e RTCP ajudam no transporte e monitoramento, mas não garantem QoS."
+    },
+    {
+      "key": "e5",
+      "title": "Marcação DiffServ e políticas",
+      "summary": "DSCP indica uma classe pretendida; o tratamento depende das políticas dos nós e não supera os limites físicos do caminho."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "SIP é um protocolo de sinalização de aplicação que pode criar, modificar e terminar sessões multimídia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "SIP controla o estabelecimento e o encerramento de sessões com um ou mais participantes. O fluxo de áudio e vídeo costuma ser transportado por protocolos de mídia separados, como RTP.",
+      "section": "2. SIP: convite, negociação e controle de sessão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O método SIP REGISTER encerra uma sessão multimídia que já está estabelecida entre dois agentes de usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "REGISTER informa ou atualiza contatos associados a um usuário. Para encerrar uma sessão estabelecida no diálogo SIP, usa-se BYE; CANCEL atua sobre INVITE ainda pendente.",
+      "section": "2. SIP: convite, negociação e controle de sessão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em H.323, o suporte a áudio é obrigatório, enquanto vídeo e dados podem ser opcionais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A recomendação H.323 estabelece áudio como obrigatório. Vídeo e dados são opcionais; se uma mídia opcional for suportada, deve haver um modo comum de operação para permitir interoperação entre os terminais que a suportam.",
+      "section": "3. H.323: arquitetura multimídia e interoperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "RTP, por si só, assegura que todo pacote de vídeo chegará dentro do prazo necessário para reprodução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "RTP oferece sequência, timestamp e identificação de payload úteis para dados em tempo real, mas não garante entrega pontual nem fornece garantias de QoS. A rede e a aplicação precisam lidar com atraso, perda e variação.",
+      "section": "1. Da sala de reunião aos fluxos de rede",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Jitter é a variação no tempo de chegada dos pacotes, enquanto perda significa que alguns pacotes não chegam ao destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Jitter descreve irregularidade nos intervalos de chegada. Perda descreve pacotes ausentes. Uma aplicação pode suavizar jitter com buffer, mas isso aumenta o atraso de reprodução; perda exige mecanismos de ocultação, recuperação ou adaptação.",
+      "section": "4. QoS: administrar os efeitos da rede",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma marca DSCP no cabeçalho IP cria capacidade adicional no enlace e elimina congestionamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "DSCP permite identificar a classe de tratamento pretendida em DiffServ. A marca não aumenta capacidade física; políticas de fila e admissão podem diferenciar o tratamento, mas tráfego acima da capacidade continua sujeito a filas ou descarte.",
+      "section": "4. QoS: administrar os efeitos da rede",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma chamada SIP, o INVITE pode carregar uma descrição de sessão para negociar tipos e parâmetros de mídia compatíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma oferta de sessão pode aparecer no INVITE, e a resposta pode indicar meios aceitos e parâmetros compatíveis. A descrição informa a negociação; ela não transporta os quadros audiovisuais.",
+      "section": "2. SIP: convite, negociação e controle de sessão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em H.323, gateway e gatekeeper são funções equivalentes, pois ambos apenas encaminham pacotes RTP dentro da mesma zona.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O gatekeeper oferece funções de controle da zona, como tradução de endereços e admissão, conforme a configuração. O gateway interconecta H.323 a outras redes ou sistemas e pode traduzir protocolos e mídia.",
+      "section": "3. H.323: arquitetura multimídia e interoperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta SIP da classe 2xx indica sucesso, enquanto respostas 1xx informam progresso ou processamento em andamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "As classes SIP agrupam respostas por primeiro dígito: 1xx é provisória/informativa, 2xx indica sucesso, 3xx redirecionamento, 4xx erro do cliente, 5xx erro do servidor e 6xx falha global.",
+      "section": "2. SIP: convite, negociação e controle de sessão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um proxy SIP que encaminha mensagens de sinalização necessariamente recebe e retransmite todos os pacotes de áudio e vídeo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Sinalização e mídia podem percorrer caminhos diferentes. Um proxy SIP encaminha solicitações e respostas de controle, mas não é necessariamente um relay de mídia; essa função depende da arquitetura implantada.",
+      "section": "2. SIP: convite, negociação e controle de sessão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "H.245 participa da negociação de capacidades e do controle de canais em sistemas H.323.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Na arquitetura H.323, H.245 é associado à troca de capacidades e ao controle dos canais lógicos. H.225.0 participa de registro/admissão/status e da sinalização de chamada; RTP pode carregar a mídia.",
+      "section": "3. H.323: arquitetura multimídia e interoperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O RTCP pode fornecer relatórios que ajudam a acompanhar a qualidade de recepção associada aos fluxos RTP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "RTCP acompanha RTP e pode transportar relatórios de recepção, úteis para observar perda e variação. Monitorar a qualidade não equivale a reservar recursos ou garantir entrega com prazo.",
+      "section": "4. QoS: administrar os efeitos da rede",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No DiffServ, a arquitetura pode agregar tráfego em classes e aplicar comportamentos por salto, com classificação e marcação frequentemente realizadas nas bordas do domínio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "DiffServ obtém escalabilidade tratando classes agregadas. A classificação, marcação e condicionamento sofisticados podem ficar nas bordas, enquanto nós aplicam comportamentos por salto conforme políticas do domínio.",
+      "section": "4. QoS: administrar os efeitos da rede",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A aceitação de um codec comum entre participantes garante, por si só, que a rede dispõe de banda suficiente para a resolução escolhida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Codec comum resolve compatibilidade de representação, não capacidade de rede. A taxa do fluxo ainda precisa caber no caminho, e atraso, jitter, perda e filas podem degradar a sessão.",
+      "section": "1. Da sala de reunião aos fluxos de rede",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A função principal de uma MCU H.323 é interconectar redes H.323 e redes de telefonia de outro tipo, convertendo protocolos entre elas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A MCU apoia conferências multiponto. A interconexão entre H.323 e outro sistema é a função característica de gateway; confundir os dois componentes troca composição/controle multiponto por adaptação entre redes.",
+      "section": "3. H.323: arquitetura multimídia e interoperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência representa de forma simplificada o estabelecimento de uma sessão SIP aceita pelo destinatário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "REGISTER, BYE, 200 OK e RTP, nessa ordem, para criar a chamada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "INVITE, resposta final 200 OK, ACK e início da mídia negociada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "ACK, OPTIONS, CANCEL e REGISTER, nessa ordem, para aceitar a chamada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RTP, INVITE, BYE e REGISTER, nessa ordem, para negociar os codecs.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CANCEL, 180 Ringing, BYE e ACK, nessa ordem, para abrir os canais.",
+          "correct": false
+        }
+      ],
+      "explanation": "O INVITE propõe a sessão. Após o destino aceitar com resposta 2xx, o iniciador envia ACK; a mídia começa com os parâmetros negociados. REGISTER é registro, BYE encerra sessão e CANCEL interrompe convite pendente.",
+      "section": "2. SIP: convite, negociação e controle de sessão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada SIP ainda não foi atendida e o originador decide desistir enquanto o INVITE está pendente. Qual método é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "BYE, pois toda solicitação SIP não atendida já constitui sessão estabelecida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "REGISTER, pois atualizar o contato cancela automaticamente o INVITE pendente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ACK, pois ele encerra qualquer tentativa antes da resposta final.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CANCEL, pois ele cancela a solicitação de convite que ainda está em processamento.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "OPTIONS, pois consultar capacidades remove a chamada da fila do destino.",
+          "correct": false
+        }
+      ],
+      "explanation": "CANCEL é o método usado para cancelar um INVITE que ainda está pendente. BYE encerra uma sessão estabelecida; REGISTER atualiza contatos, ACK confirma respostas e OPTIONS consulta capacidades.",
+      "section": "2. SIP: convite, negociação e controle de sessão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa descrever os codecs e os endereços de mídia que os participantes oferecem para uma sessão SIP. Qual recurso é usado normalmente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DSCP, que lista codecs e portas no cabeçalho de cada pacote de vídeo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SDP, que descreve meios e parâmetros para negociação entre participantes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "RTCP, que substitui a oferta de mídia e estabelece os diálogos SIP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "H.245, que é obrigatório em toda chamada SIP para registrar contatos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "BYE, que codifica a lista de formatos e abre canais de recepção.",
+          "correct": false
+        }
+      ],
+      "explanation": "SDP descreve meios, formatos e parâmetros de sessão, podendo ser transportado em mensagens SIP. DSCP marca tratamento de tráfego; RTCP monitora RTP; H.245 pertence à arquitetura H.323; BYE encerra uma sessão.",
+      "section": "2. SIP: convite, negociação e controle de sessão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve melhor uma função do registrar SIP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reordenar os pacotes RTP e confirmar que todos chegaram no prazo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter obrigatoriamente cada quadro de vídeo em pacotes de outro codec.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reservar banda em todos os roteadores que interligam os dois participantes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Compor a imagem de uma conferência multiponto em uma tela única.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Associar o identificador SIP de um usuário ao endereço de contato em que pode ser localizado.",
+          "correct": true
+        }
+      ],
+      "explanation": "O registrar recebe REGISTER e atualiza associações de contato no serviço de localização, que pode auxiliar proxies a rotear solicitações. Conversão de mídia, reserva de banda e composição multiponto são funções diferentes.",
+      "section": "2. SIP: convite, negociação e controle de sessão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma videoconferência, os participantes já completam a sinalização, mas não compartilham nenhum formato de vídeo. Qual consequência é mais provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A sinalização converte automaticamente os formatos, ainda que não exista gateway ou codec comum.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A chamada passa a usar DSCP como codec universal para todo vídeo incompatível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O áudio e o vídeo são sempre cancelados, pois qualquer mídia incompatível invalida a sessão inteira.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O vídeo pode não ser estabelecido, embora outro meio compatível, como áudio, continue disponível.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O RTP troca sozinho a codificação de um terminal para reproduzir a codificação do outro.",
+          "correct": false
+        }
+      ],
+      "explanation": "A negociação seleciona meios e formatos que os lados conseguem usar. A ausência de formato comum pode impedir vídeo sem necessariamente impedir áudio. Conversão exige função apropriada, como gateway ou processamento de mídia compatível.",
+      "section": "1. Da sala de reunião aos fluxos de rede",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede corporativa quer identificar tráfego de voz e tratá-lo com uma classe diferenciada em seus roteadores. Qual mecanismo está mais diretamente associado a DiffServ?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar REGISTER como reserva de banda fim a fim em todos os provedores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Enviar um BYE em cada pacote para que o roteador reconheça a chamada prioritária.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Inserir um DSCP no campo DS e aplicar políticas de encaminhamento por classe.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Aplicar um codec de vídeo ao cabeçalho IP para obter uma fila exclusiva automática.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar ACK para sinalizar aos roteadores a quantidade de memória disponível.",
+          "correct": false
+        }
+      ],
+      "explanation": "DiffServ classifica e marca pacotes com DSCP para que nós do domínio apliquem comportamentos por salto conforme políticas. Os métodos SIP não fazem marcação de classe nem reservam recursos nos roteadores.",
+      "section": "4. QoS: administrar os efeitos da rede",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe diagnostica áudio em blocos, embora os pacotes acabem chegando e a perda medida seja baixa. Qual problema de rede deve investigar primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Resposta 200 OK, que reduz a largura de banda depois que a chamada é aceita.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Registro SIP duplicado, que sempre fragmenta pacotes de áudio durante a reprodução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ausência de gateway, que altera o timestamp de todos os pacotes dentro da mesma rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Codec comum, que impede a ordenação dos pacotes transmitidos por RTP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Jitter elevado, que pode tornar irregular a chegada e sobrecarregar o buffer de reprodução.",
+          "correct": true
+        }
+      ],
+      "explanation": "Jitter é a variação dos tempos de chegada. Mesmo com baixa perda, variações grandes podem esvaziar ou exceder o buffer e causar reprodução irregular. Aumentar o buffer pode suavizar o som, mas introduz atraso.",
+      "section": "4. QoS: administrar os efeitos da rede",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma videoconferência multiponto precisa interligar terminais H.323 a um sistema de comunicação de outro tipo. Qual componente tem a função de interconexão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A MCU, pois sua função principal é converter todos os protocolos entre redes distintas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O gateway, pois ele interconecta o domínio H.323 a outro sistema de comunicação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O registrar SIP, pois ele traduz os endereços de todos os terminais H.323.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O terminal, pois qualquer terminal converte sozinho os protocolos do outro domínio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O DSCP, pois a marca de tráfego converte sinalização e mídia entre redes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gateway é a entidade de interconexão com redes ou sistemas de outro tipo. A MCU apoia a conferência multiponto; o gatekeeper executa controle da zona e não substitui a função de gateway.",
+      "section": "3. H.323: arquitetura multimídia e interoperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer consultar as capacidades de um agente SIP sem iniciar uma sessão de áudio ou vídeo. Qual método é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "BYE, que retorna uma lista de codecs antes de encerrar o diálogo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ACK, que consulta capacidades sem depender de uma solicitação anterior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "OPTIONS, que pode consultar capacidades de um servidor ou agente SIP.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "CANCEL, que pergunta formatos disponíveis enquanto mantém o convite pendente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "REGISTER, que negocia canais RTP entre participantes sem registro de contato.",
+          "correct": false
+        }
+      ],
+      "explanation": "OPTIONS permite consultar capacidades de um servidor ou agente de usuário. INVITE inicia ou modifica uma sessão; ACK confirma resposta; CANCEL interrompe convite pendente; BYE encerra sessão; REGISTER atualiza contato.",
+      "section": "2. SIP: convite, negociação e controle de sessão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual problema é diretamente associado a atraso de rede elevado em uma conversa audiovisual interativa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Faz com que todos os pacotes cheguem no mesmo instante e elimina jitter.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cria necessariamente um formato de vídeo incompatível em todos os terminais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Registra automaticamente o usuário em um novo domínio SIP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumenta o intervalo entre a fala de uma pessoa e a resposta ouvida pela outra.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Converte o fluxo de áudio em uma conferência multiponto H.323.",
+          "correct": false
+        }
+      ],
+      "explanation": "Atraso alto aumenta a latência de ida e volta percebida e prejudica a interação, causando pausas e sobreposição de falas. Não altera sozinho a compatibilidade de codecs nem executa funções de sinalização.",
+      "section": "1. Da sala de reunião aos fluxos de rede",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual entidade H.323 pode controlar admissão e tradução de endereços dentro de uma zona, conforme os serviços implantados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O codec, que admite chamadas com base na taxa de quadros recebida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A MCU, que traduz endereços de toda a zona e substitui os terminais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O gatekeeper, que oferece funções de controle para os terminais da zona.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O RTP, que controla a identidade lógica dos usuários H.323.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O proxy SIP, que é obrigatório em toda zona H.323 para executar RAS.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gatekeeper é a entidade lógica de controle da zona e pode oferecer tradução de endereços e admissão. MCU trata de conferência multiponto; codec representa mídia; RTP transporta mídia.",
+      "section": "3. H.323: arquitetura multimídia e interoperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao notar filas crescentes num enlace, o administrador aplica prioridade ao tráfego de áudio. Qual afirmação descreve corretamente o efeito possível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A prioridade reserva automaticamente recursos em redes de terceiros que ignoram a política.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A prioridade torna impossível qualquer descarte de pacotes em toda a rota da Internet.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A prioridade transforma os pacotes de áudio em tráfego sem atraso de propagação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A prioridade dispensa a negociação de codecs e os mecanismos de sinalização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A prioridade pode reduzir a espera relativa do áudio, mas não aumenta a capacidade física do enlace.",
+          "correct": true
+        }
+      ],
+      "explanation": "Filas prioritárias podem diminuir o atraso de espera para o tráfego selecionado, segundo a política local. O enlace continua com capacidade finita, e outros domínios podem não aplicar a mesma política; atraso de propagação também permanece.",
+      "section": "4. QoS: administrar os efeitos da rede",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer compreender qual sequência costuma ocorrer numa chamada H.323. Qual opção apresenta um encadeamento coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Estabelecer RTP primeiro, depois registrar codecs em SIP e usar BYE para solicitar admissão H.323.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Localizar e solicitar admissão quando aplicável, sinalizar a chamada, negociar capacidades e abrir canais de mídia.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Enviar RTCP para criar o gatekeeper, abrir a MCU e dispensar a negociação de canais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Negociar somente o endereço IP, pois H.323 não estabelece capacidades de mídia entre os terminais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Enviar DSCP ao terminal, que executa automaticamente sinalização, codecs e transporte de mídia.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma chamada pode envolver localização e admissão, sinalização de chamada, negociação de capacidades e abertura dos canais lógicos de mídia. Os protocolos e o modo de operação exatos variam, mas RTP não substitui o controle da chamada.",
+      "section": "3. H.323: arquitetura multimídia e interoperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Numa implantação DiffServ, qual papel corresponde ao DSCP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar o estabelecimento de uma sessão depois de uma resposta SIP 200 OK.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Transportar o conteúdo comprimido do vídeo entre o codificador e o decodificador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Negociar o codec comum entre uma oferta SIP e a resposta do destinatário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Identificar uma classe de tratamento no campo DS para orientar comportamento por salto segundo política.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Calcular o atraso fim a fim e corrigir automaticamente todas as filas do caminho.",
+          "correct": false
+        }
+      ],
+      "explanation": "DSCP é o ponto de código usado para diferenciar serviços. Nós de um domínio aplicam comportamentos por salto correspondentes a políticas; a marca não codifica mídia, negocia codecs nem mede e corrige sozinha o caminho.",
+      "section": "4. QoS: administrar os efeitos da rede",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após um INVITE SIP, o destinatário responde 200 OK. Qual é a ação de protocolo que normalmente confirma essa resposta bem-sucedida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enviar ACK para confirmar a resposta final do INVITE e completar o estabelecimento do diálogo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Enviar CANCEL para transformar a resposta de sucesso em convite pendente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Enviar REGISTER para fechar o fluxo de mídia recém-negociado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Enviar OPTIONS para encerrar a sessão assim que o codec for aceito.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Enviar BYE antes da mídia começar, pois toda resposta 2xx exige término imediato.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma resposta 2xx a INVITE é confirmada com ACK; ela estabelece diálogo e sessão quando a negociação de mídia foi completada. BYE termina a sessão depois, enquanto CANCEL atua antes de uma resposta final.",
+      "section": "2. SIP: convite, negociação e controle de sessão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma conferência H.323, vários terminais precisam participar de uma chamada multiponto. Qual entidade é associada a esse apoio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O DSCP, que transforma uma chamada ponto a ponto em várias sessões simultâneas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O registrar SIP, que substitui todos os terminais e mistura os quadros H.323.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O gatekeeper, cuja única função é decodificar e compor imagens de vídeo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A MCU, que apoia os aspectos de controle e processamento da conferência multiponto.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O método BYE, que mistura automaticamente a mídia de todos os participantes.",
+          "correct": false
+        }
+      ],
+      "explanation": "A unidade de controle multiponto é associada ao suporte de conferências com vários participantes. O gatekeeper controla funções de zona; o gateway interconecta sistemas; nenhum método SIP ou marca DSCP compõe a conferência.",
+      "section": "3. H.323: arquitetura multimídia e interoperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa explica melhor por que um buffer pode reduzir efeitos de jitter e ao mesmo tempo prejudicar a conversação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele retém pacotes para reproduzi-los com intervalos mais regulares, mas essa espera aumenta o atraso percebido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ele altera os endereços SIP e por isso aumenta necessariamente o tempo de propagação física.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele marca DSCP no remetente e obriga todos os roteadores da Internet a priorizar os pacotes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele transforma pacotes perdidos em pacotes intactos sem exigir informação redundante.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele negocia codecs diferentes e por isso remove a necessidade de sincronizar áudio e vídeo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O buffer absorve irregularidade de chegada ao aguardar pacotes antes de reproduzi-los. Quanto maior a espera, maior tende a ser o atraso ponta a ponta, razão pela qual o ajuste é um compromisso.",
+      "section": "1. Da sala de reunião aos fluxos de rede",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas empresas usam SIP e H.323, respectivamente, e precisam realizar uma chamada entre os ambientes. Qual afirmação é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A interoperabilidade é automática porque ambas as tecnologias usam endereços IP e RTP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pode ser necessário um gateway ou solução de interoperação que traduza sinalização e, quando preciso, mídia.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O método REGISTER traduz qualquer chamada SIP para H.323 sem configurar codecs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A MCU sempre funciona como tradutor universal entre SIP, H.323 e qualquer formato de vídeo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O DSCP converte mensagens SIP em mensagens H.245 quando os fluxos entram na rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "SIP e H.323 são arquiteturas diferentes. A interoperação pode exigir gateway ou equipamento apropriado para mapear sinalização e formatos de mídia; usar IP ou RTP em ambos não elimina incompatibilidades de controle e capacidades.",
+      "section": "3. H.323: arquitetura multimídia e interoperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador observa que o vídeo degrada quando a soma das taxas oferecidas por vários fluxos excede a capacidade do enlace. Qual explicação é mais consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A sobrecarga pode formar filas e causar atraso ou descarte; priorização não remove o limite de capacidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O SIP converte automaticamente todos os fluxos para uma taxa inferior quando a capacidade acaba.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RTP amplia dinamicamente a capacidade física do enlace para entregar cada quadro completo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A sinalização H.323 elimina filas ao fechar o gatekeeper durante a transmissão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "DSCP impede qualquer descarte mesmo quando o tráfego excede a capacidade disponível.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando a taxa total excede a capacidade, formam-se filas e podem ocorrer atraso e descarte. QoS organiza o tratamento, e a aplicação pode adaptar taxa ou resolução, mas nenhum rótulo de prioridade cria capacidade adicional.",
+      "section": "4. QoS: administrar os efeitos da rede",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação associa corretamente os protocolos ou componentes às suas funções?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "SDP transporta vídeo, RTP registra usuários, e gatekeeper encerra sessões SIP com BYE.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SIP sinaliza sessões, RTP transporta mídia, e H.245 negocia capacidades H.323.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "RTCP cria zonas H.323, DSCP negocia codecs, e INVITE marca classe DiffServ.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MCU registra contatos SIP, gateway confirma ACK, e OPTIONS reserva largura de banda.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "H.225.0 codifica vídeo, BYE encaminha RTP, e REGISTER controla filas de rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "SIP faz controle de sessão; RTP é transporte usual de mídia; H.245 participa da negociação e controle de canais H.323. As outras associações trocam funções de sinalização, mídia, controle de zona e QoS.",
+      "section": "3. H.323: arquitetura multimídia e interoperação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede quer fazer com que tráfego de voz receba tratamento preferencial apenas dentro de sua própria rede DiffServ. Qual premissa deve ser considerada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É necessário configurar a classificação e as políticas nos nós do domínio que devem aplicar o tratamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Basta marcar DSCP na origem, pois todo roteador de qualquer rede tem obrigação de manter a prioridade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O método ACK precisa ser habilitado em todos os roteadores para reconhecer os pacotes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A aplicação precisa registrar cada pacote RTP como um usuário SIP antes da transmissão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O gatekeeper H.323 precisa interpretar cada fila IP mesmo em domínios sem H.323.",
+          "correct": false
+        }
+      ],
+      "explanation": "A marca DSCP precisa ser reconhecida e associada a um PHB conforme as políticas do domínio. Não há garantia de que outros domínios respeitem a marca; o tratamento tem alcance administrativo e técnico limitado.",
+      "section": "4. QoS: administrar os efeitos da rede",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve uma diferença correta entre SIP e H.323?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "SIP é uma família de recomendações da ITU-T, enquanto H.323 é uma RFC da IETF baseada em métodos HTTP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SIP é especificado no âmbito da IETF e usa requisições/respostas; H.323 é uma recomendação ITU-T com conjunto de protocolos coordenados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "SIP transporta mídia obrigatoriamente, enquanto H.323 só pode negociar chamadas sem áudio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "H.323 só opera sobre redes com QoS garantida e SIP só opera em redes sem pacotes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SIP e H.323 são nomes diferentes para o mesmo codec obrigatório de videoconferência.",
+          "correct": false
+        }
+      ],
+      "explanation": "SIP é um protocolo de controle da camada de aplicação definido por RFCs da IETF. H.323 é uma recomendação da ITU-T para sistemas multimídia em redes por pacotes e integra protocolos e entidades relacionados.",
+      "section": "3. H.323: arquitetura multimídia e interoperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante uma sessão estabelecida, um participante SIP precisa desligar normalmente. Qual procedimento corresponde ao encerramento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enviar OPTIONS, pois a consulta de capacidades sempre encerra a chamada ao terminar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Enviar CANCEL, pois ele é o método obrigatório para remover participantes já conectados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Enviar REGISTER, pois a remoção do contato encerra todas as sessões correntes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Enviar SDP por RTP, pois o corpo de mídia encerra o diálogo automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Enviar BYE dentro do diálogo e receber a resposta correspondente.",
+          "correct": true
+        }
+      ],
+      "explanation": "Para encerrar normalmente uma sessão SIP já estabelecida, um participante envia BYE dentro do diálogo e recebe uma resposta. CANCEL interrompe um convite que ainda está pendente, enquanto remover ou alterar um registro de contato não encerra por si só as sessões ativas.",
+      "section": "2. SIP: convite, negociação e controle de sessão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fluxo RTP apresenta números de sequência e timestamps. Para que servem principalmente esses campos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Controlam admissão de chamadas em uma zona H.323 sem gatekeeper.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ajudam a ordenar pacotes e a relacioná-los ao instante de amostragem para reprodução.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituem a negociação de codec e selecionam automaticamente a resolução máxima.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Identificam o contato SIP registrado e roteiam a chamada até o usuário atual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reservam largura de banda e forçam os roteadores a entregar os pacotes antes do prazo.",
+          "correct": false
+        }
+      ],
+      "explanation": "No RTP, a sequência ajuda a detectar ordem e lacunas, e o timestamp fornece referência temporal para reproduzir a mídia. Esses campos apoiam a reconstrução e o monitoramento do fluxo, mas não reservam banda nem obrigam roteadores a cumprir prazos de entrega.",
+      "section": "1. Da sala de reunião aos fluxos de rede",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um terminal recebe um formato de vídeo que não suporta, apesar de a rede estar pouco congestionada. Qual camada de diagnóstico deve ser verificada primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A latência, pois atraso de propagação sempre altera a sintaxe do codec recebido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente a prioridade DSCP, pois toda incompatibilidade de decodificação decorre de filas IP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A compatibilidade dos codecs e as capacidades de mídia negociadas pelos terminais.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O registro de contato, pois o registrar converte formatos depois de localizar o destinatário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A resposta BYE, pois o encerramento SIP determina como o receptor decodifica vídeo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um formato que o receptor não consegue decodificar aponta primeiro para incompatibilidade de codec ou para uma negociação de capacidades inadequada. A baixa congestão não resolve essa incompatibilidade, e mensagens de encerramento SIP não determinam a forma de decodificação.",
+      "section": "1. Da sala de reunião aos fluxos de rede",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação H.323 precisa de sinalização de chamada e também de negociação de capacidades. Qual associação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "MCU faz todas as tarefas de H.225.0 e H.245, inclusive quando não há conferência multiponto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "H.245 registra contatos SIP; H.225.0 codifica e decodifica exclusivamente vídeo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RTP sinaliza chamada; RTCP substitui H.245 e controla a admissão da zona.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "H.225.0 cuida da sinalização de chamada; H.245 negocia capacidades e canais.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "DSCP controla a chamada; SIP realiza RAS obrigatório em todo terminal H.323.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na arquitetura H.323, H.225.0 participa da sinalização de chamada e dos procedimentos RAS quando aplicáveis; H.245 negocia capacidades e controla canais lógicos. RTP e RTCP podem transportar e acompanhar a mídia, mas DSCP e SIP não substituem essas funções H.323.",
+      "section": "3. H.323: arquitetura multimídia e interoperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma gravação de áudio chega com intervalo irregular, e aumentar o buffer melhora a continuidade, mas torna os turnos de fala mais lentos. Qual interpretação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O buffer corrige perda definitivamente e não pode alterar o atraso da reprodução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O buffer compensa parte do jitter à custa de aumentar o atraso total percebido.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O buffer é uma entidade SIP que atualiza REGISTER a cada pacote de áudio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O buffer controla o gatekeeper e converte o fluxo em conferência H.323.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O buffer elimina o congestionamento ao aumentar a capacidade física do enlace.",
+          "correct": false
+        }
+      ],
+      "explanation": "O buffer aguarda pacotes para reproduzi-los de maneira mais regular, reduzindo o efeito perceptível de variações no atraso. Essa espera adiciona latência e não recupera necessariamente pacotes perdidos.",
+      "section": "4. QoS: administrar os efeitos da rede",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização marca áudio com DSCP, mas a chamada continua com atraso alto num enlace saturado. Qual conclusão é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O DSCP deve ser copiado para o SDP, pois só assim o SIP aumenta a capacidade do enlace.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O atraso prova que o codec não foi aceito e que os pacotes RTP não têm timestamp.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DSCP não elimina saturação; confira as políticas, as filas e a capacidade do enlace.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A chamada precisa usar BYE e CANCEL simultaneamente para a fila reduzir a ocupação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A marca garante prioridade fim a fim, portanto o problema só pode ser falha do terminal receptor.",
+          "correct": false
+        }
+      ],
+      "explanation": "DSCP só orienta tratamento onde as políticas estão configuradas. Saturação e capacidade limitada continuam podendo gerar filas e atraso; o diagnóstico deve verificar o domínio, a fila e a carga, sem supor garantia fim a fim.",
+      "section": "4. QoS: administrar os efeitos da rede",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede tem tráfego de voz e vídeo com requisitos distintos. Qual princípio de QoS permite tratá-los diferentemente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar perda aleatória igual a todos os fluxos para assegurar atraso constante.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter todos os fluxos ao mesmo codec e deixar a rede encaminhá-los sem política.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar SIP para substituir o encaminhamento IP e remover a necessidade de roteadores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Classificar fluxos e associar classes a filas conforme a política.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar RTP sem filas, pois o protocolo atribui automaticamente prioridade a áudio sobre vídeo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mecanismos de QoS podem classificar e marcar tráfego e associar classes a filas, policiamento e comportamentos de encaminhamento. A diferenciação depende de políticas e capacidade, e não ocorre automaticamente apenas por usar RTP ou SIP.",
+      "section": "4. QoS: administrar os efeitos da rede",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa pretende manter conferência H.323 mesmo que a rede subjacente não forneça uma QoS garantida. Qual afirmação corresponde ao escopo da recomendação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "H.323 exige vídeo, dados e áudio em toda chamada e garante a mesma qualidade em qualquer rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "H.323 só funciona quando cada enlace reserva largura de banda fixa antes da sinalização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "H.323 transforma a rede em circuito dedicado e impede perdas em cada roteador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "H.323 é um protocolo de QoS que substitui codecs, filas e mecanismos IP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "H.323 atende comunicação multimídia em redes por pacotes, mesmo sem QoS garantida.",
+          "correct": true
+        }
+      ],
+      "explanation": "A recomendação H.323 cobre entidades e serviços de comunicação multimídia em redes por pacotes, inclusive redes que podem não oferecer QoS garantida. A qualidade percebida ainda depende da rede, dos terminais e das políticas implantadas.",
+      "section": "3. H.323: arquitetura multimídia e interoperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Numa instalação com um gatekeeper H.323, qual descrição evita confundi-lo com o caminho obrigatório da mídia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É sempre o equipamento que decodifica cada quadro, mistura vídeo e encaminha RTP a todos os terminais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Controla logicamente a zona; a mídia pode seguir outro caminho.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "É um protocolo de transporte que substitui RTP e RTCP em cada fluxo audiovisual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É um codec comum que os terminais carregam dentro do campo DSCP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É o servidor registrar SIP e, portanto, não exerce funções dentro da arquitetura H.323.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gatekeeper é uma entidade lógica de controle de zona. A sinalização e a mídia não precisam atravessar o mesmo equipamento; mistura e processamento multiponto se associam a MCU, e a interconexão a gateway.",
+      "section": "3. H.323: arquitetura multimídia e interoperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sessão oferece áudio e vídeo, mas o participante remoto aceita somente áudio. Qual resultado é compatível com a negociação de sessão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O destinatário deve rejeitar toda sessão, pois uma mídia recusada invalida obrigatoriamente todas as demais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O vídeo precisa iniciar, pois todo INVITE obriga o destinatário a aceitar todas as mídias oferecidas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A sessão pode manter áudio e rejeitar vídeo na negociação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A resposta converte o áudio em vídeo usando RTCP, sem qualquer suporte do terminal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O registrar SIP remove a mídia não aceita e assume a decodificação de áudio do destinatário.",
+          "correct": false
+        }
+      ],
+      "explanation": "A negociação permite selecionar os meios aceitos e seus parâmetros. Uma sessão pode manter o áudio e rejeitar ou não estabelecer vídeo, desde que os participantes e a aplicação tratem essa combinação.",
+      "section": "2. SIP: convite, negociação e controle de sessão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um engenheiro precisa medir perda e variação de recepção sem confundir medição com garantia. Qual afirmação sobre RTCP é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RTCP negocia todos os codecs com H.245 e codifica o vídeo para transporte.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RTCP reserva recursos no roteador e assegura que nenhuma perda ocorrerá depois do relatório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RTCP substitui a sinalização SIP e registra o contato do participante remoto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RTCP relata recepção, mas não garante entrega pontual.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "RTCP grava DSCP em todos os roteadores para impor prioridade em domínios externos.",
+          "correct": false
+        }
+      ],
+      "explanation": "RTCP fornece informações de controle e relatórios de recepção associados ao RTP, úteis para monitorar a sessão. Observação não equivale a controle de admissão, reserva ou garantia de QoS.",
+      "section": "4. QoS: administrar os efeitos da rede",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede pretende privilegiar áudio em detrimento de tráfego menos sensível. Qual risco precisa ser considerado ao configurar filas estritamente prioritárias?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A marca DSCP limita sozinha a taxa da classe, independentemente de policiamento ou modelagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A prioridade inferior ganha automaticamente mais largura de banda sempre que o áudio estiver ativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O SIP impede a fila de voz de transmitir até todos os fluxos de vídeo terminarem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O RTP reescreve as filas e garante que a prioridade não afete outros tráfegos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sem controle, a fila prioritária pode atrasar as classes inferiores.",
+          "correct": true
+        }
+      ],
+      "explanation": "Prioridade pode reduzir a espera do tráfego sensível, mas uma fila prioritária sem controle pode prejudicar classes inferiores. Policiamento, modelagem e dimensionamento ajudam a fazer cumprir a política sem ignorar a capacidade total.",
+      "section": "4. QoS: administrar os efeitos da rede",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada exibe vídeo congelado, embora o áudio continue inteligível. Qual conjunto de causas deve ser considerado sem presumir falha de sinalização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente ausência de REGISTER, que sempre encerra o vídeo após o áudio iniciar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Taxa, perdas, codec ou capacidade do terminal de vídeo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Somente resposta 200 OK, que impede qualquer fluxo audiovisual além de áudio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Necessariamente erro no método BYE, mesmo que a sessão continue ativa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A marca DSCP está sempre incorreta, pois ela converte automaticamente todos os formatos de vídeo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A mídia pode sofrer de forma diferente: vídeo costuma exigir maior taxa e pode ser afetado por perda, congestionamento, codec ou limitações de processamento. Áudio inteligível indica que a sinalização pode ter sido concluída, mas não identifica sozinho a causa.",
+      "section": "1. Da sala de reunião aos fluxos de rede",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador encontra a marca DSCP esperada na origem e conclui que a qualidade está garantida em todo o caminho até o destinatário. Qual análise corrige essa conclusão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verifique a política de cada domínio; a marca não vincula terceiros.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A conclusão está certa, porque DSCP representa uma reserva universal de banda definida pelo protocolo RTP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Basta verificar o registrar SIP, que confirma a prioridade em todos os roteadores externos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É preciso trocar o método INVITE por BYE, que solicita prioridade à rede de trânsito.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A conclusão está certa apenas quando a chamada usa H.323 e não quando usa SIP.",
+          "correct": false
+        }
+      ],
+      "explanation": "DSCP comunica uma classe pretendida, mas cada domínio aplica suas políticas e pode alterar ou ignorar marcações. A qualidade fim a fim também depende de capacidade, filas, atraso, perda, codecs e equipamentos.",
+      "section": "4. QoS: administrar os efeitos da rede",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O suporte de um terminal H.323 a vídeo é opcional. Quando ele anuncia essa mídia, que condição favorece interoperação com outro terminal que também a suporta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um modo comum para a mídia anunciada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A obrigação de ambos transmitirem simultaneamente todos os codecs disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A presença de um gatekeeper que converta qualquer codec sem negociar parâmetros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A reserva prévia de todos os enlaces IP por uma resposta SIP 200 OK.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A atribuição de um endereço DSCP diferente a cada quadro, dispensando capacidades comuns.",
+          "correct": false
+        }
+      ],
+      "explanation": "A recomendação indica que, se vídeo ou dados forem suportados, os terminais precisam poder usar um modo comum de operação para que interoperem. Isso requer negociação de capacidades; gatekeeper e DSCP não substituem a compatibilidade de mídia.",
+      "section": "3. H.323: arquitetura multimídia e interoperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de afirmações diferencia corretamente um codec de um mecanismo de QoS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Codec encaminha solicitações SIP; QoS define os métodos INVITE, ACK e BYE.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Codec reserva largura de banda; QoS converte pixels em quadros comprimidos no terminal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Codec codifica mídia; QoS administra o tráfego de rede.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Codec é uma fila de roteador; QoS é o nome do formato de vídeo negociado por SDP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Codec e QoS são sinônimos, pois ambos garantem que a chamada use a taxa máxima possível.",
+          "correct": false
+        }
+      ],
+      "explanation": "Codec define como áudio ou vídeo é codificado e decodificado, afetando compatibilidade e taxa. QoS reúne métricas e mecanismos de rede, como classificação, filas e priorização. Um não substitui o outro.",
+      "section": "1. Da sala de reunião aos fluxos de rede",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário mudou de dispositivo e precisa informar ao domínio SIP seu novo endereço de contato. Qual ação atende a essa finalidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enviar RTCP para atualizar a localização usada por proxies SIP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Enviar BYE para cadastrar o novo endereço no serviço de localização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Enviar ACK para substituir o registro e negociar formatos de vídeo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Enviar REGISTER para atualizar o contato do identificador SIP.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Enviar H.245 para o registrar, pois esse protocolo atualiza contatos SIP.",
+          "correct": false
+        }
+      ],
+      "explanation": "REGISTER permite que o agente informe contatos associados ao identificador SIP. O registrar grava a associação no serviço de localização, que pode ser consultado por proxy para roteamento de chamadas.",
+      "section": "2. SIP: convite, negociação e controle de sessão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede DiffServ aplica um comportamento por salto em cada nó do domínio. Qual afirmação sobre o alcance desse modelo é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A marca de entrada assegura prioridade permanente mesmo se for removida ou reinterpretada por outra rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cada PHB reserva automaticamente capacidade física exclusiva entre quaisquer dois terminais do planeta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O comportamento por salto faz o DSCP funcionar como protocolo de sinalização de chamadas SIP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O domínio precisa decodificar o codec de vídeo em cada roteador para aplicar qualquer classe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A diferenciação exige políticas nos nós; domínios podem cooperar por acordos.",
+          "correct": true
+        }
+      ],
+      "explanation": "DiffServ define comportamento por salto aplicado por nós de domínios com políticas de serviço. Extensão entre domínios exige cooperação, provisionamento e tratamento apropriado; a marca isolada não reserva um caminho universal.",
+      "section": "4. QoS: administrar os efeitos da rede",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista afirma que H.323 é apenas um codec de vídeo e que SIP é apenas um codec de áudio. Qual correção é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A afirmação está correta, pois cada protocolo define um codec obrigatório para todos os terminais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SIP e H.323 controlam sessões; codecs representam a mídia negociada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "H.323 é uma fila DiffServ e SIP é um mecanismo de retransmissão RTP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SIP é o nome do gateway e H.323 é o nome da MCU usada em conferências.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "H.323 e SIP são formatos de compressão que eliminam a necessidade de sinalização.",
+          "correct": false
+        }
+      ],
+      "explanation": "SIP é sinalização de sessão e H.323 é uma arquitetura de comunicação multimídia. Codec descreve a codificação da mídia; capacidades e formatos são negociados em conjunto com a sessão, não se confundindo com os protocolos de controle.",
+      "section": "3. H.323: arquitetura multimídia e interoperação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um técnico encontra respostas 180 Ringing e depois 200 OK durante uma chamada SIP. Qual interpretação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "180 e 200 são métodos de solicitação equivalentes a INVITE e BYE.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "180 encerra a sessão e 200 solicita que o originador registre um contato novo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "180 é relatório RTCP e 200 é um pacote RTP de áudio inicial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "180 confirma o codec, e 200 reserva largura de banda nos roteadores intermediários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "180 indica progresso, como toque no destino; 200 indica que a solicitação foi aceita com sucesso.",
+          "correct": true
+        }
+      ],
+      "explanation": "180 Ringing é resposta provisória da classe 1xx que sinaliza progresso, como toque. 200 OK é resposta de sucesso da classe 2xx. Para INVITE aceito, o iniciador confirma com ACK.",
+      "section": "2. SIP: convite, negociação e controle de sessão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa precisa decidir se compra banda adicional ou apenas prioriza voz. Qual análise expressa corretamente a relação entre QoS e capacidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "QoS sempre substitui capacidade adicional, pois marcações DSCP multiplicam a vazão do enlace.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "QoS organiza filas; carga excessiva exige reduzir tráfego ou ampliar capacidade.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Banda adicional elimina a necessidade de codecs compatíveis e de negociação de sessão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A sinalização SIP mede a capacidade e limita o tráfego sem políticas nos roteadores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RTP remove todo congestionamento retransmitindo quadros até que a fila esteja vazia.",
+          "correct": false
+        }
+      ],
+      "explanation": "QoS permite tratar classes, controlar taxas e administrar filas; não cria banda. Se a demanda total excede a capacidade, podem ser necessárias redução ou adaptação do tráfego, controle de admissão ou expansão do enlace.",
+      "section": "4. QoS: administrar os efeitos da rede",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma estação SIP envia um INVITE e recebe uma resposta 4xx. Como a classe de resposta deve ser interpretada de forma geral?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como resposta de progresso que equivale a 180 Ringing.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Como sucesso definitivo, que estabelece sessão e exige início imediato do RTP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Como erro do cliente; o código específico detalha a causa.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Como redirecionamento obrigatório da classe 3xx para outro endereço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como falha global da classe 6xx que prova indisponibilidade de toda a rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Respostas SIP 4xx formam a classe de erro do cliente. A interpretação concreta depende do código, mas a classe não significa sucesso, progresso nem redirecionamento, que são 2xx, 1xx e 3xx, respectivamente.",
+      "section": "2. SIP: convite, negociação e controle de sessão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema apresenta perda de quadros durante congestionamento e mantém o atraso de áudio sob controle. Qual mecanismo de QoS pode ajudar a decidir quais pacotes recebem tratamento preferencial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registrar cada fluxo como usuário SIP e presumir que o registrar configura as filas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um método BYE por quadro perdido, usado para pedir retransmissão a cada roteador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o número de sequência RTP, pois ele instrui o roteador a descartar tráfego concorrente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Classificar o tráfego e configurar filas conforme a política.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Trocar H.323 por SIP, pois apenas SIP possui mecanismos de priorização de pacotes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Classificação, marcação e disciplina de filas são mecanismos de QoS que permitem tratamento diferenciado. A política precisa levar em conta tráfego e capacidade; números de sequência e métodos de sinalização não configuram filas nos roteadores.",
+      "section": "4. QoS: administrar os efeitos da rede",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 3261 — SIP: Session Initiation Protocol",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Funções, registro, métodos, respostas e estabelecimento e encerramento de sessões SIP",
+      "url": "https://www.rfc-editor.org/rfc/rfc3261.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ITU-T Recommendation H.323 — Packet-based multimedia communications systems (Summary)",
+      "publisher": "ITU-T",
+      "reference": "Escopo de H.323, redes por pacotes, áudio obrigatório e vídeo/dados opcionais",
+      "url": "https://www.itu.int/dms_pubrec/itu-t/rec/h/T-REC-H.323-202203-I!!SUM-HTM-E.htm",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 3550 — RTP: A Transport Protocol for Real-Time Applications",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Transporte em tempo real, sequência, timestamp, monitoramento e limites de QoS do RTP",
+      "url": "https://www.rfc-editor.org/rfc/rfc3550.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 2475 — An Architecture for Differentiated Services",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Arquitetura DiffServ, classificação, marcação DS, políticas e comportamentos por salto",
+      "url": "https://www.rfc-editor.org/rfc/rfc2475.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 7657 — Differentiated Services and Real-Time Communication",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Interação entre DiffServ e tráfego de comunicação em tempo real, incluindo RTP",
+      "url": "https://www.rfc-editor.org/rfc/rfc7657.html",
+      "accessedAt": "2026-10-31"
+    }
+  ]
+}

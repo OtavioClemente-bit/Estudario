@@ -1,0 +1,4191 @@
+{
+  "id": "informatica.tratamento-excecoes-programacao",
+  "subject": "Informática",
+  "title": "Tratamento de exceções em programação",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Tratamento de exceções",
+    "Tratamento de exceções em programação",
+    "Exceções em linguagens de programação",
+    "Erros e exceções em programas",
+    "Exceções checked e unchecked em Java",
+    "Lançamento e captura de exceções",
+    "Propagação de exceções em métodos",
+    "Tratamento de erros em Java e Python",
+    "Criação de exceções personalizadas",
+    "Recursos e fechamento com exceções",
+    "Encadeamento de exceções",
+    "Cláusulas catch e finally",
+    "Exceções e fluxo de controle"
+  ],
+  "scope": {
+    "covers": "Conceito e finalidade de exceções; diferença entre erros de sintaxe e falhas durante a execução; fluxo de lançamento, propagação e captura; blocos try/catch/finally e try-with-resources em Java; hierarquia Throwable, Exception, RuntimeException e Error, checked e unchecked, throw e throws; tratamento específico, propagação, encapsulamento e encadeamento; exceções próprias; comparação com try/except/else/finally, raise e exceções próprias em Python; limpeza de recursos e boas práticas.",
+    "excludes": "Tratamento detalhado de falhas específicas de frameworks, arquitetura de observabilidade, códigos de saída de sistemas operacionais, depuração de desempenho e referência completa de classes de exceção de cada biblioteca."
+  },
+  "theoryTitle": "Como programas sinalizam, propagam e tratam falhas",
+  "chapters": [
+    {
+      "title": "1. O que é uma exceção e por que tratá-la",
+      "markdown": "### O problema que este assunto resolve\n\nUma operação pode não conseguir cumprir o que o programa pediu: converter texto inválido em número, abrir um arquivo inexistente ou acessar uma posição fora de uma lista. Uma **exceção** é um objeto ou evento usado pela linguagem para sinalizar uma condição anormal durante a execução e transferir o controle para um ponto que possa decidir o que fazer. O programa pode recuperar-se, informar o usuário, tentar novamente, registrar o ocorrido ou encerrar aquela operação de forma controlada.\n\nIsso difere de um erro de sintaxe. `if x > 0` sem a pontuação exigida é rejeitado antes de executar o programa; dividir por zero em uma expressão sintaticamente correta é uma falha detectada durante a execução. Em Python, por exemplo, a primeira situação é `SyntaxError`, a segunda pode produzir `ZeroDivisionError`. O nome e a hierarquia das exceções variam conforme a linguagem.\n\n> **Siglas e termos deste capítulo**\n> - **Lançar (throw/raise)**: sinalizar explicitamente uma exceção.\n> - **Capturar (catch/except)**: selecionar uma exceção e executar o tratamento correspondente.\n> - **Propagar**: deixar a exceção subir pela cadeia de chamadas até um tratador compatível.\n> - **Pilha de chamadas**: sequência de métodos ou funções ativos, útil para localizar onde a falha ocorreu.\n> - **Exceção não tratada**: exceção que alcança o limite de execução sem encontrar um tratador; em geral, interrompe a operação ou o programa.\n\n### O caminho da exceção\n\nImagine que `tela` chama `servico`, que chama `repositorio` para ler um arquivo. Se a leitura falha, o repositório pode lançar uma exceção. Se não a capturar, o serviço recebe a mesma falha; se também não a tratar, ela continua até a tela. A tela talvez possa exibir uma mensagem adequada, enquanto o repositório não sabe como apresentar algo ao usuário. A exceção permite que o sinal atravesse camadas sem cada função retornar um código especial e exigir que todo chamador confira esse código.\n\nO tratador deve estar alinhado com o que a camada consegue fazer. Uma função que não pode corrigir a falha pode propagá-la. Um ponto de entrada pode transformar uma falha técnica em resposta compreensível. Capturar e ignorar a exceção perde a informação e pode deixar o estado inconsistente.\n\n| Situação | Exemplo concreto | Resposta possível |\n| --- | --- | --- |\n| Entrada inválida | O usuário digita `abc` quando se espera inteiro | Explicar o formato e pedir nova entrada |\n| Recurso ausente | O caminho de arquivo não existe | Informar que não foi possível carregar e oferecer outro caminho |\n| Falha inesperada | Uma operação viola uma suposição interna | Registrar contexto e propagar para o limite adequado |\n\n### Não confunda exceção com qualquer defeito\n\nUma exceção não corrige automaticamente a causa. Capturar `FileNotFoundException` não cria o arquivo; capturar divisão por zero não determina qual resultado de negócio deveria substituí-la. Também não se deve confundir exceções recuperáveis com erros graves da máquina virtual. O tratamento precisa ter uma política explícita para aquela condição.\n\n### Como cai na prova\n\n- Sintaxe inválida é detectada ao analisar o código; exceção normalmente surge ao executar uma operação.\n- Lançar informa a ocorrência; capturar executa um tratador; propagar transfere a decisão a um chamador.\n- Uma cláusula `try` não significa que qualquer falha será resolvida: é necessário um tratador compatível e uma ação correta."
+    },
+    {
+      "title": "2. Captura, seleção e limpeza do fluxo",
+      "markdown": "### A estrutura básica em Java\n\nEm Java, o padrão mais conhecido é `try { ... } catch (Tipo e) { ... } finally { ... }`. As instruções protegidas ficam no `try`. Quando uma delas lança uma exceção compatível com um `catch`, o restante do bloco `try` é abandonado e o primeiro tratador compatível executa. Depois disso, a execução continua após a estrutura, salvo se o próprio tratador lançar outra exceção ou retornar. Se nenhum `catch` local for compatível, a exceção propaga-se ao chamador.\n\nA ordem dos `catch` importa: coloque primeiro o subtipo mais específico e depois o tipo mais geral. Se um `catch (Exception e)` aparece antes de `catch (IOException e)`, o segundo fica inalcançável, pois a classe geral já captura a exceção de entrada. É possível capturar tipos irmãos juntos com multi-catch, desde que o tratamento seja o mesmo.\n\n`finally` é destinado a ações de limpeza que devem ocorrer ao sair do `try`/`catch`, como liberar um recurso em padrões antigos. Ele não significa que o bloco principal terminou com sucesso; também é executado quando uma exceção compatível é tratada ou quando ela continua propagando. Evite retornar ou lançar outra exceção em `finally`, pois isso pode ocultar o resultado ou a falha original.\n\n### Gerenciar recursos com try-with-resources\n\nPara recursos que implementam `AutoCloseable`, Java oferece `try-with-resources`: declarar o recurso entre parênteses faz com que o fechamento seja tentado automaticamente ao sair da estrutura, inclusive se a leitura lançar exceção. É apropriado para arquivos, fluxos e conexões que precisam ser fechados. A ordem de fechamento é inversa à ordem de abertura quando há vários recursos. Isso reduz vazamentos e evita que o código de limpeza seja esquecido em algum caminho.\n\n### A forma de Python é parecida, mas não idêntica\n\nPython usa `try`, `except`, `else` e `finally`. Cada `except` nomeia os tipos que pretende tratar; o primeiro compatível executa. Se nada falhar no `try`, o `else` opcional roda. Colocar operações de sucesso no `else` ajuda a não capturar acidentalmente uma exceção produzida por essas operações. `finally` roda na saída da estrutura, seja qual for o caminho normal de controle. Para arquivos, a construção `with open(...) as arquivo:` gerencia o fechamento do recurso.\n\n### Seja específico e deixe o inesperado aparecer\n\nCapturar uma classe ampla como `Exception` pode esconder defeitos que a aplicação não sabe tratar. Em Python, a documentação recomenda capturar os tipos esperados e deixar exceções inesperadas propagarem. Em Java, capturar `Exception` sem uma resposta útil também costuma apagar a distinção entre falhas. Registre o contexto necessário e, se a camada não puder resolver a condição, propague-a.\n\n### Como cai na prova\n\n- O primeiro tratador compatível é o escolhido; subtipo antes de supertipo evita captura inalcançável.\n- `finally` serve para limpeza e não é sinônimo de sucesso.\n- Em Python, `else` executa quando o `try` termina sem exceção; não é um tratador.\n- `try-with-resources` e `with` automatizam encerramento de recursos, mas não tornam a operação à prova de falhas."
+    },
+    {
+      "title": "3. Hierarquia, exceções verificadas e lançamento",
+      "markdown": "### Hierarquia de exceções em Java\n\nEm Java, toda exceção lançada é representada por uma instância de `Throwable` ou de uma subclasse. A árvore principal divide-se em `Error` e `Exception`. `Error` representa condições graves das quais aplicações comuns normalmente não tentam recuperar, como falta de memória. `Exception` representa condições que a aplicação pode querer tratar. `RuntimeException` é uma subclasse de `Exception`.\n\nAs **checked exceptions** são as subclasses de `Throwable` que não pertencem a `RuntimeException` nem a `Error`. O compilador exige que uma exceção checked que possa sair de um método seja capturada ou declarada no contrato daquele método. Por exemplo, uma leitura de arquivo pode exigir tratamento ou declaração de `IOException`. Já `NullPointerException`, por ser `RuntimeException`, não exige declaração em `throws`. Exceções unchecked incluem as subclasses de `RuntimeException` e de `Error`.\n\nEssa verificação não garante que o programa se recupere corretamente: ela obriga a tornar visível no código a possibilidade de certas falhas. Também não transforma toda exceção checked em situação que deva ser ignorada. A declaração `throws IOException` comunica ao chamador que ele precisa decidir o destino; não lança a exceção por si só.\n\n### `throw` e `throws` não são a mesma coisa\n\nEm Java, `throw` é uma instrução que lança uma instância: `throw new IllegalArgumentException('idade negativa')`. `throws` aparece na assinatura de um método e declara tipos de exceção checked que podem escapar: `ler() throws IOException`. Em Python, a instrução de lançamento chama-se `raise`; a linguagem não usa a obrigação de declaração checked de Java.\n\nValide condições de domínio no limite apropriado. Se um método recebe uma faixa impossível, pode lançar uma exceção de argumento inválido. Uma exceção própria é útil quando o chamador precisa distinguir uma condição de negócio específica; em Java costuma estender `Exception` para checked ou `RuntimeException` para unchecked, conforme a política da API. Em Python, exceções próprias normalmente estendem `Exception`. Dê nomes que expressem a condição e inclua dados úteis sem expor segredos.\n\n### Preservar causa e contexto\n\nAo converter uma falha de baixo nível numa abstração da aplicação, preserve sua causa. Java permite associar a exceção original como causa ao construir outra; Python oferece `raise NovaFalha(...) from original`. Assim, a mensagem apresentada ao chamador pode falar de “falha ao carregar cadastro”, enquanto o registro técnico conserva que a causa foi uma indisponibilidade ou arquivo ausente. Não substitua a exceção original por uma mensagem genérica sem contexto.\n\n### Como cai na prova\n\n- `Throwable` é o topo da hierarquia Java; `Error` e `Exception` são ramos distintos.\n- Checked exige captura ou declaração; `RuntimeException` e `Error` são unchecked.\n- `throw` lança; `throws` declara no método. Python usa `raise` e não replica a checagem checked do compilador Java.\n- Exceção própria deve comunicar uma condição significativa, sem ser usada para mascarar qualquer defeito."
+    },
+    {
+      "title": "4. Boas práticas, exemplos e armadilhas",
+      "markdown": "### Trate perto de quem pode decidir\n\nUma função deve capturar uma exceção quando consegue realizar uma ação concreta: tentar novamente com limite, pedir outra entrada, usar um valor alternativo permitido ou converter a falha numa resposta apropriada. Se não consegue tomar essa decisão, deixa a exceção propagar. Evite `catch` vazio, `except: pass` e mensagens vagas como “erro”; eles fazem o sistema aparentar sucesso enquanto a operação falhou.\n\nNão use exceção como substituto rotineiro de uma condição esperada que possa ser verificada de modo simples e claro. Por outro lado, não faça uma sequência de verificações que não elimina a possibilidade de falha entre verificar e usar o recurso: abrir um arquivo ainda pode falhar mesmo que o caminho tenha sido conferido antes.\n\n### O bloco protegido deve ser pequeno e intencional\n\nColoque no `try` as operações que podem produzir as exceções que você pretende tratar. Um `try` enorme pode capturar uma exceção de uma etapa não relacionada e executar a resposta errada. Trate separadamente situações com respostas diferentes: erro de conversão pode pedir nova entrada; erro de permissão pode orientar o usuário; falha inesperada pode ser registrada e propagada.\n\n### Preserve recursos e a falha original\n\nFeche arquivos e conexões mesmo quando a operação falha, usando `try-with-resources` em Java ou `with` em Python. Ao registrar, inclua a operação e identificador de correlação úteis, mas não senhas, tokens ou dados pessoais desnecessários. Ao relançar no mesmo contexto, preserve a exceção original; ao trocar por uma exceção de domínio, associe a causa.\n\n### Exemplo de raciocínio\n\nAo converter uma idade recebida como texto, há duas perguntas diferentes: o texto pode ser convertido em inteiro? E o número convertido é permitido pelo domínio? A primeira pode produzir erro de conversão; a segunda é uma validação de negócio. O programa pode capturar apenas a falha de conversão e solicitar novo texto. Se aceitar qualquer inteiro sem validar a regra de domínio, tratar a exceção sintática não torna a entrada semanticamente válida.\n\n### Como cai na prova\n\n- Não capture uma falha se você não puder tratá-la, recuperar-se ou acrescentar contexto útil.\n- Não ignore exceção nem exponha detalhes internos ao usuário final.\n- Uma falha de conversão e uma violação de regra de negócio são problemas diferentes.\n- Recursos devem ser liberados em todos os caminhos; estruturas de gerenciamento automático reduzem o risco."
+    }
+  ],
+  "summary": "Tratamento de exceções é o mecanismo pelo qual um programa sinaliza falhas durante a execução e transfere o controle para um tratador ou para um chamador. Diferencie erros de sintaxe, detectados antes da execução, de exceções como divisão por zero e arquivo ausente. Em Java, Throwable tem ramos Exception e Error; RuntimeException deriva de Exception. Checked exceptions precisam ser capturadas ou declaradas com throws, enquanto RuntimeException e Error são unchecked. throw lança uma instância; throws descreve o contrato do método. Em Python, raise lança ou relança, except seleciona tipos, else executa apenas quando try termina sem exceção e finally permite limpeza ao sair. Organize handlers específicos antes de gerais. Use Java try-with-resources ou Python with para fechar recursos. Capture apenas situações que possam receber resposta concreta; propague as demais, preserve causa e contexto ao traduzir falhas e nunca ignore silenciosamente uma operação que não teve sucesso. Exceções próprias identificam condições relevantes da aplicação, enquanto validação de regra de negócio deve ser distinguida de falha de conversão ou de infraestrutura.",
+  "flashcards": [
+    {
+      "front": "O que é uma exceção?",
+      "back": "Uma condição sinalizada durante a execução que interrompe o fluxo normal e pode transferir o controle a um tratador."
+    },
+    {
+      "front": "Como se diferencia SyntaxError de uma exceção de execução?",
+      "back": "SyntaxError aponta código que não pode ser analisado; uma exceção de execução surge ao executar código sintaticamente válido."
+    },
+    {
+      "front": "O que significa lançar uma exceção?",
+      "back": "Sinalizar a condição, normalmente com throw em Java ou raise em Python."
+    },
+    {
+      "front": "O que significa capturar uma exceção?",
+      "back": "Executar um tratador compatível, em catch no Java ou except no Python."
+    },
+    {
+      "front": "O que é propagar uma exceção?",
+      "back": "Deixá-la subir para os chamadores até que um tratador compatível a receba."
+    },
+    {
+      "front": "Qual é a superclasse superior das exceções Java?",
+      "back": "Throwable; Error e Exception são seus dois ramos principais."
+    },
+    {
+      "front": "O que caracteriza uma checked exception em Java?",
+      "back": "Não é RuntimeException nem Error e precisa ser capturada ou declarada quando pode escapar do método."
+    },
+    {
+      "front": "RuntimeException é checked?",
+      "back": "Não. Ela é unchecked e não exige captura ou declaração pelo compilador."
+    },
+    {
+      "front": "Qual a diferença entre throw e throws em Java?",
+      "back": "throw executa o lançamento; throws declara exceções no contrato de um método."
+    },
+    {
+      "front": "Qual palavra Python lança exceções?",
+      "back": "raise; a palavra pode lançar uma exceção nova ou, sem argumento dentro do tratador, relançar a atual."
+    },
+    {
+      "front": "Qual catch deve aparecer primeiro?",
+      "back": "O tipo mais específico, antes de um tipo superclasse mais geral."
+    },
+    {
+      "front": "Quando finally é executado?",
+      "back": "Na saída da estrutura try/catch, inclusive durante propagação, salvo encerramentos externos abruptos como término forçado da máquina virtual."
+    },
+    {
+      "front": "Quando roda o else de Python try?",
+      "back": "Quando o bloco try termina sem lançar exceção."
+    },
+    {
+      "front": "Para que serve try-with-resources?",
+      "back": "Fecha automaticamente recursos AutoCloseable ao deixar a estrutura, inclusive em caso de falha."
+    },
+    {
+      "front": "Como Python fecha arquivo com segurança?",
+      "back": "Com `with open(...) as arquivo`, que gerencia o fechamento ao sair do bloco."
+    },
+    {
+      "front": "O que é exceção não tratada?",
+      "back": "Uma exceção que não encontrou handler compatível antes do limite da execução."
+    },
+    {
+      "front": "Por que não usar catch vazio?",
+      "back": "Porque a falha fica invisível e o programa pode continuar como se a operação tivesse dado certo."
+    },
+    {
+      "front": "Quando criar uma exceção própria?",
+      "back": "Quando uma condição significativa precisa ser identificada e tratada de forma distinta pelos chamadores."
+    },
+    {
+      "front": "O que é encadear exceções?",
+      "back": "Associar a causa original a uma exceção de nível mais alto para conservar o diagnóstico."
+    },
+    {
+      "front": "O que faz o except de uma superclasse?",
+      "back": "Pode capturar instâncias de subclasses; por isso, um tipo geral prematuro pode ocultar tratadores específicos."
+    }
+  ],
+  "tips": [
+    "Na questão, identifique primeiro a linguagem: checked e unchecked são distinções do compilador Java, não uma regra universal.",
+    "Desenhe a sequência try → primeiro handler compatível → continuação ou propagação; isso resolve questões de fluxo.",
+    "Em Java, lembre que IOException é checked e NullPointerException é unchecked.",
+    "Separe a palavra da função: throw lança, throws declara e Python usa raise.",
+    "Quando houver arquivo, fluxo ou conexão, procure o fechamento garantido por try-with-resources ou with.",
+    "Pergunte se o código realmente consegue se recuperar antes de escolher uma captura local."
+  ],
+  "traps": [
+    "Dizer que finally executa somente quando não há erro é falso: a limpeza ocorre também durante a propagação normal da exceção.",
+    "Em Java, throws não lança a exceção por si; apenas informa no contrato o que pode escapar.",
+    "RuntimeException não precisa de declaração checked, mas isso não significa que seja inofensiva ou impossível de tratar.",
+    "Um catch geral antes de um catch específico torna o específico inalcançável ou redundante.",
+    "Capturar uma exceção não desfaz automaticamente alterações anteriores nem corrige a causa original.",
+    "try/except/else em Python não tem exatamente a mesma sintaxe nem as mesmas regras de checagem de Java."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique a diferença entre erro de sintaxe e exceção de execução.",
+      "answer": "O erro de sintaxe impede a análise do código antes da execução; uma exceção ocorre ao executar código válido, por exemplo ao tentar converter entrada inválida ou abrir um recurso ausente."
+    },
+    {
+      "question": "Descreva o que acontece quando uma exceção não é tratada numa função chamada por outra.",
+      "answer": "Ela propaga-se pela cadeia de chamadas até encontrar um tratador compatível; sem um, chega ao limite da execução e a operação é encerrada com diagnóstico."
+    },
+    {
+      "question": "Qual a hierarquia principal das exceções Java?",
+      "answer": "Throwable é a raiz; Error e Exception são subclasses diretas. RuntimeException deriva de Exception. Checked exclui RuntimeException e Error; essas duas categorias são unchecked."
+    },
+    {
+      "question": "Diferencie throw e throws em Java e compare com Python.",
+      "answer": "throw lança uma instância Java; throws declara exceções checked que podem escapar da assinatura. Python usa raise para lançar e não exige declaração checked do compilador."
+    },
+    {
+      "question": "Qual é a ordem de execução de try/catch/finally quando há falha compatível?",
+      "answer": "O try é interrompido no ponto da falha, executa-se o primeiro catch compatível e depois finally ao sair da estrutura; o fluxo continua após ela, salvo nova interrupção."
+    },
+    {
+      "question": "Para que serve else em Python e por que não colocar todo o código nele dentro do try?",
+      "answer": "O else roda quando o try termina sem exceção. Mantém as operações de sucesso fora do trecho protegido para que suas falhas não sejam confundidas com as exceções esperadas do try."
+    },
+    {
+      "question": "Como fechar um arquivo mesmo se uma leitura falhar?",
+      "answer": "Em Java, usar try-with-resources com um recurso AutoCloseable; em Python, usar with open(...) as arquivo. As construções gerenciam o fechamento ao sair do bloco."
+    },
+    {
+      "question": "Quando uma camada deve capturar e quando deve propagar?",
+      "answer": "Captura se pode executar uma resposta útil e correta; propaga se não pode decidir, eventualmente acrescentando contexto e preservando a causa original."
+    },
+    {
+      "question": "Como se ordenam tratadores por tipo?",
+      "answer": "Primeiro os subtipos específicos, depois as superclasses gerais, para que o tratador amplo não capture antes e impeça a seleção específica."
+    },
+    {
+      "question": "Como converter uma exceção técnica em exceção de domínio sem perder diagnóstico?",
+      "answer": "Criar a exceção de domínio com mensagem e contexto apropriados e associar a exceção original como causa, por exemplo por encadeamento em Java ou `raise ... from ...` em Python."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Lançar, capturar e propagar confundidos",
+      "summary": "Lançar sinaliza uma falha; capturar executa um handler compatível; propagar deixa a decisão a um chamador. Captura não corrige automaticamente o estado."
+    },
+    {
+      "key": "e2",
+      "title": "Hierarquia Java e checked/unchecked trocadas",
+      "summary": "Throwable se divide em Error e Exception; RuntimeException deriva de Exception. Checked exige captura ou declaração; RuntimeException e Error são unchecked."
+    },
+    {
+      "key": "e3",
+      "title": "Fluxo de catch, else e finally mal compreendido",
+      "summary": "Executa o primeiro catch compatível; finally é para limpeza ao sair; else em Python roda apenas se try terminou sem exceção. Tipos específicos vêm antes dos gerais."
+    },
+    {
+      "key": "e4",
+      "title": "Recursos e causas descartados",
+      "summary": "Gerencie arquivos e outros recursos com try-with-resources ou with. Ao traduzir uma falha, mantenha causa e contexto, sem ocultar segredos em mensagens."
+    },
+    {
+      "key": "e5",
+      "title": "Captura ampla ou silenciosa",
+      "summary": "Captura vazia ou genérica pode esconder defeitos e produzir falso sucesso. Trate apenas situações esperadas com ação definida e deixe o inesperado propagar."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em Python, o trecho `10 / 0` é sintaticamente válido, mas pode lançar uma exceção durante sua execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A expressão segue a sintaxe da linguagem, mas a operação de divisão por zero falha durante a execução e produz ZeroDivisionError. Um erro de sintaxe, por sua vez, impede que o código seja analisado corretamente antes de executar.",
+      "section": "1. O que é uma exceção e por que tratá-la",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma exceção não tratada localmente pode propagar-se para uma função chamadora, onde outro handler compatível poderá recebê-la.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Quando não encontra um tratador local, o mecanismo procura um handler na cadeia de chamadas. Isso permite que uma camada superior decida como responder; se nenhum handler for encontrado, a exceção chega ao limite da execução sem tratamento.",
+      "section": "1. O que é uma exceção e por que tratá-la",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, toda exceção é uma instância de RuntimeException, razão pela qual o compilador não exige declarações throws.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Java representa exceções por Throwable ou suas subclasses. Há exceções checked fora de RuntimeException e Error, que precisam ser capturadas ou declaradas quando podem escapar do método. RuntimeException é apenas um ramo unchecked.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No fluxo normal de uma estrutura Java try/catch/finally, finally pode ser executado mesmo quando uma exceção está sendo propagada para o chamador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O bloco finally é destinado à limpeza ao deixar a estrutura e é executado também quando a exceção continua propagando. Ele não indica sucesso. Um encerramento forçado externo, como terminar o processo, pode impedir qualquer limpeza de código.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, a declaração `throws IOException` executa o lançamento de uma IOException no momento em que o método é chamado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. throws declara no contrato do método que uma exceção checked pode escapar e exige decisão do chamador. A instrução throw, usada no corpo do método, é que efetivamente lança uma instância de exceção.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Python, a cláusula else de um try é executada quando nenhuma exceção ocorreu no bloco try.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O else opcional roda somente quando o try termina sem lançar exceção. Colocar nele o código que depende do sucesso evita que uma falha desse código seja confundida com as exceções que se pretendia capturar no try.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, Error e Exception são ramos distintos abaixo de Throwable, e Error normalmente representa condições das quais aplicações comuns não esperam recuperar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A hierarquia separa Error de Exception. Error cobre condições graves, como limitações da máquina virtual, enquanto Exception reúne condições de que programas ordinários podem querer tratar. Ambos são unchecked para a verificação em tempo de compilação.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma exceção for capturada, qualquer alteração que ocorreu antes dela é automaticamente desfeita pelo mecanismo de tratamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Capturar transfere o controle ao handler; não oferece rollback genérico das operações anteriores. Se uma transação, arquivo ou estado parcial exigir reversão, o programa precisa usar mecanismos específicos para essa finalidade.",
+      "section": "1. O que é uma exceção e por que tratá-la",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, uma cláusula except que nomeia uma classe-base também pode corresponder a instâncias de suas subclasses.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A correspondência inclui instâncias da classe indicada e de suas derivadas. Por isso, se um handler geral vier antes de outro mais específico, ele pode capturar a exceção primeiro e impedir que o tratamento específico seja alcançado.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, `raise` pode ser usado dentro de um except, sem argumento, para relançar a exceção que está sendo tratada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O relançamento permite registrar ou inspecionar uma falha localmente e ainda deixar que um chamador decida o que fazer. Substituir a exceção sem conservar causa e contexto tornaria o diagnóstico mais difícil.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Java try-with-resources fecha um recurso AutoCloseable ao sair da estrutura, inclusive quando uma operação do bloco lança exceção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A construção gerencia o fechamento no encerramento da estrutura, evitando depender de um caminho manual que poderia ser ignorado quando a leitura ou outra operação falha. Ela não impede que a operação lance exceção.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, NullPointerException é uma exceção checked porque decorre de uma falha em tempo de execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. NullPointerException deriva de RuntimeException e é unchecked. O fato de ocorrer durante a execução não a torna checked; essa classificação depende da posição na hierarquia Java e da obrigação de captura ou declaração pelo compilador.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O fechamento automático de um recurso garante que todas as operações feitas com ele tenham sido bem-sucedidas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O gerenciamento automático cuida do encerramento do recurso ao sair do bloco; a leitura ou gravação ainda pode falhar e lançar exceção. Fechamento correto e sucesso da operação são aspectos diferentes.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, exceções próprias normalmente derivam de Exception para representar condições específicas da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação recomenda que exceções definidas pelo programa derivem de Exception, direta ou indiretamente. Nomes específicos permitem que chamadores distingam uma condição de domínio sem capturar classes sem relação.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um handler Java `catch (Exception e)` deve sempre vir antes de `catch (IOException e)` para que a exceção específica também seja recebida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Exception é superclasse de IOException; se o handler geral vier antes, a exceção específica já será capturada por ele e o catch posterior ficará inalcançável. Deve-se ordenar primeiro o tipo específico e depois o geral.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A declaração throws de um método Java informa ao chamador que exceções checked podem escapar, mas não é a operação que as lança.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. throws faz parte da assinatura e do contrato do método. A execução do lançamento ocorre com throw ou por uma operação chamada que produza a exceção; o chamador de uma checked precisa capturá-la ou declará-la também.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Capturar Exception em Python é a escolha recomendada para todas as situações, pois garante que nenhuma falha alcance o chamador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A prática recomendada é capturar tipos tão específicos quanto possível e deixar exceções inesperadas propagar-se. Um handler amplo pode esconder defeitos que o código não sabe corrigir e transformar falha real em aparente sucesso.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao sair normalmente de um bloco Python try/except/finally, a cláusula finally é destinada a executar ações de encerramento tanto após sucesso quanto após tratamento ou propagação de exceção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. finally é executado ao deixar a estrutura nos caminhos normais de controle, independentemente de sucesso ou falha. Ele é adequado para limpeza, enquanto except trata tipos específicos e else descreve o caminho sem exceção.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Exceções próprias só podem ser usadas em Java quando estendem diretamente Throwable, sem poder derivar de Exception.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma classe de exceção própria pode ser definida como subclasse de Throwable ou de subclasses apropriadas. É comum derivar de Exception para checked ou de RuntimeException para unchecked, conforme o contrato e a política da aplicação.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Python, `with open(caminho) as arquivo` gerencia o fechamento do arquivo ao sair do bloco, inclusive após uma exceção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O gerenciador de contexto encerra o arquivo ao deixar o bloco, reduzindo o risco de vazamento em caminhos de falha. Isso não significa que abrir, ler ou gravar não possa produzir exceções próprias.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao traduzir uma falha técnica para uma exceção de domínio, associar a causa original ajuda a preservar o diagnóstico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A camada superior pode comunicar uma condição útil ao chamador sem perder a causa técnica original. Java permite encadear a causa ao criar a exceção; Python permite expressar a relação com `raise ... from ...`.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma exceção checked em Java pode escapar de um método sem ser capturada ou declarada em sua assinatura, pois o compilador só verifica erros de sintaxe.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O compilador verifica exceções checked que podem resultar da execução e exige handler ou declaração throws compatível. Essa regra não se aplica às classes unchecked RuntimeException e Error.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função que não sabe oferecer resposta correta para uma falha pode deixar a exceção propagar para um chamador mais preparado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Capturar sem possibilidade de recuperação tende a ocultar o problema. A propagação permite que uma camada com contexto suficiente informe o usuário, tente outra estratégia ou registre e encerre a operação de modo controlado.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, todo objeto da classe Error é uma subclasse de Exception e, portanto, é checked.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Error e Exception são subclasses distintas de Throwable. Error é unchecked e não deriva de Exception; a verificação checked exclui tanto RuntimeException quanto Error.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um bloco try que contém muitas operações sem relação pode capturar uma exceção de etapa inesperada e aplicar uma resposta inadequada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um escopo protegido grande aumenta a chance de capturar exceções produzidas por operações não relacionadas. Manter o try pequeno e tratar tipos esperados torna clara a origem e a ação adequada para cada falha.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de lançar uma exceção, o restante do bloco try continua a executar normalmente antes de entrar no catch correspondente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Quando a exceção ocorre, o restante do bloco try é abandonado e o controle procura o primeiro tratador compatível. Instruções posteriores dentro daquele try não são executadas, embora o fluxo possa continuar após a estrutura se o handler terminar normalmente.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, uma classe de exceção derivada de uma classe-base pode ser capturada por um except que nomeia essa classe-base.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O matching de except considera subclasses do tipo nomeado. Essa relação hierárquica permite um tratamento comum, mas exige ordenar handlers específicos antes dos gerais quando se deseja uma resposta distinta.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, uma IOException que pode escapar de um método precisa ser tratada ou declarada, pois não deriva de RuntimeException nem de Error.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. IOException é uma exceção checked. Se uma operação pode produzi-la e o método não a captura, sua assinatura deve declará-la com throws ou uma superclasse compatível, cabendo ao chamador continuar a decisão.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma exceção própria com nome específico pode permitir que um chamador trate uma condição de domínio sem capturar falhas não relacionadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma classe própria bem escolhida expressa uma situação identificável, como registro não encontrado, e permite handlers seletivos. Usar uma exceção genérica para qualquer erro tira essa precisão e pode levar a respostas incorretas.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um método Java sobrescreve outro, sua declaração de checked exceptions pode ampliar livremente o conjunto de exceções checked permitido pelo método sobrescrito.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O método sobrescritor não pode declarar checked exception que o contrato do método sobrescrito não permita. Essa restrição preserva a substituição: quem usa a superclasse não deve ser surpreendido por uma nova exceção checked sem previsão.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Verificar previamente se um caminho existe elimina qualquer possibilidade de falha ao abrir esse arquivo depois.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O estado pode mudar entre a verificação e a abertura, e ainda podem existir problemas de permissão, leitura ou dispositivo. A operação deve continuar preparada para falhar e o recurso precisa ser gerenciado corretamente.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um handler captura uma exceção e não a relança, outro handler externo não recebe automaticamente aquela mesma exceção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A exceção foi tratada naquele ponto e o fluxo segue após a estrutura quando o handler termina normalmente. Para que um chamador também decida, o handler deve relançar a exceção ou lançar outra preservando a causa.",
+      "section": "1. O que é uma exceção e por que tratá-la",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Python, exceções como KeyboardInterrupt e SystemExit são derivadas de BaseException, mas não de Exception, e em geral não devem ser engolidas por um handler comum de Exception.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A hierarquia reserva algumas subclasses diretas de BaseException para condições como interrupção do usuário e pedido de saída. Capturar Exception, em geral, não intercepta essas solicitações de encerramento, o que evita bloqueá-las acidentalmente.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma exceção não tratada em Python resulta em traceback que pode mostrar a cadeia de chamadas e a classe da exceção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O diagnóstico de uma exceção não tratada normalmente mostra o traceback, com contexto das chamadas e a classe da exceção, seguido de detalhes. A informação ajuda a localizar a falha e deve ser protegida quando contiver dados internos sensíveis.",
+      "section": "1. O que é uma exceção e por que tratá-la",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma exceção de conversão de texto para inteiro e a rejeição de um inteiro válido por uma regra de negócio são necessariamente a mesma condição de falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Conversão inválida é uma falha de formato ou tipo de entrada; rejeição de um inteiro convertido por uma regra, como faixa permitida, é uma validação de domínio. Distingui-las permite mensagens e tratamentos adequados.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, `raise RuntimeError('falha') from exc` pode registrar explicitamente que a nova exceção foi causada por `exc`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A cláusula from explicita a relação causal e mantém a exceção original no diagnóstico. Isso é útil quando uma camada converte um erro técnico em uma falha mais significativa para a API que oferece.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como Java não exige declarar RuntimeException, o programa não pode capturá-la com catch.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Unchecked significa que o compilador não exige captura ou declaração, não que a exceção seja impossível de capturar. Um catch compatível pode recebê-la quando existe uma resposta deliberada para aquela condição.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao usar vários recursos em Java try-with-resources, eles são fechados em ordem inversa àquela em que foram declarados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A estrutura fecha primeiro o recurso declarado por último e segue em ordem inversa. Isso é útil quando um recurso depende de outro que deve permanecer aberto até o recurso interno ser fechado.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Capturar uma exceção e exibir a mesma mensagem técnica completa ao usuário é sempre seguro e apropriado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Mensagens técnicas podem expor caminhos internos, consultas, dados ou detalhes de implementação. A aplicação deve registrar contexto protegido para diagnóstico e oferecer ao usuário uma explicação útil sem divulgar informação sensível.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o primeiro catch Java compatível terminar normalmente, a execução continua após a estrutura try/catch, sem executar os catch seguintes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Para uma exceção lançada no try, somente o primeiro handler compatível é escolhido. Após sua conclusão normal, o controle segue depois da estrutura; outros catch não funcionam como etapas sequenciais de tratamento.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma exceção checked Java é definida por ocorrer apenas durante a compilação, e não durante a execução do programa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Checked descreve a obrigação de tratamento ou declaração verificada pelo compilador; a exceção em si é lançada durante a execução. O compilador analisa quais tipos podem escapar de expressões e métodos.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se a função de leitura de arquivo não sabe se deve repetir, pedir outro caminho ou informar a falha, propagar a exceção pode preservar essa decisão para uma camada com mais contexto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A camada que conhece a interação e a política da aplicação pode escolher uma resposta coerente. Capturar no leitor apenas para ignorar ou inventar uma recuperação ocultaria a falha sem resolver o problema.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, a cláusula except deve aparecer antes do bloco try para que a exceção seja identificada antes da execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A estrutura coloca primeiro o bloco try, que executa as operações protegidas, e depois suas cláusulas except opcionais. A exceção é comparada com os tipos nomeados quando ocorre durante o try.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma falha de permissão ao abrir um arquivo e um nome de variável inexistente são exemplos de condições diferentes que podem ser representadas por tipos distintos de exceção Python.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A biblioteca e a linguagem distinguem categorias de falha, como OSError para problemas de operação do sistema e NameError para nome não definido. Tipos distintos permitem handlers mais precisos que uma captura indiscriminada.",
+      "section": "1. O que é uma exceção e por que tratá-la",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma exceção capturada pode ser registrada com contexto e relançada quando a camada atual não consegue decidir uma recuperação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O handler pode acrescentar dados úteis, como operação e identificador de requisição, e depois relançar para manter a decisão no chamador. O registro deve evitar segredos, e a falha original deve continuar disponível para diagnóstico.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, uma operação dentro do finally que lança uma nova exceção pode afetar a exceção ou o resultado que estava sendo propagado antes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma nova falha durante a limpeza pode sobrepor o resultado da execução anterior e dificultar o diagnóstico. Por isso, finally deve concentrar limpeza simples; try-with-resources oferece regras próprias para preservar exceções de fechamento e de uso.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cláusula Python `except ValueError` pode tratar uma exceção FileNotFoundError porque ambas são subclasses de Exception.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O handler específico só corresponde ao tipo nomeado e a suas subclasses; ser irmã sob uma superclasse comum não basta. FileNotFoundError e ValueError representam categorias distintas e precisam de handlers próprios ou de um tipo-base comum explicitamente usado.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, uma classe de exceção que estende RuntimeException é unchecked e pode ser lançada sem declarar sua classe em throws.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. RuntimeException e suas subclasses são unchecked para o compilador, mesmo que possam ser capturadas deliberadamente. A escolha entre checked e unchecked deve refletir o contrato da API e a forma como os chamadores podem responder.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um bloco Python else deve ser usado para tratar a exceção que acabou de ocorrer no try, da mesma forma que except.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. except escolhe o tratamento de exceções correspondentes. else executa quando o try não lançou exceção e é útil para separar o caminho de sucesso do escopo protegido.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao capturar uma falha de entrada inválida, uma aplicação pode explicar o formato esperado e solicitar uma nova entrada, pois essa é uma resposta ligada à condição tratada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O handler tem uma ação concreta para uma entrada que não pôde ser convertida. Isso difere de capturar uma falha arbitrária e ignorá-la: a resposta corrige a interação sem declarar válida uma entrada que não foi convertida.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, se há mais de um recurso declarado em try-with-resources, o primeiro declarado é fechado antes do último.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O fechamento ocorre em ordem inversa à declaração: o último recurso é fechado primeiro. Esse comportamento respeita dependências comuns entre recursos aninhados.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma operação pode lançar IOException, um método Java pode deixar de declarar essa exceção quando já existe um catch compatível dentro do próprio método.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A regra exige captura ou declaração para checked exceptions que podem escapar do método. Se o método captura e trata a IOException internamente, ela não precisa ser declarada como exceção que escapa por essa operação.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação deve usar uma exceção como controle comum para cada ramo previsível, mesmo quando uma condição simples pode ser testada diretamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Exceções são apropriadas para sinalizar falhas e condições excepcionais, mas não precisam substituir toda decisão ordinária. Para condições simples e previstas, uma validação explícita pode tornar o fluxo mais claro, sem eliminar o tratamento de falhas que ainda podem ocorrer.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, `raise NovaFalha(...) from None` pode suprimir a exibição do encadeamento automático da causa contextual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A forma from None desativa a exibição do encadeamento contextual automático. Deve ser usada com critério, pois a causa técnica pode ser útil para o diagnóstico e suprimi-la pode reduzir a informação disponível.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma captura ampla pode ser justificada em um limite de aplicação se registrar a falha e produzir encerramento ou resposta controlada, mas não deve fingir que operações internas tiveram sucesso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um limite externo pode precisar impedir que uma falha derrube todo o processo e apresentar resposta controlada. Ainda assim, deve preservar diagnóstico e estado correto; capturar para continuar silenciosamente como se nada tivesse acontecido é perigoso.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A especificação Java restringe checked exceptions declaradas por um método sobrescritor para que sejam compatíveis com o contrato do método sobrescrito.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um sobrescritor não pode ampliar o conjunto de checked exceptions que os chamadores do contrato original precisariam tratar. Essa regra mantém compatibilidade para código que usa a classe por sua superclasse ou interface.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao capturar uma exceção, é boa prática registrar senhas e tokens junto com o traceback para facilitar a reprodução do problema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O registro deve carregar contexto técnico suficiente sem incluir segredos ou dados pessoais desnecessários. Senhas e tokens podem ser expostos a operadores ou sistemas de log que não deveriam recebê-los.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma exceção ocorre dentro de uma função chamada pelo bloco try, o handler que protege esse try também pode capturá-la se o tipo corresponder.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O escopo protegido inclui chamadas realizadas a partir do try enquanto a exceção propaga de volta. O handler compatível pode recebê-la mesmo que a operação que a lançou esteja em outra função chamada.",
+      "section": "1. O que é uma exceção e por que tratá-la",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma exceção que sinaliza um valor fora de uma regra de domínio pode ser substituída por uma validação explícita quando essa condição for parte normal e esperada do fluxo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O desenho depende do contrato: uma validação explícita pode representar com clareza uma escolha ordinária do usuário, enquanto uma exceção própria pode ser adequada quando a API sinaliza uma falha que o chamador precisa distinguir. A regra não é usar exceções para tudo.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, RuntimeException é uma subclasse de Exception, enquanto Error é uma subclasse separada de Throwable.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essa posição na hierarquia explica por que capturar Exception pode receber RuntimeException, mas não captura Error. Também fundamenta a distinção: checked excludes RuntimeException e Error; ambos são unchecked.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma exceção própria deve ter nome e significado específicos, mas não precisa herdar de qualquer classe de exceção reconhecida pela linguagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Para participar do mecanismo da linguagem, uma exceção própria precisa pertencer à hierarquia de exceções apropriada. Em Python, normalmente deriva de Exception; em Java, pode derivar de Exception, RuntimeException ou outra subclasse adequada.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O mecanismo de exceções pode substituir retornos sentinela, como -1, que chamadores poderiam esquecer de verificar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um lançamento transfere o controle para um handler ou chamador, em vez de exigir que todo consumidor lembre de testar um valor especial. Ainda assim, exceções devem representar falhas apropriadas e não substituir indiscriminadamente resultados normais.",
+      "section": "1. O que é uma exceção e por que tratá-la",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um handler `except OSError` pode tratar problemas do sistema ao abrir arquivo, e um `except ValueError` separado pode tratar falha de conversão de seu conteúdo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. São condições de classes diferentes e podem demandar respostas distintas, como indicar arquivo indisponível ou pedir correção do conteúdo. Handlers separados tornam a política de recuperação explícita.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O bloco finally substitui a necessidade de fechar arquivos manualmente mesmo quando não existe uma cláusula finally no código.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. finally é um bloco escrito explicitamente; não aparece automaticamente em estruturas que não o declaram. Java try-with-resources e Python with automatizam o encerramento por meio de mecanismos próprios de gerenciamento de recursos.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um except nomeia uma subclasse, ele não captura automaticamente instâncias da superclasse correspondente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A correspondência vai do tipo listado para suas subclasses, não ao contrário. Capturar uma classe derivada não captura instâncias da classe-base; um handler de classe-base é que pode receber instâncias de seus derivados.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A classe Java Exception serve como wildcard para qualquer Throwable, inclusive Error, porque ambas estão na mesma árvore.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Exception não captura Error, pois Error é seu ramo irmão sob Throwable. Um catch de Exception pode abranger RuntimeException e outras Exception, mas não toda a hierarquia Throwable.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, capturar uma exceção checked específica e convertê-la em uma RuntimeException sem preservar a causa pode dificultar a investigação da origem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A nova exceção pode ser útil para a abstração da aplicação, mas descartar a causa remove informações do diagnóstico. Use encadeamento quando a relação causal for relevante para quem investiga ou trata a falha.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao tratar entrada inválida, capturar somente a exceção de conversão esperada ajuda a deixar outras falhas inesperadas visíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um handler específico pode repetir a solicitação quando o texto não representa um inteiro. Uma captura ampla poderia também engolir defeitos não relacionados, como erro de programação ou falha numa operação posterior.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma falha lançada por um método chamado dentro do try pode ser capturada ali, mas uma falha lançada pelo próprio handler não é tratada pelos outros catch irmãos da mesma estrutura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O try protege também as chamadas que realiza, então suas exceções podem chegar aos catch associados. Já uma nova exceção lançada dentro de um handler não volta para testar os catch irmãos; ela propaga para uma estrutura externa ou chamador.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, uma exceção checked que já foi capturada e tratada dentro do método ainda precisa ser declarada em throws como se estivesse escapando.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A exigência de declaração aplica-se às exceções checked que podem escapar do método. Se o método as captura internamente, não precisa anunciá-las como exceções que chegam ao chamador.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem de exceção destinada ao usuário deve explicar o próximo passo possível sem divulgar detalhes internos desnecessários.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma orientação como escolher outro arquivo pode ajudar o usuário, enquanto o diagnóstico detalhado fica em registro controlado. Separar essas mensagens evita expor caminhos, dados ou outros detalhes de implementação.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Exceções próprias Python devem normalmente herdar de BaseException diretamente, para ficarem acima de Exception e serem capturadas por qualquer except.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Exceções definidas pelo programa devem normalmente derivar de Exception, direta ou indiretamente. BaseException também sustenta sinais como SystemExit e KeyboardInterrupt, que geralmente não devem ser capturados por handlers comuns de aplicação.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A validação de uma regra de negócio depois de uma conversão bem-sucedida pode falhar mesmo que nenhuma exceção de conversão tenha ocorrido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Converter o texto `-5` para inteiro pode ter sucesso, embora a regra de domínio não permita idade negativa. A validação semântica é separada da conversão sintática e pode retornar resultado inválido ou lançar uma exceção apropriada.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma exceção pode carregar informações sobre a condição que ocorreu para que o ponto de captura tome uma decisão informada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O objeto de exceção pode conter tipo, mensagem, argumentos e causa, além do contexto da pilha. Esses dados apoiam o tratamento e o diagnóstico, desde que sejam usados com cuidado para não expor informação sensível.",
+      "section": "1. O que é uma exceção e por que tratá-la",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, se várias cláusulas except correspondem ao mesmo tipo lançado, elas são executadas em sequência até que uma decida parar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Executa-se no máximo um handler: o primeiro que corresponde à exceção. Depois de terminar, o fluxo segue após o try, salvo se o próprio handler lançar outra exceção.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um recurso não puder ser fechado automaticamente, um padrão explícito de limpeza deve considerar todos os caminhos de saída do bloco que o utiliza.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Retornos, exceções e outros caminhos podem sair do bloco antes da limpeza manual. Uma construção de gerenciamento de recurso é preferível quando disponível; caso contrário, a limpeza precisa ser organizada para ocorrer nos caminhos pertinentes.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, um catch pode nomear uma exceção checked que nenhuma instrução do try pode lançar, mesmo que essa captura não tenha relação com o bloco protegido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A análise de exceções checked do compilador considera quais exceções podem resultar das instruções protegidas e pode rejeitar um catch checked sem possibilidade correspondente. Isso impede handlers desconectados do código que supostamente protegem.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A finalidade de um tratamento adequado é decidir uma resposta coerente à falha e manter visível qualquer condição que a aplicação não saiba resolver.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma recuperação válida pode repetir, pedir outra entrada ou devolver uma resposta controlada; quando isso não é possível, propagar ou encerrar de forma diagnóstica é mais seguro que engolir a exceção e declarar sucesso.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Java tenta ler um arquivo com Files.readString, operação que pode produzir IOException. Qual alternativa descreve corretamente como cumprir o contrato checked se o método não pretende tratar a falha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Capturar Throwable em qualquer método chamador, mesmo sem executar a leitura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Declarar IOException, ou tipo compatível, em throws para deixar a decisão ao chamador.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Declarar RuntimeException, pois toda falha de arquivo pertence a esse ramo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar finally para converter a falha checked em retorno normal automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar o caminho por null, pois valores nulos tratam exceções checked.",
+          "correct": false
+        }
+      ],
+      "explanation": "IOException é checked. Se o método não a captura, deve declará-la na assinatura, e os chamadores continuam a obrigação de capturar ou declarar. finally executa limpeza, não converte exceções; RuntimeException e valores nulos não substituem esse contrato.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa Python converte texto informado pelo usuário para inteiro e deseja repetir a solicitação somente quando o formato não puder ser convertido. Qual desenho é mais específico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Capturar BaseException e ignorar qualquer sinal antes de repetir a leitura, inclusive Ctrl+C e SystemExit; isso pode impedir o encerramento solicitado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar a conversão dentro de try e capturar ValueError para solicitar novo texto.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar a conversão dentro de finally e usar else para capturar o erro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Declarar ValueError em uma assinatura, pois Python exige exceções checked.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar raise sem argumento antes da conversão para validar a entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "ValueError corresponde à falha de conversão, então o tratamento específico pode orientar uma nova entrada. Capturar BaseException pode interceptar interrupções; Python não exige declaração checked, e finally/else não substituem except.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método Java quer transformar uma IOException de baixo nível em uma falha de domínio `FalhaAoCarregarRelatorio`, mas permitir que o chamador consulte a causa original. Qual implementação conceitual atende?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar a leitura no finally para que a causa fique automaticamente preservada, mesmo que nenhuma exceção esteja ativa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Capturar IOException e retornar null sem registrar contexto nem indicar falha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Capturar IOException e lançar a exceção de domínio com a original como causa.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Declarar throws IOException e lançar outra exceção sem associar sua causa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Capturar IOException e lançar Error para que qualquer chamador a ignore.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conversão de camada pode dar nome útil à condição de domínio, e encadear a IOException mantém o diagnóstico da causa. Retornar null oculta a falha; Error e finally têm papéis diferentes e não preservam causalidade por si mesmos.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Python, uma aplicação precisa abrir e ler um arquivo, tratar a ausência do arquivo com uma mensagem e fechar o recurso em qualquer saída. Qual combinação é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar raise no início e finally para recuperar o arquivo que não existe.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar else para capturar FileNotFoundError e manter o arquivo aberto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar with para o arquivo e except FileNotFoundError para a resposta específica.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Capturar BaseException e ignorar a falha para seguir como se houvesse conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Testar o caminho uma vez e assumir que a abertura nunca mais pode falhar.",
+          "correct": false
+        }
+      ],
+      "explanation": "with gerencia o fechamento quando o arquivo abre com sucesso, e except FileNotFoundError permite tratar especificamente sua ausência. else não captura; ignorar a falha ou confiar só numa checagem prévia pode produzir comportamento incorreto.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, a classe `SaldoInsuficienteException` deve permitir que operações de saque sinalizem explicitamente uma condição de domínio. Qual definição conceitual a torna uma checked exception?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ser uma string lançada por throws, sem participar da hierarquia Throwable.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Estender Error, pois toda regra de negócio é uma falha irrecuperável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Estender RuntimeException, pois essa classe força declaração checked.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Implementar AutoCloseable, pois exceções checked precisam ser fechadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Estender Exception sem derivar de RuntimeException, e não de Error.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma subclasse de Exception que não deriva de RuntimeException nem de Error pertence ao grupo checked, sujeita à captura ou declaração. A escolha de categoria deve refletir o contrato da aplicação; Error e AutoCloseable não definem essa classificação.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num método Java, o bloco de leitura pode lançar IOException e o catch geral aparece antes do catch específico. Como organizar os handlers para que cada tipo tenha a oportunidade correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colocar catch de IOException antes de catch de Exception.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Colocar catch de Exception primeiro, pois o específico será testado depois.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mover IOException para finally, que seleciona tipos de forma automática.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir ambos por catch de Error, superclasse de toda exceção checked.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar throws Exception no catch para que todos os handlers executem.",
+          "correct": false
+        }
+      ],
+      "explanation": "IOException é subtipo de Exception. O handler específico precisa vir antes do geral; caso contrário, o catch amplo já a recebe e o específico fica inalcançável. finally não seleciona nem trata tipos.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função Python lê um valor, converte para inteiro e depois imprime uma mensagem de confirmação. A confirmação só deve acontecer se a conversão não falhar. Qual estrutura separa melhor os caminhos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colocar a conversão em try, tratar ValueError em except e confirmar em else.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Colocar confirmação em except e conversão em finally para executar em todos os casos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Colocar a confirmação antes de try, pois o except desfaz mensagens anteriores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar else para capturar ValueError e except para confirmar o sucesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar raise para converter entrada e finally para verificar se o inteiro é válido.",
+          "correct": false
+        }
+      ],
+      "explanation": "O try protege a conversão; except lida com ValueError; else executa somente se o try terminou sem exceção. finally roda independentemente do sucesso e, portanto, não é apropriado para uma confirmação que depende dele.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método Java chama uma operação checked e consegue tratar sua falha informando que o relatório não pôde ser gerado. Qual afirmação sobre sua assinatura é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se a exceção foi capturada internamente, não precisa ser declarada como escapando.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todo método que chama operação checked deve declarar Throwable, mesmo que capture a falha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Capturar uma checked exige lançar a mesma instância de novo em finally.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A assinatura precisa declarar Error, pois handlers impedem o compilador de analisar checked.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A exceção checked desaparece da hierarquia quando existe uma mensagem ao usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "A obrigação se aplica às checked exceptions que podem escapar do método. Se o método captura e trata a exceção internamente, ela não precisa ser declarada no throws como falha que chega ao chamador.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço Python captura OSError ao acessar armazenamento e quer propagar uma falha de alto nível preservando a causa. Qual alternativa expressa diretamente essa relação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar `except OSError: pass` e retornar dados fictícios ao chamador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Relançar a falha como exceção de domínio encadeada à original.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar `else` para converter a exceção que já ocorreu em OSError.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Declarar OSError na assinatura, pois Python exige throws para todo erro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `finally: raise` sem exceção ativa para criar a causa original.",
+          "correct": false
+        }
+      ],
+      "explanation": "A cláusula from associa explicitamente a exceção original como causa da nova falha. Isso conserva o encadeamento útil ao diagnóstico e permite que a camada pública fale em termos do domínio sem inventar sucesso ou descartar contexto.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação deve processar um arquivo e garantir seu fechamento mesmo que a leitura falhe. Qual opção descreve corretamente o recurso de Java?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Capturar Exception e deixar o arquivo aberto até o fim da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar try-with-resources para fechar o AutoCloseable.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Declarar o recurso em throws, que fecha objetos ao retornar do método.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar close apenas após o try terminar sem exceção, para não perder diagnóstico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar catch de Error como substituto do método close do recurso.",
+          "correct": false
+        }
+      ],
+      "explanation": "try-with-resources fecha o AutoCloseable ao deixar a estrutura, inclusive quando há falha dentro do bloco. throws descreve exceções, catch trata exceções e nenhum deles encerra por si só o recurso.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função Python recebe um número convertido com sucesso, mas deve rejeitar valores negativos por regra da aplicação. Qual decisão separa corretamente conversão de validação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tratar a conversão de texto separadamente e verificar a regra de não negatividade depois.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Capturar ValueError mesmo que a conversão tenha sucesso e considerar a regra automaticamente aplicada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar finally para substituir todo valor negativo pelo inteiro zero sem decisão de domínio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar except BaseException para confundir erro de formato com violação de regra.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar a faixa porque um inteiro válido na sintaxe sempre é válido no domínio.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conversão responde se o texto representa um inteiro; a regra de domínio responde se aquele inteiro é permitido. São decisões distintas, e a aplicação deve rejeitar o valor com uma resposta explícita sem atribuir a regra à exceção de conversão.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programador Java quer emitir uma exceção ao detectar um argumento de método que viola uma condição prévia. Qual construção efetivamente realiza o lançamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `throw new IllegalArgumentException(...)` no corpo do método.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Adicionar `throws IllegalArgumentException` sem executar qualquer instrução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adicionar `finally IllegalArgumentException` após a assinatura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `catch IllegalArgumentException` para criar uma exceção nova.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Retornar uma instância de Exception como se o método a tivesse lançado.",
+          "correct": false
+        }
+      ],
+      "explanation": "throw seguido de uma instância executa o lançamento. A cláusula throws apenas declara tipos que podem escapar; catch recebe uma exceção existente, e retornar um objeto não transfere o controle pelo mecanismo de exceções.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um handler Python precisa capturar tanto uma falha de conversão quanto uma falha de operação do sistema, aplicando a mesma ação para ambas. Qual sintaxe permite nomear dois tipos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar uma tupla de tipos em `except (ValueError, OSError) as exc`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Escrever `except ValueError or OSError`, que testa ambos os tipos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Declarar `throws ValueError, OSError` na definição da função.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `else (ValueError, OSError)`, pois else seleciona classes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `finally (ValueError, OSError)`, que captura somente falhas listadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Python permite que except nomeie uma tupla de tipos, executando um mesmo handler para qualquer um deles. `or` não forma uma lista de classes de exceção, e else/finally não selecionam exceções.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ponto de entrada recebe uma falha imprevista que não consegue recuperar, mas precisa registrar contexto e evitar que a aplicação anuncie sucesso. Qual estratégia é mais responsável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Capturar a exceção, ignorá-la e retornar resultado normal para o chamador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Registrar contexto seguro e propagar a falha.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Converter qualquer falha em valor zero sem verificar o significado esperado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar o traceback e afirmar que o recurso foi carregado corretamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Relançar uma exceção diferente sem mensagem, causa ou qualquer contexto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se não há recuperação válida, a falha deve continuar visível. Um limite de aplicação pode registrar os dados diagnósticos necessários e devolver uma resposta controlada, sem fingir sucesso nem expor segredos ao usuário.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método Java chama uma versão sobrescrita de uma operação cuja assinatura só declara IOException. O sobrescritor quer declarar também SQLException, que é checked e não está permitida no contrato original. Qual resultado é compatível com as regras?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A declaração é sempre aceita porque toda checked exception é uma RuntimeException.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A sobrescrita não pode ampliar as checked exceptions permitidas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A declaração é aceita apenas se o método também capturar Error em finally.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A regra só vale para métodos estáticos e não se aplica à sobrescrita.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O compilador substitui automaticamente SQLException por IOException no contrato.",
+          "correct": false
+        }
+      ],
+      "explanation": "O sobrescritor não pode exigir que chamadores tratem uma checked exception que o contrato original não autorizava. Essa compatibilidade mantém seguro o uso do objeto através do tipo-base; unchecked exceptions têm regras diferentes de declaração.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa Java tenta abrir um arquivo, ler seu conteúdo e fechar o fluxo sem caminhos de saída que deixem o recurso aberto. Qual estrutura é apropriada para um fluxo AutoCloseable?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar catch vazio, pois qualquer exceção provoca fechamento obrigatório.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Declarar o fluxo em throws, que automaticamente abre e fecha o recurso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar try-with-resources para fechar o fluxo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Abrir o fluxo em finally, para que seja fechado antes de sua própria criação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar Error manualmente para forçar o fluxo a encerrar o arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "try-with-resources integra a declaração do recurso ao ciclo da estrutura e chama seu fechamento ao sair. A aplicação ainda precisa decidir como tratar ou declarar falhas de abertura e leitura; fechamento e tratamento são responsabilidades relacionadas, mas distintas.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API Python quer comunicar uma condição específica de negócio e permitir que seus usuários a tratem sem capturar ValueError de outras operações. Qual estratégia é melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retornar a classe da exceção como string, sem lançar nem documentar o resultado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Lançar BaseException para garantir que qualquer except comum a intercepte.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar exceção própria derivada de Exception.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar SystemExit, que representa qualquer condição recuperável de domínio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Capturar todas as exceções e substituí-las por ValueError, sem preservar a causa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma exceção própria com semântica estável permite que chamadores selecionem exatamente a condição de domínio. A herança normal de Exception mantém a classe no conjunto de falhas comuns sem confundi-la com sinais especiais de encerramento.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao apresentar ao usuário uma falha de acesso ao banco, a equipe quer ocultar senha e detalhes internos, mas manter um registro útil à investigação. Qual conduta atende ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Engolir a exceção e retornar uma confirmação de gravação bem-sucedida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Exibir ao usuário o traceback completo com senha para reproduzir a falha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Registrar contexto sem credenciais e exibir mensagem segura.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Apagar toda evidência de erro para impedir acesso a dados internos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Lançar Error sem qualquer registro para eliminar o risco de diagnóstico.",
+          "correct": false
+        }
+      ],
+      "explanation": "O registro controlado deve conservar informações necessárias para localizar a operação e sua causa, removendo segredos. A resposta externa deve ser útil e segura; expor credenciais ou fingir sucesso compromete segurança e integridade.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um trecho Python faz leitura que pode lançar OSError e, somente se ela não falhar, calcula e imprime o tamanho do conteúdo. Qual estrutura mantém esse cálculo fora do escopo de captura de OSError?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fazer a leitura no try, tratar OSError em except e calcular no else.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Fazer cálculo no except e leitura no finally, executando ambos sempre.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fazer leitura no else e tratar OSError no bloco finally.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fazer cálculo no try e capturar toda falha posterior como OSError.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar raise no lugar de leitura e declarar OSError em throws.",
+          "correct": false
+        }
+      ],
+      "explanation": "O else executa apenas quando o try termina sem exceção e mantém o cálculo fora do trecho cujo handler lida com OSError. Assim, uma falha no cálculo não será confundida com problema de leitura.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada Java pode produzir NullPointerException num acesso a referência nula e o método não quer declarar essa possibilidade em throws. Qual classificação explica o contrato?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "NullPointerException é checked porque qualquer falha em execução exige throws.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "NullPointerException deriva de Error e exige declaração obrigatória.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "NullPointerException é RuntimeException e unchecked.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "NullPointerException não é Throwable e, por isso, não pode ser lançada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "NullPointerException só pode ser capturada em bloco finally.",
+          "correct": false
+        }
+      ],
+      "explanation": "NullPointerException pertence à família RuntimeException. A classificação unchecked dispensa captura ou declaração obrigatória, embora o programa possa tratá-la quando houver resposta deliberada; ela continua sendo uma exceção real.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa Python quer repetir a tentativa diante de conexão temporariamente indisponível, mas limitar a repetição e propagar outros tipos imprevistos. Qual desenho conceitual é mais seguro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Capturar Exception sem limite e declarar a conexão concluída após cada falha.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Capturar BaseException e repetir infinitamente, inclusive após interrupção do usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Capturar falha de conexão específica e limitar tentativas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar else como repetição e finally para capturar a conexão indisponível.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar a exceção de conexão porque falhas de rede não podem ser tratadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma política de repetição deve ser específica e limitada, pois outras falhas podem não ser recuperáveis e repetição infinita bloqueia a aplicação. Deixar o inesperado propagar conserva visibilidade e respeita interrupções externas.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num método Java, uma exceção checked foi capturada para anexar contexto e será propagada como outra exceção checked. Qual forma preserva a causa para o chamador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Construir a nova exceção com a original como causa e declará-la se puder escapar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar uma nova exceção sem causa e retornar null para indicar que houve falha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar throws dentro do catch para executar a propagação sem objeto de exceção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Lançar Error para que a checked original se torne um valor de retorno.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mover a exceção original para finally, pois finally conserva causas automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A nova checked pode comunicar a abstração do serviço e carregar a falha original como causa. Se escapar, o método declara a nova checked ou uma superclasse compatível; isso mantém a cadeia de diagnóstico e o contrato visíveis.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação Java lança uma exceção no segundo comando de um bloco try com três comandos sequenciais. O primeiro catch compatível termina sem lançar nova falha. O que ocorre com os comandos restantes do try?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todos os catch executam em sequência e cada um retoma o try de onde parou.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O terceiro comando executa antes do catch, pois o try sempre termina suas instruções.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O restante do try é ignorado; o fluxo segue ao fim da estrutura.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O método inteiro termina imediatamente, sem executar handler ou finally.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O terceiro comando é convertido em finally e executado somente se houve falha.",
+          "correct": false
+        }
+      ],
+      "explanation": "A exceção causa saída abrupta do restante do try. Executa-se o primeiro catch compatível; se ele termina normalmente, a execução segue depois da estrutura e finally é executado ao sair, quando presente.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Python não encontra uma classe de exceção própria específica para um registro inexistente e a equipe decide criar `RegistroAusente`. Qual escolha de hierarquia é a mais convencional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Derivar RegistroAusente de str, pois exceções são mensagens textuais simples.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Derivar RegistroAusente de SystemExit para que o registro seja sempre encontrado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Derivar de Exception torna a exceção compatível.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Derivar RegistroAusente de BaseException para evitar captura por except Exception.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não usar classe, pois Python permite lançar qualquer objeto como exceção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Exceções personalizadas normalmente derivam de Exception direta ou indiretamente. Isso mantém o tipo no grupo de falhas comuns que aplicações podem tratar e permite que um handler específico capture apenas o caso de registro ausente.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina Java captura IOException, mas não tem nenhuma política para recuperar e quer que a camada de interface mostre mensagem adequada. Qual escolha mantém a responsabilidade na camada capaz de decidir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Relançar a exceção ou convertê-la preservando a causa para que o chamador a trate.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Capturar e ignorar, pois a camada superior não poderá mais saber da falha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Retornar true para indicar que a leitura foi concluída mesmo sem conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Lançar uma exceção em finally para forçar qualquer interface a exibir a causa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Declarar throws na interface gráfica, mas remover a exceção da rotina que a produziu.",
+          "correct": false
+        }
+      ],
+      "explanation": "A rotina não consegue decidir a resposta de interface, então deve propagar ou traduzir preservando a causa. Ignorar transforma falha em falso sucesso e impede a camada que conhece o usuário de oferecer uma resposta correta.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, um programador captura IOException e ArithmeticException no mesmo bloco, com tratamento idêntico. Qual forma de multi-catch reúne tipos independentes numa cláusula?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar `throws IOException | ArithmeticException` no corpo do catch.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `catch (Exception & IOException e)` para criar uma interseção de falhas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar multi-catch com os dois tipos independentes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar `finally (IOException, ArithmeticException)` para selecionar os tipos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Escrever dois catch para o mesmo tipo e confiar que ambos serão executados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A sintaxe de multi-catch separa tipos alternativos com `|` e permite compartilhar a mesma resposta. Os tipos não podem se sobrepor por relação de subtipo, pois isso tornaria a seleção ambígua ou redundante.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante a leitura de uma transação, uma exceção ocorre após a atualização de um objeto em memória, e o programa entra no catch. Qual suposição sobre o estado é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A exceção garante que nenhum comando anterior tenha produzido efeito observável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O catch desfaz automaticamente todas as mudanças de memória e de banco anteriores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "finally restaura qualquer objeto alterado ao valor original sem código adicional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificar consistência e executar rollback explícito se necessário.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Lançar a mesma exceção novamente converte a operação em transação atômica.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mecanismos de exceção transferem controle, mas não fornecem rollback automático genérico. A aplicação deve usar transações, compensações ou validações adequadas para manter consistência de estado após operações parciais.",
+      "section": "1. O que é uma exceção e por que tratá-la",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função Python abre arquivo, lê conteúdo e calcula uma transformação; a equipe colocou tudo num único try e captura Exception, embora só saiba recuperar da ausência do arquivo. Qual revisão melhora a precisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter toda falha em ValueError, sem associar causa ou identificar operação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Capturar BaseException e retornar texto vazio para qualquer problema de transformação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mover toda operação para finally para que a falha seja sempre recuperada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Restringir o try e capturar FileNotFoundError onde existe resposta, deixando falhas inesperadas propagarem.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Remover o except e assumir que um caminho existente jamais falha ao abrir.",
+          "correct": false
+        }
+      ],
+      "explanation": "O handler deve capturar a falha para a qual há uma ação definida. Um try menor e FileNotFoundError específico evitam tratar como ausência do arquivo uma falha de transformação ou outro defeito não previsto.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Java deseja tratar NullPointerException num ponto de entrada para registrar diagnóstico, sem afirmar que toda exceção de lógica é recuperável. Qual afirmação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "NullPointerException é Error e só pode ser tratada por throws.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RuntimeException não pode aparecer em catch porque o compilador não exige declaração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A captura transforma automaticamente NullPointerException em uma entrada válida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RuntimeException é capturável, mas ser unchecked não torna sua recuperação sempre adequada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O handler deve capturar Throwable e retornar sucesso independentemente do estado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Unchecked descreve a ausência de obrigação de declaração pelo compilador, não uma proibição de captura nem uma promessa de recuperação segura. O ponto de entrada pode registrar e encerrar controladamente, mas não deve inventar sucesso ou estado válido.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, o bloco try chama uma função que lança ValueError e há handlers `except Exception` antes de `except ValueError`. Qual handler será escolhido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Nenhum handler, porque exceções de funções chamadas não voltam ao try.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O handler de ValueError, pois o tipo mais específico sempre salta ao início.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os dois handlers, em sequência, pois ambos correspondem ao objeto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O handler de Exception, pois ele aparece primeiro e é superclasse de ValueError.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O finally, pois classes-base são avaliadas depois da limpeza.",
+          "correct": false
+        }
+      ],
+      "explanation": "Python examina handlers na ordem escrita e executa o primeiro compatível. Como ValueError deriva de Exception, o handler amplo anterior captura primeiro e impede que o específico posterior seja alcançado.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um componente Java precisa expressar que uma operação pode falhar por condição que o chamador deve considerar ao compilar. Qual contrato comunica essa exceção checked?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar o tipo checked, ou superclasse compatível, na cláusula throws do método.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Adicionar a classe da exceção ao comentário, pois compiladores verificam comentários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Retornar a classe no método e esperar que o compilador a trate como lançada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Declarar o tipo em finally, que faz parte da assinatura de método.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar catch vazio, que comunica automaticamente a falha aos chamadores.",
+          "correct": false
+        }
+      ],
+      "explanation": "throws comunica o contrato na assinatura e faz parte da verificação de checked exceptions. Comentários e retornos não substituem o contrato; uma captura local remove a necessidade de declarar a exceção somente se ela não escapar.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer deixar claro no log qual operação de negócio falhou ao abrir um arquivo, mas ainda precisa manter o erro do sistema operacional. Qual estratégia é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ignorar a exceção e presumir que o arquivo foi lido pelo chamador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir a causa por uma mensagem vazia para que o log não contenha informação alguma.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Capturar OSError e lançar SyntaxError, que identifica uma operação de negócio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Acrescentar contexto ao registro ou encadear uma exceção de domínio mantendo a causa original.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Registrar senha, caminho privado e token em texto visível a todos os usuários.",
+          "correct": false
+        }
+      ],
+      "explanation": "Contexto como nome da operação e identificador de correlação pode tornar o log acionável, enquanto a causa original preserva o diagnóstico técnico. Segredos e dados desnecessários não devem ser registrados nem apresentados ao usuário.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação Python pode lançar uma exceção durante o fechamento de um recurso e outra durante a leitura. Qual preocupação de projeto é relevante ao lidar com ambas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colocar leitura no else e fechamento em except, invertendo a ordem de controle.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Assumir que o fechamento nunca falha e remover todo tratamento de leitura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Capturar BaseException e retornar sucesso se qualquer fechamento for tentado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Evitar perder o diagnóstico da falha original e preferir mecanismos que preservem exceções de limpeza.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Lançar novamente uma exceção sem causa para que o runtime apague o traceback.",
+          "correct": false
+        }
+      ],
+      "explanation": "Operações de limpeza também podem falhar, e uma falha posterior pode obscurecer a causa inicial se for tratada de modo descuidado. Gerenciadores de contexto e registro deliberado ajudam a preservar informação sem ignorar o estado do recurso.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Python quer permitir que o usuário interrompa uma rotina com Ctrl+C enquanto repete somente uma falha de conversão. Que handler evita bloquear a interrupção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar finally para capturar KeyboardInterrupt e reiniciar o processo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Capturar BaseException para interceptar Ctrl+C e repetir sem limite.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Capturar SystemExit, pois ele é o tipo normal de conversão inválida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Capturar ValueError especificamente e não envolver a rotina em except BaseException amplo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Declarar KeyboardInterrupt em throws, pois Python verifica exceções na compilação.",
+          "correct": false
+        }
+      ],
+      "explanation": "ValueError trata somente a conversão inválida; KeyboardInterrupt não é subclass de Exception e não será capturada por esse handler. Captura indiscriminada de BaseException poderia impedir a interrupção solicitada pelo usuário.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um time Java quer capturar uma falha de arquivo, tentar uma segunda localização uma vez e, se a tentativa também falhar, notificar o chamador. Qual política tem escopo de recuperação delimitado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ignorar IOException na primeira tentativa, pois o compilador repetirá a chamada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Capturar Throwable e repetir até o recurso funcionar, sem limite ou registro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Capturar Error e retornar sucesso na primeira falha de leitura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar finally para executar tentativas ilimitadas depois de qualquer resultado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Capturar IOException na operação prevista, limitar a nova tentativa e propagar a falha final com causa.",
+          "correct": true
+        }
+      ],
+      "explanation": "A política deve capturar o tipo esperado, limitar a recuperação e preservar a falha final para o chamador quando não houver sucesso. Captura ampla e repetição ilimitada podem ocultar erro grave ou bloquear a aplicação.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método Python captura uma exceção para acrescentar informação e depois usa bare `raise` dentro do mesmo except. Qual é o efeito pretendido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Relançar a exceção atual para que um nível superior continue a decidir.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar uma exceção nova sem relação com a capturada e encerrar a hierarquia.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Retornar a exceção como texto e suprimir sua propagação automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar a cláusula else e declarar o tipo no contrato checked.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter o objeto capturado numa classe-base BaseException sem causa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bare raise dentro de um except relança a exceção que está sendo tratada. É útil após registro ou inspeção local quando a função não tem resposta final, mantendo a propagação para um chamador.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Java precisa tratar separadamente falta de arquivo e argumento de caminho inválido, embora ambos ocorram no mesmo fluxo. Qual desenho facilita respostas distintas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar handlers específicos em ordem adequada e associar uma resposta a cada condição.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Capturar Throwable uma vez e assumir que as causas são intercambiáveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Capturar apenas Exception antes dos tipos específicos para que ambos sejam diferenciados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar finally para distinguir a classe da exceção depois que ela foi descartada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter todas as falhas em null para que cada chamador adivinhe sua origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Handlers específicos preservam distinções úteis e permitem respostas adequadas, como orientar a escolha de arquivo ou corrigir a sintaxe do caminho. Um tipo amplo prematuro ou retorno sentinela sem contexto elimina essa informação.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método Java tem `catch (Exception e)` e, ao final, registra novamente a mesma falha sem relançar. O chamador espera saber que a operação falhou. O que falta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma segunda chamada ao método, pois logs transformam falhas em sucesso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma cláusula finally adicional, que sempre propaga toda exceção capturada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Declarar throws no método, que relança automaticamente a exceção já capturada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um Error criado pelo compilador quando o método registra a exceção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma decisão que comunique a falha ao chamador, como relançar ou retornar erro explícito.",
+          "correct": true
+        }
+      ],
+      "explanation": "Depois da captura, a exceção não continua propagando por conta própria. Registrar ajuda o diagnóstico, mas o método precisa relançar, traduzir preservando causa ou comunicar falha por um contrato explícito para que o chamador não suponha sucesso.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função Python abre arquivo dentro de um try e o except FileNotFoundError tenta abrir uma segunda vez, mas o arquivo pode continuar ausente. O que a função deve considerar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "raise converte FileNotFoundError em conteúdo vazio sem configuração adicional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A captura cria o arquivo ausente e a segunda abertura sempre funciona.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "finally repete qualquer operação que tenha falhado até obter sucesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "except impede que chamadas posteriores lancem a mesma classe de exceção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A segunda tentativa também pode falhar e precisa de limite e tratamento coerente, sem alegar sucesso automático.",
+          "correct": true
+        }
+      ],
+      "explanation": "Capturar não altera o sistema de arquivos nem garante recuperação. Uma nova tentativa só é útil com uma política clara, como caminho alternativo ou limite; se falhar novamente, a função deve comunicar ou propagar a falha.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um desenvolvedor encontra `catch (Throwable t)` em toda rotina Java e pretende continuar após qualquer problema, inclusive limitações graves da máquina virtual. Qual avaliação é mais correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A captura de Throwable fecha automaticamente todos os recursos usados no método.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Throwable contém apenas IOException, portanto é sempre a captura mais específica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Error deriva de RuntimeException e deve ser tratado em toda operação normal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O compilador converte qualquer Error em valor nulo antes do catch.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Capturar Throwable inclui Error; recuperação indiscriminada pode ser insegura e esconder condição grave.",
+          "correct": true
+        }
+      ],
+      "explanation": "Throwable inclui Error e Exception. Error representa condições das quais aplicações ordinárias normalmente não esperam recuperar; capturá-lo indiscriminadamente pode deixar o processo em estado inseguro. A captura deve ser restrita a uma política real de recuperação.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço Python recebe uma exceção de conexão e deseja ocultar a causa original da saída visível, embora ainda mantenha o relacionamento no diagnóstico interno. Qual orientação evita descartar informação sem necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retornar sucesso e guardar a exceção apenas na variável local que será descartada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `from None` sempre, pois a causa nunca interessa a quem mantém o sistema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Exibir o traceback completo a todo usuário para garantir transparência técnica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Capturar BaseException e remover todas as mensagens sem registrar operação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar uma exceção de domínio com encadeamento e controlar separadamente o que chega ao usuário.",
+          "correct": true
+        }
+      ],
+      "explanation": "A camada pode traduzir a falha para uma exceção de domínio e manter encadeamento para o diagnóstico, enquanto a interface apresenta mensagem segura. Suprimir causa com from None deve ser deliberado; expor traceback ao usuário também não é necessário.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação de cálculo Python não pode dividir por zero, e a aplicação prefere validar o divisor antes de calcular. Qual afirmação descreve uma prática possível sem confundir erro com recuperação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A classe ZeroDivisionError só é produzida quando há erro de sintaxe.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A verificação prévia garante que nenhuma operação futura pode lançar exceção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Capturar BaseException é obrigatório sempre que se usa divisão numérica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "finally deve definir o divisor como um para alterar o resultado sem decisão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Verificar a condição de domínio antes e ainda reconhecer que outras falhas podem ocorrer.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma verificação explícita pode tornar clara uma condição prevista, como divisor zero. Ela não elimina a possibilidade de outras falhas nem substitui o desenho do contrato; exceções continuam necessárias para situações que possam ocorrer durante operações válidas.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, uma equipe quer sempre executar uma ação de limpeza simples antes de a exceção de leitura propagar. Qual fluxo é esperado com try/catch/finally sem retorno no finally?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O finally executa ao sair da estrutura e a exceção continua propagando se nenhum catch a tratou.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O finally captura implicitamente a exceção e impede toda propagação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A exceção só pode propagar depois que finally a declara com throws.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O finally executa antes do bloco try e pode impedir que a leitura comece.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A exceção desaparece porque qualquer bloco de limpeza confirma sucesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "finally executa a limpeza ao sair da estrutura. Se nenhum catch compatível a tratou, a exceção permanece propagando depois da limpeza. O bloco não captura nem declara automaticamente a falha.",
+      "section": "2. Captura, seleção e limpeza do fluxo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto Java quer diferenciar uma condição comum de argumento inválido de uma falha irrecuperável da máquina virtual. Qual distinção da hierarquia dá suporte conceitual a essa separação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "RuntimeException pertence a Exception; Error é ramo separado sob Throwable.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Error deriva de RuntimeException, e argumento inválido deriva diretamente de Object.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Exception e Throwable não têm relação na hierarquia Java.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Toda falha recuperável é Error, e toda condição de argumento é checked.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A posição na hierarquia é definida pela cláusula finally, não pelas classes.",
+          "correct": false
+        }
+      ],
+      "explanation": "A hierarquia separa as exceções ordinárias recuperáveis de Error, que representa condições graves. IllegalArgumentException pertence a RuntimeException, enquanto Error não é uma subclasse de Exception.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe Python quer associar a falha original a uma nova mensagem de contexto no momento de relançar. Qual afirmação sobre encadeamento automático é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma falha lançada dentro de except pode mostrar a exceção tratada como contexto; `from exc` explicita a causa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Toda nova exceção apaga automaticamente a anterior, sem opção de associação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`from exc` captura a exceção e impede que a nova seja lançada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Encadeamento ocorre somente em Java; Python não mantém traceback ou contexto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A forma correta é colocar `from exc` após finally para executar o relançamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Python mantém contexto quando uma nova exceção ocorre durante o tratamento de outra, e `raise nova from exc` explicita a causalidade. Isso torna a tradução de exceções rastreável sem confundir a mensagem externa com a causa técnica.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um handler recebe exceção para tentar novamente uma solicitação e decide fazê-lo sem limite, inclusive para erros de programação. Qual alteração melhora o comportamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Capturar a condição transitória específica e limitar tentativas com decisão de falha final.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Capturar Throwable ou BaseException e retirar o limite para evitar qualquer encerramento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mover o laço para finally, pois a limpeza reinicia a operação com segurança.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar o tipo de falha e informar sucesso em toda repetição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover logs, pois registrar uma tentativa impede sua repetição correta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Repetições devem se aplicar a falhas que podem ser transitórias e ter limite, pausa e tratamento da falha final. Capturar classes amplas pode repetir indefinidamente defeitos irrecuperáveis e bloquear sinais de encerramento.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método Java declara `throws IOException`, mas em todos os caminhos captura a exceção e retorna uma resposta de erro documentada. O que a declaração comunica nesse cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela só é necessária para a exceção que pode escapar; tratamento interno pode tornar a declaração desnecessária.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ela força o compilador a lançar IOException após qualquer retorno normal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela converte a IOException em RuntimeException ao final do método.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela impede a captura, porque checked exceptions só podem ser declaradas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela fecha automaticamente os recursos e substitui o catch existente.",
+          "correct": false
+        }
+      ],
+      "explanation": "throws descreve as checked exceptions que podem escapar. Se todas as ocorrências são efetivamente capturadas, a declaração não é necessária para essas exceções e pode até ser rejeitada se não houver possibilidade compatível no corpo.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação Python de leitura pode produzir OSError. A equipe quer mostrar mensagem simples, conservar traceback para suporte e garantir fechamento do arquivo. Qual composição de recursos atende melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar with para o arquivo, capturar OSError no limite adequado, registrar contexto seguro e propagar se necessário.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar except BaseException e apagar traceback, pois with impede qualquer leitura parcial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar else para fechar e finally para exibir integralmente a pilha ao usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar raise antes da abertura para que o runtime crie arquivo e traceback.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Capturar OSError e retornar confirmação sem conferir se a leitura terminou.",
+          "correct": false
+        }
+      ],
+      "explanation": "with gerencia o fechamento; OSError pode ser capturada no ponto que consegue responder. O registro controlado mantém diagnóstico seguro, e, quando não há recuperação, a propagação evita apresentar como bem-sucedida uma leitura que falhou.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API Java define uma exceção própria checked para uma condição que o chamador pode resolver solicitando outro dado. Qual responsabilidade acompanha esse contrato?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Chamadores que deixam a exceção checked escapar precisam capturá-la ou declará-la também.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Chamadores podem ignorá-la sempre porque exceções próprias não são verificadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A classe deve estender Error para que o compilador force uma nova entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O nome da exceção é suficiente para o runtime repetir a operação automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A cláusula finally de cada chamador deve construir essa exceção antes do try.",
+          "correct": false
+        }
+      ],
+      "explanation": "Checked faz parte do contrato verificado pelo compilador. Cada método chamador deve tratar a exceção própria ou declará-la se puder escapar, permitindo que a obrigação de resposta continue pela cadeia de chamadas.",
+      "section": "3. Hierarquia, exceções verificadas e lançamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa Python captura ValueError e deseja apresentar mensagem de correção, mas a exceção pode conter uma linha completa com dados pessoais. Qual abordagem protege melhor os dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Exibir orientação segura e registrar somente contexto necessário, redigindo dados pessoais desnecessários.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Imprimir repr completo da exceção e toda entrada pessoal em tela pública.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar ValueError e aceitar a entrada sem validar a conversão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter a falha em SystemExit para evitar qualquer mensagem ao usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenar o conteúdo pessoal em senha de log para recuperá-lo depois.",
+          "correct": false
+        }
+      ],
+      "explanation": "A mensagem pode orientar sem repetir conteúdo sensível. Logs precisam ser úteis, mas devem minimizar dados e remover valores pessoais desnecessários; detalhes brutos da exceção não devem ser expostos sem avaliar seu conteúdo e público.",
+      "section": "4. Boas práticas, exemplos e armadilhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "The Java Tutorials — Lesson: Exceptions",
+      "publisher": "Oracle",
+      "reference": "Conceito, try/catch/finally, try-with-resources, throw, exceções encadeadas e classes próprias",
+      "url": "https://docs.oracle.com/javase/tutorial/essential/exceptions/",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Java Language Specification, Java SE 21 — Chapter 11: Exceptions",
+      "publisher": "Oracle",
+      "reference": "Hierarquia Throwable, Exception, RuntimeException e Error; checked/unchecked; verificação de throws e propagação",
+      "url": "https://docs.oracle.com/javase/specs/jls/se21/html/jls-11.html",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Python Tutorial — Errors and Exceptions",
+      "publisher": "Python Software Foundation",
+      "reference": "Erros de sintaxe e exceções; try/except/else/finally; raise; encadeamento e exceções próprias",
+      "url": "https://docs.python.org/3/tutorial/errors.html",
+      "accessedAt": "2026-10-30"
+    }
+  ]
+}

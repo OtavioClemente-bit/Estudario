@@ -1,0 +1,2150 @@
+{
+  "id": "informatica.maquinas-boltzmann-modelos-generativos",
+  "subject": "Informática",
+  "title": "Máquinas de Boltzmann e modelos generativos",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Máquinas de Boltzmann",
+    "Máquina de Boltzmann e modelos generativos",
+    "Modelos generativos de Boltzmann",
+    "Redes neurais de Boltzmann",
+    "Máquinas de Boltzmann estocásticas",
+    "Máquina de Boltzmann restrita (RBM)",
+    "Restricted Boltzmann Machine",
+    "RBM e divergência contrastiva",
+    "Energia em máquinas de Boltzmann",
+    "Aprendizagem em redes de Boltzmann",
+    "Unidades visíveis e ocultas em RBM",
+    "Amostragem de Gibbs em RBM"
+  ],
+  "scope": {
+    "covers": "Máquinas de Boltzmann como modelos probabilísticos generativos baseados em energia; unidades binárias estocásticas, visíveis e ocultas; energia, distribuição de Boltzmann e função de partição; conexões simétricas e dinâmica de Gibbs; aprendizado por máxima verossimilhança e diferença entre correlações na fase dos dados e na fase livre; limitações de amostragem e equilíbrio; máquinas de Boltzmann restritas (RBM), independência condicional entre camadas, reconstrução, divergência contrastiva e amostragem persistente; geração e completamento de padrões; treinamento não supervisionado e usos de representações latentes.",
+    "excludes": "Implementação de bibliotecas específicas, hiperparâmetros universais, detalhes matemáticos avançados de inferência, redes profundas modernas em geral, modelos autoregressivos, GANs e difusão, e alegações de que RBMs são a técnica generativa de melhor desempenho atual."
+  },
+  "theoryTitle": "Aprender distribuições com máquinas de Boltzmann",
+  "chapters": [
+    {
+      "title": "1. O que uma máquina de Boltzmann aprende",
+      "markdown": "### O problema que este assunto resolve\n\nUma máquina de Boltzmann é uma rede neural estocástica que aprende regularidades de exemplos e representa uma distribuição de probabilidade sobre padrões. Em vez de receber sempre a resposta correta para cada entrada, o modelo é ajustado com exemplos para que, quando funcionar sem dados impostos, produza padrões semelhantes aos observados. Essa é a razão de ser chamada de **modelo generativo**: ela pode atribuir probabilidade a configurações e amostrar novas configurações plausíveis.\n\nA rede tem unidades simples, originalmente binárias: cada unidade está ligada (1) ou desligada (0). Há conexões bidirecionais simétricas, com pesos reais positivos ou negativos. Um peso positivo favorece a ativação conjunta das duas unidades; um peso negativo a desfavorece, mantidas as demais condições. As unidades não tomam decisões determinísticas: a probabilidade de ativação depende da entrada recebida e dos pesos.\n\n> **Siglas e termos deste capítulo**\n> - **Modelo generativo**: modelo que representa como os dados podem ser produzidos e permite amostrá-los.\n> - **Unidade visível**: unidade que corresponde a uma variável observada nos dados.\n> - **Unidade oculta**: variável latente que ajuda a representar dependências e características não observadas diretamente.\n> - **Estocástico**: sujeito a amostragem probabilística, em vez de produzir sempre o mesmo estado.\n> - **Padrão**: configuração simultânea dos estados das unidades.\n\n### Visíveis, ocultas e interpretação de padrões\n\nAs unidades visíveis recebem ou expressam as variáveis do exemplo, como os pixels de uma imagem binária. As unidades ocultas não são fornecidas como rótulos: durante o aprendizado, podem formar detectores de características úteis. Por exemplo, um conjunto de pixels pode corresponder a uma linha vertical; uma unidade oculta pode ficar ativa com maior probabilidade quando esse traço aparece. Não se determina manualmente que cada unidade oculta tenha certo significado: ele emerge dos pesos aprendidos e pode ser distribuído por várias unidades.\n\nA rede pode fazer mais do que reproduzir exemplos completos. Fixando parte das unidades visíveis e deixando outras livres, pode inferir estados compatíveis com a parte observada e completar o padrão. Na forma condicional, um subconjunto conhecido funciona como entrada e outro como saída. Isso é inferência probabilística, não uma garantia de que a conclusão será única ou correta em todo caso.\n\n### Probabilidade e energia: intuição inicial\n\nCada configuração completa recebe uma energia. Configurações de energia menor são mais prováveis, mas não necessariamente determinísticas: outras configurações também podem ser amostradas. Temperatura controla o grau de aleatoriedade da distribuição. Em uma formulação comum, a probabilidade de um estado s é proporcional a exp(−E(s)/T), normalizada pela soma sobre todos os estados possíveis. Essa soma normalizadora é a **função de partição**.\n\nA energia combina vieses das unidades e contribuições das conexões. Convenções de sinal variam entre textos; o ponto invariável é que os parâmetros definem a energia relativa e, com isso, a distribuição sobre estados. Pesos e vieses não guardam uma tabela pronta de cada padrão: eles parametrizam uma família de distribuições.\n\n### Onde aparece a geração\n\nDepois de aprender, deixa-se a rede amostrar estados sem fixar um exemplo nos visíveis. A sequência de estados visitados pode ser usada como amostras do modelo. Uma amostra isolada pode não parecer realista se a cadeia ainda estiver em transição, se houver poucas iterações ou se o modelo tiver aprendido mal. A qualidade generativa depende de arquitetura, dados e treinamento.\n\n| Situação | O que é fixado | O que se busca\n| --- | --- | --- |\n| Treino com dados | Unidades visíveis nos valores de um exemplo | Ajustar os parâmetros para aumentar a probabilidade dos exemplos\n| Amostragem livre | Nenhuma unidade visível imposta | Gerar padrões segundo a distribuição aprendida\n| Completar padrão | Parte dos visíveis | Inferir ou amostrar a parte ausente\n\n### Como cai na prova\n\n- Se a rede aprende a distribuição de padrões e pode gerar amostras, trata-se de uma finalidade generativa, mesmo que também possa apoiar classificação ou extração de características.\n- Unidade oculta é latente, não um rótulo de saída previamente informado.\n- Pesos positivos favorecem coativação e negativos a desfavorecem; nenhum deles, isoladamente, garante que duas unidades sempre liguem ou nunca liguem.\n- Não confunda amostragem com resposta determinística: resultados podem variar entre execuções."
+    },
+    {
+      "title": "2. Energia, distribuição e dinâmica estocástica",
+      "markdown": "### O problema que este assunto resolve\n\nPara gerar padrões com determinadas frequências, é preciso transformar parâmetros da rede em probabilidades. A função de energia dá uma pontuação a cada estado global; a distribuição de Boltzmann converte pontuações em probabilidades normalizadas. Essa formulação liga as conexões locais da rede ao comportamento probabilístico do conjunto.\n\n> **Siglas e termos deste capítulo**\n> - **Energia E(s)**: escore associado ao estado global s; energia menor corresponde a maior probabilidade relativa.\n> - **Temperatura T**: parâmetro que regula a dispersão da distribuição e a aleatoriedade da amostragem.\n> - **Função de partição Z**: soma dos pesos exp(−E/T) de todos os estados, usada para normalizar probabilidades.\n> - **Campo local**: efeito combinado do viés e das unidades vizinhas sobre a probabilidade de uma unidade.\n> - **Amostragem de Gibbs**: atualização probabilística de variáveis condicionada aos valores correntes das demais.\n\n### Uma forma matemática para a máquina binária\n\nCom estados binários sᵢ, vieses bᵢ e pesos simétricos wᵢⱼ, uma convenção frequente escreve E(s) = −Σᵢ bᵢsᵢ − Σᵢ<ⱼ wᵢⱼsᵢsⱼ. A probabilidade de um estado é P(s) = exp(−E(s)/T)/Z, em que Z = Σₛ exp(−E(s)/T). A convenção pode incorporar a temperatura nos parâmetros, mas a relação entre energia relativa e probabilidade permanece.\n\nA simetria wᵢⱼ = wⱼᵢ corresponde a uma única conexão recíproca entre o par. Não se trata de uma rede feedforward em que cada camada envia sinais apenas para a próxima: as interações são não direcionadas. A energia é função do estado completo, e a unidade sorteia seu novo valor conforme seu campo local.\n\nPara uma unidade binária com campo local zᵢ, é comum escrever P(sᵢ=1 | demais) = σ(zᵢ/T), em que σ(x)=1/(1+e^(−x)). Campo maior aumenta a probabilidade de ligar; campo menor a reduz. Mesmo com campo positivo, ainda pode haver chance de desligar.\n\n### A cadeia de Markov e o equilíbrio\n\nAtualizando unidades uma a uma ou em grupos permitidos, a rede percorre estados e forma uma cadeia de Markov. Com hipóteses adequadas sobre as atualizações, a distribuição estacionária é a distribuição desejada. Na prática, o tempo para aproximar o equilíbrio pode ser grande, em especial quando há estados modais separados por barreiras de energia. Amostras consecutivas também podem ser correlacionadas.\n\nEssa dificuldade é central: muitas quantidades do treinamento exigem médias esperadas sob a distribuição do modelo. Como há exponencialmente muitos estados possíveis, somar todos eles costuma ser inviável. A rede precisa aproximar essas médias por amostragem. Uma cadeia que não mistura bem gera estimativas ruidosas ou enviesadas.\n\n| Temperatura | Efeito intuitivo | Consequência\n| --- | --- | --- |\n| Baixa | Diferenças de energia pesam mais | Estados de energia baixa dominam; exploração diminui\n| Alta | Diferenças de energia pesam menos | A distribuição fica mais dispersa; estados variados aparecem\n| Equilíbrio | A cadeia já se aproximou da distribuição estacionária | Médias amostradas ficam mais representativas do modelo\n\nA relação de temperatura pode ser usada em recozimento simulado para explorar configurações, mas não é correto supor que elevar ou reduzir temperatura por si só treine os pesos. Temperatura e parâmetros são elementos distintos.\n\n### O que significa ser não direcionada\n\nA ausência de direção nas conexões não impede definir variáveis visíveis e ocultas. Esses nomes descrevem o papel no problema e na arquitetura, não uma seta causal. O grafo probabilístico representa dependências por interações simétricas.\n\nMáquinas de Boltzmann pertencem à família de modelos de energia e se relacionam a campos aleatórios de Markov. Também lembram modelos de Ising, embora estes frequentemente tenham interações fixadas ou escolhidas para uma finalidade física, enquanto a máquina aprende parâmetros a partir de dados.\n\n### Como cai na prova\n\n- A distribuição normalizada inclui Z, a soma sobre todos os estados; omiti-la resulta em pesos não normalizados, não probabilidades completas.\n- Menor energia implica maior probabilidade relativa, não certeza absoluta.\n- Conexões simétricas e bidirecionais indicam modelo não direcionado; não equivalem a uma rede feedforward.\n- Gibbs atualiza estados por sorteio condicionado ao restante da configuração; não é o algoritmo de ajuste dos pesos."
+    },
+    {
+      "title": "3. Aprendizado: dados contra amostragem livre",
+      "markdown": "### O problema que este assunto resolve\n\nO objetivo do aprendizado é tornar os padrões observados mais prováveis sob o modelo. Na aprendizagem por máxima verossimilhança, ajustam-se pesos e vieses para aumentar a probabilidade dos dados de treinamento. O cálculo exato do gradiente envolve estatísticas de duas situações: o que acontece quando os dados visíveis estão fixados e o que acontece quando a máquina roda livremente.\n\n> **Siglas e termos deste capítulo**\n> - **Máxima verossimilhança**: escolha de parâmetros que aumenta a probabilidade dos dados observados.\n> - **Fase positiva (fase dos dados)**: amostragem com unidades visíveis presas a exemplos de treinamento.\n> - **Fase negativa (fase livre/modelo)**: amostragem sem valores observados fixados, segundo o modelo.\n> - **Correlação de coativação**: média de sᵢsⱼ, relacionada à frequência com que duas unidades estão simultaneamente ativas.\n> - **Gradiente**: direção local de mudança dos parâmetros que aumenta ou reduz o objetivo.\n\n### A regra das duas fases\n\nPara uma conexão entre i e j, a atualização clássica é proporcional à diferença entre a correlação na fase positiva e a correlação na fase negativa: Δwᵢⱼ ∝ ⟨sᵢsⱼ⟩dados − ⟨sᵢsⱼ⟩modelo. A média positiva vem de exemplos impostos nos visíveis e estados ocultos amostrados condicionalmente a eles; a média negativa vem de estados da rede livre. Para o viés de uma unidade, a diferença correspondente usa sua atividade média nas duas fases.\n\nInterpretação: se um par coativa mais nos dados do que o modelo livre, aumenta-se seu peso para tornar essa coativação mais compatível com a distribuição aprendida. Se coativa mais no modelo do que nos dados, a atualização reduz o peso. A atualização é estatística, não uma regra de “copiar cada exemplo para os pesos”.\n\nA regra se aplica a conexões visível-visível, visível-oculta e oculta-oculta nas máquinas gerais. Unidades ocultas ajudam a representar estrutura que não se resume às correlações diretamente observadas entre variáveis visíveis. Isso permite, com estrutura latente adequada, expressar padrões de ordem superior por interações pareadas no conjunto ampliado de unidades.\n\n### Por que o treinamento pode ser lento\n\nNa fase negativa é necessário estimar expectativas do próprio modelo. Uma cadeia de Markov pode levar muito tempo para visitar adequadamente diferentes regiões de alta probabilidade. Redes com várias unidades ocultas e modos distintos tornam a mistura particularmente difícil. A diferença entre duas médias amostradas pode ter variância alta. Por isso o treinamento clássico pode ser custoso mesmo que a regra algébrica pareça simples.\n\nA taxa de aprendizado, o número de atualizações, o tamanho de lote, a inicialização, a regularização e a estratégia de amostragem afetam o resultado. Não existe um conjunto universal de valores que garanta convergência boa para qualquer problema.\n\n### Divergência contrastiva: aproximação prática\n\nEm uma RBM, a independência condicional dentro de cada camada torna a amostragem da fase positiva rápida. Para reduzir o custo da fase negativa, a **divergência contrastiva** inicia a cadeia com um exemplo real e executa um número curto de passos de Gibbs. A diferença entre as estatísticas do dado e as da reconstrução aproxima o gradiente de máxima verossimilhança. Essa aproximação é eficiente, mas em geral não é o gradiente exato: o viés pode ser relevante se poucos passos não aproximarem suficientemente a distribuição do modelo.\n\nNa divergência contrastiva de poucos passos, frequentemente chamada CD-k, k é a quantidade de passos de reconstrução/sorteio usada antes da estatística negativa. Em amostragem contrastiva persistente, também chamada PCD, as cadeias negativas são mantidas entre atualizações em vez de reiniciadas sempre em cada dado; isso pode acompanhar melhor a distribuição do modelo, mas continua dependendo de cadeias que misturem adequadamente.\n\n| Estratégia | Ponto de partida da cadeia negativa | Vantagem e limite\n| --- | --- | --- |\n| Gradiente com fase negativa próxima do equilíbrio | Estado livre amostrado até aproximar o equilíbrio | Mais fiel ao gradiente, mas pode exigir muitas atualizações\n| CD-k | Exemplo observado, seguido de poucos passos | Barato e simples; gradiente aproximado e enviesado\n| PCD | Amostras negativas persistidas de uma iteração à próxima | Mantém partículas em evolução; depende da qualidade e mistura da cadeia\n\n### Como cai na prova\n\n- A fase positiva prende os visíveis ao dado; a negativa deixa o modelo livre.\n- O aprendizado clássico aumenta a coativação observada nos dados relativamente à coativação livre do modelo.\n- CD-k usa poucos passos e, portanto, oferece aproximação, não identidade com o gradiente exato.\n- Gibbs é amostragem de estados; a diferença de correlações é a regra de atualização dos parâmetros."
+    },
+    {
+      "title": "4. RBM, reconstrução e usos generativos",
+      "markdown": "### O problema que este assunto resolve\n\nA máquina de Boltzmann geral pode conectar unidades visíveis entre si, ocultas entre si e entre camadas. Estimar suas expectativas é difícil. A **máquina de Boltzmann restrita**, ou RBM, impõe uma topologia mais simples: uma camada visível e uma camada oculta, com conexões entre as camadas, mas sem conexões visível-visível nem oculta-oculta.\n\n> **Siglas e termos deste capítulo**\n> - **RBM**: *Restricted Boltzmann Machine*, máquina de Boltzmann restrita.\n> - **Camada bipartida**: dois grupos de nós com arestas apenas entre os grupos.\n> - **Independência condicional**: variáveis de uma camada são independentes entre si quando a outra camada está fixada.\n> - **Reconstrução**: amostra ou valor reconstituído nos visíveis após ativar ocultos a partir de um exemplo.\n> - **CD-k**: divergência contrastiva com k passos de amostragem.\n\n### O que a restrição permite\n\nA energia binária padrão de uma RBM pode ser escrita E(v,h) = −aᵀv − bᵀh − vᵀWh, em que v são os visíveis, h os ocultos, a e b são vieses e W contém os pesos entre camadas. Dado v, os ocultos são condicionalmente independentes; dado h, os visíveis também. Portanto, todos os ocultos podem ser amostrados em paralelo e, em seguida, todos os visíveis em paralelo.\n\nA separação não torna visíveis marginalmente independentes: ao somar sobre possíveis estados ocultos, podem surgir dependências complexas entre os visíveis. A camada oculta funciona como variáveis latentes que explicam coocorrências. Tampouco a RBM é uma rede feedforward: há conexões simétricas entre as camadas e inferência/amostragem pode alternar nos dois sentidos.\n\n### Ciclo de reconstrução e aprendizado\n\nUm ciclo didático de CD começa com um vetor visível real v₀. Primeiro amostra h₀ a partir de P(h|v₀). Depois amostra v₁ a partir de P(v|h₀), produzindo uma reconstrução. Em seguida, pode amostrar h₁ a partir de P(h|v₁). A estatística positiva usa associações do par inicial v₀,h₀; a negativa usa associações após a cadeia. Os parâmetros são ajustados para aproximar a distribuição do modelo da distribuição dos dados. Uma reconstrução próxima do exemplo é um sinal útil, mas sozinha não prova que a distribuição inteira foi bem aprendida.\n\nO número pequeno de passos reduz custo, mas as amostras reconstruídas podem ainda estar perto do dado inicial e não representar plenamente a fase livre. CD-k é, portanto, uma aproximação prática. Em treinamento com PCD, as cadeias persistentes fornecem amostras negativas que continuam entre lotes. Ambas são estratégias estocásticas sujeitas a ruído e problemas de mistura.\n\n### Aplicações e limites\n\nRBMs foram usadas para aprender características latentes, reduzir dimensionalidade, reconstruir dados e compor etapas de modelos profundos de crenças. Também se pode usar uma máquina de Boltzmann para completar padrões parcialmente observados e gerar amostras. O treinamento não supervisionado pode produzir representações que depois são usadas numa tarefa supervisionada, mas isso não significa que a própria RBM tenha recebido rótulos durante seu treinamento generativo.\n\nHoje, RBMs são principalmente um tópico fundamental e histórico de modelos generativos baseados em energia. O nome “máquina” não implica hardware especial nem um computador físico com temperatura. Temperatura é uma noção probabilística da formulação. A eficiência da RBM decorre da restrição do grafo e das independências condicionais, não de uma garantia de amostragem perfeita.\n\n| Afirmação | Avaliação correta\n| --- | --- |\n| Não há conexões dentro de cada camada da RBM | Correto\n| Ocultos são independentes dados os visíveis | Correto\n| Visíveis são sempre independentes marginalmente | Incorreto\n| A RBM é uma arquitetura direcionada de entrada para saída | Incorreto\n| CD-k é sempre o gradiente exato | Incorreto\n\n### Como cai na prova\n\n- RBM tem grafo bipartido e remove conexões dentro das duas camadas.\n- A independência condicional permite atualizar cada camada em paralelo dado o estado da outra.\n- CD inicia nos dados e usa uma cadeia curta; não deve ser descrita como cálculo exato da função de partição.\n- “Reconstrução” é o retorno amostrado aos visíveis, não necessariamente uma cópia perfeita nem prova suficiente de generalização."
+    }
+  ],
+  "summary": "Máquinas de Boltzmann são redes estocásticas não direcionadas que aprendem distribuições de padrões por meio de pesos, vieses e energia. Unidades visíveis representam dados; unidades ocultas representam variáveis latentes. A probabilidade de cada configuração segue uma distribuição de Boltzmann normalizada pela função de partição. O aprendizado clássico por máxima verossimilhança compara correlações na fase dos dados (visíveis fixados) e na fase livre do modelo. O cálculo pode ser lento porque exige amostragem próxima do equilíbrio. A RBM restringe a rede a duas camadas sem conexões internas, permitindo amostragem condicional paralela. A divergência contrastiva inicia nos dados e usa poucos passos de Gibbs, fornecendo uma aproximação eficiente, porém em geral enviesada, do gradiente. RBMs podem gerar, completar e representar padrões, mas sua qualidade depende do treinamento e da mistura das cadeias.",
+  "flashcards": [
+    {
+      "front": "O que é uma máquina de Boltzmann?",
+      "back": "Uma rede neural estocástica não direcionada que aprende uma distribuição de probabilidade sobre configurações de unidades."
+    },
+    {
+      "front": "Por que a máquina de Boltzmann é um modelo generativo?",
+      "back": "Porque representa uma distribuição de dados e, em amostragem livre, pode produzir padrões segundo a distribuição aprendida."
+    },
+    {
+      "front": "Qual é o papel das unidades visíveis?",
+      "back": "Representar as variáveis observadas nos exemplos, como pixels, atributos ou bits de entrada."
+    },
+    {
+      "front": "Qual é o papel das unidades ocultas?",
+      "back": "Representar variáveis latentes e características que ajudam a explicar regularidades entre os dados visíveis."
+    },
+    {
+      "front": "O que significa uma unidade ser estocástica?",
+      "back": "Seu estado é sorteado segundo probabilidades condicionadas ao campo local, em vez de ser sempre determinado."
+    },
+    {
+      "front": "O que um peso positivo favorece?",
+      "back": "Favorece que as duas unidades conectadas estejam simultaneamente ativas, sem tornar isso obrigatório."
+    },
+    {
+      "front": "Qual a relação entre energia e probabilidade?",
+      "back": "Estados de menor energia têm maior probabilidade relativa na distribuição de Boltzmann."
+    },
+    {
+      "front": "Para que serve a função de partição Z?",
+      "back": "Normalizar os pesos exponenciais de todos os estados para obter probabilidades que somem um."
+    },
+    {
+      "front": "O que é amostragem de Gibbs?",
+      "back": "Atualizar probabilisticamente uma unidade ou grupo condicionado aos valores correntes das demais unidades."
+    },
+    {
+      "front": "Quais conexões existem numa máquina de Boltzmann geral?",
+      "back": "Conexões simétricas podem existir entre unidades visíveis, ocultas e entre uma visível e uma oculta."
+    },
+    {
+      "front": "O que caracteriza a RBM?",
+      "back": "Duas camadas, visível e oculta, conectadas entre si, sem conexões entre unidades da mesma camada."
+    },
+    {
+      "front": "Qual é a independência condicional central da RBM?",
+      "back": "Dadas as unidades visíveis, as ocultas são independentes entre si; dadas as ocultas, as visíveis também."
+    },
+    {
+      "front": "Como a RBM amostra uma reconstrução?",
+      "back": "A partir de um dado visível, amostra a camada oculta e depois amostra de volta os visíveis condicionados aos ocultos."
+    },
+    {
+      "front": "O que compara o aprendizado clássico em duas fases?",
+      "back": "Coativações médias quando os dados estão fixados e coativações médias quando o modelo funciona livremente."
+    },
+    {
+      "front": "O que é a fase positiva?",
+      "back": "A fase do aprendizado com as unidades visíveis presas aos exemplos observados."
+    },
+    {
+      "front": "O que é a fase negativa?",
+      "back": "A fase em que as unidades do modelo são amostradas sem prender os visíveis aos exemplos."
+    },
+    {
+      "front": "O que faz a divergência contrastiva CD-k?",
+      "back": "Inicia a amostragem num dado e usa k passos curtos para aproximar as estatísticas negativas do modelo."
+    },
+    {
+      "front": "CD-k fornece necessariamente o gradiente exato?",
+      "back": "Não. É uma aproximação prática de máxima verossimilhança e pode ser enviesada com poucas etapas."
+    },
+    {
+      "front": "Como a PCD difere da CD comum?",
+      "back": "Mantém cadeias negativas entre atualizações, em vez de reiniciar cada cadeia a partir do exemplo atual."
+    },
+    {
+      "front": "Por que o treinamento pode ser lento?",
+      "back": "A amostragem livre pode demorar para chegar ao equilíbrio e explorar modos separados por barreiras de energia."
+    },
+    {
+      "front": "Uma boa reconstrução garante que o modelo aprendeu toda a distribuição?",
+      "back": "Não. Reconstrução local pode ser boa mesmo sem amostragem livre ou generalização adequadas."
+    },
+    {
+      "front": "A RBM é uma rede feedforward?",
+      "back": "Não. É um modelo não direcionado com conexões simétricas entre camadas e amostragem que pode alternar entre elas."
+    },
+    {
+      "front": "A ausência de conexões entre visíveis na RBM torna-os independentes em geral?",
+      "back": "Não marginalmente; ao integrar as variáveis ocultas, podem surgir dependências entre as unidades visíveis."
+    },
+    {
+      "front": "Como pesos negativos influenciam um par?",
+      "back": "Desfavorecem a ativação simultânea do par, dadas as demais condições da rede."
+    },
+    {
+      "front": "O que significa completar um padrão?",
+      "back": "Fixar parte das variáveis visíveis e amostrar ou inferir estados plausíveis para as variáveis faltantes."
+    }
+  ],
+  "tips": [
+    "Associe menor energia a maior probabilidade relativa, mas não a certeza: a máquina continua estocástica.",
+    "Guarde o contraste das fases: dados presos na positiva, rede livre na negativa; a atualização favorece a diferença entre suas correlações.",
+    "Na RBM, desenhe dois grupos e ligue apenas um grupo ao outro. Isso explica a independência condicional dentro de cada camada.",
+    "CD-k começa no exemplo real e percorre poucos passos. Palavra-chave: aproximação eficiente, não gradiente exato garantido.",
+    "Reconstrução e geração livre são avaliações diferentes: reproduzir um dado após poucos passos não prova que a cadeia livre misture bem.",
+    "Não troque amostragem de estados por aprendizagem dos pesos: Gibbs amostra; estatísticas de duas fases orientam os pesos."
+  ],
+  "traps": [
+    "Afirmar que uma máquina de Boltzmann produz sempre a mesma saída para a mesma entrada ignora a amostragem estocástica das unidades.",
+    "Confundir peso positivo com coativação obrigatória: o sinal altera probabilidades, não impõe uma regra lógica absoluta.",
+    "Dizer que a RBM não tem dependências entre visíveis porque não há arestas visível-visível: a independência só é condicional aos ocultos.",
+    "Chamar a RBM de rede feedforward por ter uma camada visível e outra oculta: as conexões são simétricas e o estado é amostrado nos dois sentidos.",
+    "Tratar CD-1 ou CD-k como cálculo exato da máxima verossimilhança: a cadeia curta só aproxima as estatísticas do modelo.",
+    "Afirmar que a reconstrução é necessariamente idêntica ao dado ou que prova boa generalização: ela é uma amostra e não descreve sozinha a distribuição livre."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva como uma máquina de Boltzmann transforma pesos em probabilidades de padrões.",
+      "answer": "Os pesos e vieses definem a energia de cada estado global; a exponencial negativa da energia, ajustada pela temperatura, fornece um peso não normalizado; a função de partição normaliza os pesos em uma distribuição."
+    },
+    {
+      "question": "Explique a diferença entre unidade visível e unidade oculta.",
+      "answer": "A visível corresponde a uma variável observada do dado. A oculta é latente e pode aprender características que representem dependências nos dados sem receber rótulo direto."
+    },
+    {
+      "question": "Como funcionam as fases positiva e negativa no aprendizado clássico?",
+      "answer": "Na positiva, os visíveis são fixados a dados e mede-se atividade/correlação com os ocultos; na negativa, a rede roda livre e estima-se as estatísticas próprias do modelo. A diferença orienta a atualização."
+    },
+    {
+      "question": "Por que é difícil calcular exatamente o gradiente da máquina geral?",
+      "answer": "A fase livre exige expectativas sobre a distribuição do modelo, definida sobre um número exponencial de estados; aproximá-las por cadeia de Markov pode exigir longo tempo até o equilíbrio."
+    },
+    {
+      "question": "Quais arestas são permitidas numa RBM?",
+      "answer": "Arestas entre unidades visíveis e ocultas. Não há arestas entre pares de visíveis nem entre pares de ocultos."
+    },
+    {
+      "question": "Por que as camadas da RBM podem ser amostradas em paralelo?",
+      "answer": "Dada a camada oposta, as unidades de uma camada não têm conexões entre si e são condicionalmente independentes."
+    },
+    {
+      "question": "Descreva um passo de reconstrução usado pela divergência contrastiva.",
+      "answer": "Começa-se com visíveis do dado, amostram-se ocultos condicionados a eles, amostram-se visíveis condicionados aos ocultos e comparam-se as estatísticas iniciais e reconstruídas."
+    },
+    {
+      "question": "Qual é a principal ressalva ao usar CD-k?",
+      "answer": "Poucos passos reduzem custo, porém podem não aproximar a distribuição livre; por isso o gradiente estimado é geralmente enviesado."
+    },
+    {
+      "question": "Diferencie geração livre de completamento de padrão.",
+      "answer": "Na geração livre nenhum valor visível é fixado; no completamento, parte dos visíveis é observada/fixada e o modelo amostra valores para a parte ausente."
+    },
+    {
+      "question": "Por que a máquina de Boltzmann é chamada de não direcionada?",
+      "answer": "Porque as interações são conexões simétricas e a distribuição é definida sobre estados conjuntos, sem arestas que imponham fluxo apenas da entrada para saída."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Energia confundida com saída determinística",
+      "summary": "A energia organiza as probabilidades relativas dos estados; mesmo o estado de menor energia não precisa ser a única saída possível."
+    },
+    {
+      "key": "e2",
+      "title": "Inversão entre as duas fases",
+      "summary": "A fase positiva prende os visíveis nos dados; a fase negativa deixa a máquina amostrar livremente. O gradiente compara suas estatísticas."
+    },
+    {
+      "key": "e3",
+      "title": "RBM confundida com rede totalmente conectada",
+      "summary": "A RBM não tem conexões dentro de cada camada. A máquina de Boltzmann geral pode tê-las."
+    },
+    {
+      "key": "e4",
+      "title": "Independência marginal confundida com condicional",
+      "summary": "Na RBM, unidades da mesma camada são independentes somente quando a camada oposta está dada; marginalizar os ocultos pode criar dependências visíveis."
+    },
+    {
+      "key": "e5",
+      "title": "CD tratada como gradiente exato",
+      "summary": "A divergência contrastiva usa cadeias curtas iniciadas nos dados e fornece em geral uma estimativa enviesada das estatísticas da fase livre."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma máquina de Boltzmann aprende uma distribuição sobre configurações e pode gerar padrões por amostragem sem ter um alvo rotulado para cada exemplo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O modelo ajusta parâmetros para representar a distribuição dos exemplos e pode ser amostrado em funcionamento livre. Essa finalidade generativa não exige rótulos de classe para cada observação.",
+      "section": "1. O que uma máquina de Boltzmann aprende",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma máquina de Boltzmann, uma conexão positiva obriga as duas unidades a ficarem ligadas simultaneamente em todos os estados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Peso positivo favorece a coativação, mas as unidades são estocásticas e os outros pesos, vieses e estados também influenciam a probabilidade. Não há obrigação lógica de ambos estarem ligados.",
+      "section": "1. O que uma máquina de Boltzmann aprende",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Unidades ocultas são variáveis latentes que podem representar características não observadas diretamente nos dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os exemplos fornecem estados visíveis, enquanto as unidades ocultas podem aprender representações úteis para explicar regularidades e dependências dos dados.",
+      "section": "1. O que uma máquina de Boltzmann aprende",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na amostragem livre, os estados visíveis são sempre presos a cada exemplo de treinamento para que a máquina produza a própria distribuição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Prender os visíveis a exemplos caracteriza a fase positiva de treinamento ou uma inferência condicionada. Na amostragem livre, nenhum exemplo é imposto aos visíveis e a rede gera segundo sua própria distribuição.",
+      "section": "1. O que uma máquina de Boltzmann aprende",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Fixar parte das variáveis visíveis e amostrar as demais pode ser usado para completar um padrão parcialmente observado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O subconjunto conhecido condiciona a distribuição das variáveis faltantes. A máquina pode inferir ou amostrar completamentos plausíveis, embora não haja garantia de resposta única.",
+      "section": "1. O que uma máquina de Boltzmann aprende",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A função de partição normaliza os pesos de todos os estados para que as probabilidades somem um.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Z é a soma dos fatores exponenciais de todos os estados possíveis e atua como constante de normalização da distribuição de Boltzmann.",
+      "section": "2. Energia, distribuição e dinâmica estocástica",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na distribuição de Boltzmann, um estado de energia menor tem probabilidade relativa menor que um estado de energia maior, mantidas a temperatura e a normalização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A probabilidade é proporcional à exponencial negativa da energia: diminuir E aumenta o peso relativo do estado. Isso não significa que o estado seja determinístico ou exclusivo.",
+      "section": "2. Energia, distribuição e dinâmica estocástica",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A amostragem de Gibbs atualiza unidades probabilisticamente, condicionando cada sorteio aos estados correntes das outras unidades pertinentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Gibbs é um método de amostragem que atualiza estados segundo distribuições condicionais. A alteração dos pesos é uma etapa de aprendizado distinta.",
+      "section": "2. Energia, distribuição e dinâmica estocástica",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A temperatura é outro nome para a taxa de aprendizado dos pesos de uma RBM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Temperatura controla a dispersão/aleatoriedade da distribuição de estados. Taxa de aprendizado controla o tamanho das atualizações dos parâmetros; são conceitos diferentes.",
+      "section": "2. Energia, distribuição e dinâmica estocástica",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A forma geral da máquina de Boltzmann é um grafo não direcionado, apesar de se distinguirem unidades visíveis e ocultas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os papéis visível e oculto indicam observação e latência; as interações permanecem simétricas e não impõem fluxo exclusivamente de entrada para saída.",
+      "section": "2. Energia, distribuição e dinâmica estocástica",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cadeia que ainda não se aproximou do equilíbrio pode fornecer médias negativas pouco representativas da distribuição do modelo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A fase negativa estima expectativas sob o modelo. Se a cadeia não explorou adequadamente seus estados prováveis, suas estatísticas podem ser enviesadas e ruidosas.",
+      "section": "2. Energia, distribuição e dinâmica estocástica",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na regra de aprendizado clássica, a fase positiva é obtida com a rede livre e a fase negativa com os dados presos nos visíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os dados visíveis fixados caracterizam a fase positiva. A fase negativa deixa a rede livre para estimar as estatísticas próprias do modelo.",
+      "section": "3. Aprendizado: dados contra amostragem livre",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um par coativa mais na fase dos dados do que na fase livre, a regra de duas fases tende a aumentar o peso que o conecta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A atualização é proporcional à diferença entre as coativações positiva e negativa. Uma correlação maior nos dados aumenta o peso para representar melhor essa regularidade observada.",
+      "section": "3. Aprendizado: dados contra amostragem livre",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A divergência contrastiva com poucos passos sempre calcula exatamente o gradiente de máxima verossimilhança, porque inicia em um dado real.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Iniciar no dado torna o método prático, mas uma cadeia curta pode não atingir a distribuição livre do modelo. CD-k aproxima o gradiente e geralmente pode ter viés.",
+      "section": "3. Aprendizado: dados contra amostragem livre",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A RBM não possui conexões visível-visível nem oculta-oculta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A restrição arquitetural mantém apenas as conexões entre as duas camadas bipartidas, o que permite independências condicionais úteis para amostragem.",
+      "section": "4. RBM, reconstrução e usos generativos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como não há arestas entre unidades visíveis numa RBM, as unidades visíveis também são independentes depois de marginalizar os ocultos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A independência é condicional ao estado da camada oposta. Ao marginalizar os ocultos, diferentes visíveis podem continuar dependentes por compartilharem causas latentes.",
+      "section": "4. RBM, reconstrução e usos generativos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dado o vetor visível numa RBM, cada unidade oculta pode ser sorteada condicionalmente em paralelo com as demais unidades ocultas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Não existem conexões oculto-oculto; portanto, fixados os visíveis, a distribuição condicional fatoriza entre os ocultos e permite amostragem paralela.",
+      "section": "4. RBM, reconstrução e usos generativos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A RBM é uma rede feedforward: os visíveis enviam sinais aos ocultos, mas o modelo não amostra de volta para os visíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. As conexões são simétricas entre camadas. Amostragem alternada de ocultos e visíveis é central para reconstrução e geração na RBM.",
+      "section": "4. RBM, reconstrução e usos generativos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição melhor caracteriza o objetivo generativo de uma máquina de Boltzmann?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ordenar sempre os dados em classes fixas por uma regra determinística.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aprender probabilidades de padrões e amostrar configurações compatíveis com elas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Armazenar cada exemplo em uma tabela sem estimar relações entre variáveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter qualquer entrada em uma resposta única por propagação direta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Calcular uma distância entre imagens sem atribuir probabilidade aos padrões nem aprender frequências conjuntas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O modelo aprende uma distribuição sobre estados e pode amostrá-la para gerar padrões. Classificação determinística, armazenamento literal e cálculo isolado de distâncias não definem o objetivo generativo da máquina.",
+      "section": "1. O que uma máquina de Boltzmann aprende",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe modela pixels binários e deseja variáveis que representem traços recorrentes sem rótulos explícitos. Qual interpretação das unidades é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pixels são ocultos e classes obrigatórias ocupam a camada visível.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pixels são visíveis e unidades latentes podem representar traços recorrentes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Todas as unidades precisam corresponder a rótulos conhecidos do conjunto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Unidades ocultas apenas repetem os pixels sem capturar relações entre eles.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pesos positivos convertem automaticamente cada traço em uma classe nomeada, sem inferência latente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pixels observados ocupam unidades visíveis, enquanto estados ocultos podem codificar características latentes aprendidas. A aprendizagem generativa não exige que cada unidade oculta receba nome ou rótulo manual.",
+      "section": "1. O que uma máquina de Boltzmann aprende",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois padrões diferem apenas na energia, e todos os demais fatores e temperatura são iguais. Que relação geral vale para sua probabilidade relativa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O padrão de maior energia sempre é escolhido sem qualquer sorteio e sem considerar a temperatura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O padrão de menor energia recebe maior peso probabilístico relativo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Os padrões recebem a mesma probabilidade porque a rede é simétrica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A energia afeta apenas os pesos, mas não a distribuição dos estados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A probabilidade depende só do número de unidades visíveis ativas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A distribuição de Boltzmann atribui peso proporcional a exp(−E/T), portanto menor energia significa maior peso relativo. A amostragem continua probabilística, e a simetria da rede não iguala as probabilidades de todos os estados.",
+      "section": "2. Energia, distribuição e dinâmica estocástica",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma questão apresenta a expressão exp(−E(s)/T) para cada configuração. Qual elemento ainda é necessário para formar a probabilidade normalizada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Multiplicar pela quantidade de unidades ocultas em cada estado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Dividir pelo somatório desses pesos em todos os estados possíveis.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituir a energia pelo número de exemplos rotulados da classe.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somar apenas as energias dos estados que aparecem no lote atual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover a temperatura e tratar cada peso exponencial como probabilidade, sem normalização global.",
+          "correct": false
+        }
+      ],
+      "explanation": "A soma de exp(−E/T) sobre todas as configurações é a função de partição Z. Dividir cada peso por Z normaliza a distribuição; contagens de unidades ou exemplos do lote não substituem essa soma.",
+      "section": "2. Energia, distribuição e dinâmica estocástica",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao usar uma conexão de peso negativo, qual efeito ela tem, em igualdade das demais condições?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Obriga as duas unidades a permanecerem ligadas em todos os estados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desfavorece que as duas unidades ligadas estejam ativas simultaneamente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apaga a unidade oculta e elimina todas as demais conexões da rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Faz o peso deixar de participar da energia global do modelo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transforma a ligação simétrica em uma aresta unidirecional durante toda a amostragem.",
+          "correct": false
+        }
+      ],
+      "explanation": "O sinal negativo representa uma interação inibitória: coativar o par tende a ser menos favorecido. O efeito é probabilístico, não uma proibição absoluta, e não muda a simetria da conexão.",
+      "section": "1. O que uma máquina de Boltzmann aprende",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um processo de inferência, alguns atributos foram observados e os demais estão ausentes. Como a rede pode lidar com essa situação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar os atributos observados e gerar uma classe por regra determinística.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter os valores conhecidos e amostrar estados plausíveis para os atributos faltantes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Treinar novamente todos os pesos, pois completamento não é inferência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fixar todas as unidades ocultas e impedir qualquer variação nos visíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Calcular a função de partição apenas para os valores ausentes, sem inferir configurações faltantes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O modelo pode condicionar nos valores observados e amostrar as variáveis faltantes, produzindo completamentos compatíveis. Isso não exige novo treinamento nem garante um único resultado.",
+      "section": "1. O que uma máquina de Boltzmann aprende",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente a simetria das conexões numa máquina de Boltzmann?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada peso só afeta a unidade que recebeu primeiro o dado de entrada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A interação entre um par tem o mesmo peso em ambas as direções.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "As conexões existem apenas da camada visível para a camada oculta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A simetria exige que todos os pesos da rede tenham valor idêntico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pesos positivos e negativos precisam aparecer em pares opostos com a mesma magnitude.",
+          "correct": false
+        }
+      ],
+      "explanation": "A máquina tem conexões não direcionadas: o parâmetro da interação i–j é simétrico. Isso não torna todos os pesos iguais nem exige sinal oposto em outras conexões.",
+      "section": "2. Energia, distribuição e dinâmica estocástica",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pesquisador observa que uma cadeia alterna estados por sorteio condicionado aos estados correntes. Qual procedimento está sendo descrito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Normalização determinística da função de partição pela taxa de aprendizado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Amostragem de Gibbs usada para explorar estados do modelo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Propagação direta em uma rede com conexões apenas de entrada para saída.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Atualização de cada peso sem consultar estados nem dados da rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Classificação supervisionada que escolhe o maior escore de saída sem sortear estados condicionais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gibbs é uma estratégia de amostragem condicional para estados. O ajuste dos pesos usa estatísticas dessas amostras, mas não é o mesmo processo de sorteio.",
+      "section": "2. Energia, distribuição e dinâmica estocástica",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que cadeias de amostragem podem tornar lento o treinamento de uma máquina de Boltzmann geral?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Precisam calcular um rótulo manual para cada unidade oculta a cada passo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Podem precisar de muitas atualizações para explorar modos e aproximar o equilíbrio.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A simetria das conexões impede que qualquer estado seja amostrado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A função de partição elimina todos os estados de energia não mínima.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A fase positiva exige gerar exemplos artificiais em vez de usar dados observados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fase negativa requer médias da distribuição do modelo. Barreiras entre modos e mistura lenta podem exigir longas cadeias; os estados ocultos não precisam ter rótulos manuais e a amostragem não fica impedida pela simetria.",
+      "section": "3. Aprendizado: dados contra amostragem livre",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer aumentar a probabilidade de combinações que aparecem frequentemente nos dados e aparecem pouco na rede livre. Que direção conceitual de ajuste atende ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Igualar todas as correlações a zero em ambas as fases.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar pesos associados a coativações positivas maiores que as negativas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Diminuir as coativações dos dados até coincidirem com rótulos ocultos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir as amostras livres por cópias exatas de todos os dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar a temperatura para remover a necessidade de ajustar pesos e estimar estatísticas do modelo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A regra de duas fases usa diferença positiva menos negativa. Uma coativação maior nos dados que no modelo favorece aumentar o peso correspondente e elevar a probabilidade dessa regularidade.",
+      "section": "3. Aprendizado: dados contra amostragem livre",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual formulação resume a atualização de um peso entre duas unidades na regra clássica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A atualização subtrai a correlação dos dados da correlação da rede livre.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O peso é definido pelo produto das unidades de saída sem comparação de fases.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma taxa de escala multiplica a coativação média nos dados menos a do modelo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O peso recebe sempre o sinal da unidade oculta, independentemente das amostras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A regra atualiza apenas conexões visíveis e ignora as interações latentes, mesmo quando existem pesos ocultos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A regra padrão é proporcional a ⟨sᵢsⱼ⟩dados − ⟨sᵢsⱼ⟩modelo. A ordem importa para aumentar verossimilhança, e conexões ocultas também podem ser aprendidas na máquina geral.",
+      "section": "3. Aprendizado: dados contra amostragem livre",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma RBM tem 12 unidades visíveis e 5 ocultas. O que a restrição informa sobre as conexões possíveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "As cinco ocultas formam uma cadeia direcionada e isolada dos visíveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cada uma das 12 unidades visíveis se conecta às outras visíveis, mas não às ocultas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conexões ligam visíveis a ocultas, sem arestas dentro de cada grupo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Só uma unidade visível pode conectar-se a uma unidade oculta por vez.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As conexões entre camadas são removidas durante a amostragem condicional, em vez de manter o grafo bipartido.",
+          "correct": false
+        }
+      ],
+      "explanation": "A RBM tem topologia bipartida: arestas entre os dois grupos, sem arestas visível-visível ou oculta-oculta. A restrição não limita cada nó a uma única conexão entre camadas.",
+      "section": "4. RBM, reconstrução e usos generativos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dado um estado fixo da camada visível de uma RBM, por que os estados ocultos podem ser sorteados paralelamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os pesos entre camadas tornam-se direcionados depois de fixar os visíveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A função de partição fixa antecipadamente cada estado oculto do lote.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não há conexões oculto-oculto, então a distribuição condicional fatoriza.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "As unidades ocultas deixam de ser aleatórias quando os dados são observados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Todas as unidades ocultas compartilham obrigatoriamente o mesmo estado binário.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ausência de arestas oculto-oculto torna as unidades ocultas condicionalmente independentes dado v. Cada uma mantém sua própria probabilidade de estado e pode ser amostrada em paralelo.",
+      "section": "4. RBM, reconstrução e usos generativos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência representa um passo básico de reconstrução numa RBM iniciada por um exemplo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ajustar vieses diretamente e depois manter ambas as camadas imóveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Amostrar ocultos sem dado, calcular rótulos e apagar todos os visíveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fixar visíveis, amostrar ocultos e depois reamostrar visíveis condicionados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Amostrar visíveis e ocultos ao mesmo tempo sem condicionar uns nos outros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somar as energias do lote e usar a soma como vetor reconstruído.",
+          "correct": false
+        }
+      ],
+      "explanation": "A cadeia começa com os visíveis do dado, amostra os ocultos dado esse estado e retorna aos visíveis condicionando nos ocultos. Essa alternância é possível pela estrutura bipartida da RBM.",
+      "section": "4. RBM, reconstrução e usos generativos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que distingue a amostragem contrastiva persistente da divergência contrastiva reiniciada em cada exemplo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A divergência contrastiva comum mantém todas as amostras em equilíbrio exato.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "As cadeias persistentes removem os pesos e dispensam amostragem de estados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As cadeias negativas continuam entre atualizações em vez de reiniciar sempre nos dados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "PCD usa apenas a fase positiva e não estima estatísticas do modelo livre.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PCD transforma unidades binárias em classes supervisionadas durante o treino, sem amostrar o modelo livre.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na PCD, partículas/cadeias negativas são mantidas e atualizadas ao longo do treinamento. Isso pode acompanhar melhor a distribuição livre, mas não elimina custo, ruído ou problemas de mistura.",
+      "section": "3. Aprendizado: dados contra amostragem livre",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um avaliador observa que os visíveis de uma RBM têm probabilidade dependente mesmo sem arestas diretas entre eles. Qual explicação é compatível com o modelo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "As unidades visíveis são ligadas por arestas direcionadas escondidas na definição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A ausência de arestas internas prova que toda dependência observada é erro de medição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Compartilhar unidades ocultas pode induzir dependências após marginalizá-las.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A RBM só possui uma única variável oculta compartilhada por toda entrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A dependência surge porque a função de partição exclui estados visíveis independentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "A independência entre visíveis vale condicionada aos ocultos. Ao somar sobre diferentes configurações ocultas, visíveis ligados às mesmas causas latentes podem tornar-se dependentes marginalmente.",
+      "section": "4. RBM, reconstrução e usos generativos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe usa CD-1 e relata gradiente de máxima verossimilhança sem aproximação. Qual ressalva técnica deve ser aplicada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CD-1 é apenas inferência de rótulos e não altera os parâmetros do modelo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um passo sempre calcula todas as configurações e a função de partição exata.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um passo pode ser uma aproximação enviesada se a cadeia não representar a fase livre.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A inicialização no dado transforma a cadeia estocástica em solução determinística.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A restrição da RBM elimina a diferença entre estatísticas positivas e negativas para qualquer dado.",
+          "correct": false
+        }
+      ],
+      "explanation": "CD-k usa uma cadeia curta iniciada nos dados para baratear a estimativa negativa. Se a cadeia não aproxima a distribuição livre, a estatística resultante não coincide com o gradiente exato.",
+      "section": "3. Aprendizado: dados contra amostragem livre",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmativa distingue adequadamente a RBM da máquina de Boltzmann geral?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A RBM não tem unidades ocultas e aprende somente limiares visíveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A máquina geral é sempre direcionada, mas a RBM não possui energia.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A RBM proíbe conexões internas às camadas, enquanto a geral pode permiti-las.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A máquina geral só conecta camadas, mas a RBM conecta todas as unidades.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A RBM substitui amostragem por uma tabela determinística de respostas, sem aprender distribuições de padrões.",
+          "correct": false
+        }
+      ],
+      "explanation": "A restrição da RBM elimina conexões entre unidades da mesma camada. A máquina geral pode conter essas conexões; ambas são modelos estocásticos baseados em energia.",
+      "section": "4. RBM, reconstrução e usos generativos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conclusão é mais bem sustentada por uma RBM que reconstrói exemplos de treinamento com baixa diferença visível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A reconstrução desses exemplos foi boa, mas outros testes de amostragem e generalização ainda importam.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A distribuição livre foi certamente aprendida por completo em todos os modos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O modelo generaliza necessariamente para qualquer domínio e tamanho de amostra.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As unidades ocultas identificaram classes corretas sem consultar os dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A cadeia de Markov atingiu equilíbrio exato após uma única reconstrução, cobrindo toda a distribuição.",
+          "correct": false
+        }
+      ],
+      "explanation": "A reconstrução é uma medida local condicionada ao exemplo e pode ser informativa, mas não garante cobertura da distribuição livre, equilíbrio ou generalização. É preciso avaliar outras amostras e dados não vistos.",
+      "section": "4. RBM, reconstrução e usos generativos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação deixa algumas unidades visíveis conhecidas e quer estimar as demais. Que uso da máquina é esse?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alterar a topologia para remover as unidades ocultas do modelo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar uma fase negativa sem condicionar em observações parciais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Calcular apenas uma pontuação de classificação supervisionada fixa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Completar um padrão condicionado pela parte visível fornecida.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Normalizar os pesos sem sortear qualquer estado faltante.",
+          "correct": false
+        }
+      ],
+      "explanation": "A inferência condicional pode manter observações conhecidas e amostrar valores para variáveis ausentes. O modelo não precisa ser convertido em classificador nem remover unidades latentes.",
+      "section": "1. O que uma máquina de Boltzmann aprende",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma analista descreve máquinas de Boltzmann como modelos de máxima verossimilhança. O que isso significa no contexto do treinamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atribuir um rótulo correto a cada variável latente antes da primeira atualização.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escolher parâmetros que diminuam a probabilidade dos dados e aumentem a entropia sem limite.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenar os exemplos sem representar sua frequência nem sua estrutura conjunta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ajustar parâmetros para elevar a probabilidade dos exemplos observados sob o modelo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Substituir as amostras livres pela média aritmética dos vetores visíveis, sem ajustar a distribuição.",
+          "correct": false
+        }
+      ],
+      "explanation": "Máxima verossimilhança busca parâmetros sob os quais os dados observados tenham maior probabilidade. O modelo compara estatísticas observadas e livres para orientar esse ajuste; não armazena apenas exemplos nem requer rótulos dos ocultos.",
+      "section": "3. Aprendizado: dados contra amostragem livre",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em que sentido unidades ocultas permitem representar regularidades que não aparecem apenas como interações diretas entre variáveis visíveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Elas tornam cada variável visível independente em qualquer condição possível.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Elas convertem toda distribuição em conexões direcionadas sem parâmetros aprendidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Elas removem a necessidade de amostrar estados ou ajustar os pesos da rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Elas oferecem variáveis latentes cujas interações com visíveis podem induzir estrutura conjunta mais rica.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Elas recebem diretamente todos os valores corretos como rótulos durante treino não supervisionado, antes de observar os exemplos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Estados ocultos podem funcionar como detectores latentes de características e, ao marginalizá-los, induzir dependências complexas entre visíveis. Eles aumentam a expressividade sem exigir rótulos explícitos para cada unidade.",
+      "section": "3. Aprendizado: dados contra amostragem livre",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma prova afirma que Gibbs é o mecanismo que atualiza os pesos pela diferença entre correlações positivas e negativas. Qual correção é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gibbs amostra estados; as estatísticas de duas fases orientam separadamente os pesos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Gibbs calcula a função de partição e por isso não produz estados amostrados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gibbs define os rótulos ocultos e não pode ser usado em RBMs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gibbs aplica apenas propagação direta e torna a rede não probabilística.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Gibbs elimina a fase positiva para que os dados não influenciem o treino.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gibbs é o método para obter amostras de estados segundo condicionais. O gradiente por duas fases usa correlações estimadas dessas amostras para atualizar os parâmetros; são operações relacionadas, mas distintas.",
+      "section": "3. Aprendizado: dados contra amostragem livre",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação explica melhor a utilidade prática da restrição arquitetural de uma RBM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela permite amostragem condicional paralela dentro de cada camada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ela torna todos os estados visíveis conhecidos antes do treinamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela garante que o modelo encontre sempre o máximo global da verossimilhança.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela torna desnecessário representar probabilidades ou estados ocultos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela transforma cada conexão simétrica em um caminho em sentido único.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sem conexões dentro da mesma camada, as unidades tornam-se condicionalmente independentes quando a camada oposta está fixada, permitindo atualização paralela e treinamento mais eficiente. Isso não garante ótimo global.",
+      "section": "4. RBM, reconstrução e usos generativos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação usa representações ocultas de uma RBM como atributos para treinar depois um classificador. Como se deve caracterizar essa etapa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A representação generativa pode apoiar uma etapa supervisionada posterior.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O uso posterior prova que o treinamento original da RBM já era supervisionado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As unidades ocultas passam a ser pesos de conexão sem estados probabilísticos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A classificação posterior elimina a distribuição aprendida pelos visíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma RBM não pode fornecer características para qualquer tarefa posterior nem representar dados sem rótulos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma RBM pode aprender representações sem rótulos e essas representações podem ser usadas como entrada em uma tarefa supervisionada posterior. O uso downstream não muda retroativamente a natureza do treinamento generativo original.",
+      "section": "4. RBM, reconstrução e usos generativos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um candidato diz que temperaturas maiores sempre melhoram o ajuste dos pesos porque aumentam a aleatoriedade. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Temperatura muda a distribuição de estados, mas não substitui a atualização aprendida dos parâmetros.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Temperatura maior equivale exatamente a uma taxa de aprendizado maior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A aleatoriedade elimina a necessidade de comparar dados e modelo livre.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Temperatura altera diretamente a quantidade de unidades ocultas na rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Temperatura infinita torna toda atualização de peso automaticamente correta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Temperatura controla o grau em que diferenças de energia pesam na amostragem. Taxa de aprendizado escala alterações de parâmetros. Mais aleatoriedade pode ajudar ou prejudicar a exploração, mas não substitui a regra de aprendizagem.",
+      "section": "2. Energia, distribuição e dinâmica estocástica",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que se pode concluir quando amostras negativas consecutivas são muito semelhantes por muitas iterações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cadeia pode estar misturando lentamente e as estimativas podem ter alta correlação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O modelo atingiu necessariamente a distribuição exata e independente dos dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os pesos perderam simetria e devem ser tratados como direcionados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A fase positiva deixou de existir no processo de máxima verossimilhança.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As unidades binárias tornaram-se valores contínuos por causa da energia.",
+          "correct": false
+        }
+      ],
+      "explanation": "A repetição prolongada de estados semelhantes pode indicar mistura lenta; as amostras então carregam forte autocorrelação e podem representar mal as expectativas do modelo. Semelhança por si só não comprova equilíbrio.",
+      "section": "2. Energia, distribuição e dinâmica estocástica",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve de forma correta o uso de uma RBM para geração após o treinamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alternar amostragens entre camadas pode produzir estados visíveis do modelo aprendido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Copiar obrigatoriamente um vetor de treinamento dispensa qualquer cadeia de estados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atribuir uma classe conhecida a cada peso gera diretamente uma imagem nova.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fixar todos os visíveis no valor zero garante amostras da distribuição livre.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A função de partição escolhe um exemplo real e não permite novas configurações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em geração livre, amostram-se estados ocultos e visíveis alternadamente conforme as condicionais da RBM. A sequência produz amostras do modelo; não é apenas cópia de um exemplo nem classificação por rótulo.",
+      "section": "4. RBM, reconstrução e usos generativos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que a regra por correlações pode aprender também pesos entre unidades ocultas numa máquina de Boltzmann geral?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A mesma diferença de estatísticas se aplica a qualquer par conectado na rede geral.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Unidades ocultas não participam de estados de equilíbrio nem de probabilidades.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A fase positiva fornece rótulos supervisionados para cada par oculto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pesos ocultos são derivados apenas da função de partição sem amostras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A regra funciona somente para pixels visíveis ligados diretamente entre si.",
+          "correct": false
+        }
+      ],
+      "explanation": "A atualização compara a probabilidade conjunta de ativação do par na fase positiva e na negativa. Essa forma geral pode se aplicar a pares visível-visível, visível-oculto ou oculto-oculto, conforme existam na arquitetura.",
+      "section": "3. Aprendizado: dados contra amostragem livre",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um modelo treina características latentes sem rótulos e depois é ajustado para classificação com exemplos rotulados. Qual interpretação é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O aprendizado inicial pode ser não supervisionado, seguido por ajuste supervisionado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todo treinamento generativo exige rótulos, mesmo que eles não sejam usados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma etapa supervisionada torna inválido o modelo probabilístico anterior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As unidades visíveis são sempre classes, enquanto pixels são unidades ocultas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A RBM só pode ser usada para classificação e não modela dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "É possível aprender representações generativas sem rótulos e depois ajustar um classificador com rótulos. As etapas têm objetivos distintos e o uso posterior não contradiz o treinamento inicial não supervisionado.",
+      "section": "4. RBM, reconstrução e usos generativos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comparação entre CD-k e estimativa por cadeia longa próxima do equilíbrio é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CD-k costuma ser mais barato, enquanto poucos passos podem enviesar a estimativa negativa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "CD-k sempre é mais exato porque usa exemplos observados como estados iniciais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cadeias longas não estimam expectativas, pois só podem repetir padrões de treino.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ambas as estratégias são idênticas e diferem somente no número de unidades ocultas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CD-k remove a necessidade de fase positiva e calcula apenas a energia mínima.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cadeias negativas longas procuram aproximar expectativas sob a distribuição livre, mas custam mais. CD-k barateia o processo iniciando nos dados e usando poucos passos, ao preço de poder não representar a fase livre adequadamente.",
+      "section": "3. Aprendizado: dados contra amostragem livre",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aluno afirma que a energia de uma RBM considera somente unidades visíveis porque as ocultas não são observadas no conjunto de dados. Qual correção é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A energia conjunta envolve estados visíveis e ocultos, embora os ocultos sejam latentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A energia ignora todos os pesos e depende apenas da quantidade de exemplos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Unidades ocultas não têm estado e por isso não entram em nenhuma distribuição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As ocultas só aparecem depois do treinamento como rótulos externos fixos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A energia da RBM é uma função apenas da temperatura e dos dados ausentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "A RBM define energia sobre a configuração conjunta (v,h), incluindo vieses e interações entre camadas. Para obter a probabilidade dos visíveis, os estados ocultos são somados/marginalizados, não ignorados.",
+      "section": "4. RBM, reconstrução e usos generativos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre a qualidade das amostras geradas é cientificamente defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela depende do aprendizado, da arquitetura e de quão bem a cadeia explora a distribuição.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Toda amostra de menor energia é automaticamente uma cópia realista do conjunto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A simetria das conexões garante ausência de modos faltantes em qualquer treino.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A primeira reconstrução sempre mede a distribuição completa do modelo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma RBM gera amostras perfeitas independentemente dos dados de treinamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "A qualidade depende de parâmetros aprendidos, capacidade da arquitetura, representatividade dos dados e mistura da cadeia. Menor energia relativa não é sinônimo de realismo nem de cobertura completa dos modos.",
+      "section": "4. RBM, reconstrução e usos generativos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao marginalizar as unidades ocultas para considerar somente o vetor visível, o modelo pode atribuir dependências complexas entre variáveis visíveis. Qual mecanismo explica isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Estados latentes compartilhados podem acoplar probabilisticamente diferentes unidades visíveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A marginalização cria arestas direcionadas explícitas entre todos os pixels.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A função de partição transforma cada unidade visível em uma classe fixa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As unidades visíveis tornam-se idênticas e passam a compartilhar um único estado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A amostragem de Gibbs elimina todas as dependências condicionais da rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Variáveis ocultas podem explicar combinações recorrentes de visíveis. Mesmo sem arestas internas na RBM, somar sobre configurações ocultas produz uma distribuição marginal que pode ter dependências entre visíveis.",
+      "section": "4. RBM, reconstrução e usos generativos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma questão pergunta por que há uma diferença entre a máquina geral e a RBM em eficiência de amostragem condicional. Qual resposta é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A RBM remove interações internas e obtém independências condicionais por camada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A máquina geral não possui unidades ocultas e não consegue amostrar dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A RBM substitui probabilidades condicionais por conexões unidirecionais fixas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A máquina geral não usa pesos simétricos nem uma função de energia.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A RBM calcula todas as configurações possíveis de uma só vez sem custo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sem conexões dentro de uma camada, suas unidades ficam independentes dado o estado da outra, facilitando amostragem paralela. A máquina geral admite mais interações e pode ser mais difícil de amostrar, sem deixar de usar energia ou estados ocultos.",
+      "section": "4. RBM, reconstrução e usos generativos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um professor pede para interpretar uma conexão de peso grande positivo numa máquina treinada. Qual interpretação evita exagerar o seu efeito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela remove a influência de todos os outros pesos e vieses da energia.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela garante que ambas as unidades fiquem ligadas em cada amostra possível, sem depender de outros pesos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela força a unidade conectada a emitir sempre o mesmo rótulo textual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela tende a favorecer coativação, mas o contexto global ainda determina probabilidades.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Ela faz a rede deixar de ser estocástica para esse par de unidades, qualquer que seja o restante do estado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Peso positivo intenso aumenta a preferência por coativação na energia, mas outras interações, vieses, temperatura e amostragem continuam relevantes. A interpretação deve ser probabilística, não uma garantia absoluta.",
+      "section": "1. O que uma máquina de Boltzmann aprende",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "A Learning Algorithm for Boltzmann Machines",
+      "publisher": "University of Toronto, Department of Computer Science (relatório técnico de Ackley, Hinton e Sejnowski)",
+      "reference": "Texto primário sobre rede estocástica, distribuição generativa, pesos simétricos e aprendizagem por equilíbrio; versão do relatório técnico ligada ao artigo de Cognitive Science.",
+      "url": "https://www.cs.utoronto.ca/~hinton/absps/bmtr.pdf",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Boltzmann Machines: notes for CSC321",
+      "publisher": "University of Toronto, Department of Computer Science",
+      "reference": "Notas didáticas sobre regra de aprendizado, máquinas de ordem superior, unidades condicionais, limitações de velocidade, RBMs, contraste divergente e amostragem de Gibbs.",
+      "url": "https://www.cs.utoronto.ca/~hinton/csc321/readings/boltz321.pdf",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Learning in Boltzmann Machines",
+      "publisher": "Salk Institute for Biological Studies, Neural Systems Publications",
+      "reference": "Artigo de Hinton e Sejnowski sobre máxima verossimilhança, estatísticas de equilíbrio e atualização por diferença entre correlações das fases.",
+      "url": "https://papers.cnl.salk.edu/PDFs/Learning%20in%20Boltzmann%20Machines%201985-3241.pdf",
+      "accessedAt": "2026-10-31"
+    }
+  ]
+}

@@ -1,0 +1,2228 @@
+{
+  "id": "informatica.infraestrutura-custos-servicos-ia",
+  "subject": "Informática",
+  "title": "Capacidade, custos e infraestrutura de serviços de IA",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Capacidade e custos de infraestrutura de IA",
+    "Dimensionamento de infraestrutura para inteligência artificial",
+    "Dimensionamento de serviços de inteligência artificial",
+    "Custos de processamento em serviços de inteligência artificial",
+    "Custos de memória para cargas de trabalho de IA",
+    "Armazenamento de dados em infraestrutura de IA",
+    "Aceleradores para processamento de inteligência artificial",
+    "Otimização de processamento em serviços de IA",
+    "Infraestrutura de computação para modelos de IA",
+    "Capacidade de GPU para treinamento e inferência",
+    "Planejamento de custos de cargas de IA",
+    "Recursos computacionais para inteligência artificial"
+  ],
+  "scope": {
+    "covers": "Dimensionamento e otimização de processamento, memória, armazenamento e aceleradores em serviços de IA; distinção entre treinamento e inferência; análise de gargalos de cálculo, memória, dados e latência; capacidade de modelos e lotes; precisão numérica, batching e acumulação de gradientes; escalabilidade, distribuição, medição de utilização e custo total da carga.",
+    "excludes": "Treinamento matemático de arquiteturas neurais, programação detalhada de CUDA, catálogo ou preço vigente de provedores específicos e análise financeira contábil de contratos de nuvem."
+  },
+  "theoryTitle": "Dimensionar recursos e custos de serviços de IA",
+  "chapters": [
+    {
+      "title": "1. Da carga de trabalho à capacidade necessária",
+      "markdown": "### O problema que este assunto resolve\n\nInfraestrutura de IA custa dinheiro quando está reservada, ligada ou transferindo dados. Dimensionar é escolher recursos que atendam a uma carga real: que modelo será executado, quantos exemplos ou tokens serão processados, em quanto tempo, com que latência e em quais horários. Comprar a maior GPU disponível sem conhecer essas condições pode deixar a máquina ociosa; escolher uma menor sem medir pode causar filas, falhas por falta de memória ou demora excessiva.\n\n> **Siglas e termos deste capítulo**\n> - **Carga de trabalho (workload)**: conjunto de tarefas, dados e requisitos que o sistema precisa atender.\n> - **Treinamento**: ajuste de parâmetros do modelo a partir de exemplos; envolve passagens direta e reversa e atualizações.\n> - **Inferência**: uso de um modelo já treinado para produzir saídas para entradas novas.\n> - **Vazão (throughput)**: quantidade de trabalho concluída por unidade de tempo, como requisições ou tokens por segundo.\n> - **Latência**: tempo entre uma solicitação e a resposta correspondente.\n> - **SLA/SLO**: compromisso ou objetivo de nível de serviço, por exemplo uma meta de latência ou disponibilidade.\n\n### Caracterize antes de escolher hardware\n\nPara treinamento, registre tamanho do conjunto de dados, número de épocas ou passos, duração máxima da execução, tamanho do modelo e prazo para concluir. Para inferência, estime volume médio e pico de solicitações, tamanho das entradas e saídas, concorrência e latência permitida. Uma média diária esconde picos: o sistema pode cumprir a média e ainda acumular uma fila no horário de maior uso.\n\nFaça um teste representativo e registre tempo por lote, vazão, latência em percentis, uso de CPU e acelerador, memória ocupada e tempo de leitura dos dados. A linha de base permite comparar mudanças. Um benchmark que usa entradas menores, modelo diferente ou cache aquecido pode não representar a produção.\n\n| Objetivo | Medida principal | Efeito possível da otimização |\n| --- | --- | --- |\n| Treinamento com prazo fixo | tempo até concluir e custo por execução | mais aceleradores podem encurtar o tempo, mas elevam a tarifa e a comunicação |\n| Inferência interativa | latência por solicitação e percentis altos | lotes maiores podem elevar vazão e também aumentar espera |\n| Inferência em lote | exemplos ou tokens processados por hora | lotes grandes podem aproveitar melhor o paralelismo se couberem na memória |\n| Serviço variável | capacidade no pico e horas ociosas | elasticidade acompanha a demanda, com atenção ao tempo de inicialização |\n\n### Mais rápido não significa mais barato\n\nCompare o custo para concluir o trabalho, não só a tarifa horária. Se uma instância mais cara termina em muito menos tempo, ela pode custar menos por treinamento concluído. Já uma aceleração pequena pode sair mais cara se o processamento não aproveitar o dispositivo. Em inferência, compare custo por mil requisições ou por milhão de tokens dentro da meta de qualidade e latência. Inclua armazenamento, tráfego, licenças, observabilidade e períodos ociosos quando forem cobrados.\n\n### Como cai na prova\n\n- Uma decisão de capacidade começa nos requisitos da carga e em medições representativas, não no nome comercial do acelerador.\n- Vazão e latência são métricas diferentes: melhorar uma não garante melhorar a outra.\n- Compare custo por tarefa atendida e inclua ociosidade e componentes de dados, além do preço por hora."
+    },
+    {
+      "title": "2. Processamento e aceleradores",
+      "markdown": "### O problema que este assunto resolve\n\nCPU, GPU e outros aceleradores têm perfis diferentes. A CPU costuma ser adequada para controle, preparação de dados e tarefas com paralelismo limitado. GPUs executam muitas operações numéricas em paralelo e são comuns em treinamento e inferência de redes neurais. A escolha depende de o trabalho conseguir usar esse paralelismo e de dados chegarem ao dispositivo com rapidez.\n\n> **Siglas e termos deste capítulo**\n> - **CPU**: processador de propósito geral, com núcleos versáteis e bom desempenho em tarefas sequenciais e de controle.\n> - **GPU**: processador paralelo com grande quantidade de unidades para operações simultâneas.\n> - **TPU/NPU**: famílias de aceleradores projetados para operações de aprendizado de máquina; capacidade e compatibilidade variam por produto.\n> - **FLOP/FLOPS**: operação de ponto flutuante; operações por segundo indicam capacidade teórica de cálculo.\n> - **Tensor Core**: unidade especializada em operações matriciais em GPUs compatíveis.\n> - **CPU-bound / GPU-bound**: carga limitada, respectivamente, pelo processamento de CPU ou pelo trabalho executável no acelerador.\n\n### Descubra qual recurso limita o tempo\n\nUma operação pode ser limitada por cálculo, tráfego de memória ou latência. Se a execução gasta mais tempo realizando operações matemáticas, um acelerador com maior capacidade de cálculo pode ajudar. Se o limite é mover tensores entre memória e unidades de cálculo, aumentar FLOPS nominais não resolve sozinho. Se faltam tarefas paralelas, parte do dispositivo fica sem trabalho. Se o acelerador espera o pré-processamento na CPU ou a leitura dos dados, trocar por um acelerador mais rápido pode ter pouco efeito.\n\nA intensidade aritmética relaciona operações realizadas aos bytes movimentados. Uma baixa relação operações/byte tende a tornar a operação sensível à largura de banda de memória; uma relação alta pode fazê-la sensível à capacidade de cálculo. Profilers e contadores ajudam a verificar, mas devem ser usados com carga representativa.\n\n### Lotes, paralelismo e precisão\n\nBatching reúne entradas para processá-las em paralelo. Isso dilui custos fixos de lançamento e pode aumentar a vazão, mas ocupa mais memória e pode acrescentar espera até formar o lote. Em atendimento por solicitação, batching dinâmico pode agrupar requisições dentro de uma janela de espera limitada. Aumentar indefinidamente o lote não garante melhor desempenho: é preciso medir vazão e latência juntas.\n\nPrecisão mista combina formatos numéricos de menor precisão em operações apropriadas com maior precisão onde necessário. Pode reduzir tráfego e ocupação de memória e aproveitar unidades matriciais especializadas. Deve-se conferir estabilidade numérica e qualidade da saída; formatos e ganhos dependem da arquitetura e do modelo. Na inferência, quantização representa pesos ou ativações com menos bits; o ganho de memória e velocidade deve ser avaliado junto à possível perda de qualidade.\n\nNa acumulação de gradientes, vários microlotes calculam gradientes antes de uma atualização. Isso simula um lote efetivo maior quando o lote inteiro não cabe na memória, embora cada passo ainda pague custos de execução. Em treinamento distribuído, acumular localmente pode reduzir a frequência de sincronização dos gradientes, mas aumenta o trabalho entre sincronizações.\n\n### Como cai na prova\n\n- Mais FLOPS não eliminam gargalos de memória, entrada de dados ou falta de paralelismo.\n- Lote maior tende a favorecer vazão até certo ponto, mas pode elevar latência e memória; verifique experimentalmente.\n- Precisão reduzida é uma troca controlada entre recursos e fidelidade numérica, não uma melhoria sem custo."
+    },
+    {
+      "title": "3. Memória e armazenamento",
+      "markdown": "### O problema que este assunto resolve\n\nUm modelo pode ter capacidade de cálculo suficiente e mesmo assim falhar por não caber na memória do acelerador. Além dos pesos, treinamento precisa de gradientes, estados do otimizador, ativações intermediárias e temporários. Inferência precisa dos pesos, ativações de execução, buffers e, em modelos generativos, cache de chaves e valores (KV cache) que cresce com contexto e concorrência. O consumo real depende de implementação, formato numérico, lote, comprimento da sequência e arquitetura.\n\n> **Siglas e termos deste capítulo**\n> - **VRAM/HBM**: memória local do acelerador, em geral de alta largura de banda; capacidade e largura de banda são propriedades distintas.\n> - **RAM**: memória principal do servidor, utilizada por sistema, CPU, dados e buffers.\n> - **Ativação**: valor intermediário produzido por camadas; em treinamento pode ser guardado para a retropropagação.\n> - **Estado do otimizador**: variáveis auxiliares mantidas pelo algoritmo de atualização dos parâmetros.\n> - **KV cache**: cache das chaves e valores de atenção reutilizados em geração autoregressiva.\n> - **IOPS / largura de banda**: operações de entrada/saída por segundo e volume de bytes transferidos por segundo.\n\n### Capacidade, largura de banda e hierarquia\n\nCapacidade responde quanto cabe; largura de banda responde quão depressa os dados podem ser transferidos. Aumentar a capacidade não necessariamente aumenta a velocidade de acesso. Quando os pesos ou embeddings são acessados muitas vezes, largura de banda importa. Para grandes conjuntos de dados, armazenamento durável preserva os arquivos, RAM ou cache pode reter dados usados com frequência e a memória do acelerador mantém tensores ativos. Esses níveis têm latência, capacidade e custo diferentes.\n\nPlaneje margem para buffers, fragmentação e picos temporários; a ocupação de memória não é sempre a soma simples dos pesos. No treinamento, otimizadores adaptativos mantêm estados adicionais além dos parâmetros e gradientes, de modo que o espaço necessário pode ser várias vezes o dos pesos. Use perfil do framework ou teste real. Se ocorrer falta de memória, investigue tamanho do lote, comprimento da sequência, ativações retidas e duplicação de tensores antes de aumentar hardware.\n\n### Alimentar o acelerador sem gargalo\n\nArmazenamento lento ou pré-processamento insuficiente pode deixar a GPU ociosa. Leia dados em paralelo, use cache quando apropriado, faça pré-busca e sobreponha leitura e cálculo se o framework permitir. Observe throughput de leitura, fila de entrada e utilização do acelerador. Um dataset colocado em armazenamento caro e rápido sem necessidade pode elevar o custo; colocá-lo em meio lento pode alongar a execução e, portanto, a cobrança do acelerador.\n\nEm inferência generativa, o KV cache reduz recomputação de tokens anteriores, mas consome memória proporcional ao contexto e às sequências ativas. Contextos mais longos ou mais requisições simultâneas podem reduzir o número de sessões que cabem na GPU. Estratégias de cache, limite de contexto e escalonamento de requisições trocam memória, latência e vazão.\n\n### Como cai na prova\n\n- Memória de acelerador não guarda apenas os pesos durante treinamento; gradientes, ativações e estados também contam.\n- Capacidade e largura de banda da memória são atributos diferentes.\n- Armazenamento e pipeline de dados afetam a utilização e o custo total, mesmo sem alterar o modelo."
+    },
+    {
+      "title": "4. Escala, custo e operação eficiente",
+      "markdown": "### O problema que este assunto resolve\n\nEscalar pode significar dar mais recursos a uma máquina ou distribuir o trabalho por várias máquinas. Escala vertical simplifica comunicação, mas esbarra nos limites do servidor e pode exigir uma instância maior. Escala horizontal divide tarefas e pode aumentar capacidade, mas adiciona comunicação, coordenação e possíveis desequilíbrios. Para uma tarefa pequena, o custo de distribuir pode superar o benefício.\n\n> **Siglas e termos deste capítulo**\n> - **Escala vertical**: aumentar os recursos de um único nó, como CPU, RAM ou aceleradores.\n> - **Escala horizontal**: adicionar nós e repartir processamento ou solicitações.\n> - **Data parallelism**: cópias do modelo processam partes diferentes dos dados e sincronizam gradientes.\n> - **Model parallelism**: partes do modelo ficam em dispositivos diferentes; útil quando um modelo não cabe num único dispositivo, mas exige comunicação.\n> - **Checkpoint**: estado salvo que permite retomar uma execução ou recuperar uma versão do modelo.\n> - **TCO (custo total de propriedade)**: conjunto de custos da solução durante o período avaliado.\n\n### Medir para pagar pelo trabalho útil\n\nAcompanhe custo por execução de treinamento, por época ou por unidade de saída; em inferência, custo por requisição ou token, com qualidade e latência. Registre utilização de CPU, GPU e memória, tempo de espera de dados, falhas, horas ligadas e volume armazenado. Utilização baixa pode revelar instância superdimensionada, lote ineficiente, gargalo de CPU ou demanda variável. Utilização alta não prova que o serviço está eficiente: uma fila pode crescer enquanto o sistema permanece ocupado.\n\nSome computação, armazenamento persistente e temporário, tráfego de rede, snapshots, licenças e operação. Reserve recursos somente pelo tempo necessário; desligue ambientes de desenvolvimento sem uso; use escalonamento automático com limites e tempos de inicialização observados. Para treinamento longo e sujeito a interrupção, checkpoints periódicos podem evitar repetir todo o trabalho. A frequência ótima considera o custo de salvar e o trabalho que se perderia.\n\n### Distribuição, elasticidade e confiabilidade\n\nNo paralelismo de dados, cada trabalhador processa uma parte e precisa combinar atualizações; comunicação pode limitar a escala quando o cálculo por amostra é pequeno. No paralelismo de modelo, camadas ou tensores divididos atravessam dispositivos, e a rede rápida e a topologia passam a importar. Adicionar aceleradores não garante redução linear do tempo. Compare o tempo poupado com custo de nós e comunicação.\n\nPara demanda variável, escalonar horizontalmente réplicas de inferência pode evitar manter a capacidade de pico ociosa durante todo o dia. Considere tempo de inicialização, carregamento do modelo, aquecimento, limites de quota e latência. Uma capacidade mínima reduz atrasos de início; uma política com teto evita crescimento de gastos inesperado.\n\n### Como cai na prova\n\n- Multiplicar aceleradores sem medir comunicação e eficiência pode elevar custo sem reduzir proporcionalmente o tempo.\n- TCO inclui dados e operação, não só horas de GPU.\n- Elasticidade, desligamento de recursos ociosos e checkpoints são medidas distintas para demanda variável, ociosidade e recuperação de trabalho."
+    }
+  ],
+  "summary": "Dimensione infraestrutura de IA a partir de métricas da carga: modelo, volume, concorrência, vazão, latência e prazo. Meça uma linha de base representativa e identifique se o limite é cálculo, memória, entrada de dados ou latência. CPU, GPU e outros aceleradores atendem perfis diferentes; mais capacidade teórica não garante ganho se o dispositivo espera dados ou não recebe trabalho paralelo. Lotes e precisão mista podem aumentar eficiência, mas afetam memória, qualidade e latência. Some pesos, gradientes, ativações, estados e caches ao estimar memória; diferencie capacidade de largura de banda. Armazenamento e pré-processamento influenciam a utilização. Escala horizontal e paralelismo trazem custos de comunicação. Compare custo por trabalho concluído, incluindo armazenamento, tráfego, ociosidade e operação, e use elasticidade, limites e checkpoints conforme a carga.",
+  "flashcards": [
+    {
+      "front": "O que é vazão?",
+      "back": "Quantidade de trabalho concluída por unidade de tempo, por exemplo requisições ou tokens por segundo."
+    },
+    {
+      "front": "O que é latência?",
+      "back": "Tempo entre uma solicitação e a resposta correspondente."
+    },
+    {
+      "front": "Por que medir uma linha de base antes de otimizar?",
+      "back": "Para localizar o gargalo e comparar os efeitos de cada mudança sob carga representativa."
+    },
+    {
+      "front": "Quais são três limites comuns do desempenho de uma operação?",
+      "back": "Capacidade de cálculo, tráfego de memória e latência ou falta de paralelismo."
+    },
+    {
+      "front": "Qual é o papel típico de uma GPU em IA?",
+      "back": "Executar muitas operações numéricas paralelas, especialmente operações matriciais usadas em redes neurais."
+    },
+    {
+      "front": "Por que mais FLOPS podem não acelerar um serviço?",
+      "back": "A carga pode estar limitada por memória, leitura de dados, CPU ou falta de trabalho paralelo."
+    },
+    {
+      "front": "O que é batching?",
+      "back": "Agrupar várias entradas para processá-las em conjunto e aproveitar o paralelismo."
+    },
+    {
+      "front": "Qual é o custo potencial de aumentar o lote de inferência?",
+      "back": "Maior ocupação de memória e possível aumento da espera e da latência por solicitação."
+    },
+    {
+      "front": "O que permite a precisão mista?",
+      "back": "Usar formatos de menor precisão em operações apropriadas, reduzindo tráfego ou memória com verificação de estabilidade e qualidade."
+    },
+    {
+      "front": "O que a quantização reduz?",
+      "back": "A quantidade de bits usada para representar pesos ou ativações, sujeita a possível perda de qualidade."
+    },
+    {
+      "front": "Para que serve acumular gradientes?",
+      "back": "Combinar gradientes de microlotes antes da atualização, simulando lote efetivo maior com menor memória por microlote."
+    },
+    {
+      "front": "O que ocupa memória no treinamento além dos pesos?",
+      "back": "Gradientes, ativações, estados do otimizador, buffers e tensores temporários."
+    },
+    {
+      "front": "O que é KV cache em geração de texto?",
+      "back": "Cache de chaves e valores de atenção reutilizados em tokens seguintes; poupa recomputação, mas consome memória."
+    },
+    {
+      "front": "Capacidade e largura de banda de memória são iguais?",
+      "back": "Não. Capacidade mede quanto cabe; largura de banda mede a taxa de transferência de dados."
+    },
+    {
+      "front": "Como armazenamento lento prejudica a GPU?",
+      "back": "Pode atrasar a alimentação de dados e manter o acelerador aguardando entradas."
+    },
+    {
+      "front": "O que é escala vertical?",
+      "back": "Aumentar CPU, RAM ou aceleradores de um nó."
+    },
+    {
+      "front": "O que é escala horizontal?",
+      "back": "Adicionar nós para dividir processamento ou distribuir solicitações."
+    },
+    {
+      "front": "O que limita frequentemente o paralelismo de dados?",
+      "back": "A comunicação necessária para combinar gradientes e sincronizar trabalhadores."
+    },
+    {
+      "front": "O que compõe custo total além de computação?",
+      "back": "Armazenamento, tráfego, snapshots, licenças e operação, entre outros itens da solução."
+    },
+    {
+      "front": "O que um checkpoint oferece?",
+      "back": "Um estado salvo para retomar treinamento ou recuperar uma versão do modelo após interrupção."
+    }
+  ],
+  "tips": [
+    "Converta o requisito em métricas: vazão, latência, concorrência, prazo e qualidade.",
+    "Meça CPU, GPU, memória e entrada de dados ao mesmo tempo para localizar o gargalo.",
+    "Compare o custo por tarefa concluída, incluindo tempo ocioso e armazenamento.",
+    "Ao aumentar o lote, acompanhe latência e memória além da vazão.",
+    "Calcule memória de treinamento com ativações, gradientes e estados do otimizador.",
+    "Em escala distribuída, inclua comunicação, inicialização e balanceamento no teste."
+  ],
+  "traps": [
+    "Tratar vazão e latência como sinônimos: uma pode melhorar enquanto a outra piora.",
+    "Supor que a maior GPU reduz sempre o custo: um gargalo de dados pode deixá-la ociosa.",
+    "Contar apenas os pesos ao estimar memória de treinamento: ativações e estados também ocupam espaço.",
+    "Confundir capacidade com largura de banda: caber mais dados não significa transferi-los mais depressa.",
+    "Assumir que lote máximo é sempre ideal: ele pode estourar memória ou elevar latência.",
+    "Supor que mais nós produzem aceleração linear: sincronização e rede consomem tempo e recursos."
+  ],
+  "activeRecall": [
+    {
+      "question": "Quais dados devem ser coletados para dimensionar inferência?",
+      "answer": "Volume médio e de pico, tamanho de entradas e saídas, concorrência, latência exigida e qualidade, medidos em carga representativa."
+    },
+    {
+      "question": "Como diferenciar gargalo de cálculo e de memória?",
+      "answer": "Compare utilização e perfil da operação; desempenho limitado por operações matemáticas responde a mais capacidade de cálculo, enquanto tráfego de bytes exige melhorar acesso e reutilização de dados."
+    },
+    {
+      "question": "Por que batching pode aumentar vazão e também latência?",
+      "answer": "Agrupa mais trabalho paralelo e amortiza custos fixos, mas pode esperar a formação do lote e ocupa mais memória."
+    },
+    {
+      "question": "Quais elementos explicam a memória de treinamento maior que o tamanho dos pesos?",
+      "answer": "Gradientes, ativações guardadas para retropropagação, estados do otimizador, buffers e temporários."
+    },
+    {
+      "question": "Como justificar paralelismo distribuído por custo?",
+      "answer": "Medir tempo poupado, comunicação e custo adicional de nós; a redução de tempo precisa compensar a despesa."
+    },
+    {
+      "question": "Quais medidas atacam ociosidade e interrupção de treino?",
+      "answer": "Desligar recursos sem uso ou escalonar conforme demanda reduz ociosidade; checkpoints periódicos limitam trabalho perdido em interrupções."
+    },
+    {
+      "question": "Como o KV cache cria uma restrição de capacidade?",
+      "answer": "Mantém resultados intermediários para contexto e sequências ativas; contextos longos ou maior concorrência consomem mais memória."
+    },
+    {
+      "question": "Que componentes entram no custo total de inferência?",
+      "answer": "Aceleradores e CPU, armazenamento do modelo e dados, rede, réplicas ociosas, inicialização, licenças e operação."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Vazão versus latência",
+      "summary": "Vazão conta trabalho por tempo; latência mede o tempo de resposta individual. Batching pode elevar a primeira e piorar a segunda."
+    },
+    {
+      "key": "e2",
+      "title": "Cálculo versus movimentação de dados",
+      "summary": "Aceleradores mais rápidos ajudam quando cálculo limita; gargalos de memória, armazenamento ou pipeline pedem otimizar o movimento e a disponibilidade de dados."
+    },
+    {
+      "key": "e3",
+      "title": "Memória real do modelo",
+      "summary": "Pesos são só parte do consumo. Treinamento guarda gradientes, ativações e estados; inferência pode manter buffers e KV cache."
+    },
+    {
+      "key": "e4",
+      "title": "Custo por trabalho entregue",
+      "summary": "Tarifa por hora não revela custo total. Considere tempo até conclusão, utilização, armazenamento, tráfego e comunicação."
+    },
+    {
+      "key": "e5",
+      "title": "Escala distribuída não linear",
+      "summary": "Vários nós adicionam sincronização, rede e coordenação; ganho depende de trabalho paralelo suficiente e comunicação eficiente."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em uma carga de treinamento, qual procedimento fornece uma base confiável para escolher capacidade de acelerador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar um teste com modelo, dados e lote representativos e medir tempo, memória e utilização.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Escolher o acelerador de maior capacidade nominal entre os disponíveis para evitar novo teste.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Estimar a demanda apenas pela quantidade total de arquivos armazenados no conjunto de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar a latência de uma única amostra pequena como previsão para todas as execuções.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dimensionar pela média de utilização de CPU sem observar a entrada de dados ou a GPU.",
+          "correct": false
+        }
+      ],
+      "explanation": "O teste representativo mede a carga real e permite identificar tempo de execução, memória e utilização, que fundamentam o dimensionamento. Capacidade nominal, tamanho dos arquivos, amostra não representativa e utilização isolada não caracterizam todos os gargalos.",
+      "section": "1. Da carga de trabalho à capacidade necessária",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço atende poucas requisições, mas cada uma precisa responder rapidamente. Qual métrica expressa diretamente esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Volume total de dados persistidos no armazenamento de objetos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Latência por solicitação, observada também nos percentis altos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Quantidade de épocas usadas no treinamento original do modelo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Número de aceleradores reservados independentemente de sua ocupação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Vazão média diária calculada sem separar os horários de pico.",
+          "correct": false
+        }
+      ],
+      "explanation": "O requisito de resposta rápida é expresso pela latência individual; percentis altos revelam solicitações lentas que a média pode ocultar. Vazão mede volume por tempo e as demais opções não medem o tempo de resposta por solicitação.",
+      "section": "1. Da carga de trabalho à capacidade necessária",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar duas instâncias de treinamento, qual comparação favorece uma decisão de custo bem fundamentada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar somente a tarifa horária anunciada para cada tipo de máquina.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Selecionar a máquina com maior memória, sem estimar duração ou utilização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Comparar o custo total para concluir a mesma tarefa dentro do prazo requerido.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Multiplicar o número de GPUs pela capacidade teórica de cálculo divulgada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Comparar os custos de armazenamento e excluir a duração do processamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "A unidade útil de comparação é o trabalho concluído: uma instância mais cara por hora pode terminar muito antes, ou uma barata pode ficar ociosa. Duração, aproveitamento, prazo e outros custos entram na conta.",
+      "section": "1. Da carga de trabalho à capacidade necessária",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe relata vazão maior após aumentar o lote, embora cada usuário espere mais pela resposta. Qual interpretação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "As métricas são incompatíveis, pois vazão e latência precisam variar juntas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A latência maior prova que o lote reduziu a quantidade total processada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O aumento de vazão demonstra que o requisito de resposta individual foi cumprido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O lote pode elevar trabalho por tempo e também aumentar espera e latência.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A mudança indica necessariamente que a memória deixou de ser um limite.",
+          "correct": false
+        }
+      ],
+      "explanation": "Vazão e latência medem aspectos diferentes. Um lote pode aumentar paralelismo e amortizar custos fixos, mas acrescentar tempo de formação ou processamento por grupo; ambas devem ser avaliadas em conjunto.",
+      "section": "1. Da carga de trabalho à capacidade necessária",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que deve acompanhar a medição de utilização alta de GPU para avaliar a qualidade do serviço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o custo de armazenamento permanente do conjunto de treinamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A idade do modelo, sem medir o trabalho que espera na fila.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A contagem de CPUs virtuais reservadas, sem observar respostas dos usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O pico de uso da GPU, tratado como prova de que o serviço é eficiente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Vazão, latência e evolução da fila para saber se a demanda está sendo atendida.",
+          "correct": true
+        }
+      ],
+      "explanation": "GPU ocupada não garante capacidade suficiente: uma fila crescente pode coexistir com utilização alta. Vazão, latência e fila mostram se o serviço efetivamente atende a demanda e as metas de resposta.",
+      "section": "1. Da carga de trabalho à capacidade necessária",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma carga de IA é limitada pelo tempo para carregar entradas e gravar saídas. Qual mudança isolada tende a não resolver esse gargalo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar a capacidade teórica de cálculo sem alterar o fluxo de dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Medir a taxa de leitura e identificar a etapa que alimenta o acelerador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Avaliar pré-busca e sobreposição entre leitura e cálculo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificar se o pré-processamento entrega lotes na velocidade necessária.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Testar se dados reutilizados podem permanecer em cache apropriado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando movimentação de dados limita a execução, mais capacidade aritmética não remove a espera. Medir leitura, pré-processamento, pré-busca e cache trata diretamente o fornecimento de dados.",
+      "section": "2. Processamento e aceleradores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em inferência com solicitações individuais, que técnica pode agrupar entradas próximas no tempo para aproveitar melhor a GPU?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Checkpoint de treinamento com salvamento em armazenamento durável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Batching dinâmico com limite de espera compatível com a latência.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Paralelismo de modelo em todas as camadas, mesmo se elas couberem em uma GPU.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumento do conjunto de treinamento sem alterar a execução de inferência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Replicação dos arquivos de entrada entre regiões sem agrupar solicitações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Batching dinâmico combina solicitações disponíveis dentro de uma janela para aumentar o trabalho paralelo, limitando quanto cada uma espera. Checkpoint, distribuição do modelo e cópia de dados resolvem problemas diferentes.",
+      "section": "2. Processamento e aceleradores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma equipe valida a qualidade depois de aplicar precisão numérica menor ou quantização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque os formatos menores aumentam necessariamente a quantidade de memória usada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque quantização modifica o número de exemplos do conjunto original.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque uma representação mais compacta pode alterar estabilidade ou qualidade da saída.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Porque menor precisão impede que o acelerador execute operações matriciais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque a comparação de qualidade só é necessária durante o treinamento inicial.",
+          "correct": false
+        }
+      ],
+      "explanation": "Precisão mista e quantização podem reduzir memória e tráfego e usar unidades especializadas, mas a aproximação numérica pode afetar estabilidade e qualidade. O resultado deve ser validado para o modelo e a tarefa.",
+      "section": "2. Processamento e aceleradores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O lote completo de treinamento não cabe na memória, mas microlotes menores cabem. Qual técnica acumula seus gradientes antes da atualização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escala vertical de armazenamento persistente sem ajustar o fluxo de treinamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Batching dinâmico de solicitações de inferência em produção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quantização de arquivos do conjunto sem alterar o modelo ou os gradientes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Acumulação de gradientes em vários microlotes antes do passo do otimizador.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Replicação horizontal de cópias completas do conjunto de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A acumulação calcula gradientes em microlotes sucessivos e só então atualiza os parâmetros, aproximando o efeito de lote efetivo maior. Ela reduz a memória necessária por microlote, mas não elimina todos os custos de execução.",
+      "section": "2. Processamento e aceleradores",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição representa corretamente a função mais comum de um acelerador GPU em redes neurais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir o armazenamento durável por memória local de modelo e dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar em paralelo numerosas operações numéricas, conforme o trabalho disponível.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Garantir uma resposta de latência baixa independentemente do tamanho da entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eliminar toda a necessidade de processamento de CPU e preparação de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar automaticamente a qualidade do modelo sem mudança de treinamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "GPUs oferecem paralelismo para operações numéricas, como as matriciais frequentes em redes neurais. Não substituem automaticamente armazenamento, CPU, dimensionamento de contexto ou avaliação de qualidade.",
+      "section": "2. Processamento e aceleradores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma estimativa de treinamento, por que contar apenas os pesos do modelo tende a subestimar a memória necessária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque o armazenamento de objetos converte pesos em múltiplas cópias durante a leitura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque somente os estados do sistema operacional ocupam memória de acelerador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque o lote não interfere no espaço reservado para valores intermediários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque a largura de banda é contabilizada como espaço adicional ocupado pelos pesos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque gradientes, ativações, estados do otimizador e temporários também ocupam espaço.",
+          "correct": true
+        }
+      ],
+      "explanation": "Treinar exige mais que armazenar parâmetros: gradientes, ativações necessárias à retropropagação, estados do otimizador e buffers temporários ocupam memória adicional. Lote e sequência também afetam o consumo.",
+      "section": "3. Memória e armazenamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O time precisa saber quantos dados cabem na memória local e quão rapidamente eles chegam às unidades de cálculo. Quais propriedades devem ser distinguidas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Latência de inferência e disponibilidade do endpoint.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "IOPS de CPU e número de épocas do modelo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Capacidade de memória e largura de banda de memória.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Vazão de armazenamento e precisão numérica dos pesos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tamanho do lote e quantidade de arquivos persistidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Capacidade indica quanto pode ser mantido; largura de banda indica a velocidade de transferência. Um sistema pode ter muita memória e ainda ser limitado pela rapidez com que os dados são movidos.",
+      "section": "3. Memória e armazenamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um modelo generativo suporta contexto maior e mais sessões simultâneas. Qual recurso de memória pode crescer com esses fatores?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O número de camadas do sistema de arquivos em armazenamento remoto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A fila de checkpoints de treinamento encerrados e já descartados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A capacidade de cálculo teórica declarada para cada CPU do servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apenas os arquivos compactados do conjunto histórico de treinamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O KV cache de chaves e valores de atenção dos tokens anteriores.",
+          "correct": true
+        }
+      ],
+      "explanation": "O KV cache preserva resultados de atenção reutilizados durante a geração. Contextos longos e mais sequências ativas mantêm mais cache, consumindo memória que poderia acomodar outras sessões.",
+      "section": "3. Memória e armazenamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A GPU aparece ociosa enquanto os lotes aguardam leitura do conjunto de dados. Qual investigação é mais diretamente pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar a precisão dos pesos para ampliar as operações matemáticas executadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reduzir a largura de banda disponível para reservar memória à aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adicionar cópias do modelo em GPU sem alterar a alimentação de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar a duração dos checkpoints para reter mais ativações em memória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Medir a fila e testar pré-busca ou cache de dados.",
+          "correct": true
+        }
+      ],
+      "explanation": "Espera pela entrada aponta para a etapa de leitura ou pré-processamento. Medir a fila e a taxa de entrega permite avaliar leitura paralela, pré-busca, cache e sobreposição com cálculo.",
+      "section": "3. Memória e armazenamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um conjunto de dados muito usado será mantido em níveis de armazenamento diferentes. Qual descrição da hierarquia é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RAM e memória do acelerador podem ser somadas como um espaço sempre intercambiável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Todos os níveis apresentam latência e largura de banda equivalentes quando os dados são iguais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A memória do acelerador é adequada para guardar indefinidamente a única cópia dos dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O armazenamento mais rápido elimina a necessidade de medir o pipeline de entrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenamento, RAM e memória do acelerador têm propriedades distintas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Armazenamento durável preserva arquivos, RAM pode apoiar cache e preparação, e memória local do acelerador mantém tensores ativos. Cada nível oferece propriedades diferentes e não é automaticamente intercambiável.",
+      "section": "3. Memória e armazenamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa pequena foi distribuída por muitos nós e ficou mais lenta e mais cara. Qual fator explica esse resultado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O paralelismo distribuído sempre limita a execução à velocidade do armazenamento persistente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os gradientes não precisam ser combinados quando há dados distintos em cada nó.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os nós extras removem o trabalho de coordenação, mas alteram a precisão do modelo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Comunicação e coordenação podem superar o trabalho útil quando há pouco cálculo por nó.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A escala horizontal transforma automaticamente qualquer execução em tarefa de inferência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Distribuir trabalho traz sincronização, coordenação e tráfego de rede. Em tarefa pequena, o tempo e o custo desses passos podem exceder o cálculo economizado; escalar deve ser validado por medição.",
+      "section": "4. Escala, custo e operação eficiente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática pode reduzir a capacidade ociosa de inferência quando a demanda varia ao longo do dia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter permanentemente a capacidade do pico para evitar qualquer alteração de réplica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desligar armazenamento durável durante os horários de maior volume de solicitações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escalonar réplicas com limites e considerar o tempo de inicialização.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desativar o monitoramento de latência para reduzir o número de métricas coletadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dimensionar todos os horários pela média diária sem observar fila ou picos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Elasticidade ajusta réplicas à demanda, mas inicialização e carregamento podem atrasar novas instâncias. Limites controlam gastos e métricas de pico e fila evitam dimensionar pela média enganosa.",
+      "section": "4. Escala, custo e operação eficiente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual custo deve entrar ao comparar o paralelismo de modelo em diversos aceleradores?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o preço do armazenamento do arquivo de configuração do modelo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Dispositivos e comunicação entre as partes do modelo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A quantidade de solicitações históricas, mesmo sem relação com a execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apenas a tarifa de CPU, pois as GPUs são consideradas memória compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O preço da rede de entrada, excluindo o tempo de execução dos aceleradores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Particionar o modelo permite que ele caiba em vários dispositivos, mas exige comunicação entre eles e amplia os recursos contratados. O ganho deve ser comparado ao custo conjunto e ao tempo de execução.",
+      "section": "4. Escala, custo e operação eficiente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma execução de treinamento que pode ser interrompida custa muitas horas para recomeçar. Que mecanismo limita o trabalho perdido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar a taxa de transferência de saída sem salvar estados do treinamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Guardar mais cópias do conjunto original sem registrar o progresso alcançado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Migrar a carga para inferência distribuída durante uma interrupção de treino.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Elevar o lote até o limite da memória e desativar a persistência do estado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Salvar checkpoints para retomar de um estado recente.",
+          "correct": true
+        }
+      ],
+      "explanation": "Checkpoints armazenam um estado de treinamento recuperável. Sua frequência equilibra o custo de salvar e o custo do progresso que se perderia entre salvamentos.",
+      "section": "4. Escala, custo e operação eficiente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório indica tarifa menor por hora, mas a instância levou muito mais tempo e permaneceu parcialmente ociosa. Qual unidade de análise é mais útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O custo para concluir a mesma tarefa com qualidade e prazo comparáveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O preço por hora isolado, sem considerar o tempo efetivo de execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A capacidade máxima teórica somada à quantidade de CPUs contratadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O total de dados de entrada, sem registrar as saídas produzidas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O número de horas reservadas, incluindo períodos sem nenhuma execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "A comparação deve considerar custo da tarefa concluída, qualidade, prazo e aproveitamento. Tarifa horária baixa não compensa necessariamente uma execução prolongada e ociosa.",
+      "section": "4. Escala, custo e operação eficiente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma aplicação generativa, qual fator deve fazer parte da estimativa de memória de inferência junto aos pesos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas o número de arquivos históricos arquivados fora do serviço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A quantidade de épocas realizadas antes da publicação do modelo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A duração dos contratos de suporte do provedor de computação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O KV cache associado a contexto e sequências ativas, além dos buffers de execução.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Somente os gradientes acumulados no treinamento original.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em inferência generativa, contexto e sessões concorrentes podem manter KV cache na memória. Buffers e ativações também contam; gradientes do treinamento normalmente não são requisito da inferência implantada.",
+      "section": "3. Memória e armazenamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe usa precisão mista e observa menor consumo de memória, mas a validação de qualidade apresenta degradação. Qual decisão técnica é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter o formato reduzido porque a ocupação menor prova equivalência de resultado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Avaliar formatos e operações, ajustar a estratégia e comparar qualidade e desempenho.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o número de réplicas até a métrica de qualidade retornar ao valor anterior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover dados de avaliação para impedir que a diferença seja observada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir o acelerador por armazenamento rápido sem alterar a representação numérica.",
+          "correct": false
+        }
+      ],
+      "explanation": "Precisão mista é uma troca que precisa ser validada. Pode-se manter maior precisão em operações sensíveis ou ajustar o formato e medir novamente desempenho e qualidade, sem presumir equivalência automática.",
+      "section": "2. Processamento e aceleradores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política de escalonamento aumenta réplicas rapidamente, mas o gasto cresce sem limite durante picos prolongados. Que controle operacional falta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um mecanismo de checkpoint que limite a duração das requisições individuais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma métrica de capacidade teórica que substitua os dados de fila.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um teto de réplicas ou orçamento alinhado aos requisitos de capacidade e custo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma redução da memória local que amplie a quantidade de réplicas possíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma regra para replicar todos os dados em cada aumento de demanda.",
+          "correct": false
+        }
+      ],
+      "explanation": "Elasticidade precisa de limites para impedir expansão de gasto inesperada. O teto deve ser compatível com a capacidade necessária e acompanhado por latência e fila para que o controle não comprometa o serviço.",
+      "section": "4. Escala, custo e operação eficiente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em treinamento de dados distribuído, cada trabalhador processa amostras diferentes. Que custo de coordenação tende a aparecer ao combinar atualizações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A conversão do conjunto de dados em armazenamento durável após cada inferência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O carregamento do KV cache de sessões de usuários finais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A reconstrução automática dos pesos sem transferir informação entre nós.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A sincronização e comunicação de gradientes entre trabalhadores.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O escalonamento vertical da memória do sistema operacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "No paralelismo de dados, os trabalhadores calculam gradientes em partes dos dados e precisam combiná-los para manter uma atualização coerente. Comunicação e sincronização podem limitar o ganho de escala.",
+      "section": "4. Escala, custo e operação eficiente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço mantém dados de entrada em cache e sobrepõe leitura ao cálculo. Que resultado operacional essa estratégia busca?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reduzir o tempo em que o acelerador aguarda novos dados para processar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar a capacidade de cálculo teórica de cada núcleo sem mudar o hardware.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eliminar a necessidade de verificar se a memória comporta os tensores ativos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Garantir que armazenamento de baixa latência seja sempre o componente mais barato.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir a medição de vazão por uma estimativa baseada no tamanho do cache.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cache e sobreposição podem manter entradas disponíveis enquanto o acelerador calcula, reduzindo períodos de espera. O benefício e o custo de manter cache devem ser medidos com dados e acesso representativos.",
+      "section": "3. Memória e armazenamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No comparativo de serviço, uma arquitetura alcança a meta de latência, mas armazena cópias temporárias e mantém aceleradores ligados sem tráfego. O que falta na análise?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A contagem de camadas do modelo, usada como substituta de qualquer métrica financeira.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O custo total, incluindo armazenamento temporário, horas ociosas e operação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A taxa de aprendizado usada no treinamento, mesmo sem efeito na implantação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A capacidade nominal das GPUs, sem conhecer o tráfego de solicitações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O tamanho do conjunto histórico, sem medir custo de computação ou rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "A avaliação do custo total deve incluir recursos persistentes e temporários, tráfego, períodos ociosos e operação. Cumprir latência é necessário, mas não basta para saber se a arquitetura é econômica.",
+      "section": "4. Escala, custo e operação eficiente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um dispositivo tem memória de grande capacidade, mas baixa largura de banda para o padrão de acesso do modelo. Qual consequência é plausível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O modelo não pode usar nenhuma operação matricial por definição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A capacidade maior garante que todos os acessos sejam mais rápidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A latência torna-se irrelevante assim que os pesos cabem na memória.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A largura de banda determina quantos exemplos existem no conjunto de treino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A carga pode caber e ainda ficar limitada pela movimentação de dados.",
+          "correct": true
+        }
+      ],
+      "explanation": "Capacidade suficiente evita falta de espaço, mas acessos frequentes ainda podem esperar a transferência de bytes. O perfil de uso deve ser comparado com largura de banda, não apenas com espaço ocupado.",
+      "section": "3. Memória e armazenamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe aumenta o lote de inferência e a memória fica próxima do limite. Qual procedimento evita concluir sem evidência que o maior lote é ideal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolher o lote mais alto observado e deixar de medir latência individual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reduzir as métricas de memória para que o limite não apareça no painel.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Comparar lotes em carga representativa, observando vazão, latência e ocupação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar somente o tempo de treinamento como previsão da inferência em produção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar armazenamento durável e presumir que ele substitui VRAM durante cálculo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O lote ótimo depende do hardware, modelo e requisito de resposta. Testar vários tamanhos sob carga real revela o equilíbrio entre vazão, latência e memória e evita falhas por falta de espaço.",
+      "section": "2. Processamento e aceleradores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No treinamento com acumulação de gradientes, o que ocorre entre microlotes antes da atualização dos parâmetros?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os gradientes são acumulados e a atualização é feita após os passos previstos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Os pesos são descartados e reconstruídos sem usar os exemplos processados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada microlote é convertido em checkpoint e removido do conjunto de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A atualização acontece necessariamente em todos os trabalhadores após cada amostra.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A técnica substitui toda a memória de ativações por espaço em armazenamento remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gradientes de microlotes sucessivos são combinados antes do passo do otimizador. Isso permite lote efetivo maior com menor consumo instantâneo que o lote completo, mas não elimina o custo de processar os microlotes.",
+      "section": "2. Processamento e aceleradores",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A demanda tem picos previsíveis, e novas instâncias levam tempo para carregar os pesos do modelo. Que escolha deve ser considerada no escalonamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ajustar somente o limite de memória, sem observar o tempo de inicialização.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reduzir a vazão de leitura para impedir que as instâncias carreguem juntas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escalar apenas depois que a latência já exceder a meta, sem capacidade de reserva.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter uma capacidade mínima ou antecipar escala para cobrir inicialização e aquecimento.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Ignorar a carga do modelo porque a réplica fica pronta imediatamente após ser criada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Inicialização, carregamento e aquecimento criam atraso entre decidir escalar e atender tráfego. Uma capacidade mínima ou antecipação do pico pode proteger a latência, ponderando o custo de ociosidade.",
+      "section": "4. Escala, custo e operação eficiente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma otimização elevou a utilização da GPU, mas aumentou o custo de rede e não reduziu o tempo de conclusão distribuída. O que se deve comparar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente a utilização, pois ela representa diretamente o custo por resultado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tempo total, trabalho útil e custos de comunicação e dos nós envolvidos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apenas a capacidade de memória local, excluindo transferência de gradientes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número de arquivos de saída, sem considerar a quantidade de processamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A latência de uma amostra isolada, sem medir a tarefa distribuída completa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Utilização maior é uma observação, não uma medida completa de eficiência econômica. Compare conclusão e custo total, incluindo rede e nós; sem redução de tempo ou custo por resultado, a mudança pode não compensar.",
+      "section": "4. Escala, custo e operação eficiente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de batching dinâmico melhora a vazão de um endpoint. Qual condição deve ser verificada antes de adotá-lo em produção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se a janela de espera e o tamanho do lote respeitam latência, memória e qualidade exigidas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Se o treinamento original usou exatamente o mesmo número de solicitações por lote.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se o armazenamento persistente tem capacidade para conter todas as requisições futuras.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se a CPU deixa de ser necessária durante pré-processamento e resposta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se o aumento de vazão elimina a necessidade de observar filas de atendimento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Batching dinâmico pode elevar vazão, mas a janela acrescenta espera e o lote consome memória. A escolha precisa cumprir metas de latência, capacidade e qualidade sob carga de produção.",
+      "section": "2. Processamento e aceleradores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A relação entre operações matemáticas e bytes transferidos ajuda a estimar qual limite de uma operação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A data em que o conjunto de dados foi publicado e sua licença de uso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O número de réplicas necessário para manter o endpoint disponível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se a operação tende a ser limitada por cálculo ou por largura de banda de memória.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A quantidade de parâmetros treináveis em qualquer modelo sem perfil adicional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A tarifa horária de um serviço independentemente do trabalho executado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A intensidade aritmética relaciona operações aos bytes movimentados. Comparada às capacidades do hardware, ajuda a distinguir operações sensíveis à taxa de cálculo daquelas limitadas pelo tráfego de memória.",
+      "section": "2. Processamento e aceleradores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância de treinamento cara permaneceu ligada durante noites sem execução. Qual ação reduz diretamente essa ociosidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Duplicar os arquivos de treinamento em armazenamento de menor latência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o contexto máximo da inferência para utilizar mais memória.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter o recurso reservado para preservar a mesma tarifa por hora.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desligar ou suspender a capacidade quando tarefas e usuários não precisam dela.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aumentar a quantidade de trabalhadores que também ficarão sem tarefa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Encerrar ou suspender recursos sem uso evita pagar por capacidade ociosa, desde que dados e estado necessários sejam preservados. Se o treinamento precisa retomar, checkpoints e armazenamento persistente apoiam a operação.",
+      "section": "4. Escala, custo e operação eficiente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em treinamento paralelo, a comunicação domina o tempo porque cada trabalhador executa poucos cálculos antes de sincronizar. Qual ajuste pode reduzir sincronizações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acumular gradientes localmente por microlotes e sincronizar após o conjunto previsto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar chamadas de sincronização para manter as redes constantemente ocupadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mover todos os pesos para armazenamento de objetos em cada passo do otimizador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir dados distintos por cópias iguais sem alterar o algoritmo distribuído.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar réplicas de inferência para eliminar comunicação do treinamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Acumulação de gradientes pode reduzir a frequência de all-reduce ao combinar vários microlotes localmente antes da sincronização. O lote efetivo e a qualidade do treinamento devem continuar adequados.",
+      "section": "2. Processamento e aceleradores",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe precisa reduzir custo por token sem violar qualidade e latência. Qual forma de comparação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Selecionar a configuração com menor memória instalada, ignorando resultados produzidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Medir custo por tokens entregues junto à qualidade e às metas de resposta.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar o preço de uma hora de GPU como substituto do volume de saída.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Contar tokens solicitados, incluindo falhas e resultados descartados, como produção útil.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Comparar apenas a latência média, sem custo, vazão ou percentis altos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Custo unitário deve usar trabalho útil entregue e preservar qualidade e metas de resposta. Contabilizar falhas como saída ou ignorar custo e vazão distorce a comparação.",
+      "section": "1. Da carga de trabalho à capacidade necessária",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe considera armazenar o modelo e os dados de entrada na memória local do acelerador para sempre. Qual distinção impede essa escolha inadequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A memória local é tipicamente volátil e limitada; armazenamento durável preserva arquivos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A memória do acelerador tem sempre maior capacidade e menor custo que armazenamento durável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenamento durável só pode conter resultados de inferência, nunca modelos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RAM principal e VRAM permanecem disponíveis sem limite após desligar o servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O modelo deixa de ocupar memória quando se torna um arquivo persistente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Memória do acelerador é um recurso de execução limitado e normalmente volátil; armazenamento durável guarda arquivos entre execuções. O modelo precisa ser carregado na memória apropriada para calcular.",
+      "section": "3. Memória e armazenamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Vinte afirmações a seguir verificam conceitos do dimensionamento. GPU e aceleradores paralelos são automaticamente mais rápidos para qualquer tipo de tarefa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Tarefas sequenciais, pequenas ou limitadas por leitura, rede ou CPU podem não aproveitar o paralelismo do acelerador. É necessário caracterizar e medir a carga.",
+      "section": "2. Processamento e aceleradores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Vazão mede o tempo de resposta individual, enquanto latência mede a quantidade concluída por unidade de tempo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A afirmação trocou as definições: vazão é o volume processado por tempo, e latência é a duração da resposta individual. São métricas relacionadas, mas não sinônimas.",
+      "section": "1. Da carga de trabalho à capacidade necessária",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar o tamanho do lote pode elevar a memória utilizada e o tempo de espera, ainda que melhore a vazão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Lotes maiores oferecem mais trabalho paralelo, porém armazenam mais entradas e intermediários e podem esperar até se formar. A configuração deve ser medida diante da latência requerida.",
+      "section": "2. Processamento e aceleradores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O tamanho dos pesos por si só informa o pico de memória do treinamento, pois gradientes e estados do otimizador ficam no armazenamento durável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O treinamento pode manter gradientes, ativações, estados do otimizador e buffers na memória de execução; o armazenamento durável não substitui automaticamente esses dados ativos. O tamanho dos pesos não basta para estimar o pico.",
+      "section": "3. Memória e armazenamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Capacidade de memória informa quanto cabe, enquanto largura de banda informa quão rapidamente os dados podem ser transferidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. São propriedades distintas. Uma operação pode caber em memória e ainda esperar a transferência dos dados, de modo que capacidade e velocidade de acesso devem ser consideradas separadamente.",
+      "section": "3. Memória e armazenamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O KV cache de geração autoregressiva evita guardar resultados de atenção e por isso não interfere na memória de inferência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O KV cache guarda chaves e valores reutilizados para não recalcular o histórico de tokens, mas justamente consome memória. Contexto e concorrência podem aumentar esse consumo.",
+      "section": "3. Memória e armazenamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A medição de uma linha de base deve usar modelo, entradas e condições de carga próximos do cenário que será implantado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Medidas representativas permitem localizar gargalos e projetar o atendimento. Entradas menores, modelo diferente ou condições artificiais podem produzir estimativas enganosas.",
+      "section": "1. Da carga de trabalho à capacidade necessária",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Escala horizontal significa aumentar recursos dentro de um mesmo servidor sem adicionar nós.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Aumentar recursos de um nó é escala vertical. Escala horizontal adiciona nós para repartir processamento ou solicitações, com custos de comunicação e coordenação.",
+      "section": "4. Escala, custo e operação eficiente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Armazenamento lento pode aumentar o tempo em que um acelerador aguarda os dados de entrada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Se leitura ou pré-processamento não fornecer lotes a tempo, o acelerador fica ocioso. Pipeline, cache, pré-busca e leitura paralela podem ser examinados para reduzir a espera.",
+      "section": "3. Memória e armazenamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A precisão mista pode reduzir uso de memória ou tráfego, mas deve ser validada quanto à estabilidade e à qualidade da saída.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Formatos menores podem usar menos espaço e favorecer unidades matriciais, mas aproximam valores numéricos. O efeito depende do hardware, operações e modelo e exige avaliação de qualidade.",
+      "section": "2. Processamento e aceleradores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como os arquivos de pesos cabem na memória, está demonstrado que o treinamento completo cabe na mesma capacidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Treinamento ainda pode requerer gradientes, ativações, estados do otimizador e temporários. O lote e a sequência também influenciam o pico; é necessário perfilar o processo real.",
+      "section": "3. Memória e armazenamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma carga limitada por tráfego de memória tende a acelerar apenas com mais FLOPS, mesmo que o volume e o padrão de acesso a dados não mudem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Quando o movimento de dados domina, elevar capacidade matemática não remove o limite. É preciso examinar largura de banda, reutilização, layout, cache e quantidade de bytes acessados.",
+      "section": "2. Processamento e aceleradores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço com alta utilização de GPU necessariamente atende sua meta de latência e não acumula fila.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Utilização alta indica atividade do dispositivo, mas não demonstra que a vazão acompanha a demanda. Fila crescente e percentis de latência podem revelar insuficiência de capacidade.",
+      "section": "1. Da carga de trabalho à capacidade necessária",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em paralelismo de dados, trabalhadores que processam partes distintas podem precisar sincronizar gradientes, gerando tráfego que limita a escala.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As atualizações locais precisam ser combinadas para manter o treinamento distribuído coerente. Quando a comunicação consome parcela grande do tempo, adicionar dispositivos dá retorno decrescente.",
+      "section": "4. Escala, custo e operação eficiente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar o número de nós sempre reduz o tempo total na mesma proporção, pois comunicação e coordenação não fazem parte do cálculo distribuído.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Comunicação, coordenação e desequilíbrio adicionam trabalho. O ganho depende de paralelismo suficiente e de que o tempo poupado compense os recursos e tráfego adicionais.",
+      "section": "4. Escala, custo e operação eficiente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O custo por tarefa concluída pode ser menor numa instância com tarifa horária maior se ela concluir a tarefa muito mais depressa e for bem aproveitada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Tarifa por hora isolada não mede custo por resultado. Compare duração, utilização e custos adicionais para a mesma tarefa, respeitando qualidade e prazo.",
+      "section": "4. Escala, custo e operação eficiente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma aplicação autoregressiva, contexto mais longo e mais sequências ativas podem aumentar o espaço ocupado pelo KV cache.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O cache preserva valores de atenção associados aos tokens processados e às sessões em andamento. Contexto e concorrência maiores podem reduzir o número de sessões que cabem simultaneamente.",
+      "section": "3. Memória e armazenamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O custo total de uma solução de IA pode incluir armazenamento, tráfego, recursos ociosos e operação além das horas de acelerador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Computação é apenas uma parte do custo total. A análise deve abranger dados persistentes e temporários, tráfego, licenças, períodos sem uso e custos operacionais relevantes.",
+      "section": "4. Escala, custo e operação eficiente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A acumulação de gradientes permite processar microlotes e atualizar parâmetros depois de combinar gradientes, embora o trabalho de cada microlote ainda precise ser executado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A técnica diminui a memória instantânea necessária ao lote efetivo, somando gradientes antes do passo do otimizador. Ela não elimina computação nem outros custos dos microlotes.",
+      "section": "2. Processamento e aceleradores",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Escalonamento automático de réplicas elimina custos inesperados sem necessidade de limites, pois a demanda é sempre previsível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Picos prolongados ou métricas mal calibradas podem aumentar recursos e gasto. Limites, orçamento e observação de fila, latência e inicialização controlam o comportamento.",
+      "section": "4. Escala, custo e operação eficiente",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Get Started With Deep Learning Performance",
+      "publisher": "NVIDIA",
+      "reference": "Recomendações de desempenho; distinção entre limites de cálculo e memória e eficiência de parâmetros",
+      "url": "https://docs.nvidia.com/deeplearning/performance/dl-performance-getting-started/index.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "GPU Performance Background User's Guide",
+      "publisher": "NVIDIA",
+      "reference": "Arquitetura GPU, execução paralela e limites de memória, cálculo e latência",
+      "url": "https://docs.nvidia.com/deeplearning/performance/dl-performance-gpu-background/index.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Optimizing TensorRT Performance",
+      "publisher": "NVIDIA",
+      "reference": "Batching, vazão, latência e compromisso de memória em inferência",
+      "url": "https://docs.nvidia.com/deeplearning/tensorrt/latest/performance/optimization.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Performance Tuning Guide",
+      "publisher": "PyTorch",
+      "reference": "Precisão mista, acumulação de gradientes e otimizações distribuídas",
+      "url": "https://docs.pytorch.org/tutorials/recipes/recipes/tuning_guide.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "AI and ML perspective: Cost optimization",
+      "publisher": "Google Cloud",
+      "reference": "Recomendações de otimização de custos ao longo do ciclo de vida de IA e ML",
+      "url": "https://docs.cloud.google.com/architecture/framework/perspectives/ai-ml/cost-optimization",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

@@ -1,0 +1,2039 @@
+{
+  "id": "informatica.massive-parallel-processing-mpp",
+  "subject": "Informática",
+  "title": "Massive Parallel Processing (MPP)",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Massive Parallel Processing (MPP)",
+    "Processamento massivamente paralelo",
+    "Arquitetura de processamento MPP",
+    "Banco de dados com arquitetura MPP",
+    "Processamento paralelo massivo de dados",
+    "Sistemas de processamento paralelo massivo",
+    "Arquitetura shared-nothing em MPP",
+    "Nós computacionais em arquitetura MPP",
+    "Distribuição de dados em sistemas MPP",
+    "Consultas analíticas em MPP"
+  ],
+  "scope": {
+    "covers": "Conceito, arquitetura e funcionamento de Massive Parallel Processing (MPP): decomposição de consultas em tarefas executadas simultaneamente por nós computacionais; coordenação, armazenamento distribuído, agregação e comunicação; particionamento e distribuição de linhas; colocação conjunta (colocation), redistribuição e broadcast; skew de dados e de carga; paralelismo, escalabilidade e gargalos; falhas e tolerância; comparação com SMP e exemplos de data warehouses. Amazon Redshift é usado como exemplo documentado de implementação, sem generalizar seus nomes e opções a todos os produtos.",
+    "excludes": "Administração detalhada de serviços específicos, sintaxe SQL completa, configuração de clusters, comparação comercial de provedores, processamento de fluxo em tempo real, computação em grade e programação de GPU."
+  },
+  "theoryTitle": "Como funciona o processamento massivamente paralelo",
+  "chapters": [
+    {
+      "title": "1. Ideia e arquitetura do MPP",
+      "markdown": "### O problema que este assunto resolve\n\nUma consulta analítica sobre bilhões de linhas pode levar muito tempo se um único processador tiver de ler todo o conjunto, filtrar, juntar tabelas e agregar os resultados. O **Massive Parallel Processing (MPP)** divide esse trabalho entre muitos recursos de processamento, que operam ao mesmo tempo sobre partes dos dados. Ao final, os resultados parciais são combinados. A meta é aumentar a vazão e reduzir o tempo de consultas grandes, como somar vendas por região ou cruzar fatos e dimensões num data warehouse.\n\n> **Siglas e termos deste capítulo**\n> - **MPP**: *Massively Parallel Processing*, processamento massivamente paralelo.\n> - **Nó**: máquina ou unidade computacional que participa do sistema distribuído.\n> - **Nó coordenador**: componente que recebe a solicitação, prepara o plano e coordena o trabalho; o nome e a organização variam por produto.\n> - **Nó de computação**: recurso que executa tarefas sobre dados e produz resultados parciais.\n> - **SMP**: *Symmetric Multiprocessing*, vários processadores que compartilham uma única máquina e, em geral, memória comum.\n> - **Shared-nothing**: desenho em que cada nó possui recursos locais, como CPU, memória e armazenamento, em vez de depender de uma única memória compartilhada global.\n\n### Dividir para executar\n\nUm mecanismo MPP pode transformar uma consulta em estágios. Por exemplo, para calcular a soma de vendas por estado, o plano pode fazer cada nó ler as linhas que armazena, aplicar o filtro, calcular somas locais e enviar esses subtotais para uma etapa final. A etapa final combina os subtotais e devolve o resultado. O trabalho é paralelo quando vários nós executam a mesma etapa sobre conjuntos diferentes.\n\nNo Amazon Redshift, a documentação descreve um **leader node** que gerencia a distribuição de tarefas e a comunicação com as aplicações, e nós computacionais que executam o processamento. Os nós computacionais são divididos em *slices*, unidades que recebem partes da carga. Os termos são próprios desse serviço; outro produto pode usar coordenadores, workers, segmentos ou partições com organização diferente.\n\n| Papel lógico | Atribuição comum | O que não se deve presumir |\n| --- | --- | --- |\n| Coordenar | Receber a consulta, preparar ou distribuir o plano, organizar etapas e reunir resultados | Que ele execute sozinho toda a leitura e todo o cálculo pesado |\n| Computar | Ler dados locais, filtrar, juntar ou agregar uma parte do trabalho | Que cada nó necessariamente armazene uma cópia integral de todas as tabelas |\n| Comunicar | Trocar linhas ou resultados intermediários entre etapas | Que a comunicação seja gratuita ou sempre dispensável |\n\n### Shared-nothing e independência dos nós\n\nEm muitas arquiteturas MPP, os nós trabalham com CPU, memória e discos próprios. Essa independência permite acrescentar recursos e executar partes diferentes ao mesmo tempo. Também significa que operações que precisam de linhas espalhadas por nós distintos podem exigir tráfego de rede. Por isso, a localização dos dados importa: dados já colocados onde a etapa precisa deles podem reduzir transferências. **MPP não significa ausência de coordenação nem ausência de comunicação**; significa paralelismo distribuído em escala.\n\n### MPP não é sinônimo de SMP\n\nNo SMP, processadores de uma máquina compartilham recursos, especialmente memória e sistema operacional. No MPP, várias unidades de computação coordenadas processam partes de uma carga, com dados distribuídos e comunicação entre nós. Um equipamento pode ter múltiplos núcleos internamente e ainda fazer parte de um cluster MPP: os conceitos descrevem escalas diferentes e podem coexistir.\n\n### Como cai na prova\n\n- Se o enunciado disser que a consulta é dividida em tarefas executadas simultaneamente em vários nós sobre partes dos dados, descreve MPP.\n- Um componente coordenador geralmente planeja ou distribui o trabalho; os nós de computação executam etapas e retornam parciais.\n- Não confunda MPP, com nós distribuídos, com SMP, em que processadores compartilham recursos de uma máquina.\n- Paralelismo não elimina gargalos: comunicação, distribuição desigual, armazenamento e etapas sequenciais limitam o ganho."
+    },
+    {
+      "title": "2. Distribuição de dados e movimentação entre nós",
+      "markdown": "### O problema que este assunto resolve\n\nDividir as linhas entre nós permite que várias partes sejam lidas simultaneamente. Mas uma escolha ruim pode concentrar a maioria das linhas em um único nó ou obrigar o sistema a movimentá-las repetidamente. O desenho da distribuição precisa equilibrar **carga uniforme** e **localidade para as operações mais frequentes**.\n\n> **Siglas e termos deste capítulo**\n> - **Partição**: subconjunto de dados atribuído a uma unidade de armazenamento ou processamento.\n> - **Chave de distribuição**: coluna ou regra usada para decidir em que nó uma linha ficará.\n> - **Colocation**: manter linhas relacionadas de tabelas diferentes no mesmo nó, facilitando uma operação local.\n> - **Redistribuição (*shuffle*)**: movimentação de dados entre nós para atender a uma etapa da consulta.\n> - **Broadcast**: envio de uma cópia de uma relação ou conjunto de linhas a vários nós participantes.\n> - **Skew**: distribuição ou carga desigual entre nós, partições ou tarefas paralelas.\n\n### Como as linhas chegam aos nós\n\nUm sistema pode distribuir linhas por uma chave, por rodízio ou replicar uma tabela pequena em vários nós. No Amazon Redshift, a documentação apresenta as opções **KEY**, **EVEN**, **ALL** e **AUTO**: KEY coloca valores iguais da chave no mesmo nó; EVEN distribui em rodízio; ALL coloca uma cópia completa da tabela em cada nó; AUTO deixa a escolha sob otimização automática do serviço. Esses rótulos são específicos de Redshift, mas ilustram decisões comuns: localidade por chave, equilíbrio sem chave, replicação de tabela pequena e escolha automatizada.\n\nConsidere uma tabela de vendas e uma tabela de clientes que serão frequentemente combinadas pelo identificador do cliente. Se ambas distribuírem linhas pela mesma chave de junção, os registros correspondentes podem ficar no mesmo nó (**colocated**) e a junção pode evitar parte do tráfego de rede. Isso não garante que a consulta inteira seja local: filtros, outras tabelas e agregações podem exigir comunicação.\n\n### Redistribuir ou transmitir\n\nQuando as linhas necessárias estão em lugares diferentes, o otimizador pode redistribuir linhas de uma ou mais tabelas para que a junção seja executada. Se uma tabela é pequena, pode ser vantajoso enviar uma cópia aos nós que possuem a tabela grande. Em ambos os casos há custo de comunicação, uso de rede e possível consumo de memória. O plano tenta escolher a operação adequada conforme tamanhos, filtros e distribuição.\n\n| Estratégia | Distribuição/localidade | Vantagem possível | Custo ou limite\n| --- | --- | --- |\n| Distribuir por chave | Valores da chave são encaminhados a nós correspondentes | Junções por essa chave podem ser locais | Chave pouco variada concentra carga; outros joins ainda podem movimentar dados |\n| Distribuir por rodízio | Linhas espalhadas sem considerar uma coluna de junção | Pode equilibrar o volume quando não há chave adequada | Junções podem exigir redistribuição |\n| Replicar tabela | Cada nó tem cópia da relação replicada | Junção local com a tabela distribuída | Armazenamento e manutenção aumentam; cópia desatualizada seria incorreta |\n| Redistribuir durante a consulta | Linhas são transferidas na etapa necessária | Permite executar a operação apesar da distribuição inicial | Tráfego de rede e latência adicionais |\n\n### Skew de dados e de trabalho\n\nUma chave como `regiao` pode parecer equilibrada, mas se quase todas as linhas forem da mesma região, muitos registros vão para o mesmo nó. Esse **skew de dados** vira **skew de execução**: alguns trabalhadores terminam cedo, enquanto o nó sobrecarregado continua processando. O tempo da etapa paralela acaba determinado pelo trabalhador mais lento. Cardinalidade alta ajuda a criar distribuição mais variada, mas não é uma garantia: deve-se observar a distribuição real depois dos filtros e o padrão das consultas.\n\n### Como cai na prova\n\n- O objetivo da chave não é apenas espalhar dados; é também localizar linhas que participam juntas de joins e agregações.\n- Redistribuição e broadcast são formas de movimentação de dados, não cálculos gratuitos.\n- Uma chave com valores muito concentrados causa skew, ainda que formalmente haja vários nós.\n- Replicar tabela pequena pode reduzir movimentação em joins, mas consome espaço e aumenta trabalho de carga e atualização."
+    },
+    {
+      "title": "3. Execução paralela, escalabilidade e limites",
+      "markdown": "### O problema que este assunto resolve\n\nAdicionar nós pode elevar a capacidade de processamento, mas não faz toda consulta ficar proporcionalmente mais rápida. Cada plano tem etapas paralelas e etapas que precisam de coordenação, troca de dados ou combinação final. A escalabilidade depende de quanto do trabalho pode ser dividido e do custo para coordenar os participantes.\n\n> **Siglas e termos deste capítulo**\n> - **Escalabilidade horizontal**: ampliar capacidade acrescentando máquinas ou nós.\n> - **Escalabilidade vertical**: ampliar recursos de uma única máquina, como CPU, memória ou armazenamento.\n> - **Paralelismo de dados**: executar a mesma operação sobre partes diferentes do conjunto de dados.\n> - **Agregação parcial**: cálculo local em cada nó antes de combinar os valores.\n> - **Gargalo**: recurso ou etapa que limita o desempenho total.\n> - **Throughput/vazão**: quantidade de trabalho concluída por unidade de tempo.\n\n### Um plano de consulta em etapas\n\nUma consulta analítica típica pode ser visualizada assim: (1) o coordenador interpreta e otimiza a consulta; (2) os nós leem blocos locais; (3) cada nó filtra e calcula dados parciais; (4) quando necessário, os dados são redistribuídos para joins ou agrupamentos; (5) resultados parciais são combinados; (6) o resultado final é entregue. O paralelismo pode ocorrer em cada etapa apropriada, mas a sequência e o plano concretos variam conforme o banco, as estatísticas e a consulta.\n\nAgregações mostram como reduzir comunicação: para obter vendas totais, cada nó soma localmente suas linhas e manda um subtotal, em vez de mandar todas as linhas brutas a um único ponto. Já uma junção cujas chaves estejam distribuídas de forma incompatível pode precisar primeiro movimentar dados. A escolha de distribuição e o plano do otimizador influenciam esse custo.\n\n### Escalar e medir\n\nAcrescentar nós amplia os recursos agregados e pode reduzir o tempo de consultas que têm trabalho independente suficiente. Mas a melhoria pode ser menor que o aumento de recursos porque: há etapas sequenciais; o coordenador precisa organizar trabalho; dados precisam cruzar a rede; há skew; I/O ou memória ficam saturados; e várias consultas concorrentes disputam capacidade. Em cargas reais, mede-se tempo, vazão e uso de recursos usando consultas representativas, não apenas o número nominal de nós.\n\nA lei de Amdahl expressa um limite geral do paralelismo: se uma fração do programa permanece serial, aumentar indefinidamente os processadores não remove esse trecho. Para MPP, a mesma intuição aparece em planejamento, serialização de certas operações, etapa final de agregação e comunicação inevitável. Não é necessário assumir um ganho linear ao duplicar o cluster.\n\n### Analítico e transacional\n\nMPP é comum em data warehouses e análises de grandes volumes, com varreduras, agregações e consultas que aproveitam divisão do trabalho. Isso não significa que todo MPP seja incapaz de transações, nem que todo banco analítico use a mesma implementação. Sistemas OLTP tradicionais priorizam muitas transações pequenas e concorrentes, com baixa latência por registro; sistemas analíticos tendem a executar leituras amplas e cálculos. A carga de trabalho, e não apenas o rótulo, é decisiva para a arquitetura.\n\n### Como cai na prova\n\n- Mais nós podem aumentar paralelismo e vazão, mas não prometem redução linear do tempo.\n- Uma etapa serial, rede congestionada, I/O ou skew pode limitar o ganho.\n- Agregações locais reduzem o volume enviado quando bastam resultados parciais.\n- MPP é associado a consultas analíticas grandes, sem ser uma definição de formato de armazenamento ou de linguagem SQL."
+    },
+    {
+      "title": "4. Tolerância a falhas e leitura de cenários",
+      "markdown": "### O problema que este assunto resolve\n\nUm sistema distribuído depende de vários componentes. Se um nó falha, o serviço precisa detectar o problema e, quando houver mecanismos configurados, recuperar ou recomputar trabalho. Distribuir processamento, por si só, não significa que todos os dados estejam replicados nem que qualquer falha seja invisível.\n\n> **Siglas e termos deste capítulo**\n> - **Tolerância a falhas**: capacidade de manter ou retomar o serviço diante de falhas, segundo mecanismos implementados.\n> - **Replicação**: manter cópias de dados em locais distintos.\n> - **Checkpoint**: ponto salvo do progresso que pode reduzir o trabalho de retomada.\n> - **Recuperação**: ações para restaurar a operação ou reconstruir dados e tarefas após falha.\n> - **Disponibilidade**: proporção do tempo em que um serviço permanece acessível.\n\n### Paralelismo não é redundância\n\nHá uma diferença essencial entre **particionar** e **replicar**. Particionar divide o conjunto: cada nó guarda uma parte. Replicar mantém cópias de uma parte ou do conjunto em mais de um lugar. Um banco MPP pode combinar as duas técnicas, mas a arquitetura de paralelismo não garante cópia redundante de cada linha. A política de recuperação, as cópias de segurança e a durabilidade dependem do produto e da configuração.\n\nSe um nó que contém uma partição falha, o sistema precisa ter como recuperar essa partição ou reconstruí-la a partir de outra fonte. Para uma consulta em curso, pode ser necessário reexecutar uma etapa. Checkpoints e réplicas podem ajudar, conforme a implementação. Não se deve concluir que um cluster MPP tolera falha sem interrupção apenas porque possui muitos nós.\n\n### Ler o cenário, identificar o custo\n\nEm prova, reconheça o problema descrito pelo sintoma:\n\n| Sintoma | Conceito provável | Raciocínio\n| --- | --- | ---\n| Um nó leva muito mais tempo que os demais | Skew | Partição ou carga desbalanceada retarda a etapa paralela inteira |\n| Join transfere muitos dados pela rede | Distribuição incompatível / redistribuição | Linhas relacionadas não estão colocadas juntas |\n| Nós terminam e aguardam uma etapa final | Agregação ou coordenação | A combinação final ou um trecho serial limita o ganho |\n| Nova máquina não torna a consulta proporcionalmente mais rápida | Limite de escalabilidade | Comunicação, serialização, I/O ou concorrência dominam |\n| Falha de nó ameaça dados locais | Falta de redundância ou recuperação | Particionamento não equivale a replicação |\n\n### Resumo de decisão\n\nAo analisar um desenho MPP, pergunte: (1) como a consulta foi dividida? (2) quais dados cada nó processa? (3) em que etapa há comunicação? (4) a distribuição está equilibrada? (5) a operação frequente combina com a chave escolhida? (6) que mecanismo protege dados e permite retomar o serviço? Essas perguntas explicam a arquitetura em termos concretos e evitam respostas absolutas como “mais nós sempre resolvem”.\n\n### Como cai na prova\n\n- O nó mais carregado pode ditar a duração da etapa, mesmo com muitos nós ociosos.\n- Particionamento distribui o conjunto; replicação cria cópias.\n- Alta disponibilidade, cópia de segurança e recuperação são propriedades específicas do sistema, não consequências automáticas do MPP.\n- A documentação do Redshift descreve leader node, compute nodes e slices; esses nomes devem ser tratados como exemplo de produto, não como vocabulário obrigatório de todas as arquiteturas."
+    }
+  ],
+  "summary": "MPP divide consultas e grandes conjuntos de dados entre múltiplos nós que trabalham em paralelo, e combina resultados parciais. O desempenho depende da distribuição equilibrada, da localidade dos dados usados em joins, do custo de redistribuição e da capacidade de evitar gargalos. Mais nós não garantem aceleração linear. Particionar não é replicar: tolerância a falhas e durabilidade dependem de mecanismos próprios. No Amazon Redshift, por exemplo, um leader node coordena compute nodes divididos em slices, com estilos de distribuição KEY, EVEN, ALL e AUTO.",
+  "flashcards": [
+    {
+      "front": "O que significa MPP?",
+      "back": "Massively Parallel Processing: executar partes de um processamento simultaneamente em vários recursos computacionais distribuídos."
+    },
+    {
+      "front": "Qual é a ideia básica do MPP?",
+      "back": "Dividir dados e tarefas entre nós, processar partes em paralelo e combinar os resultados parciais."
+    },
+    {
+      "front": "Qual papel costuma ter o coordenador?",
+      "back": "Receber a consulta, organizar ou distribuir o plano e reunir resultados, conforme a implementação."
+    },
+    {
+      "front": "O que fazem os nós de computação?",
+      "back": "Executam tarefas sobre partes dos dados e produzem resultados intermediários ou finais."
+    },
+    {
+      "front": "O que caracteriza shared-nothing?",
+      "back": "Cada nó possui recursos locais, como CPU, memória e armazenamento, sem depender de uma única memória global compartilhada."
+    },
+    {
+      "front": "Como MPP difere de SMP?",
+      "back": "MPP coordena nós distribuídos com dados particionados; SMP reúne processadores que compartilham recursos de uma máquina."
+    },
+    {
+      "front": "O que é paralelismo de dados?",
+      "back": "Aplicar a mesma operação simultaneamente a subconjuntos diferentes de dados."
+    },
+    {
+      "front": "O que é colocation?",
+      "back": "Manter dados relacionados, como linhas de tabelas que serão combinadas, no mesmo nó para reduzir movimentação."
+    },
+    {
+      "front": "O que é redistribuição ou shuffle?",
+      "back": "Transferir linhas entre nós durante o processamento para que uma operação possa ser executada com os dados necessários."
+    },
+    {
+      "front": "O que é broadcast numa consulta distribuída?",
+      "back": "Enviar uma cópia de dados a vários nós, por exemplo uma relação pequena para junções locais."
+    },
+    {
+      "front": "O que é skew?",
+      "back": "Desigualdade na quantidade de dados ou trabalho atribuída aos nós, partições ou tarefas."
+    },
+    {
+      "front": "Por que skew aumenta a latência?",
+      "back": "A etapa paralela pode esperar pelo nó que recebeu mais dados ou trabalho, enquanto os demais já terminaram."
+    },
+    {
+      "front": "O que ilustra distribuição KEY no Redshift?",
+      "back": "Linhas com valores iguais da chave são colocadas juntas em nós correspondentes."
+    },
+    {
+      "front": "O que ilustra distribuição EVEN no Redshift?",
+      "back": "Linhas são espalhadas em rodízio, sem usar uma chave de junção específica."
+    },
+    {
+      "front": "O que ilustra distribuição ALL no Redshift?",
+      "back": "Uma cópia completa da tabela é distribuída a cada nó; pode facilitar joins, com custo de armazenamento e manutenção."
+    },
+    {
+      "front": "O que faz AUTO no Redshift?",
+      "back": "Permite ao serviço escolher automaticamente o estilo de distribuição adequado conforme seus critérios."
+    },
+    {
+      "front": "Como uma chave de distribuição ajuda num join?",
+      "back": "Se as tabelas usam chaves correspondentes, linhas que se juntam podem estar no mesmo nó, reduzindo redistribuição."
+    },
+    {
+      "front": "O que é agregação parcial?",
+      "back": "Cada nó calcula um subtotal local e só envia o resultado parcial para combinação posterior."
+    },
+    {
+      "front": "Por que mais nós não garantem ganho linear?",
+      "back": "Etapas seriais, comunicação, I/O, skew e contenção podem limitar o paralelismo adicional."
+    },
+    {
+      "front": "Particionamento equivale a replicação?",
+      "back": "Não. Particionamento separa os dados em partes; replicação mantém cópias em mais de um local."
+    },
+    {
+      "front": "MPP garante tolerância a falhas automaticamente?",
+      "back": "Não. Recuperação, durabilidade e redundância dependem de mecanismos do produto e da configuração."
+    },
+    {
+      "front": "Qual classe de carga costuma aproveitar MPP?",
+      "back": "Consultas analíticas amplas, como varreduras, joins e agregações sobre grandes volumes."
+    }
+  ],
+  "tips": [
+    "Ao ler um cenário, procure as pistas ‘vários nós’, ‘partes dos dados’, ‘execução simultânea’ e ‘combinação de parciais’.",
+    "Se a questão mencionar transferência de linhas entre workers para viabilizar join, associe à redistribuição ou shuffle.",
+    "Se um trabalhador atrasa todos os outros, investigue skew: o tempo de uma etapa pode depender do participante mais lento.",
+    "Relacione a chave de distribuição ao padrão real de joins; uma chave adequada pode colocar linhas correspondentes no mesmo nó.",
+    "Leia ‘mais nós’ como mais capacidade potencial; procure serialização, rede, I/O e concorrência antes de concluir que haverá ganho linear.",
+    "Separe particionamento de replicação quando o enunciado tratar de falha, cópias e recuperação de dados."
+  ],
+  "traps": [
+    "Afirmar que MPP dispensa coordenação: os nós precisam receber trabalho e combinar resultados.",
+    "Confundir MPP com SMP: um cluster de nós não é apenas vários processadores em memória compartilhada.",
+    "Supor que distribuir linhas igualmente elimina o custo de joins: os dados ainda podem precisar de redistribuição.",
+    "Escolher chave só pela alta cardinalidade sem verificar valores concentrados nos dados filtrados.",
+    "Afirmar que particionamento mantém cópia redundante de cada dado: são conceitos diferentes.",
+    "Generalizar nomes e opções de Redshift, como leader node e DISTSTYLE, para todo produto MPP."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o caminho de uma consulta MPP, da solicitação ao resultado.",
+      "answer": "O coordenador recebe e planeja a consulta; nós processam partes dos dados em paralelo; quando necessário, transferem dados entre si; produzem resultados parciais que são combinados e devolvidos."
+    },
+    {
+      "question": "Compare MPP e SMP pela organização de recursos.",
+      "answer": "MPP combina nós distribuídos, geralmente com dados e recursos locais; SMP reúne múltiplos processadores numa máquina que compartilha recursos como memória."
+    },
+    {
+      "question": "Como distribuição por uma chave comum pode acelerar um join?",
+      "answer": "As linhas com valores correspondentes podem ficar no mesmo nó, de modo que a junção ocorra localmente e movimente menos dados."
+    },
+    {
+      "question": "Explique por que uma chave de baixa variedade pode gerar skew.",
+      "answer": "Se poucos valores concentram grande parte das linhas, elas são atribuídas a poucos nós; estes recebem mais trabalho e atrasam a etapa paralela."
+    },
+    {
+      "question": "Quando broadcast pode ser útil e qual seu custo?",
+      "answer": "Pode ser útil para disponibilizar uma tabela pequena em vários nós durante um join; consome rede e memória e replicar tabelas também aumenta armazenamento/manutenção."
+    },
+    {
+      "question": "Por que a soma de subtotais pode ser melhor que enviar todas as linhas?",
+      "answer": "Cada nó reduz localmente as linhas a um subtotal; menos dados atravessam a rede antes da agregação final."
+    },
+    {
+      "question": "Cite razões pelas quais dobrar os nós não reduz o tempo pela metade.",
+      "answer": "Etapas seriais, coordenação, comunicação, skew, I/O saturado e concorrência impedem escalabilidade linear."
+    },
+    {
+      "question": "O que uma equipe deve verificar para distinguir falta de redundância de falta de paralelismo?",
+      "answer": "Paralelismo pergunta como o trabalho foi dividido; redundância pergunta se há cópias e procedimentos para recuperar dados ou serviço após uma falha."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "MPP e SMP tratados como sinônimos",
+      "summary": "MPP divide processamento por nós distribuídos e pode exigir comunicação de rede; SMP usa processadores que compartilham recursos de uma máquina. Um cluster MPP também pode ter múltiplos núcleos por nó."
+    },
+    {
+      "key": "e2",
+      "title": "Distribuição equilibrada sem atenção à localidade",
+      "summary": "Rodízio pode equilibrar volume, mas joins podem exigir shuffle. Distribuir por chave de junção pode reduzir movimentação se a chave também não concentrar valores."
+    },
+    {
+      "key": "e3",
+      "title": "Skew ignorado",
+      "summary": "Uma partição sobrecarregada pode determinar o tempo de toda uma etapa. Avalie distribuição real, inclusive depois dos filtros."
+    },
+    {
+      "key": "e4",
+      "title": "Mais nós considerados aceleração linear",
+      "summary": "Coordenação, rede, operações seriais, I/O, memória e concorrência limitam ganhos; o desempenho deve ser medido em cargas representativas."
+    },
+    {
+      "key": "e5",
+      "title": "Particionamento confundido com replicação",
+      "summary": "Particionamento divide o conjunto; replicação cria cópias. MPP não assegura sozinho tolerância a falhas, disponibilidade nem backup."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma consulta analítica é dividida em tarefas que vários nós executam simultaneamente sobre partes distintas dos dados; ao final, os resultados parciais são combinados. Esse desenho caracteriza MPP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. MPP distribui tarefas e dados entre vários recursos, executa operações em paralelo e combina os resultados produzidos por cada parte.",
+      "section": "1. Ideia e arquitetura do MPP",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em MPP, todos os nós precisam compartilhar a mesma memória física global; sem ela, não existe coordenação possível entre os processadores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Arquiteturas shared-nothing usam recursos locais por nó e coordenam o trabalho por mecanismos distribuídos. Memória global compartilhada é associada a outros desenhos, como certas configurações SMP.",
+      "section": "1. Ideia e arquitetura do MPP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O nó coordenador de um sistema MPP pode organizar etapas de uma consulta e reunir resultados parciais dos nós de computação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. É comum separar a coordenação da execução distribuída: o coordenador organiza o plano e os trabalhadores processam partes e devolvem parciais, embora a divisão concreta dependa do produto.",
+      "section": "1. Ideia e arquitetura do MPP",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "SMP e MPP são equivalentes porque ambos sempre consistem em máquinas independentes conectadas por rede, cada uma com memória local exclusiva.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. MPP costuma distribuir trabalho entre nós independentes; SMP descreve processadores que compartilham recursos de uma máquina. A descrição apresentada de máquinas independentes corresponde melhor ao desenho MPP.",
+      "section": "1. Ideia e arquitetura do MPP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No exemplo do Amazon Redshift, o leader node coordena a distribuição de tarefas, enquanto nós computacionais executam o processamento paralelo em slices.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação do Redshift descreve o leader node gerenciando tarefas e nós computacionais, que são particionados em slices para executar consultas. Essa nomenclatura é própria do serviço.",
+      "section": "1. Ideia e arquitetura do MPP",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cluster MPP não precisa trocar qualquer dado pela rede, pois cada nó processa apenas o que já está armazenado localmente, inclusive em todo join distribuído.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Algumas operações podem ser locais quando os dados estão colocados adequadamente, mas joins e outras etapas podem exigir redistribuição ou broadcast. Comunicação é um custo relevante em MPP.",
+      "section": "1. Ideia e arquitetura do MPP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A arquitetura MPP é útil para distribuir uma varredura analítica: cada nó examina parte dos dados e a soma final combina seus resultados locais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A varredura pode ser dividida entre nós; uma agregação local reduz os dados enviados, e uma etapa posterior combina os subtotais.",
+      "section": "1. Ideia e arquitetura do MPP",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A presença de vários processadores dentro de um servidor prova, por si só, que o sistema é MPP, pois a quantidade de núcleos define a arquitetura distribuída.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Muitos processadores em uma máquina podem constituir SMP. MPP diz respeito ao processamento distribuído por múltiplos nós; cada nó ainda pode possuir vários núcleos.",
+      "section": "1. Ideia e arquitetura do MPP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma distribuição uniforme das linhas garante que toda consulta MPP execute sem comunicação entre nós.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uniformidade equilibra o volume, mas não assegura que linhas relacionadas por um join estejam juntas. O plano ainda pode redistribuir linhas ou transmitir uma tabela.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Colocation significa manter no mesmo nó linhas relacionadas que serão usadas juntas, o que pode reduzir a transferência de dados em um join.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Quando as linhas correspondentes estão colocadas no mesmo nó, a junção pode ser executada localmente para essas linhas e reduzir shuffle.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Redshift, a distribuição EVEN encaminha linhas segundo uma chave de junção escolhida pelo usuário para manter correspondências no mesmo nó.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. EVEN espalha as linhas em rodízio sem basear a escolha nos valores de uma coluna. A distribuição por chave é a estratégia KEY no exemplo do Redshift.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Redshift, a distribuição ALL mantém uma cópia completa da tabela em cada nó, podendo facilitar joins às custas de armazenamento e manutenção adicionais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A tabela replicada fica disponível nos nós, o que pode evitar redistribuição em joins; o custo é multiplicar armazenamento e trabalho de carga/atualização. É um comportamento documentado para Redshift.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma chave de distribuição tiver somente poucos valores e um deles concentrar a maior parte das linhas, a carga pode ficar enviesada apesar de haver vários nós.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Valores muito concentrados encaminham muitas linhas às mesmas partições. Os nós que recebem esse volume têm mais trabalho, caracterizando skew.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Broadcast e redistribuição são sinônimos de agregação local; ambos reduzem a comunicação a zero por calcularem somente subtotais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Broadcast envia cópias de dados a diversos nós; redistribuição transfere linhas entre nós para uma etapa. Agregação local calcula parciais e pode reduzir tráfego, mas são operações distintas.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela pequena pode ser replicada para que cada nó a combine localmente com a partição correspondente de uma tabela grande.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Replicar uma relação pequena é uma estratégia possível para evitar a transferência da tabela grande; o benefício deve ser ponderado contra armazenamento, rede e manutenção.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A escolha de uma chave com alta cardinalidade sempre elimina skew, independentemente dos filtros e da frequência real de cada valor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Alta cardinalidade pode ajudar, mas não é garantia. Um filtro pode selecionar um intervalo ou valor concentrado, produzindo skew na carga efetivamente processada.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A redistribuição durante a consulta pode ser necessária quando as linhas que participam de uma operação estão armazenadas em nós incompatíveis com o plano da operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O otimizador pode mover linhas durante a execução para reunir valores necessários a joins ou agregações; a movimentação acarreta tráfego e custo.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como uma tabela ALL é copiada a todos os nós do Redshift, essa estratégia reduz o armazenamento total e acelera necessariamente qualquer consulta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Replicar a tabela aumenta o armazenamento e pode elevar custos de carga e manutenção. Pode ajudar determinados joins, mas não acelera automaticamente toda consulta.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se todos os nós recebem volumes iguais, o tempo da etapa paralela pode ainda ser limitado por comunicação ou por uma operação serial posterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Equilíbrio elimina uma fonte de atraso, mas rede, coordenação e trechos seriais continuam podendo limitar a conclusão da consulta.",
+      "section": "3. Execução paralela, escalabilidade e limites",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Particionar uma tabela distribui suas partes; isso não significa necessariamente que cada nó possua cópia de todas as linhas para recuperação de falhas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Particionamento e replicação resolvem questões diferentes. A cópia redundante precisa ser criada por mecanismo próprio; não decorre automaticamente da execução paralela.",
+      "section": "4. Tolerância a falhas e leitura de cenários",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A existência de vários nós MPP garante que a falha de um deles nunca afete a disponibilidade nem a durabilidade dos dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Tolerância a falhas depende de redundância, detecção, recuperação e configuração. A mera divisão do trabalho entre nós não garante cópias ou continuidade sem interrupção.",
+      "section": "4. Tolerância a falhas e leitura de cenários",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta MPP pode usar checkpoints ou réplicas para ajudar na recuperação, mas a disponibilidade desses mecanismos depende da implementação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Checkpoints podem guardar progresso e réplicas podem fornecer cópias, mas nenhum mecanismo específico é universal a todos os produtos MPP.",
+      "section": "4. Tolerância a falhas e leitura de cenários",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe dobrou o número de nós e concluiu que qualquer consulta deve passar a levar exatamente metade do tempo, pois MPP garante aceleração linear.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O paralelismo pode melhorar tempo ou vazão, mas rede, partes seriais, skew, I/O e contenção limitam o ganho. A aceleração linear não é garantida.",
+      "section": "3. Execução paralela, escalabilidade e limites",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Amazon Redshift documenta estilos de distribuição chamados KEY, EVEN, ALL e AUTO; tais nomes identificam opções do produto, não uma nomenclatura obrigatória de toda arquitetura MPP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. São opções documentadas pelo Redshift. Outros sistemas podem distribuir dados com regras e nomes diferentes, embora enfrentem objetivos semelhantes de equilíbrio e localidade.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A principal razão de usar agregação parcial é obrigar cada nó a enviar todas as linhas originais ao coordenador antes de calcular qualquer soma.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Cada nó pode agregar localmente as linhas que processou e enviar apenas um subtotal, diminuindo os dados transmitidos antes da combinação final.",
+      "section": "3. Execução paralela, escalabilidade e limites",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição resume melhor Massive Parallel Processing?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma única CPU executa uma consulta inteira sem dividir dados ou tarefas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Vários nós processam partes de uma carga simultaneamente e combinam resultados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Cada usuário mantém uma cópia manual do banco em seu computador local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um sistema substitui consultas SQL por armazenamento exclusivo em arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma única memória compartilhada impede que tarefas sejam distribuídas.",
+          "correct": false
+        }
+      ],
+      "explanation": "MPP divide o trabalho e os dados entre nós para execução simultânea, reunindo resultados parciais. A definição não exige abandonar SQL nem impede a existência de coordenação.",
+      "section": "1. Ideia e arquitetura do MPP",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num cenário de consulta MPP, qual componente costuma organizar o plano e reunir parciais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O componente coordenador, que gerencia etapas e resultados distribuídos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um cliente de BI, que armazena sozinho as tabelas permanentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O cabo de rede, que escolhe a chave de distribuição dos registros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma tabela replicada, que sempre executa toda a consulta completa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O disco de cada nó, que planeja as operações sem o mecanismo do banco.",
+          "correct": false
+        }
+      ],
+      "explanation": "O coordenador recebe a solicitação e organiza o trabalho distribuído, incluindo a combinação de resultados. Os nós computacionais executam as partes, enquanto rede e armazenamento não assumem o planejamento lógico.",
+      "section": "1. Ideia e arquitetura do MPP",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação distingue corretamente MPP de SMP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "MPP é apenas armazenamento em colunas; SMP é apenas armazenamento em linhas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "MPP usa nós distribuídos; SMP usa processadores que compartilham recursos de uma máquina.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "MPP proíbe múltiplos núcleos; SMP exige vários data centers independentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MPP serve somente para arquivos; SMP é o nome de uma linguagem SQL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MPP elimina comunicação; SMP exige que todos os dados trafeguem pela rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "MPP coordena processamento por múltiplos nós e pode exigir rede; SMP é multiprocessamento simétrico com recursos compartilhados numa máquina. Núcleos múltiplos podem existir dentro de cada nó MPP.",
+      "section": "1. Ideia e arquitetura do MPP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe analisa uma tabela de vendas em vários nós e quer produzir um total global. Qual estratégia reduz dados transmitidos antes do resultado final?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada nó replica toda a base e descarta os valores locais calculados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cada nó envia todas as linhas ao coordenador antes de qualquer cálculo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada nó calcula um subtotal local e envia apenas esse resultado para combinação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O coordenador suspende a consulta até que os nós parem de ler dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A rede converte as linhas em cópias sem executar agregação alguma.",
+          "correct": false
+        }
+      ],
+      "explanation": "Agregações parciais resumem localmente os dados e reduzem o volume a combinar. O resultado global ainda exige reunir os subtotais, mas não todas as linhas originais.",
+      "section": "3. Execução paralela, escalabilidade e limites",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta faz join frequente entre vendas e clientes pelo identificador do cliente. Qual desenho pode reduzir movimentação, se os dados e a carga forem adequados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolher a coluna com maior nome para uniformizar os arquivos físicos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Distribuir uma tabela ao acaso e proibir o otimizador de movimentar linhas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar a tabela de vendas integralmente em cada cliente conectado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Distribuir as duas tabelas por chaves correspondentes ao identificador usado no join.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Remover a chave de junção e transferir a consulta para o cliente BI.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma chave de distribuição alinhada com as colunas do join pode colocar linhas correspondentes no mesmo nó. A estratégia deve considerar distribuição real e outras consultas; não impede toda movimentação em todos os casos.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Amazon Redshift, que estilo documentado espalha linhas em rodízio, sem usar uma coluna de chave específica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "KEY, que agrupa os mesmos valores de uma chave no nó correspondente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "EVEN, que distribui registros sem basear a colocação nos valores de uma coluna.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "ALL, que coloca cópia completa da tabela em todos os nós.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "AUTO, que sempre mantém a tabela somente no nó coordenador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "LOCAL, que deixa todas as linhas exclusivamente no cliente SQL.",
+          "correct": false
+        }
+      ],
+      "explanation": "A distribuição EVEN do Redshift espalha as linhas em rodízio. KEY usa valores de uma coluna, ALL replica a tabela e AUTO permite escolha automática pelo serviço.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela pequena é usada em joins por quase todos os nós. Qual estratégia pode reduzir a redistribuição da tabela grande, aceitando custo adicional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concentrar ambas as tabelas no coordenador e desativar os workers.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover toda cópia da tabela pequena e duplicar cada linha da tabela grande.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Replicar a tabela pequena nos nós participantes e avaliar armazenamento e manutenção.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Distribuir as duas tabelas por colunas sem relação com as consultas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter o join em uma operação de backup para reduzir rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "A replicação de uma relação pequena pode torná-la local em vários nós e evitar transferir a relação maior. O custo inclui armazenamento e manutenção das cópias, por isso depende do uso e do tamanho.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela de eventos é distribuída por uma coluna de status com três valores, um deles presente em quase todas as linhas. O que é mais provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escalabilidade linear, pois valores repetidos igualam o trabalho de cada nó.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Replicação automática de toda a tabela para recuperar falhas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Colocation perfeita para qualquer join, sem relação com a chave usada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Skew, pois muitos registros podem ser direcionados a poucas partições.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Serialização obrigatória das consultas em todos os outros nós.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma chave concentrada distribui a maior parte das linhas a poucas partições. O nó sobrecarregado pode atrasar as etapas, caracterizando skew de dados e de execução.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O plano de uma junção mostra que registros de ambas as tabelas são enviados a outros nós antes de comparar chaves. Como se chama esse movimento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Agregação parcial, pois as linhas são resumidas sem trocar de nó.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SMP, pois a chave passa a compartilhar memória global.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Checkpoint, pois o sistema salva o progresso para recuperação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Particionamento vertical, pois colunas são removidas da tabela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Redistribuição, também chamada shuffle, para reunir dados necessários à etapa.",
+          "correct": true
+        }
+      ],
+      "explanation": "Redistribuição ou shuffle transfere linhas entre nós quando a localização atual não atende à operação planejada. O custo de comunicação pode afetar o desempenho.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que objetivo descreve melhor o broadcast de uma tabela pequena numa execução distribuída?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enviar todos os dados do cluster a um único usuário para cópia manual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Disponibilizar cópias aos nós para que cada um combine a tabela com dados locais.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Eliminar linhas duplicadas antes da leitura sem consultar o banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Dividir uma consulta em etapas seriais executadas pelo coordenador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transformar uma chave de distribuição em índice de disco automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Broadcast transmite uma relação a vários nós, o que pode facilitar joins locais com partições de uma tabela grande. A transmissão consome rede e recursos, logo não é gratuita.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após um filtro, quase todos os registros selecionados pertencem a um mesmo valor de chave. Qual efeito deve ser investigado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colocation universal, pois o filtro alinha todas as tabelas automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ganho linear, porque um filtro sempre equilibra a distribuição física.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Skew no conjunto filtrado, que concentra a etapa em poucos nós.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Redundância garantida, pois o valor selecionado existe em vários nós.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ausência de tráfego, porque filtros impedem qualquer join distribuído.",
+          "correct": false
+        }
+      ],
+      "explanation": "A distribuição efetiva do subconjunto consultado importa: um valor dominante após o filtro pode concentrar o trabalho. A cardinalidade total da coluna não basta para excluir skew na consulta específica.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O mesmo conjunto de dados e consulta não fica mais rápido na proporção exata de nós acrescentados. Qual explicação é consistente com MPP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Nós adicionais desativam automaticamente todas as agregações locais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "MPP executa todas as consultas exclusivamente em um único núcleo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Etapas seriais e comunicação podem limitar o ganho dos recursos adicionais.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O coordenador sempre precisa ler cada linha e fazer todo o cálculo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A quantidade de nós não pode alterar os recursos computacionais disponíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "A escalabilidade é limitada por trabalho serial, coordenação, rede, I/O e outras contenções. MPP oferece paralelismo potencial, mas não promete aceleração linear.",
+      "section": "3. Execução paralela, escalabilidade e limites",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência representa de modo plausível a execução de uma consulta analítica MPP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Copiar todos os dados ao cliente, desligar os nós e gerar a consulta no navegador, pois o banco não precisa coordenar nem executar etapas distribuídas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Coordenar o plano, processar partes em paralelo, trocar dados quando preciso e combinar resultados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Combinar resultados antes que qualquer nó leia dados ou execute uma etapa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Replicar todo o banco em cada operação e impedir qualquer comunicação entre workers.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar sempre uma operação em todos os nós, mas sem particionar dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "O plano é coordenado, dividido em etapas distribuídas, pode incluir movimentação de dados e termina com a combinação de parciais. A sequência exata varia por consulta e sistema.",
+      "section": "3. Execução paralela, escalabilidade e limites",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um desenho MPP executa soma por estado. Qual fluxo favorece reduzir a quantidade de linhas transmitidas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enviar todos os registros brutos e somar apenas no cliente final, descartando qualquer subtotal local porque nós distribuídos não podem agregar dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Replicar toda a tabela de vendas em cada conexão de usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somar por estado localmente e enviar parciais para consolidação global.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desativar todos os filtros e enviar a tabela inteira ao coordenador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter os valores em chaves de distribuição sem calcular totais.",
+          "correct": false
+        }
+      ],
+      "explanation": "A agregação parcial executa somas locais e reduz os dados necessários à etapa global. Enviar somente parciais pode reduzir comunicação em comparação com transportar as linhas brutas.",
+      "section": "3. Execução paralela, escalabilidade e limites",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual medida é mais apropriada para avaliar o efeito de adicionar nós a um data warehouse MPP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Assumir redução de tempo proporcional ao número nominal de nós, sem medir consultas ou considerar volume, concorrência e etapas seriais, que nunca afetam o resultado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Medir apenas o tamanho do nome atribuído ao cluster.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Contar tabelas no catálogo, sem executar consultas ou analisar carga.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Medir consultas representativas, tempo, vazão e uso de recursos antes e depois.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desconsiderar concorrência, volume de dados e padrão de joins.",
+          "correct": false
+        }
+      ],
+      "explanation": "O resultado depende da consulta e dos gargalos. Testar carga representativa permite observar latência, vazão, rede, I/O e concorrência; a contagem de nós isolada não prediz o ganho real.",
+      "section": "3. Execução paralela, escalabilidade e limites",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta permanece lenta após a expansão do cluster porque um estágio serial concentra a combinação final. Qual conceito explica o limite?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A distribuição KEY converte qualquer etapa final em execução local, mesmo com chaves incompatíveis e operações seriais, que deixam de existir ao adicionar nós.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A escalabilidade horizontal reduz sempre a frequência de operações seriais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O broadcast garante que nenhuma etapa precise combinar resultados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A replicação transforma uma operação serial em paralela sem alterar o plano.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A parte serial limita o ganho máximo obtido com paralelismo adicional.",
+          "correct": true
+        }
+      ],
+      "explanation": "O princípio associado à lei de Amdahl é que uma fração serial continua limitando o tempo total mesmo quando a parte paralelizável ganha recursos. A etapa final pode se tornar o gargalo.",
+      "section": "3. Execução paralela, escalabilidade e limites",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A métrica de tempo de uma etapa varia muito: vários nós terminam cedo e um único nó permanece ocupado. Qual investigação é mais pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar a replicação sem descobrir qual nó recebeu mais trabalho, pois cópias adicionais identificam e corrigem automaticamente todo skew de execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Verificar skew de dados ou de carga nas partições e nos filtros da consulta.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Trocar MPP por uma linguagem de consulta diferente sem examinar dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar a combinação final para obrigar cada nó a devolver um total global.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Considerar o comportamento normal, pois nós ociosos são o objetivo do balanceamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "O tempo da etapa paralela pode ser determinado pelo participante mais lento. Distribuição desigual de linhas ou de trabalho é um sinal de skew e deve ser examinada, inclusive após filtros.",
+      "section": "4. Tolerância a falhas e leitura de cenários",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre particionamento e replicação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambos significam que somente o coordenador armazena as tabelas, de modo que os nós de computação nunca recebem linhas nem cópias para processar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Particionamento cria cópias completas; replicação distribui linhas sem duplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Particionamento divide o conjunto; replicação mantém cópias em locais distintos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Replicação é sempre sinônimo de agregação parcial em cada nó.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MPP proíbe replicar dados porque todos os nós devem ser exclusivos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Particionamento distribui partes diferentes; replicação mantém cópias de dados em mais de um local. Um sistema pode combinar ambos, mas um não implica automaticamente o outro.",
+      "section": "4. Tolerância a falhas e leitura de cenários",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao avaliar tolerância a falhas em MPP, qual pergunta é essencial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Qual coluna tem maior cardinalidade, pois isso cria cópias de segurança automaticamente e permite restaurar qualquer partição perdida sem outra fonte de dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Quantos processadores existem, pois qualquer quantidade garante durabilidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se as consultas usam SQL, pois a linguagem assegura recuperação distribuída.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que mecanismo mantém ou reconstrói dados e permite retomar o processamento após falha?",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Se o nó coordenador possui um nome específico, pois isso garante redundância.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tolerância requer mecanismos de cópia, detecção e recuperação concretos. A quantidade de nós e o estilo de consulta não provam, sozinhos, disponibilidade nem durabilidade.",
+      "section": "4. Tolerância a falhas e leitura de cenários",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um join, os dados de uma tabela grande precisam cruzar a rede por causa da distribuição incompatível. Qual ajuste de desenho pode ser avaliado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Replicar a tabela grande em todos os clientes para evitar qualquer consulta, mesmo quando isso multiplica o armazenamento e impede que o otimizador use os nós do cluster.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escolher sempre a coluna mais concentrada para forçar todos os registros ao mesmo nó.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Acrescentar nós sem alterar distribuição, plano ou volume movimentado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Impedir o otimizador de redistribuir linhas, mesmo quando os dados estão separados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alinhar a distribuição de tabelas frequentes pela chave de join, medindo equilíbrio e demais consultas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Alinhar distribuição e chave de join pode colocar correspondências juntas, mas deve-se equilibrar a carga e considerar outras consultas. Uma chave concentrada cria skew e a expansão de nós não corrige automaticamente o shuffle.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Redshift, uma tabela usa AUTO. Que interpretação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O serviço pode selecionar automaticamente estilo de distribuição conforme dados e condições.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todas as linhas permanecem necessariamente no nó líder durante toda a consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A tabela é sempre replicada integralmente em cada nó, sem mudança possível, e a escolha automática ignora tamanhos, estatísticas, distribuição e condições de uso do serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A opção significa que a tabela não participa de processamento paralelo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O estilo elimina a necessidade de considerar consultas e distribuição.",
+          "correct": false
+        }
+      ],
+      "explanation": "AUTO delega ao Redshift a escolha do estilo, que pode mudar conforme o tamanho e outras condições documentadas. A opção não significa armazenar tudo no líder nem elimina impactos de distribuição.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma falha de nó expõe que cada nó continha somente uma partição e não havia cópia nem fonte para reconstruí-la. Qual conclusão é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A agregação parcial transforma automaticamente os resultados em backup completo, preservando todas as linhas originais e reconstruindo qualquer partição após uma falha.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "MPP garante a partição em outro nó mesmo sem política de replicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A divisão paralela dos dados não fornecia redundância suficiente para recuperar a partição.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Um coordenador sempre armazena cópia integral de cada tabela distribuída.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A falha prova que a chave de distribuição tinha cardinalidade alta demais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Particionamento coloca partes em lugares diferentes, mas não cria cópias. Sem réplica ou fonte de reconstrução, a arquitetura não dispõe do mecanismo de redundância necessário para aquela falha.",
+      "section": "4. Tolerância a falhas e leitura de cenários",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe obtém bom desempenho em uma tabela distribuída igualmente, mas joins entre tabelas continuam lentos. Qual causa permanece plausível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Distribuição uniforme transforma cada join em operação local automaticamente, independentemente das chaves, da localização inicial das tabelas ou do plano adotado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "As linhas relacionadas podem estar em nós distintos e exigir shuffle durante os joins.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A distribuição equilibrada impede qualquer comunicação entre nós por definição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Todo join lento prova falha de armazenamento replicado no coordenador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O paralelismo de dados impede consultas com mais de uma tabela.",
+          "correct": false
+        }
+      ],
+      "explanation": "Equilíbrio de volume e colocation são objetivos diferentes. As linhas podem estar bem distribuídas, porém não alinhadas pela chave de junção; o otimizador então movimenta dados pela rede.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que conjunto de fatores pode limitar uma consulta depois de acrescentar nós ao cluster?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Nenhum fator, pois MPP converte toda operação em paralelo perfeito e torna irrelevantes rede, armazenamento, skew, coordenação e concorrência em qualquer carga.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente o nome do nó coordenador e o formato de letras da consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas a presença de uma tabela pequena, sempre replicada pelo sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Etapas seriais, tráfego de rede, I/O, skew e concorrência por recursos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Só o número de usuários cadastrados, mesmo sem consultas concorrentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O paralelismo compete com gargalos: operações seriais, transferências, armazenamento, desequilíbrio e carga simultânea podem limitar recursos adicionais. A avaliação deve observar o plano e medições reais.",
+      "section": "3. Execução paralela, escalabilidade e limites",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação de join envia linhas de uma tabela pequena para todas as partições de uma tabela grande. Qual descrição combina melhor com esse comportamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Skew é a cópia integral da tabela em todos os nós por definição, sem causar tráfego, uso de memória ou qualquer efeito sobre o plano de junção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Agregação parcial combina resultados sem enviar qualquer relação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SMP converte uma chave SQL em partições físicas no cluster.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Checkpoint remove a necessidade de ler as tabelas da consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Broadcast pode disponibilizar a relação pequena aos nós para execução local do join.",
+          "correct": true
+        }
+      ],
+      "explanation": "O plano descrito é compatível com broadcast: a relação pequena é enviada aos nós que contêm partes da relação grande. A escolha pode poupar movimentação da tabela grande, mas consome rede e memória.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma especificação afirma que, por ser MPP, um data warehouse deve usar necessariamente armazenamento colunar. Como avaliá-la?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Está correta porque MPP é o nome técnico de armazenamento por colunas e determina que cada nó guarde apenas um campo, sem possibilidade de armazenamento por linhas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A afirmação confunde paralelismo com organização física; MPP, por si só, não exige formato colunar.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Está correta porque todo nó MPP armazena apenas uma coluna da tabela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Está errada porque MPP proíbe armazenamento colunar em análises.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Está correta porque a distribuição KEY só funciona com armazenamento colunar.",
+          "correct": false
+        }
+      ],
+      "explanation": "MPP descreve a execução paralela distribuída. Armazenamento colunar é uma escolha física que pode coexistir com MPP e beneficiar análises, mas não faz parte da definição de MPP.",
+      "section": "3. Execução paralela, escalabilidade e limites",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela usa chave de alta cardinalidade, porém as consultas filtram sempre um único valor que concentra grande volume. Qual avaliação é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A distribuição deve ser analisada no subconjunto consultado, que pode ainda apresentar skew.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A alta cardinalidade global elimina skew em qualquer predicado de filtro, mesmo quando um único valor concentra quase todas as linhas consultadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um filtro por valor único força todas as linhas a serem replicadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O filtro converte automaticamente a chave em distribuição EVEN.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Skew só ocorre em tabelas sem chave de distribuição configurada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A cardinalidade global não descreve necessariamente o conjunto selecionado. Se o valor filtrado concentra linhas, o trabalho efetivo pode ficar desequilibrado e afetar o tempo da consulta.",
+      "section": "2. Distribuição de dados e movimentação entre nós",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual frase descreve corretamente os limites do processamento MPP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O paralelismo acelera partes divisíveis, mas coordenação, rede e trechos seriais continuam custando tempo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todo estágio de uma consulta sempre escala em proporção exata ao número de nós, independentemente de rede, coordenação, etapas seriais ou distribuição dos dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A comunicação não influencia a execução porque cada nó lê somente seus discos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O coordenador não participa da execução nem combina resultados parciais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A escalabilidade depende apenas da quantidade de núcleos, nunca da distribuição.",
+          "correct": false
+        }
+      ],
+      "explanation": "MPP aproveita trabalho independente, mas não remove coordenação, troca de dados ou operações seriais. A eficiência também depende da distribuição, do plano, de I/O e da concorrência.",
+      "section": "3. Execução paralela, escalabilidade e limites",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador precisa diferenciar um problema de balanceamento de um problema de disponibilidade após falha. Qual par de perguntas separa melhor os diagnósticos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quais nós receberam mais trabalho? E existem cópias ou mecanismos para recuperar os dados?",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Qual nó tem nome mais curto? E qual consulta foi escrita primeiro?",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quantos aliases existem? E qual coluna tem mais caracteres?",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A tabela é analítica? E todo dado foi enviado ao coordenador?",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Há mais de um núcleo? E toda operação pode ser feita sem rede, pois a quantidade de processadores garante redundância e recuperação sem política específica?",
+          "correct": false
+        }
+      ],
+      "explanation": "Balanceamento trata de como carga e linhas se distribuem; disponibilidade trata de redundância e recuperação. São propriedades relacionadas à arquitetura distribuída, mas não equivalentes.",
+      "section": "4. Tolerância a falhas e leitura de cenários",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Amazon Redshift — Data warehouse system architecture",
+      "publisher": "Amazon Web Services",
+      "reference": "Arquitetura MPP, leader node, compute nodes e execução de consultas distribuídas",
+      "url": "https://docs.aws.amazon.com/prescriptive-guidance/latest/query-lifecycle-redshift/architecture.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Amazon Redshift — Data distribution for query optimization",
+      "publisher": "Amazon Web Services",
+      "reference": "Nós, slices, redistribuição de dados, skew e objetivos da distribuição",
+      "url": "https://docs.aws.amazon.com/redshift/latest/dg/t_Distributing_data.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Amazon Redshift — Distribution styles",
+      "publisher": "Amazon Web Services",
+      "reference": "Estilos AUTO, EVEN, KEY e ALL e suas características",
+      "url": "https://docs.aws.amazon.com/redshift/latest/dg/c_choosing_dist_sort.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Amazon Redshift — Factors affecting query performance",
+      "publisher": "Amazon Web Services",
+      "reference": "Relação entre quantidade de nós/slices, distribuição de dados e desempenho",
+      "url": "https://docs.aws.amazon.com/redshift/latest/dg/c-query-performance.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Amazon Redshift — Massively parallel processing",
+      "publisher": "Amazon Web Services",
+      "reference": "Execução de segmentos de consulta por núcleos em nós computacionais sobre porções dos dados",
+      "url": "https://docs.aws.amazon.com/redshift/latest/dg/c_challenges_achieving_high_performance_queries.html",
+      "accessedAt": "2026-10-31"
+    }
+  ]
+}

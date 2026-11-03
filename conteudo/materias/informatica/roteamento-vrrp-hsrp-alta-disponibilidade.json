@@ -1,0 +1,2062 @@
+{
+  "id": "informatica.roteamento-vrrp-hsrp-alta-disponibilidade",
+  "subject": "Informática",
+  "title": "Protocolos de roteamento e alta disponibilidade: OSPF, BGP, RIP, VRRP e HSRP",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Protocolos de roteamento: OSPF, BGP, RIP, VRRP e HSRP",
+    "Roteamento dinâmico OSPF BGP RIP",
+    "Alta disponibilidade de gateway VRRP HSRP",
+    "Protocolo OSPF e áreas de roteamento",
+    "BGP entre sistemas autônomos e políticas",
+    "RIP vetor de distância e contagem de saltos",
+    "VRRP eleição de roteador virtual ativo",
+    "HSRP redundância de primeiro salto Cisco"
+  ],
+  "scope": {
+    "covers": "Fundamentos e comparação de OSPFv2, BGP-4, RIP v2, VRRPv3 e HSRP: finalidade, tipo de algoritmo, escopo, métricas e atributos, formação de vizinhanças ou sessões, eleição de gateway virtual, convergência, mensagens e limitações práticas.",
+    "excludes": "Configuração completa por fabricante, comandos específicos de cada versão, protocolos não listados, engenharia de tráfego avançada, segurança criptográfica detalhada e cálculo de projeto de redes de grande porte."
+  },
+  "theoryTitle": "Como os roteadores aprendem caminhos e mantêm o gateway disponível",
+  "chapters": [
+    {
+      "title": "1. Roteamento dinâmico: OSPF, BGP e RIP",
+      "markdown": "### O problema que este assunto resolve\n\nUm roteador encaminha cada pacote consultando a tabela de rotas: para determinado prefixo de destino, qual próximo salto e interface usar? Rotas podem ser configuradas manualmente ou aprendidas por protocolos. O roteamento dinâmico permite que roteadores troquem informações e recalculam caminhos quando enlaces ou vizinhos mudam. OSPF, BGP e RIP fazem esse aprendizado, mas foram desenhados para escalas e critérios diferentes.\n\n> **Siglas e termos deste capítulo**\n> - **IGP**: protocolo de roteamento dentro de um sistema autônomo ou domínio administrativo; OSPF e RIP são exemplos.\n> - **EGP**: protocolo para troca de rotas entre sistemas autônomos; BGP exerce esse papel.\n> - **Sistema autônomo (AS)**: rede ou conjunto de redes sob uma administração e política de roteamento comum, identificado no BGP por número de AS.\n> - **Prefixo**: endereço de rede acompanhado de seu comprimento, como `192.0.2.0/24`.\n> - **Convergência**: período e processo em que roteadores atualizam suas informações após uma mudança.\n> - **Métrica**: valor usado por um protocolo para comparar caminhos segundo sua própria lógica.\n\n### Três protocolos, três propósitos\n\n| Protocolo | Categoria e método | Como compara caminhos | Uso típico e limite marcante |\n| --- | --- | --- | --- |\n| **RIP v2** | IGP de vetor de distância; anuncia rotas e distância aos vizinhos | Contagem de saltos; 15 é o maior valor alcançável e 16 representa inalcançável | Simples em redes pequenas; escala limitada e convergência pode ser lenta |\n| **OSPFv2** | IGP de estado de enlace; distribui estado dos enlaces e calcula caminhos | Custo acumulado, normalmente associado à largura de banda pela implementação | Domínios internos que precisam de áreas e convergência mais rápida |\n| **BGP-4** | Protocolo interdomínio de vetor de caminho | Atributos e política, incluindo AS_PATH e LOCAL_PREF | Roteamento entre AS e controle de anúncios; escolha não é apenas menor distância física |\n\nA distinção entre **vetor de distância** e **estado de enlace** é recorrente. No RIP, cada roteador anuncia aos vizinhos o que conhece e uma distância em saltos. No OSPF, os roteadores da área disseminam anúncios de estado de enlace; cada um monta uma base topológica e executa o algoritmo SPF (Dijkstra) para calcular os caminhos. O BGP também anuncia caminhos, mas carrega atributos de política e a sequência de AS, por isso é descrito como vetor de caminho.\n\n### OSPF: mapa topológico organizado em áreas\n\nO OSPFv2 é um IGP para IPv4. Os roteadores formam adjacências, sincronizam uma base de estado de enlace (LSDB) por área e calculam a árvore de menor custo a partir de si mesmos. A área de backbone é a **área 0**; as demais áreas conectam-se ao backbone por roteadores de borda de área (ABR), seguindo o desenho hierárquico do protocolo. Separar áreas reduz a propagação de certos detalhes e limita o trabalho de cálculo a uma área, embora rotas resumidas possam ser divulgadas entre áreas.\n\nEm redes broadcast multiacesso, como uma LAN Ethernet compartilhada, OSPF elege um **DR** (designated router) e um **BDR** (backup designated router). Eles reduzem a quantidade de adjacências e centralizam a troca de atualizações naquela rede. Isso não os transforma em gateway padrão: DR/BDR coordenam a relação OSPF no segmento; gateway padrão encaminha tráfego de hosts para outras redes. OSPF usa diretamente IP, número de protocolo 89, e não TCP nem UDP.\n\nO custo OSPF é uma métrica configurável/de implementação; não se deve presumir que o protocolo sempre mede atraso ou número de saltos. A escolha normalmente soma custos dos enlaces. Uma rota de custo total menor é preferida dentro da comparação pertinente ao OSPF. A configuração de custo de referência pode variar, então em questão conceitual importa identificar a soma de custos, não atribuir uma fórmula universal sem contexto.\n\n### BGP: alcançabilidade e política entre AS\n\nO BGP-4 troca prefixos alcançáveis entre pares BGP. A sessão usa TCP na porta 179; após estabelecer a conexão, os pares trocam mensagens OPEN e mantêm a sessão por KEEPALIVE, enquanto UPDATE anuncia ou retira rotas. NOTIFICATION sinaliza erro e encerra a sessão.\n\nUma sessão **eBGP** liga pares de AS diferentes; uma sessão **iBGP** distribui informação BGP dentro do mesmo AS. O atributo **AS_PATH** registra os AS atravessados e ajuda a detectar loops: um AS que encontra seu próprio número no caminho recebido normalmente rejeita a rota. Atributos como LOCAL_PREF permitem expressar a preferência interna por uma saída. Assim, o BGP não escolhe necessariamente a rota geograficamente mais curta: políticas administrativas e atributos controlam a seleção e a divulgação.\n\nBGP é orientado a prefixos e suporta CIDR e agregação. Uma rota aprendida não é automaticamente anunciada a qualquer vizinho: políticas de importação e exportação determinam o que aceitar, preferir e divulgar. Em particular, uma sessão estabelecida não significa que todo prefixo recebido deve ser usado ou repassado.\n\n### RIP v2: simplicidade com limite explícito\n\nO RIP v2 é um IGP de vetor de distância. A métrica é o número de roteadores atravessados, não largura de banda ou atraso. Uma rota com 1 salto é preferível a uma com 4 saltos segundo essa métrica, ainda que o enlace de quatro saltos tenha maior capacidade. O valor 16 é infinito/inalcançável no protocolo; portanto, 15 saltos é o máximo alcançável.\n\nRIP v2 transporta máscara de sub-rede, próximo salto e campo de roteamento, permitindo CIDR e VLSM, além de autenticação prevista na especificação. Atualizações periódicas e mecanismos como split horizon, route poisoning e triggered updates ajudam a limitar loops, mas não eliminam a limitação de escala nem tornam instantânea a convergência.\n\n### Como cai na prova\n\n- **OSPF**: estado de enlace, LSDB por área, SPF, custo acumulado, DR/BDR em redes multiacesso e protocolo IP 89.\n- **BGP**: entre AS, sessão TCP/179, atributos e política; AS_PATH auxilia a evitar loops.\n- **RIP**: vetor de distância e contagem de saltos; 16 significa infinito e 15 é o máximo alcançável.\n- Não confunda protocolo de roteamento que calcula rotas com protocolo de redundância que entrega um gateway virtual aos hosts."
+    },
+    {
+      "title": "2. OSPF e BGP em operação",
+      "markdown": "### O problema que este assunto resolve\n\nSaber o nome do protocolo não basta para interpretar uma topologia. É preciso identificar quem troca informação com quem, o que cada mensagem transporta e qual resultado o protocolo realmente controla. Este capítulo acompanha a formação de adjacências OSPF e sessões BGP, e separa algoritmo de roteamento de política de anúncios.\n\n> **Siglas e termos deste capítulo**\n> - **LSA**: anúncio de estado de enlace, unidade que descreve informação topológica OSPF.\n> - **LSDB**: base de dados de estado de enlace; roteadores de uma mesma área mantêm visão coerente da topologia da área.\n> - **SPF**: shortest path first, cálculo da árvore de caminhos de menor custo.\n> - **DR/BDR**: roteador designado e seu reserva em rede multiacesso OSPF.\n> - **eBGP/iBGP**: sessões BGP entre AS diferentes / dentro do mesmo AS.\n> - **RIB**: base de informações de roteamento; estruturas internas podem separar rotas recebidas, selecionadas e anunciadas.\n\n### OSPF: vizinhança, adjacência e cálculo\n\nDois roteadores OSPF não se tornam adjacentes apenas por estarem ligados por um cabo. Parâmetros compatíveis de interface e área, temporizadores, autenticação quando configurada e alcance de comunicação precisam permitir a formação da relação. Eles trocam mensagens Hello para descobrir e manter vizinhos. Depois, conforme o tipo de rede e a função dos pares, sincronizam a LSDB por meio de descrições e solicitações/anúncios de estado de enlace.\n\nNa rede broadcast, os Hellos também permitem a eleição de DR e BDR. Os demais roteadores estabelecem adjacência plena principalmente com esses papéis, em vez de formar uma malha completa entre todos. Se o DR falha, o BDR pode assumir o papel, reduzindo a necessidade de recomeçar a coordenação do segmento. A eleição de DR/BDR é local ao segmento OSPF, não uma escolha de rota de saída para a Internet.\n\nCada área mantém sua própria LSDB. Um ABR liga áreas e participa das bases de cada uma. O roteador não envia a topologia interna completa de uma área a toda a rede como se existisse uma única base global; os ABRs podem anunciar informação resumida entre áreas. A área 0 é o backbone ao qual o desenho multiárea se conecta.\n\n### BGP: sessão de transporte e atributos\n\nBGP peers mantêm uma sessão TCP. A mensagem OPEN identifica parâmetros do par; KEEPALIVE mantém a sessão; UPDATE carrega prefixos e atributos ou informa retiradas; NOTIFICATION reporta erro. BGP não envia um pacote IP encapsulado em TCP para cada anúncio como se TCP fosse a métrica: TCP fornece o canal confiável da sessão, e os atributos BGP orientam seleção e política.\n\n| Atributo ou conceito | Uso prático |\n| --- | --- |\n| **AS_PATH** | Sequência de AS pelos quais o anúncio passou; ajuda a detectar loops e permite políticas baseadas no caminho |\n| **LOCAL_PREF** | Preferência administrativa dentro de um AS; valor mais alto é normalmente preferido segundo a política BGP |\n| **NEXT_HOP** | Próximo salto que precisa ser resolvido para alcançar o prefixo |\n| **MED** | Indicação de preferência de entrada em um AS, geralmente comparada entre caminhos recebidos do mesmo AS vizinho, conforme política |\n| **Comunidades** | Marcas que permitem aplicar políticas coordenadas sem alterar o prefixo anunciado |\n\nA seleção BGP é uma sequência de decisões dependente de atributos, política e implementação; não existe uma única regra universal de “menor caminho físico”. O LOCAL_PREF é atributo de preferência local e não é enviado a pares eBGP como atributo trans-AS ordinário. AS_PATH não equivale a contagem de enlaces físicos: cada AS aparece na sequência, mas topologias e políticas variam.\n\nUma rota BGP aceita pode não ser instalada na tabela de encaminhamento se outra rota for preferida ou se o próximo salto não for resolvível. E uma rota presente na tabela pode não ser anunciada a determinado peer se a política de saída a filtrar. São etapas diferentes: recebimento, validação/política, escolha local, instalação e anúncio.\n\n### Distinguir roteamento interno e interdomínio\n\nOSPF e RIP são usados para roteamento interno; BGP é o protocolo central de roteamento interdomínio. Um AS pode usar um IGP para alcançar seus roteadores e os next hops BGP, mantendo BGP para anunciar prefixos a outros AS. Isso não implica substituir um pelo outro: eles resolvem problemas diferentes e podem coexistir. Redistribuir rotas entre protocolos exige política cuidadosa, pois pode introduzir loops, rotas excessivas ou caminhos assimétricos.\n\n### Como cai na prova\n\n- OSPF Hello descobre/mantém vizinhos; LSAs e LSDB fornecem o mapa para SPF.\n- DR/BDR reduzem adjacências no segmento; não são sinônimos de gateway virtual VRRP/HSRP.\n- BGP usa TCP/179; UPDATE carrega anúncios/retiradas.\n- AS_PATH auxilia na detecção de loop; LOCAL_PREF expressa preferência interna.\n- Estabelecer sessão BGP não obriga o roteador a aceitar, instalar ou anunciar qualquer rota."
+    },
+    {
+      "title": "3. RIP v2 e leitura de métricas",
+      "markdown": "### O problema que este assunto resolve\n\nComparar métricas sem conhecer sua unidade leva a decisões erradas. O caminho com menos saltos não é necessariamente mais rápido, e o menor custo OSPF não significa necessariamente menor distância geográfica. Aqui o foco é interpretar o que cada número representa, com atenção ao limite objetivo do RIP.\n\n> **Siglas e termos deste capítulo**\n> - **Vetor de distância**: método em que roteadores anunciam destinos e a distância conhecida até eles aos vizinhos.\n> - **Salto (hop)**: passagem por um roteador no caminho; RIP soma um salto por roteador.\n> - **Split horizon**: regra que evita anunciar uma rota de volta pela interface de onde foi aprendida, em condições previstas pelo protocolo.\n> - **Route poisoning**: anúncio de uma rota como inalcançável usando a métrica infinita.\n> - **VLSM**: uso de máscaras de sub-rede de comprimentos variáveis.\n> - **CIDR**: encaminhamento sem classes, baseado em prefixos e seus comprimentos.\n\n### Métrica RIP em exemplos\n\nSuponha dois caminhos ao prefixo X. O caminho A atravessa dois roteadores e tem enlaces lentos; o caminho B atravessa quatro roteadores por enlaces rápidos. O RIP compara a contagem de saltos e, sob essa métrica, prefere A. Ele não inspeciona a largura de banda para concluir que B seria mais veloz. Em RIP, uma distância de 15 ainda pode ser alcançada; ao atingir 16, o destino é tratado como infinito.\n\nEssa escala curta foi intencional: facilita a implementação, mas impede que RIP seja adequado a redes cujo caminho válido exceda o limite. Se uma questão apresenta rota de 16 saltos como válida, a alternativa contraria a métrica do protocolo. O valor 16 não significa “dezesseis roteadores permitidos”; ele marca inalcançabilidade.\n\n### O que a versão 2 acrescenta\n\nRIP v2 mantém a base de vetor de distância do RIP e inclui campos para máscara de sub-rede, próximo salto, domínio de roteamento e autenticação. Assim, pode representar prefixos classless e suportar VLSM, ao contrário da limitação classful da versão original em seus anúncios. A autenticação disponível na especificação não deve ser confundida com criptografia forte moderna: é um mecanismo do protocolo cuja modalidade e proteção dependem da implementação/configuração.\n\nRIP envia atualizações periódicas e pode enviar atualizações disparadas por mudanças. Split horizon evita divulgar uma rota de volta pela mesma interface pela qual ela foi aprendida; poison reverse anuncia-a de volta com métrica infinita em variantes de configuração. Route poisoning marca destino como inalcançável. Esses mecanismos reduzem algumas formas de contagem ao infinito, mas não anulam todos os loops nem tornam RIP equivalente ao OSPF.\n\n### Selecionar protocolo pela necessidade\n\n| Necessidade do cenário | Indício para a escolha |\n| --- | --- |\n| Rede pequena e simples, com métrica fácil de entender | RIP pode bastar, se o limite e a convergência forem aceitáveis |\n| Topologia interna hierárquica, com necessidade de mapa de enlaces e áreas | OSPF oferece estado de enlace e cálculo SPF |\n| Política de anúncio entre organizações/AS e grande tabela de prefixos | BGP oferece atributos e controle de exportação/importação |\n| Disponibilizar um próximo salto comum para hosts apesar da falha de um roteador | VRRP/HSRP, que não substituem OSPF/BGP/RIP |\n\n### Como cai na prova\n\n- RIP mede **saltos**, não atraso, capacidade ou custo monetário.\n- 16 é infinito/inalcançável; 15 é a maior distância útil.\n- RIP v2 inclui máscara e permite roteamento classless/VLSM.\n- Split horizon e poison reverse mitigam loops, mas não convertem RIP em protocolo de estado de enlace.\n- Um gateway redundante pode usar um protocolo IGP/BGP separado para descobrir rotas."
+    },
+    {
+      "title": "4. VRRP e HSRP: redundância do primeiro salto",
+      "markdown": "### O problema que este assunto resolve\n\nUm computador costuma ter configurado um único gateway padrão. Se esse roteador ou sua interface falhar, o host pode continuar sem alcançar outras redes mesmo que exista outro roteador funcional na mesma LAN. VRRP e HSRP resolvem esse ponto criando uma identidade lógica compartilhada: os hosts apontam para um endereço virtual, enquanto os roteadores negociam qual deles atende esse endereço em cada momento.\n\n> **Siglas e termos deste capítulo**\n> - **FHRP**: first-hop redundancy protocol, protocolo de redundância do primeiro salto.\n> - **Roteador virtual**: endereço IP/MAC lógico apresentado ao segmento LAN como gateway.\n> - **VRID**: identificador do roteador virtual em VRRP.\n> - **Ativo/backup (VRRP)**: o ativo encaminha para o endereço virtual; backups monitoram anúncios e assumem após falha.\n> - **Active/Standby (HSRP)**: funções primárias de encaminhamento e reserva no grupo HSRP.\n> - **Preempção**: permissão para roteador com maior prioridade reassumir o papel ativo após aparecer ou recuperar-se.\n\n### Fluxo comum de VRRP e HSRP\n\n1. Dois ou mais roteadores são ligados ao mesmo segmento e configurados para o mesmo grupo/roteador virtual e endereço virtual.\n2. Eles trocam mensagens de controle para descobrir estado, prioridade e temporizadores.\n3. Um roteador assume como ativo e responde pelo IP/MAC virtual; o host mantém o mesmo gateway configurado.\n4. Os demais monitoram o ativo. Se deixam de receber as mensagens esperadas, o candidato elegível assume o endereço virtual e encaminha tráfego.\n5. Se a configuração permite preempção, um roteador de maior prioridade que retorna pode reassumir o papel, conforme as regras do protocolo.\n\nA redundância do primeiro salto protege a disponibilidade do gateway na LAN. Ela não calcula rotas externas: o roteador ativo ainda precisa ter rotas estáticas ou aprendidas por OSPF, RIP ou BGP. Também não garante, por si só, que um caminho além do roteador esteja saudável. Rastreamento de interfaces/objetos e integração com roteamento podem ser necessários para reduzir prioridade se o problema ocorrer além do enlace local.\n\n### VRRP versão 3\n\nVRRP é uma especificação aberta do IETF. A versão 3 descrita na RFC 9568 cobre IPv4 e IPv6 e substitui a especificação anterior da versão 3. Cada roteador participa de uma instância por roteador virtual. Um único **Active Router** envia anúncios periódicos; os **Backup Routers** observam esses anúncios e, se o intervalo de inatividade expira, elegem um novo ativo.\n\nO **VRID** identifica o roteador virtual no enlace. Prioridades maiores são preferidas. A prioridade 255 é reservada ao roteador que possui o endereço IPvX protegido; backups usam 1 a 254 e o padrão é 100. Prioridade zero no anúncio indica que o ativo está deixando de participar, permitindo que os backups acelerem a transição. O intervalo padrão de anúncio definido na especificação é de um segundo, mas pode ser configurado; temporizadores pequenos requerem cuidado com atraso e filas. Preempção é habilitada por padrão na especificação atual, com exceção do proprietário do endereço, que sempre se torna ativo para esse endereço.\n\nVRRP não depende de fabricante único. Anúncios transportam o VRID, prioridade, endereços e intervalo. Para IPv4, os anúncios são enviados a multicast designado; para IPv6 também há multicast próprio. Não confunda o funcionamento com uma sessão TCP entre os roteadores: VRRP é um protocolo de controle de redundância no enlace.\n\n### HSRP\n\nHSRP (Hot Standby Router Protocol) é uma tecnologia de redundância de primeiro salto da Cisco. Um grupo oferece endereço IP virtual e MAC virtual; um roteador **Active** encaminha tráfego destinado ao endereço virtual, um **Standby** acompanha o estado e pode assumir, e outros membros podem participar da eleição/monitoramento conforme a implementação. O host configura o IP virtual como gateway, não precisa saber qual roteador físico está ativo.\n\nA prioridade HSRP escolhe o ativo: valor maior tem maior preferência; a prioridade padrão é 100 na documentação Cisco consultada. A prioridade isolada não faz um roteador ativo existente ser substituído: é preciso habilitar **preempt** para permitir que o roteador de maior prioridade tome o papel quando elegível. A prioridade pode ser reduzida por rastreamento de interface ou objeto; isso permite que uma falha de uplink influencie a eleição, desde que as regras de preempção/estado levem à mudança.\n\nNa documentação Cisco consultada, Hellos HSRP usam UDP porta 1985 e multicast IPv4 224.0.0.2; os temporizadores padrão tradicionais de Hello e hold são, respectivamente, 3 e 10 segundos. Plataformas e versões podem suportar ajustes e diferenças, portanto esses valores não são uma propriedade universal de todo produto com o nome HSRP. Mensagens HSRP podem incluir autenticação em texto sem criptografia segundo a configuração documentada; isso não substitui uma proteção criptográfica do segmento.\n\n### Comparação e aplicação\n\n| Aspecto | VRRPv3 | HSRP |\n| --- | --- | --- |\n| Natureza | Padrão aberto IETF | Protocolo Cisco |\n| Papéis usuais | Active e Backup | Active e Standby |\n| Identificador | VRID | Grupo HSRP |\n| Endereço do host | IP virtual compartilhado | IP virtual compartilhado |\n| Eleição | Prioridade, com regras especiais para proprietário do endereço | Prioridade e, em empate inicial, endereço IP; preempt controla retomada |\n| Família de endereços | IPv4 e IPv6 na versão 3 | Recursos e suporte dependem da versão/plataforma; há variantes IPv4/IPv6 |\n\nNão conecte dois roteadores virtuais sem alinhar endereço virtual, identificador/grupo, temporizadores e parâmetros de controle. Um host configurado para o endereço físico de um equipamento perde o benefício de manter um gateway lógico. Falha de enlace de acesso, falha de uplink, falha do processo de roteamento e falha do próprio roteador são eventos diferentes; monitore o que precisa provocar a troca.\n\n### Como cai na prova\n\n- VRRP/HSRP preservam um gateway lógico para os hosts; OSPF/BGP/RIP trocam/calculam rotas.\n- Em VRRPv3, 255 identifica o proprietário do endereço, 1–254 são prioridades de backup, zero sinaliza saída; padrão de backup 100.\n- HSRP usa Active/Standby, prioridade maior e **preempt** para retomada por prioridade maior.\n- Valores de HSRP como UDP/1985, multicast e temporizadores são detalhes da documentação Cisco, não regra geral de todos os FHRPs.\n- Redundância de gateway não corrige uma rota inexistente nem monitora automaticamente todo caminho de ponta a ponta."
+    }
+  ],
+  "summary": "OSPF e RIP são IGPs, mas OSPF é de estado de enlace e calcula caminhos por custo em áreas, enquanto RIP é vetor de distância e conta saltos, com 16 como infinito. BGP troca prefixos entre sistemas autônomos por sessão TCP/179 e aplica atributos e políticas; AS_PATH ajuda a detectar loops. VRRP e HSRP fornecem um gateway virtual redundante para hosts: um roteador ativo encaminha e os demais assumem após falha. VRRPv3 é padrão IETF para IPv4/IPv6; HSRP é Cisco. Ambos resolvem disponibilidade do primeiro salto, mas ainda dependem de rotas válidas no roteador ativo.",
+  "flashcards": [
+    {
+      "front": "Que tipo de protocolo é OSPF?",
+      "back": "IGP de estado de enlace: divulga estado topológico e calcula caminhos SPF a partir da LSDB."
+    },
+    {
+      "front": "Qual métrica o OSPF acumula?",
+      "back": "Custo dos enlaces; não é por definição contagem de saltos ou atraso."
+    },
+    {
+      "front": "O que é a área 0 no OSPF?",
+      "back": "O backbone OSPF ao qual as demais áreas se conectam no desenho multiárea."
+    },
+    {
+      "front": "Para que servem DR e BDR no OSPF?",
+      "back": "Reduzem adjacências e coordenam a troca de estado de enlace em redes multiacesso."
+    },
+    {
+      "front": "Qual protocolo IP o OSPFv2 usa?",
+      "back": "Protocolo IP número 89, sem TCP ou UDP."
+    },
+    {
+      "front": "Qual é a métrica do RIP?",
+      "back": "Contagem de saltos entre roteadores."
+    },
+    {
+      "front": "O que significa métrica 16 no RIP?",
+      "back": "Destino inalcançável; 15 é o máximo alcançável."
+    },
+    {
+      "front": "O que o RIP v2 acrescenta aos anúncios?",
+      "back": "Inclui máscara de sub-rede e próximo salto, permitindo roteamento classless e VLSM."
+    },
+    {
+      "front": "O que é split horizon?",
+      "back": "Regra que evita anunciar uma rota pela interface de onde foi aprendida."
+    },
+    {
+      "front": "Qual é o papel principal do BGP?",
+      "back": "Trocar informações de alcançabilidade de prefixos entre sistemas autônomos e aplicar políticas."
+    },
+    {
+      "front": "Qual transporte e porta o BGP usa?",
+      "back": "TCP, porta 179."
+    },
+    {
+      "front": "O que AS_PATH registra?",
+      "back": "A sequência de sistemas autônomos percorridos por um anúncio; também ajuda a detectar loops."
+    },
+    {
+      "front": "Para que serve LOCAL_PREF?",
+      "back": "Expressar preferência de rota dentro de um AS; valores maiores são normalmente preferidos."
+    },
+    {
+      "front": "O que uma mensagem BGP UPDATE pode fazer?",
+      "back": "Anunciar prefixos e atributos ou retirar rotas previamente anunciadas."
+    },
+    {
+      "front": "O que é um FHRP?",
+      "back": "Protocolo de redundância do primeiro salto que oferece um gateway virtual aos hosts."
+    },
+    {
+      "front": "Quem envia anúncios periódicos em VRRP?",
+      "back": "O roteador no estado Active; os backups monitoram seus anúncios."
+    },
+    {
+      "front": "O que significa prioridade VRRP 255?",
+      "back": "O roteador é proprietário do endereço IPvX associado ao roteador virtual."
+    },
+    {
+      "front": "O que significa prioridade VRRP zero?",
+      "back": "O ativo está deixando de participar, sinalizando que backups podem assumir mais rapidamente."
+    },
+    {
+      "front": "Que papéis principais o HSRP utiliza?",
+      "back": "Active encaminha tráfego pelo IP virtual e Standby monitora e pode assumir."
+    },
+    {
+      "front": "O que faz preempt no HSRP?",
+      "back": "Permite que roteador com maior prioridade tome o papel ativo quando elegível."
+    },
+    {
+      "front": "HSRP substitui OSPF ou BGP?",
+      "back": "Não. HSRP mantém o gateway virtual disponível; o roteador ativo ainda precisa de rotas."
+    },
+    {
+      "front": "VRRP é proprietário de um fabricante?",
+      "back": "Não. VRRP é especificado pelo IETF; HSRP é tecnologia Cisco."
+    },
+    {
+      "front": "Uma sessão BGP estabelecida garante que a rota será anunciada?",
+      "back": "Não. Políticas controlam aceitação, seleção, instalação e exportação."
+    },
+    {
+      "front": "Por que RIP pode preferir um caminho mais lento?",
+      "back": "Sua métrica considera saltos, não largura de banda nem atraso."
+    }
+  ],
+  "tips": [
+    "Associe três palavras: RIP = saltos; OSPF = estado de enlace/custo; BGP = AS e política.",
+    "Quando a pergunta falar em host usando um IP de gateway que sobrevive à falha do roteador, pense em VRRP/HSRP.",
+    "Em VRRP, separe prioridade do proprietário (255), backups (1 a 254) e saída voluntária (0).",
+    "Em HSRP, prioridade alta sem preempt não garante que o ativo atual será substituído.",
+    "Leia a camada do protocolo: OSPF usa IP 89; BGP usa TCP/179; a métrica RIP é contagem de saltos.",
+    "Diferencie eleição por segmento OSPF (DR/BDR) de eleição de gateway virtual (Active/Backup ou Active/Standby)."
+  ],
+  "traps": [
+    "Dizer que OSPF mede saltos: confunde sua métrica de custo com a métrica do RIP.",
+    "Afirmar que RIP aceita caminho de 16 saltos: 16 é infinito, e o limite alcançável é 15.",
+    "Tratar BGP como o protocolo que escolhe sempre o caminho físico mais curto: políticas e atributos influenciam a decisão.",
+    "Chamar DR/BDR de gateway padrão: esses papéis coordenam OSPF em rede multiacesso.",
+    "Afirmar que VRRP/HSRP descobrem todas as rotas: eles mantêm a disponibilidade do primeiro salto.",
+    "Supor que maior prioridade HSRP sempre causa tomada imediata: preempt e estado atual importam."
+  ],
+  "activeRecall": [
+    "Compare vetor de distância, estado de enlace e vetor de caminho com um protocolo de exemplo para cada um.",
+    "Explique por que o OSPF separa áreas e qual papel a área 0 exerce.",
+    "Descreva como DR e BDR reduzem a quantidade de relações OSPF numa LAN compartilhada.",
+    "Um caminho RIP tem 15 saltos e outro tem 2. Qual tende a ser preferido e o que o número 16 representa?",
+    "Liste as etapas conceituais entre um UPDATE BGP recebido e uma rota anunciada a outro peer.",
+    "Explique como AS_PATH ajuda a identificar um anúncio que poderia formar loop.",
+    "Descreva como VRRP e HSRP permitem que o host mantenha o mesmo gateway após a falha do roteador ativo.",
+    "Explique por que um FHRP não garante conectividade quando o roteador ativo perde sua rota de saída."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Troca entre métrica de custo e contagem de saltos",
+      "summary": "Atribuir ao OSPF a métrica do RIP ou imaginar que RIP compara largura de banda. OSPF soma custos de enlaces; RIP conta roteadores e trata 16 como infinito."
+    },
+    {
+      "key": "e2",
+      "title": "Confusão entre roteamento interno e interdomínio",
+      "summary": "Tratar OSPF/RIP e BGP como protocolos intercambiáveis. Os dois primeiros são IGPs; BGP troca alcançabilidade e políticas entre AS, embora possa também distribuir rotas internamente por iBGP."
+    },
+    {
+      "key": "e3",
+      "title": "Confusão entre sessão, rota selecionada e anúncio",
+      "summary": "Presumir que uma sessão BGP estabelecida instala e exporta todas as rotas. Políticas, atributos, resolução de next hop e seleção local são etapas distintas."
+    },
+    {
+      "key": "e4",
+      "title": "Confusão entre eleição OSPF e gateway redundante",
+      "summary": "DR/BDR administram a troca OSPF no segmento; VRRP/HSRP dão aos hosts um endereço de gateway virtual. Uma função não substitui a outra."
+    },
+    {
+      "key": "e5",
+      "title": "Suposição de que o FHRP garante conectividade total",
+      "summary": "VRRP/HSRP detectam estados e elegem roteador para o primeiro salto, mas não criam rota de saída nem monitoram automaticamente todo enlace além do gateway."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "O OSPF é um IGP de estado de enlace: os roteadores de uma área sincronizam informações topológicas e calculam caminhos por SPF.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O OSPF divulga estado dos enlaces, mantém uma LSDB por área e aplica o cálculo de caminho mais curto. Essa característica distingue o protocolo do RIP, que troca vetores de distância aos vizinhos e compara as rotas pela contagem de saltos.",
+      "section": "1. Roteamento dinâmico: OSPF, BGP e RIP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No OSPF, a métrica fundamental é a quantidade de roteadores atravessados, e o protocolo considera 16 como infinito.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Essa métrica e o limite 16 pertencem ao RIP. O OSPF calcula o custo de caminhos somando os custos dos enlaces da topologia conhecida.",
+      "section": "1. Roteamento dinâmico: OSPF, BGP e RIP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "BGP-4 troca informações de alcançabilidade entre sistemas autônomos e pode usar a sequência AS_PATH para ajudar a detectar loops.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O BGP é interdomínio e anuncia prefixos com atributos. Se o número do próprio AS aparece no AS_PATH recebido, o roteador pode identificar um caminho que retorna ao seu domínio.",
+      "section": "1. Roteamento dinâmico: OSPF, BGP e RIP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rota RIP com métrica 16 representa uma distância alcançável maior que uma rota de 15 saltos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. No RIP, 16 é o valor de infinito usado para representar destino inalcançável. A maior distância útil é 15 saltos.",
+      "section": "1. Roteamento dinâmico: OSPF, BGP e RIP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O protocolo OSPFv2 é transportado diretamente sobre IP e utiliza o número de protocolo 89, sem depender de uma conexão TCP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. OSPFv2 usa o protocolo IP 89 diretamente, sem cabeçalho TCP ou UDP. Isso contrasta com BGP, cuja sessão entre pares usa TCP na porta 179.",
+      "section": "1. Roteamento dinâmico: OSPF, BGP e RIP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "RIP compara caminhos pela largura de banda e pelo atraso, enquanto OSPF considera apenas o número de saltos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O RIP usa contagem de saltos. O OSPF soma custos de enlace, que podem refletir parâmetros como largura de banda conforme a configuração e implementação, não uma métrica fixa de atraso.",
+      "section": "1. Roteamento dinâmico: OSPF, BGP e RIP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O BGP usa TCP na porta 179 para formar a sessão entre pares e trocar mensagens de roteamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O BGP estabelece uma conexão TCP com o peer, usando a porta 179, e troca mensagens como OPEN, KEEPALIVE, UPDATE e NOTIFICATION.",
+      "section": "2. OSPF e BGP em operação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma sessão BGP está estabelecida, todos os prefixos recebidos são necessariamente instalados e anunciados a todos os demais peers.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Políticas podem filtrar anúncios, atributos influenciam a seleção, o next hop precisa ser resolvido e uma rota escolhida pode não ser exportada a certos vizinhos. Sessão e anúncio são etapas distintas.",
+      "section": "2. OSPF e BGP em operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma LAN multiacesso OSPF, DR e BDR ajudam a reduzir a quantidade de adjacências; eles não são o gateway virtual usado pelos hosts.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. DR e BDR coordenam a troca de informações OSPF no segmento. O gateway padrão dos hosts é uma função diferente, que pode ser fornecida por VRRP ou HSRP.",
+      "section": "2. OSPF e BGP em operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O atributo LOCAL_PREF é usado para expressar preferência de caminho dentro de um sistema autônomo, segundo a política local.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. LOCAL_PREF auxilia a escolher entre saídas dentro do AS. Em regra, valor maior representa maior preferência; não é uma medida de distância física entre redes.",
+      "section": "2. OSPF e BGP em operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O valor 15 é a métrica infinita do RIP, e o valor 16 corresponde à maior rota válida que o protocolo consegue alcançar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A relação está invertida: até 15 saltos é alcançável; métrica 16 significa infinito ou inalcançável. Por isso, um destino anunciado com 16 não pode ser tratado como uma rota válida apenas por estar uma unidade acima do limite.",
+      "section": "3. RIP v2 e leitura de métricas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A versão 2 do RIP carrega máscara de sub-rede em seus anúncios, permitindo representar prefixos classless e VLSM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O RIP v2 inclui o campo de máscara de sub-rede, o que permite anunciar prefixos com máscaras variáveis em vez de depender exclusivamente de redes classful.",
+      "section": "3. RIP v2 e leitura de métricas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Split horizon e poison reverse eliminam todo e qualquer loop de roteamento em redes RIP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. São mecanismos para reduzir certas formas de loop e contagem ao infinito. Não há garantia de que eliminem todos os loops em qualquer topologia ou falha.",
+      "section": "3. RIP v2 e leitura de métricas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em VRRPv3, o roteador proprietário do endereço IPvX associado ao roteador virtual usa prioridade 255.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A prioridade 255 é reservada ao proprietário do endereço protegido. Roteadores de backup usam prioridades de 1 a 254.",
+      "section": "4. VRRP e HSRP: redundância do primeiro salto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "VRRPv3 é um padrão proprietário Cisco que usa os papéis Active e Standby, enquanto HSRP é um padrão IETF aberto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. VRRP é especificado pelo IETF e usa Active/Backup. HSRP é protocolo Cisco e utiliza principalmente Active/Standby.",
+      "section": "4. VRRP e HSRP: redundância do primeiro salto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Com VRRP ou HSRP, o roteador que se torna ativo recebe automaticamente todas as rotas externas, mesmo que nenhum protocolo de roteamento esteja configurado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O FHRP escolhe quem atende o endereço virtual, mas não cria rotas para outros destinos. O roteador ativo precisa de rotas estáticas ou aprendidas separadamente.",
+      "section": "4. VRRP e HSRP: redundância do primeiro salto",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No HSRP, o comando de preempção permite que um roteador de maior prioridade assuma o papel ativo quando estiver elegível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Prioridade maior indica preferência, mas preempt é necessário para que um roteador que retorna com prioridade superior tome o papel de um ativo já eleito.",
+      "section": "4. VRRP e HSRP: redundância do primeiro salto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rede RIP, o caminho A tem 2 saltos por enlaces lentos e o caminho B tem 4 saltos por enlaces rápidos. Considerando apenas a métrica RIP, o caminho A tende a ser preferido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O RIP compara a contagem de saltos e não avalia a capacidade dos enlaces. Por sua métrica, dois saltos são melhores que quatro.",
+      "section": "3. RIP v2 e leitura de métricas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa quer anunciar prefixos a outros sistemas autônomos e controlar quais rotas divulga por política. Qual protocolo é mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RIP, pois sua métrica de saltos também controla anúncios e políticas entre sistemas autônomos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "OSPF, pois a área 0 é usada para formar peers externos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "BGP, que troca prefixos entre AS e permite políticas de anúncio.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "VRRP, que divulga rotas da empresa a provedores externos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "HSRP, que escolhe a rota interdomínio por menor custo.",
+          "correct": false
+        }
+      ],
+      "explanation": "BGP é o protocolo interdomínio voltado a trocar alcançabilidade entre AS e aplicar políticas. OSPF e RIP são IGPs, enquanto VRRP e HSRP mantêm um gateway local redundante.",
+      "section": "1. Roteamento dinâmico: OSPF, BGP e RIP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa calcular rotas internas com base no estado dos enlaces e dividir a topologia em áreas. Qual opção corresponde ao requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RIP, pois cada área mantém uma LSDB sincronizada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "OSPF, que mantém LSDBs por área e executa SPF.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "BGP, porque exige um DR por segmento Ethernet.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "HSRP, que calcula custo de enlaces por área.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "VRRP, que executa Dijkstra para preencher a tabela de rotas.",
+          "correct": false
+        }
+      ],
+      "explanation": "OSPF é o IGP de estado de enlace que organiza a topologia em áreas e calcula caminhos por SPF. RIP usa vetor de distância; BGP é orientado a política interdomínio; FHRPs não calculam rotas.",
+      "section": "1. Roteamento dinâmico: OSPF, BGP e RIP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rota RIP, o destino aparece com métrica 16. Qual interpretação deve ser feita?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É a rota mais distante ainda alcançável pelo RIP, acima dos caminhos de 15 saltos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A rota é inalcançável, pois 16 representa infinito no RIP.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O destino está a 16 áreas OSPF do roteador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A rota recebeu prioridade BGP 16 e deve ser exportada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O número identifica o grupo HSRP que atende o destino.",
+          "correct": false
+        }
+      ],
+      "explanation": "A métrica infinita do RIP é 16. O maior percurso útil é 15 saltos; o valor não identifica áreas, atributos BGP ou grupo de redundância.",
+      "section": "3. RIP v2 e leitura de métricas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao explicar a função do AS_PATH em BGP, qual afirmação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Lista os AS percorridos e ajuda o receptor a reconhecer certos loops.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conta interfaces locais e substitui o próximo salto IP para o encaminhamento de pacotes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mede somente a largura de banda entre dois roteadores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Identifica o roteador ativo de um grupo HSRP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazena o custo cumulativo da LSDB OSPF.",
+          "correct": false
+        }
+      ],
+      "explanation": "AS_PATH contém a sequência de sistemas autônomos que o anúncio atravessou, informação útil à política e à prevenção de loops. Não é uma métrica de banda nem um identificador de FHRP.",
+      "section": "2. OSPF e BGP em operação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma LAN Ethernet compartilhada com muitos roteadores OSPF, qual par de funções reduz adjacências e coordena a troca de estado de enlace?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O par Active e Standby eleito pelo grupo VRRP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O par eBGP e iBGP definido pelo endereço virtual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os papéis DR e BDR escolhidos no segmento OSPF.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Os papéis LOCAL_PREF e MED da política BGP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os valores 15 e 16 usados pelo RIP para evitar adjacências.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em redes multiacesso, OSPF elege DR e BDR para reduzir o número de adjacências plenas necessárias. Eles coordenam OSPF, não entregam por si mesmos um gateway padrão aos hosts.",
+      "section": "2. OSPF e BGP em operação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição distingue corretamente OSPF e BGP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "OSPF é interdomínio baseado em política; BGP é vetor de distância por saltos dentro de cada AS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "OSPF usa estado de enlace em um domínio; BGP troca prefixos com atributos entre AS.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "OSPF e BGP são protocolos de gateway virtual com as mesmas mensagens.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "OSPF opera sobre TCP/179 e BGP sobre o protocolo IP 89.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "OSPF conta AS_PATH e BGP elege DR e BDR em LANs.",
+          "correct": false
+        }
+      ],
+      "explanation": "OSPF é um IGP de estado de enlace e usa protocolo IP 89; BGP é interdomínio, transportado por TCP/179, e toma decisões orientadas por atributos e política.",
+      "section": "1. Roteamento dinâmico: OSPF, BGP e RIP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador encontra no campo LOCAL_PREF um valor alto e quer saber o que ele indica. Qual interpretação é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Maior preferência local por aquele caminho dentro do AS, conforme a política.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Maior distância em saltos no algoritmo RIP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Menor prioridade do roteador virtual VRRP no enlace.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Número de enlaces OSPF que compõem o caminho completo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Indicação obrigatória de que o prefixo será anunciado a todos os peers externos e internos.",
+          "correct": false
+        }
+      ],
+      "explanation": "LOCAL_PREF expressa preferência de saída dentro do sistema autônomo. Em geral, valor maior é preferido; ele não obriga a exportação da rota nem mede saltos ou custo OSPF.",
+      "section": "2. OSPF e BGP em operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede pequena pode usar RIP, mas há preocupação com tamanho de topologia. Qual limitação deve ser avaliada primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O protocolo aceita no máximo 15 rotas em toda a tabela.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O protocolo não transporta nenhum campo de máscara na versão 2.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O protocolo não permite mais que 15 roteadores em toda a organização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um caminho válido não pode exceder 15 saltos; 16 é inalcançável.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O protocolo exige uma área backbone e roteador ABR.",
+          "correct": false
+        }
+      ],
+      "explanation": "A métrica RIP limita cada caminho: 15 é o máximo alcançável e 16 significa infinito. Isso não limita a tabela a 15 rotas nem exige áreas OSPF.",
+      "section": "3. RIP v2 e leitura de métricas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o propósito principal do VRRP ou HSRP quando configurado junto aos hosts de uma LAN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar uma LSDB compartilhada para todos os roteadores OSPF.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Permitir que vários roteadores apresentem um gateway virtual redundante.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Anunciar prefixos de clientes a sistemas autônomos externos por política de borda.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escolher a rota RIP com menor contagem de saltos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir a tabela de encaminhamento do roteador ativo.",
+          "correct": false
+        }
+      ],
+      "explanation": "VRRP e HSRP são protocolos de redundância do primeiro salto. O host usa um endereço virtual como gateway e outro roteador pode assumir se o ativo falhar.",
+      "section": "4. VRRP e HSRP: redundância do primeiro salto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma questão descreve o proprietário do IP virtual protegido por VRRPv3. Que prioridade corresponde a essa condição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "0, que identifica permanentemente o dono do endereço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "1, que é reservada ao roteador proprietário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "100, que é obrigatória para qualquer roteador VRRP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "254, que identifica o proprietário IPv6 em todas as versões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "255, que é reservada ao roteador proprietário do endereço.",
+          "correct": true
+        }
+      ],
+      "explanation": "Na especificação VRRPv3, 255 é a prioridade do roteador proprietário do endereço associado ao roteador virtual. Backups usam valores de 1 a 254; zero tem significado de saída do ativo.",
+      "section": "4. VRRP e HSRP: redundância do primeiro salto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre HSRP é correta conforme a documentação Cisco consultada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A prioridade vai de 0 a 15 e o roteador ativo deve ser eleito por BGP em uma sessão externa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O protocolo usa TCP/179 e o estado Standby anuncia prefixos externos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O protocolo tem Active e Standby e usa endereço virtual compartilhado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O estado Active é um DR OSPF e não pode encaminhar pacotes de hosts.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O protocolo mede a distância pelo número de AS atravessados.",
+          "correct": false
+        }
+      ],
+      "explanation": "HSRP organiza os membros em grupo com um endereço IP virtual e elege Active e Standby. O Active encaminha tráfego destinado ao gateway virtual; os atributos de BGP e papéis OSPF não descrevem o HSRP.",
+      "section": "4. VRRP e HSRP: redundância do primeiro salto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois roteadores HSRP têm prioridades diferentes; o de maior prioridade reiniciou depois de uma falha, mas o outro já está Active. Qual configuração permite a retomada por prioridade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Habilitar preempt no roteador que deve reassumir o papel ativo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Habilitar AS_PATH para o grupo HSRP escolher a sessão TCP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Configurar área 0 no endereço MAC virtual compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar a métrica RIP até que o roteador standby desapareça.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar as mensagens Hello para forçar eleição pelo endereço IP.",
+          "correct": false
+        }
+      ],
+      "explanation": "A prioridade maior indica preferência, mas a tomada do papel de um Active já eleito depende da preempção habilitada. Sem ela, o roteador que retorna pode permanecer Standby apesar da prioridade superior.",
+      "section": "4. VRRP e HSRP: redundância do primeiro salto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao selecionar o protocolo de roteamento de uma rede interna com muitas sub-redes e necessidade de convergência e divisão em áreas, qual escolha se ajusta melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RIP v2, porque uma área reduz a LSDB e a métrica é custo acumulado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "BGP eBGP, pois cada sub-rede precisa de um AS diferente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "HSRP, que aprende todos os prefixos e executa SPF automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "OSPF, que mantém LSDB por área e calcula caminhos SPF.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "VRRP, que substitui o IGP com anúncios de prefixos de estado de enlace.",
+          "correct": false
+        }
+      ],
+      "explanation": "OSPF oferece estado de enlace e hierarquia de áreas para roteamento interno. RIP não possui áreas OSPF e conta saltos; BGP interliga AS, e VRRP/HSRP não calculam rotas de rede.",
+      "section": "1. Roteamento dinâmico: OSPF, BGP e RIP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um roteador OSPF participa de uma área ligada ao backbone por um roteador que conecta áreas. Qual é o papel desse equipamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Peer BGP, responsável por negociar a porta TCP 89.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ABR, que conecta áreas OSPF e pode anunciar rotas entre elas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Standby HSRP, que mantém a LSDB de todas as áreas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DR RIP, que reduz a métrica de 16 para 15.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Backup VRRP, que transporta as LSAs da área pela porta UDP 179 entre vizinhos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um ABR (area border router) participa de mais de uma área e conecta suas informações, incluindo o backbone OSPF. Os demais nomes e transportes misturam funções de protocolos diferentes.",
+      "section": "1. Roteamento dinâmico: OSPF, BGP e RIP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência associa corretamente mensagens BGP a seus propósitos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "OPEN inicia parâmetros; KEEPALIVE mantém a sessão; UPDATE anuncia/retira rotas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "OPEN retira prefixos; KEEPALIVE calcula SPF; UPDATE elege o DR.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "UPDATE forma conexão TCP; NOTIFICATION escolhe o AS_PATH mais curto para a tabela local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "KEEPALIVE transporta LSAs; OPEN define a prioridade do gateway virtual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "NOTIFICATION anuncia sempre uma rota válida e mantém a sessão ativa.",
+          "correct": false
+        }
+      ],
+      "explanation": "OPEN é trocada para iniciar e negociar a relação BGP, KEEPALIVE mantém a sessão e UPDATE carrega anúncios ou retiradas. NOTIFICATION comunica erros e pode encerrar a conexão.",
+      "section": "2. OSPF e BGP em operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política BGP recebe duas rotas para o mesmo prefixo e atribui LOCAL_PREF maior a uma delas. O efeito pretendido é qual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fazer o roteador preferir localmente esse caminho dentro do AS.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Forçar todos os AS da Internet a preferirem essa rota.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter o caminho BGP em métrica de saltos RIP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformar o peer em DR da rede OSPF.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Impedir a necessidade de resolver o atributo NEXT_HOP antes da instalação na tabela local.",
+          "correct": false
+        }
+      ],
+      "explanation": "LOCAL_PREF orienta a preferência interna do AS; não impõe a decisão a sistemas autônomos externos e não substitui a resolução de next hop nem converte o atributo em métrica RIP.",
+      "section": "2. OSPF e BGP em operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer um protocolo simples para rede pequena, sabendo que caminhos acima de 15 saltos serão considerados inalcançáveis. Qual protocolo corresponde a essa descrição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "OSPF, com custo infinito fixo igual a 16 saltos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "BGP, limitado por uma sequência de 15 áreas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RIP, cuja métrica de 16 representa infinito.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "VRRP, cujo VRID limita a distância a 15 roteadores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "HSRP, cuja prioridade 16 significa destino indisponível.",
+          "correct": false
+        }
+      ],
+      "explanation": "RIP usa a contagem de saltos, sendo 16 a métrica de infinito. O limite não deve ser confundido com prioridade HSRP, VRID ou áreas OSPF.",
+      "section": "3. RIP v2 e leitura de métricas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual campo do RIP v2 permite que o anúncio indique o prefixo com sua máscara e suporte VLSM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O campo de máscara de sub-rede incluído na entrada de rota.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O AS_PATH, obrigatório para qualquer prefixo RIP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O VRID de 8 bits, que também representa o comprimento do prefixo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O campo LOCAL_PREF, que armazena a máscara em bits.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O estado DR, que codifica sub-redes de comprimento variável.",
+          "correct": false
+        }
+      ],
+      "explanation": "RIP v2 inclui a máscara de sub-rede na informação da rota, permitindo anunciar prefixos classless e VLSM. Os outros campos pertencem a BGP, VRRP ou OSPF.",
+      "section": "3. RIP v2 e leitura de métricas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário ilustra um limite da métrica RIP, mesmo que o caminho escolhido possa ter enlaces de alta capacidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O RIP prefere necessariamente o caminho com menor atraso medido em milissegundos, ainda que tenha mais saltos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma rota de 16 saltos permanece preferível se todos os enlaces forem rápidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um caminho com menos saltos pode ser escolhido sem considerar a banda ou o atraso.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "RIP calcula a árvore de estado de enlace e escolhe o menor custo acumulado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A velocidade dos enlaces elimina o limite máximo de distância do protocolo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A contagem de saltos ignora a capacidade e o atraso dos enlaces. Por isso, um caminho com menos saltos pode ser preferido apesar de ser mais lento, e a métrica 16 continua inalcançável.",
+      "section": "3. RIP v2 e leitura de métricas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um host deve continuar usando o mesmo gateway padrão quando um dos dois roteadores da LAN falhar. Qual configuração atende diretamente esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar uma sessão eBGP entre o host e cada servidor externo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Eleger DR e BDR, usando o endereço do DR como IP virtual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar a métrica RIP do roteador que permanecer ligado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar VRRP ou HSRP para oferecer um endereço de gateway virtual.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Configurar uma LSDB no sistema operacional do host.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um FHRP mantém um endereço virtual como gateway. O outro roteador pode assumir a função ativa sem exigir que o host altere seu gateway padrão.",
+      "section": "4. VRRP e HSRP: redundância do primeiro salto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma implantação HSRP, qual equipamento encaminha normalmente os pacotes dos hosts destinados ao IP virtual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É o roteador que está no estado Active do grupo HSRP.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todo membro do grupo, em divisão de pacotes obrigatória.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente o roteador em Standby, enquanto o Active fica passivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O ABR da área 0, mesmo se não integrar o grupo HSRP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O peer BGP com o menor AS_PATH, independentemente do grupo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Active encaminha tráfego para o gateway virtual; o Standby monitora e pode assumir se o Active ficar indisponível. HSRP não é balanceamento obrigatório entre todos os membros.",
+      "section": "4. VRRP e HSRP: redundância do primeiro salto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na RFC atual do VRRPv3, qual afirmação sobre valores de prioridade está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O valor zero é a prioridade de backup padrão, e 255 significa saída.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Backups usam 1 a 254, o padrão é 100 e zero sinaliza que o ativo deixa o serviço.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Todos os roteadores usam prioridade 255 por padrão para evitar eleições.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O intervalo vai de 1 a 15, pois VRRP usa a métrica RIP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Prioridades são nomes textuais sem efeito na escolha do Active nem na transição dos Backups.",
+          "correct": false
+        }
+      ],
+      "explanation": "A RFC 9568 reserva 255 ao proprietário do endereço, permite 1 a 254 para backups e define 100 como padrão de backup. Prioridade zero sinaliza que o ativo parou de participar.",
+      "section": "4. VRRP e HSRP: redundância do primeiro salto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na documentação Cisco consultada, para que servem os Hellos HSRP enviados ao grupo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Anunciar todos os prefixos BGP disponíveis aos roteadores vizinhos pela sessão de controle local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Carregar a LSDB OSPF completa pela porta TCP 179.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permitir que membros acompanhem estado, prioridade e atividade do grupo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Medir o número de saltos até o gateway e definir a rota RIP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir a configuração do IP virtual nos hosts a cada pacote.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os membros HSRP trocam Hellos para acompanhar os estados e manter a eleição do grupo. Na documentação Cisco tradicional, os Hellos usam UDP/1985 e multicast 224.0.0.2; não transportam LSDB nem tabelas BGP.",
+      "section": "4. VRRP e HSRP: redundância do primeiro salto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois que o roteador HSRP ativo perdeu seu uplink, mas ainda responde na LAN, que mecanismo pode vincular a condição do uplink à eleição do gateway?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Rastreamento de interface ou objeto que reduza a prioridade ou altere o estado do grupo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar a métrica infinita RIP para que o host altere seu IP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Configurar DR no uplink para que todos os hosts detectem a falha.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Anunciar o endereço virtual no AS_PATH de todos os peers BGP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar qualquer monitoramento, pois HSRP detecta todas as falhas externas automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Rastreamento permite associar uma falha de interface/objeto a decremento de prioridade ou ação de estado. HSRP não deduz sozinho toda perda de conectividade além da LAN; o resultado também depende da prioridade, preempção e estado dos demais membros.",
+      "section": "4. VRRP e HSRP: redundância do primeiro salto",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente o alcance funcional de um protocolo FHRP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele garante uma rota válida até qualquer destino externo sem protocolo adicional ou configuração estática.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele fornece um primeiro salto virtual redundante; rotas continuam sendo responsabilidade separada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ele substitui a tabela de encaminhamento de todos os roteadores da LAN.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele escolhe a política BGP de todos os sistemas autônomos conectados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele calcula custos OSPF e os grava na configuração de cada host.",
+          "correct": false
+        }
+      ],
+      "explanation": "A função do FHRP é preservar um gateway lógico diante de falha do roteador que estava ativo. O roteador que assumir ainda precisa de conectividade e rotas para alcançar o destino solicitado.",
+      "section": "4. VRRP e HSRP: redundância do primeiro salto",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um desenho com HSRP no gateway da LAN e OSPF na rede interna, qual divisão de funções é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "HSRP escolhe rotas OSPF; OSPF elege o MAC virtual do host.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "HSRP mantém o primeiro salto virtual; OSPF aprende e calcula rotas internas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ambos fazem a mesma eleição e não podem coexistir na LAN.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "OSPF fornece somente redundância de gateway; HSRP calcula LSAs de estado de enlace para os vizinhos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "HSRP anuncia áreas; OSPF anuncia AS_PATH a provedores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os protocolos podem coexistir porque resolvem problemas diferentes. HSRP oferece IP virtual de gateway e eleição Active/Standby; OSPF calcula rotas internas com base em estado de enlace.",
+      "section": "4. VRRP e HSRP: redundância do primeiro salto",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma questão compara BGP e RIP e afirma que ambos escolhem sempre a rota com menor distância física, pois ambos usam a mesma métrica. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Correta: ambos contam saltos físicos e ignoram políticas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Correta: AS_PATH e métrica RIP são a mesma grandeza em quilômetros e medem distância física.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Incorreta: RIP conta saltos, enquanto BGP usa atributos e políticas interdomínio.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Incorreta: BGP só conta saltos, mas RIP seleciona por LOCAL_PREF.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Correta: ambos executam Dijkstra sobre uma LSDB comum.",
+          "correct": false
+        }
+      ],
+      "explanation": "RIP compara contagem de saltos até o limite 15; BGP é vetor de caminho e aplica atributos e políticas. AS_PATH registra AS atravessados, mas não representa distância física em quilômetros.",
+      "section": "1. Roteamento dinâmico: OSPF, BGP e RIP",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador precisa determinar se um pacote OSPF pode ser filtrado por uma regra que libera TCP/179, mas bloqueia os demais protocolos IP. Qual conclusão é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A regra permite OSPF, pois o número de protocolo IP do OSPF é 179.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A regra não basta para liberar OSPF, que usa protocolo IP 89; TCP/179 é BGP.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A regra permite apenas RIP v2, que também usa TCP/179.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A regra permite HSRP, porque HSRP encapsula todos os pacotes em TCP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "OSPF e BGP usam UDP/89, portanto a regra bloqueia ambos igualmente na filtragem por transporte.",
+          "correct": false
+        }
+      ],
+      "explanation": "OSPFv2 é diretamente encapsulado em IP com número de protocolo 89. TCP/179 é usado por BGP. Uma regra de TCP/179 não libera o tráfego de protocolo IP 89.",
+      "section": "2. OSPF e BGP em operação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um operador interpreta o intervalo padrão de anúncio VRRPv3 como um segundo e pretende reduzi-lo drasticamente sem avaliar o enlace. Qual aspecto técnico deve considerar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Intervalo curto agiliza a detecção, mas filas e atraso podem causar troca falsa e instabilidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "VRRP não usa anúncios; a eleição depende apenas de consultas DNS dos hosts.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O intervalo não pode ser configurado em VRRPv3 para IPv4 ou IPv6, pois a RFC fixa um segundo em todos os casos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O intervalo determina a métrica de 16 saltos e não afeta a detecção de falha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reduzir o intervalo desativa automaticamente o roteador de maior prioridade.",
+          "correct": false
+        }
+      ],
+      "explanation": "VRRP usa anúncios periódicos do Active e o Backup declara falha após não recebê-los pelo intervalo calculado. Intervalos muito curtos podem ser afetados por filas/atrasos e gerar promoções indevidas e instabilidade.",
+      "section": "4. VRRP e HSRP: redundância do primeiro salto",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede exige redundância de gateway em equipamentos de fabricantes diferentes e deseja uma especificação aberta com suporte IPv4 e IPv6. Qual escolha se adequa ao requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RIP v2, que define os estados Active e Backup para gateway virtual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "HSRP, que é o protocolo aberto IETF para qualquer fabricante e oferece roteadores virtuais IPv4 e IPv6.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "BGP-4, que oferece VRID e MAC virtual na LAN.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "VRRPv3, especificado pelo IETF para roteadores virtuais IPv4 e IPv6.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "OSPFv2, que substitui protocolo de redundância ao eleger DR e BDR.",
+          "correct": false
+        }
+      ],
+      "explanation": "VRRP é uma especificação aberta do IETF e sua versão 3 cobre IPv4 e IPv6. HSRP é tecnologia Cisco; RIP, BGP e OSPF são protocolos de roteamento, não FHRPs.",
+      "section": "4. VRRP e HSRP: redundância do primeiro salto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador observa anúncios periódicos do Active Router em VRRP e deseja identificar o valor que informa que ele está relinquindo a função. Qual valor é esse?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Prioridade 0, que sinaliza que o ativo deixou de participar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Prioridade 15, que significa máximo alcance de rota.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Prioridade 89, que indica protocolo OSPF no enlace.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Prioridade 179, correspondente à porta TCP BGP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Prioridade 255, que representa saída voluntária em todas as versões e libera o endereço virtual.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na RFC 9568, prioridade zero informa que o roteador Active está deixando de participar e permite transição mais rápida dos Backups. 255 identifica o proprietário do endereço protegido.",
+      "section": "4. VRRP e HSRP: redundância do primeiro salto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre preempção em VRRPv3 corresponde à especificação atual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Backup de maior prioridade nunca pode tornar-se ativo enquanto outro ativo existir, mesmo que a preempção esteja habilitada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O padrão permite preempção, embora ela possa ser desabilitada; o proprietário do endereço sempre assume para si.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A preempção é habilitada apenas por uma sessão TCP entre o proprietário e o backup.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Preempção significa que todos os Backups enviam anúncios simultaneamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A RFC proíbe prioridade e escolhe o Active pelo menor AS_PATH.",
+          "correct": false
+        }
+      ],
+      "explanation": "A RFC 9568 define preempt como habilitado por padrão, permitindo que Backup de maior prioridade tome o lugar do Active; a configuração pode desabilitar essa tentativa. O proprietário do endereço é a exceção e sempre se torna Active para ele.",
+      "section": "4. VRRP e HSRP: redundância do primeiro salto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma LAN, a configuração HSRP tradicional da Cisco usa Hellos a cada 3 segundos e hold time de 10 segundos. Qual interpretação desses temporizadores é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O Active envia updates BGP a cada 3 segundos e encerra TCP após 10.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O grupo espera o prazo hold sem Hello antes de considerar o Active indisponível.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O Standby assume após exatamente 3 segundos, independentemente de configuração e do estado do Active.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O valor 10 é a prioridade HSRP padrão e 3 é o número do grupo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os números representam a métrica RIP, na qual 10 saltos significam falha.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na configuração tradicional documentada, Hellos são enviados a cada 3 segundos e a ausência de mensagem pelo hold time de 10 segundos permite declarar falha do Active. Plataformas e configurações podem ajustar os temporizadores.",
+      "section": "4. VRRP e HSRP: redundância do primeiro salto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário diferencia corretamente um problema de gateway redundante de um problema de roteamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se VRRP elege um Active, a existência de rota de saída fica garantida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Se HSRP funciona, nenhum IGP ou rota estática é necessário nos roteadores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A eleição mantém o primeiro salto, mas a falta de rota no Active ainda pode impedir o destino.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A falta de rota externa sempre é detectada pelo host e corrigida por DR/BDR.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "OSPF e BGP apenas alteram o endereço virtual, sem preencher tabelas de rotas ou divulgar prefixos.",
+          "correct": false
+        }
+      ],
+      "explanation": "FHRPs mantêm disponível um gateway virtual. O roteador ativo ainda precisa conhecer um caminho válido ao destino; protocolos de roteamento ou configuração estática tratam desse aspecto separado.",
+      "section": "4. VRRP e HSRP: redundância do primeiro salto",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 2328 — OSPF Version 2",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Especificação de OSPFv2: áreas, LSDB, SPF, DR/BDR e protocolo IP 89",
+      "url": "https://www.rfc-editor.org/rfc/rfc2328.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 4271 — A Border Gateway Protocol 4 (BGP-4)",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Troca inter-AS de prefixos, atributos, AS_PATH, mensagens e sessão TCP/179",
+      "url": "https://www.rfc-editor.org/rfc/rfc4271.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 2453 — RIP Version 2",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Vetor de distância, métrica, limite de 15 saltos, máscara, próximo salto e autenticação",
+      "url": "https://www.rfc-editor.org/rfc/rfc2453.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 9568 — Virtual Router Redundancy Protocol (VRRP) Version 3 for IPv4 and IPv6",
+      "publisher": "IETF / RFC Editor",
+      "reference": "VRID, prioridade, anúncios, estados Active/Backup, preempção e temporizadores",
+      "url": "https://www.rfc-editor.org/rfc/rfc9568.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "FHRP Configuration Guide — HSRP",
+      "publisher": "Cisco",
+      "reference": "Papéis Active/Standby, endereço virtual, prioridade e configuração HSRP",
+      "url": "https://www.cisco.com/c/en/us/td/docs/switches/lan/c9000/lyr3-fwd/fhrp/fhrp-configuration-guide/hsrp.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Review Hot Standby Router Protocol (HSRP) FAQ",
+      "publisher": "Cisco",
+      "reference": "Mensagens HSRP, multicast IPv4 224.0.0.2 e porta UDP 1985",
+      "url": "https://www.cisco.com/c/en/us/support/docs/ip/hot-standby-router-protocol-hsrp/9281-3.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Troubleshoot HSRP Common Issues",
+      "publisher": "Cisco",
+      "reference": "Temporizadores Hello/hold e monitoramento de interface/objeto",
+      "url": "https://www.cisco.com/c/en/us/support/docs/ip/hot-standby-router-protocol-hsrp/10583-62.html",
+      "accessedAt": "2026-10-31"
+    }
+  ]
+}

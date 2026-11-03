@@ -1,0 +1,2314 @@
+{
+  "id": "informatica.redes-seguranca-nuvem-vpns-conectividade",
+  "subject": "Informática",
+  "title": "Redes e segurança em nuvem: VPNs, Direct Connect e ExpressRoute",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Redes e segurança em nuvem: VPNs site-to-site, Direct Connect, ExpressRoute",
+    "Conectividade híbrida com VPN site-to-site",
+    "VPN IPsec entre rede local e nuvem",
+    "VPN site-to-site na Amazon Web Services",
+    "VPN site-to-site no Microsoft Azure",
+    "AWS Site-to-Site VPN e túneis IPsec",
+    "AWS Direct Connect e conexão dedicada",
+    "Microsoft Azure ExpressRoute e conexão privada",
+    "Conectividade privada entre datacenter e nuvem",
+    "Redes híbridas e gateways de nuvem",
+    "Direct Connect com VPN de backup",
+    "ExpressRoute com VPN site-to-site de contingência"
+  ],
+  "scope": {
+    "covers": "Conectividade híbrida e segurança de redes em nuvem: VPN site-to-site, túneis IPsec/IKE, gateway e dispositivo de borda, roteamento estático e BGP, redundância e failover; AWS Site-to-Site VPN, AWS Direct Connect e combinação entre eles; Azure VPN Gateway, ExpressRoute e coexistência com VPN; diferenças entre transporte privado dedicado e túnel criptografado, peering, anúncio de rotas, sobreposição de prefixos, seleção de caminhos e cenários de uso.",
+    "excludes": "Configuração detalhada de fabricante específico, valores de desempenho e preços sujeitos a região ou SKU, comandos completos de roteadores, VPN de acesso remoto ponto a site, desenho completo de redes corporativas e outros serviços de nuvem não necessários para comparar essas opções."
+  },
+  "theoryTitle": "Ligações seguras entre redes locais e nuvens públicas",
+  "chapters": [
+    {
+      "title": "1. Conectividade híbrida e VPN site-to-site",
+      "markdown": "### O problema que este assunto resolve\n\nUma organização pode manter servidores em um datacenter próprio e, ao mesmo tempo, usar redes virtuais na AWS ou no Azure. Para que os sistemas dos dois lados troquem tráfego, é preciso ligar as redes, definir quais endereços são alcançáveis e proteger o caminho. Essa arquitetura é chamada **híbrida** porque combina infraestrutura local e recursos de nuvem.\n\n> **Siglas e termos deste capítulo**\n> - **VPC**: rede virtual privada da AWS.\n> - **VNet**: rede virtual do Azure.\n> - **VPN**: rede privada virtual, que cria um túnel lógico sobre uma rede de transporte.\n> - **IPsec**: conjunto de protocolos que protege tráfego IP com autenticação e criptografia.\n> - **IKE**: protocolo usado para negociar parâmetros e chaves de uma associação IPsec.\n> - **CPE**: equipamento ou software de borda do cliente que termina a VPN.\n> - **Prefixo**: bloco de endereços IP anunciado no roteamento, como uma rede corporativa.\n\n### Como funciona uma VPN site-to-site\n\nNa VPN **site-to-site**, um gateway da nuvem forma um ou mais túneis com um equipamento VPN da rede local. O túnel atravessa uma rede de transporte, normalmente a internet pública, mas o tráfego dentro dele é protegido por IPsec. O dispositivo local precisa estar acessível por um endereço IP público e ser configurado com parâmetros compatíveis, como autenticação, algoritmos e chaves. As chaves e os parâmetros devem coincidir nos dois lados; divergência impede a negociação do túnel.\n\nA VPN liga redes, não apenas um computador individual. Em Azure, a conexão site-to-site é um túnel IPsec/IKE entre o VPN Gateway e o dispositivo local. Na AWS, uma conexão Site-to-Site VPN associa a rede remota a um gateway virtual privado ou a um transit gateway, conforme a arquitetura. Não confunda site-to-site com **point-to-site**, que conecta um usuário ou dispositivo remoto à rede virtual.\n\n### Túnel estabelecido não basta\n\nMesmo com IPsec ativo, o tráfego depende de rotas corretas. O gateway precisa conhecer os prefixos locais e a rede local precisa conhecer os prefixos da VPC ou VNet. O roteamento pode ser estático, com prefixos configurados manualmente, ou dinâmico por BGP, que permite anunciar e aprender rotas entre os pares. Os intervalos de endereços dos ambientes conectados não devem se sobrepor: se dois lados usam o mesmo prefixo, o roteador não consegue distinguir com segurança o destino pretendido.\n\n| Elemento | Função | Falha típica quando configurado errado |\n| --- | --- | --- |\n| Gateway de nuvem | Termina a conexão no lado da VPC/VNet | Gateway incompatível ou rota ausente |\n| Dispositivo VPN local | Termina o túnel na borda corporativa | IP público, chaves ou parâmetros incompatíveis |\n| IPsec/IKE | Negocia e protege o tráfego do túnel | Fase de negociação não conclui ou cifra não coincide |\n| Rotas e prefixos | Indicam por onde encaminhar pacotes | Túnel sobe, mas redes não se alcançam |\n| BGP, se usado | Troca rotas dinamicamente | ASN, vizinhança ou anúncios incorretos |\n\n### Redundância e operação\n\nServiços de VPN gerenciada podem disponibilizar túneis redundantes. Isso não elimina a necessidade de planejar os equipamentos, caminhos e rotas dos dois lados: redundância só ajuda se os caminhos alternativos funcionarem e se a política de roteamento permitir o desvio. BGP pode acelerar a troca de rotas quando um caminho cai; com rotas estáticas, a equipe precisa prever como a rota alternativa será instalada ou priorizada.\n\n### Como cai na prova\n\n- VPN site-to-site protege o tráfego por um túnel IPsec/IKE e conecta redes; não é sinônimo de circuito privado dedicado.\n- Um túnel ativo sem rotas para os prefixos necessários não garante conectividade entre hosts.\n- Prefixos sobrepostos causam ambiguidade de roteamento.\n- BGP é protocolo de roteamento; IPsec é mecanismo de proteção do tráfego. São funções diferentes."
+    },
+    {
+      "title": "2. AWS Site-to-Site VPN e Direct Connect",
+      "markdown": "### Dois serviços com papéis diferentes\n\nA AWS oferece **Site-to-Site VPN** para formar túneis IPsec entre uma rede remota e a AWS. O **Direct Connect** estabelece uma ligação de rede dedicada entre o ambiente do cliente e um ponto de presença da AWS, por meio de um parceiro ou de conexão dedicada. Direct Connect não é, por si só, um túnel VPN criptografado. A ligação privada reduz a dependência do caminho pela internet, mas privacidade do transporte não deve ser confundida com criptografia ponta a ponta.\n\n> **Siglas e termos deste capítulo**\n> - **VGW (Virtual Private Gateway)**: gateway virtual que pode conectar uma VPC à rede local.\n> - **Transit Gateway**: hub para conectar VPCs e redes remotas em uma topologia central.\n> - **DX**: abreviação comum de AWS Direct Connect.\n> - **VIF (Virtual Interface)**: interface virtual configurada sobre Direct Connect para acessar os serviços ou redes compatíveis.\n> - **BGP**: protocolo usado para trocar informações de roteamento entre domínios.\n> - **ASN**: número de sistema autônomo usado na configuração de BGP.\n\n### O caminho do Direct Connect\n\nO cliente estabelece uma conexão física no ponto de presença e configura a interface virtual adequada ao destino pretendido. A **private virtual interface** é usada para alcançar recursos por conectividade privada, por exemplo uma VPC por meio do gateway apropriado. A **public virtual interface** dá acesso a serviços públicos da AWS por esse caminho. Para alcançar múltiplas VPCs ou redes em escala, a arquitetura pode usar transit gateway e os recursos de associação correspondentes. A interface e o gateway escolhidos determinam quais rotas podem ser trocadas; simplesmente contratar o circuito não cria conectividade automática com qualquer VPC.\n\nDirect Connect costuma ser escolhido quando se quer um caminho de rede dedicado e previsível, integração de grande volume ou uma ligação híbrida com tráfego consistente. A conexão é provisionada e roteada; a criptografia precisa ser avaliada separadamente conforme o requisito. Pode-se usar uma VPN sobre Direct Connect em arquiteturas suportadas para adicionar criptografia IPsec ao tráfego que atravessa o circuito.\n\n### VPN como caminho alternativo ou camada de proteção\n\nUma VPN Site-to-Site pode coexistir com Direct Connect. Um desenho comum usa Direct Connect como caminho principal e VPN como contingência. Quando ambos anunciam rotas equivalentes, atributos e políticas de roteamento determinam o caminho escolhido. O failover não é automático só porque há dois serviços provisionados: é necessário que as rotas de ambos os lados sejam anunciadas e que a preferência mude quando o caminho primário falhar.\n\nOutra opção suportada é VPN de IP privado sobre Direct Connect, que permite proteger com IPsec o tráfego entre a rede local e a AWS sem usar endereços IP públicos para o túnel. A escolha entre VPN pela internet, circuito dedicado e VPN sobre circuito depende de requisitos de disponibilidade, criptografia, capacidade, arquitetura e custo — não de uma regra universal de que uma opção substitui todas as outras.\n\n| Opção | Transporte e proteção | Uso característico |\n| --- | --- | --- |\n| Site-to-Site VPN | Túnel IPsec sobre caminho de transporte; frequentemente internet | Implantação rápida, tráfego criptografado e contingência |\n| Direct Connect | Ligação dedicada até a AWS; não implica IPsec por padrão | Conectividade privada e tráfego híbrido consistente |\n| Direct Connect + VPN | Circuito dedicado com túnel criptografado em desenho compatível | Combinar caminho dedicado com proteção IPsec |\n\n### Como cai na prova\n\n- Direct Connect oferece conexão dedicada, mas não se deve presumir que todo tráfego esteja criptografado por IPsec.\n- Site-to-Site VPN usa túneis IPsec e pode ser alternativa de contingência ao Direct Connect.\n- BGP troca rotas; a preferência entre caminho principal e contingência depende de anúncios e políticas.\n- VIF, gateway e tipo de associação precisam corresponder ao destino. Um circuito sem configuração de roteamento não basta."
+    },
+    {
+      "title": "3. Azure VPN Gateway e ExpressRoute",
+      "markdown": "### VPN Gateway: túnel entre o local e uma VNet\n\nO **Azure VPN Gateway** estabelece conexões criptografadas entre uma VNet e uma rede local, ou entre redes virtuais. Na modalidade site-to-site, um túnel IPsec/IKE liga o gateway à appliance VPN na borda local. Um objeto **Local Network Gateway** representa o local remoto e guarda o endereço público do dispositivo e os prefixos da rede local. Para estabelecer a conexão, a chave compartilhada e os parâmetros de IPsec/IKE precisam corresponder nos dois lados.\n\n> **Siglas e termos deste capítulo**\n> - **VNet**: rede virtual do Azure.\n> - **VPN Gateway**: gateway de rede virtual que termina conexões VPN.\n> - **Local Network Gateway**: representação, no Azure, do equipamento e dos prefixos do local remoto.\n> - **ExpressRoute circuit**: circuito provisionado por um provedor de conectividade para ligar o cliente à Microsoft.\n> - **Peering**: configuração de roteamento no circuito, separando categorias de conectividade.\n> - **MSEE**: roteadores de borda da Microsoft usados na conexão ExpressRoute.\n\nO site-to-site requer um equipamento VPN compatível e endereço público externo no dispositivo local. O gateway pode usar roteamento baseado em política ou em rotas, conforme o tipo e os recursos escolhidos; configurações modernas e cenários de coexistência com ExpressRoute requerem gateway baseado em rotas. Prefixos locais não podem se sobrepor aos das redes conectadas. BGP é opcional em alguns túneis, mas útil para troca dinâmica de rotas e determinadas arquiteturas.\n\n### ExpressRoute: conectividade privada ao ambiente Microsoft\n\n**ExpressRoute** conecta a rede local aos serviços Microsoft por meio de um circuito fornecido por um parceiro de conectividade ou por uma opção de colocation. O circuito se associa a um peering configurado para os serviços que se pretende alcançar. O **private peering** atende conectividade privada com redes virtuais do Azure; o **Microsoft peering** atende serviços Microsoft compatíveis por seus endereços públicos. ExpressRoute não é uma VPN pela internet e o circuito, isoladamente, não equivale a criptografia IPsec.\n\nA troca de rotas normalmente usa BGP. A equipe precisa coordenar anúncios de prefixos, ASN e políticas de roteamento entre a borda local e o provedor/Microsoft. O circuito e o peering precisam estar provisionados e associados aos recursos corretos. Como em qualquer rede, prefixos anunciados e rotas efetivas determinam o caminho dos pacotes.\n\n### Coexistência e tráfego criptografado\n\nÉ possível manter ExpressRoute e VPN Gateway na mesma arquitetura. Um cenário usa ExpressRoute como caminho primário e VPN site-to-site como rota de contingência para redes virtuais conectadas ao private peering. Outro cenário leva túneis IPsec sobre ExpressRoute private peering, permitindo criptografia IPsec sobre a conectividade privada. Essas são configurações diferentes: ter ExpressRoute e VPN lado a lado não significa automaticamente que o tráfego ExpressRoute está dentro do túnel.\n\nNa coexistência, a seleção de rotas importa. Se prefixos iguais forem anunciados pelas rotas ExpressRoute e VPN, o caminho preferido pode ser o circuito ExpressRoute, que não carrega IPsec. Se a política exige criptografia IPsec, deve-se desenhar os anúncios e a preferência de rota para que o tráfego da rede protegida siga pelo túnel. Anúncios mais específicos pela VPN ou prefixos separados podem orientar a seleção, desde que consistentes nos dois sentidos.\n\n| Serviço/caminho | O que oferece | O que não se deve presumir |\n| --- | --- | --- |\n| VPN Gateway site-to-site | Túnel IPsec/IKE entre VNet e local | Que o circuito dedicado seja necessário |\n| ExpressRoute | Conectividade privada por circuito e peering | Criptografia IPsec automática |\n| ExpressRoute + VPN | Redundância ou VPN sobre peering, conforme o desenho | Que coexistência force o tráfego pelo túnel |\n\n### Como cai na prova\n\n- ExpressRoute é uma conexão privada, não uma VPN pelo acesso público à internet.\n- A VPN site-to-site do Azure usa IPsec/IKE e exige configuração compatível no dispositivo local.\n- Coexistência pode fornecer failover, mas a preferência depende do roteamento.\n- Quando criptografia IPsec é requisito, confirme que as rotas realmente passam pelo túnel; o nome “privado” do circuito não garante isso."
+    },
+    {
+      "title": "4. Escolha da arquitetura, segurança e diagnóstico",
+      "markdown": "### Escolher pelo requisito de tráfego\n\nA escolha não é apenas entre três nomes comerciais. Primeiro identifique se o requisito é criptografar tráfego, obter um caminho dedicado, conectar várias redes, ter contingência ou atender a uma combinação desses objetivos. Uma VPN costuma oferecer implantação rápida e proteção IPsec sobre o transporte disponível. Direct Connect e ExpressRoute fornecem conectividade privada dedicada por seus respectivos modelos de circuito e peering. Em qualquer opção, endereçamento, rotas, capacidade, redundância e operação precisam ser planejados.\n\n> **Siglas e termos deste capítulo**\n> - **Failover**: mudança para um caminho alternativo após falha do principal.\n> - **Assimetria de rota**: ida e volta de um fluxo usam caminhos diferentes, potencialmente quebrando estado de firewall ou túnel.\n> - **MTU**: tamanho máximo de pacote que um enlace transporta sem fragmentação.\n> - **Criptografia em trânsito**: proteção dos dados enquanto trafegam entre redes.\n> - **Prefixo mais específico**: rota que abrange um bloco menor e pode prevalecer na seleção de rotas.\n\n### Roteamento nos dois sentidos\n\nConectividade exige rota de ida e rota de volta. Um erro comum é confirmar que a rede local anuncia seus prefixos à nuvem e esquecer que os prefixos da nuvem não chegam ao roteador local, ou vice-versa. Em BGP, verifique vizinhança estabelecida, rotas recebidas e anunciadas, ASN e políticas. Em rotas estáticas, confirme prefixos, próximo salto e preferência. Verifique também se firewalls permitem o tráfego e se os intervalos de endereços não se sobrepõem.\n\nCom caminhos duplicados, prefira um desenho que evite assimetria indesejada. Um túnel VPN pode receber tráfego de ida enquanto a resposta sai diretamente pelo circuito privado. Isso pode impedir a sessão IPsec esperada ou ser recusado por firewalls com estado. Para contingência, a rota deve mudar de maneira coerente nos dois lados; para criptografia, o fluxo precisa atravessar o túnel em ambas as direções conforme o desenho.\n\n### Diagnóstico ordenado\n\n| Sintoma | Verificações iniciais |\n| --- | --- |\n| Túnel não negocia | IP público/privado do peer conforme o desenho, IKE, chave, políticas e parâmetros criptográficos |\n| Túnel ativo, sem tráfego | Prefixos, rotas de ida e volta, associação ao gateway, firewall e sobreposição de endereços |\n| Caminho inesperado | Rotas BGP recebidas/anunciadas, especificidade, preferência local e rotas estáticas concorrentes |\n| Failover não ocorre | Estado dos dois caminhos, detecção de falha, anúncios e preferência dos caminhos alternativos |\n| Aplicação falha com pacotes grandes | MTU, fragmentação e comportamento de encapsulamento no caminho |\n\n### Segurança em camadas\n\nA conexão de rede não substitui controles de identidade, autorização, segmentação e firewall. Restrinja os prefixos e serviços necessários, proteja chaves e credenciais, monitore estado dos túneis e mudanças de rota e teste o failover. Um caminho privado reduz exposição à internet, mas não impede sozinho acesso indevido por um host comprometido ou por uma regra permissiva. IPsec protege o tráfego no túnel; controles de acesso ainda decidem quem pode usar os recursos de destino.\n\n### Como cai na prova\n\n- Diferencie confidencialidade do túnel IPsec e privacidade do caminho dedicado.\n- Quando o túnel está ativo mas o serviço não responde, investigue primeiro rotas, prefixos, firewall e retorno.\n- Uma rota duplicada não garante balanceamento nem failover correto; políticas de preferência e anúncios determinam o resultado.\n- Para avaliar segurança, considere criptografia, segmentação, controle de acesso, proteção de chaves e monitoramento."
+    }
+  ],
+  "summary": "Uma VPN site-to-site liga redes por túnel IPsec/IKE, normalmente sobre a internet, e exige parâmetros compatíveis, prefixos não sobrepostos e rotas de ida e volta. AWS Site-to-Site VPN pode conectar uma rede remota a VGW ou Transit Gateway; Direct Connect é uma conexão dedicada à AWS e não implica criptografia IPsec automática. No Azure, VPN Gateway fornece túneis site-to-site; ExpressRoute usa circuito privado e peering, não uma VPN pela internet. AWS e Azure permitem arquiteturas com VPN e conexão dedicada, para contingência ou criptografia em desenhos específicos. A coexistência não força por si só o tráfego pelo túnel: BGP, prefixos, especificidade e preferência de rota definem o caminho. Diagnóstico começa por negociação do túnel, anúncios e rotas nos dois sentidos, endereçamento sem sobreposição e regras de firewall.",
+  "flashcards": [
+    {
+      "front": "O que conecta uma VPN site-to-site?",
+      "back": "Redes locais e redes de nuvem por túneis IPsec/IKE entre gateways ou dispositivos VPN de borda."
+    },
+    {
+      "front": "Qual é a função do IPsec nesse cenário?",
+      "back": "Proteger tráfego IP no túnel, oferecendo criptografia e autenticação conforme os parâmetros negociados."
+    },
+    {
+      "front": "Qual é a função de IKE?",
+      "back": "Negociar os parâmetros e as chaves usados pelas associações IPsec."
+    },
+    {
+      "front": "VPN site-to-site e point-to-site são iguais?",
+      "back": "Não. Site-to-site liga redes; point-to-site conecta um usuário ou dispositivo remoto individual à rede virtual."
+    },
+    {
+      "front": "Por que um túnel ativo pode não transportar tráfego útil?",
+      "back": "Porque podem faltar rotas de ida ou volta, haver bloqueio de firewall ou sobreposição de prefixos."
+    },
+    {
+      "front": "O que é BGP nesse contexto?",
+      "back": "Protocolo de roteamento que troca anúncios de prefixos entre domínios de rede."
+    },
+    {
+      "front": "BGP criptografa os pacotes?",
+      "back": "Não. BGP anuncia rotas; IPsec é que protege o tráfego dentro do túnel."
+    },
+    {
+      "front": "O que é um prefixo sobreposto?",
+      "back": "Um intervalo de endereços que se repete em redes conectadas, tornando ambíguo qual rede contém o destino."
+    },
+    {
+      "front": "Direct Connect é um túnel VPN?",
+      "back": "Não. É uma conexão de rede dedicada até a AWS; IPsec deve ser configurado separadamente se necessário."
+    },
+    {
+      "front": "O que é uma VIF no Direct Connect?",
+      "back": "Uma interface virtual configurada sobre a conexão para alcançar categorias de serviços ou redes compatíveis."
+    },
+    {
+      "front": "Para que pode servir uma private virtual interface?",
+      "back": "Para conectividade privada a recursos de rede compatíveis, como uma VPC por gateway apropriado."
+    },
+    {
+      "front": "Direct Connect pode coexistir com Site-to-Site VPN?",
+      "back": "Sim. A VPN pode atuar como contingência ou, em arquitetura suportada, proteger tráfego sobre Direct Connect."
+    },
+    {
+      "front": "ExpressRoute usa a internet pública como VPN?",
+      "back": "Não. É conectividade privada por circuito e peering com a Microsoft."
+    },
+    {
+      "front": "O ExpressRoute criptografa IPsec automaticamente?",
+      "back": "Não. Conectividade privada não equivale a um túnel IPsec criptografado."
+    },
+    {
+      "front": "O que representa um Local Network Gateway no Azure?",
+      "back": "O local remoto, incluindo endereço do dispositivo VPN e prefixos da rede local para roteamento."
+    },
+    {
+      "front": "O que a coexistência ExpressRoute e VPN pode oferecer?",
+      "back": "Caminho de contingência ou túnel IPsec sobre private peering, conforme arquitetura e rotas configuradas."
+    },
+    {
+      "front": "Prefixos iguais em VPN e ExpressRoute garantem que a VPN será usada?",
+      "back": "Não. A seleção depende das regras de roteamento; no Azure, a rota ExpressRoute pode ser preferida para prefixos iguais."
+    },
+    {
+      "front": "O que é failover?",
+      "back": "A mudança para um caminho alternativo quando o caminho principal falha, guiada por detecção e roteamento."
+    },
+    {
+      "front": "O que significa assimetria de rota?",
+      "back": "O tráfego de ida e volta percorre caminhos diferentes, o que pode quebrar túneis ou firewalls com estado."
+    },
+    {
+      "front": "Quais itens verificar quando o túnel não negocia?",
+      "back": "Endereços do peer, chaves, versão e parâmetros IKE/IPsec e compatibilidade das políticas criptográficas."
+    },
+    {
+      "front": "Quais itens verificar com túnel ativo e sem conectividade?",
+      "back": "Prefixos anunciados, rotas de ida e volta, firewall, associação ao gateway e sobreposição de endereços."
+    },
+    {
+      "front": "Conexão privada significa acesso irrestrito?",
+      "back": "Não. Segmentação, identidade, regras de firewall e autorização continuam necessárias."
+    },
+    {
+      "front": "Qual o papel do Transit Gateway na AWS?",
+      "back": "Atuar como hub para conectar VPCs e redes remotas em uma topologia centralizada."
+    },
+    {
+      "front": "Qual requisito básico há no equipamento local para VPN site-to-site do Azure?",
+      "back": "Um dispositivo VPN compatível, externamente acessível, com endereço público e parâmetros alinhados ao gateway."
+    },
+    {
+      "front": "O que precisa ser planejado além de contratar um circuito dedicado?",
+      "back": "Peering, gateways, associações, anúncios de rotas, endereçamento e política de tráfego até os destinos."
+    }
+  ],
+  "tips": [
+    "Associe IPsec à proteção do túnel e BGP à troca de rotas; não atribua a eles a função um do outro.",
+    "Direct Connect e ExpressRoute significam caminhos dedicados/privados; não presuma criptografia IPsec automática.",
+    "Quando a questão disser site-to-site, pense em ligação entre redes e dispositivos de borda; point-to-site é acesso remoto individual.",
+    "Em qualquer cenário, confira rotas nos dois sentidos, prefixos sem sobreposição e regras de firewall.",
+    "VPN como backup só funciona se anúncios e preferência de rota encaminharem o tráfego para ela após a falha.",
+    "Coexistência entre túnel e circuito não escolhe o túnel por você: examine prefixos, especificidade e política de roteamento."
+  ],
+  "traps": [
+    "Afirmar que Direct Connect ou ExpressRoute já fornecem IPsec por serem conexões privadas confunde transporte com criptografia.",
+    "Tratar BGP como protocolo de criptografia confunde roteamento com proteção do conteúdo dos pacotes.",
+    "Supor que túnel estabelecido garante comunicação ignora rotas de retorno, firewall e prefixos sobrepostos.",
+    "Dizer que a VPN será sempre preferida ao ExpressRoute ignora a seleção de rotas e os anúncios concorrentes.",
+    "Confundir VPN site-to-site com point-to-site troca ligação entre redes por acesso de usuário remoto.",
+    "Considerar o caminho dedicado como controle de acesso completo ignora identidade, segmentação e firewall."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o caminho básico de uma VPN site-to-site entre uma rede local e uma VNet.",
+      "answer": "Um dispositivo VPN de borda local forma um túnel IPsec/IKE com o Azure VPN Gateway; as rotas dos prefixos locais e da VNet são configuradas para encaminhar tráfego nos dois sentidos."
+    },
+    {
+      "question": "Explique por que IPsec e BGP não são alternativas um ao outro.",
+      "answer": "IPsec protege o tráfego do túnel; BGP troca informações de roteamento para que os pares aprendam quais prefixos podem alcançar."
+    },
+    {
+      "question": "Compare AWS Site-to-Site VPN e Direct Connect.",
+      "answer": "Site-to-Site VPN estabelece túneis IPsec entre rede remota e AWS. Direct Connect entrega conectividade dedicada por circuito e roteamento; não fornece automaticamente IPsec."
+    },
+    {
+      "question": "Compare VPN Gateway e ExpressRoute no Azure.",
+      "answer": "VPN Gateway termina túneis IPsec/IKE com rede local. ExpressRoute conecta por circuito privado e peering, sem ser uma VPN pela internet nem implicar IPsec automático."
+    },
+    {
+      "question": "Que configurações determinam se uma VPN servirá como contingência?",
+      "answer": "Os dois caminhos precisam estar operacionais, prefixos devem ser anunciados e as políticas de roteamento precisam retirar ou reduzir a preferência pelo caminho primário após falha."
+    },
+    {
+      "question": "Por que prefixos sobrepostos prejudicam a conectividade híbrida?",
+      "answer": "Os roteadores deixam de distinguir claramente a rede de destino, pois o mesmo intervalo aparece em lados diferentes da conexão."
+    },
+    {
+      "question": "Como investigar túnel ativo sem comunicação entre redes?",
+      "answer": "Verificar rotas e anúncios de ida e volta, associação correta dos gateways, prefixos, firewalls e eventuais conflitos de endereçamento."
+    },
+    {
+      "question": "Como explicar que um circuito privado e uma VPN podem coexistir sem garantir criptografia?",
+      "answer": "O circuito oferece transporte privado; só o tráfego que é roteado por um túnel IPsec recebe a proteção desse túnel. A coexistência exige configuração explícita de caminhos e preferências."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Criptografia versus transporte privado",
+      "summary": "VPN IPsec protege o tráfego em um túnel; Direct Connect e ExpressRoute oferecem conectividade dedicada/privada e não devem ser tratados como IPsec automático."
+    },
+    {
+      "key": "e2",
+      "title": "Túnel ativo versus conectividade fim a fim",
+      "summary": "O estado do túnel não prova que as rotas de ida e volta existem, que os prefixos não se sobrepõem ou que o firewall permite o fluxo."
+    },
+    {
+      "key": "e3",
+      "title": "Roteamento versus segurança do túnel",
+      "summary": "BGP troca rotas; IKE negocia parâmetros e IPsec protege os pacotes. São funções distintas que precisam operar em conjunto."
+    },
+    {
+      "key": "e4",
+      "title": "Coexistência e preferência de caminho",
+      "summary": "Circuito e VPN podem coexistir, mas os anúncios e atributos de rota definem o caminho. A contingência e a criptografia dependem da política efetiva."
+    },
+    {
+      "key": "e5",
+      "title": "Site-to-site versus acesso remoto",
+      "summary": "Site-to-site conecta redes por dispositivos de borda; point-to-site atende um dispositivo ou usuário remoto individual."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma VPN site-to-site conecta redes por túneis IPsec/IKE entre gateways ou dispositivos de borda.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A conexão site-to-site estabelece um túnel entre o gateway de nuvem e o dispositivo VPN da rede local para transportar tráfego entre os prefixos configurados.",
+      "section": "1. Conectividade híbrida e VPN site-to-site",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "BGP é o mecanismo que cifra os pacotes de uma VPN site-to-site antes de encaminhá-los.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "BGP troca informações de roteamento. A proteção do tráfego no túnel é função do IPsec, negociado com parâmetros associados ao IKE.",
+      "section": "1. Conectividade híbrida e VPN site-to-site",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um túnel VPN ativo prova que todos os hosts das redes conectadas possuem rotas de ida e volta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O túnel pode estar estabelecido sem anúncios ou rotas corretas para os prefixos, sem rota de retorno ou com tráfego bloqueado por firewall.",
+      "section": "1. Conectividade híbrida e VPN site-to-site",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Prefixos de endereços sobrepostos entre a rede local e a rede virtual podem tornar ambíguo o encaminhamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando o mesmo intervalo aparece em redes conectadas, os roteadores podem não conseguir determinar qual rede contém o destino pretendido; o plano de endereçamento deve evitar a sobreposição.",
+      "section": "1. Conectividade híbrida e VPN site-to-site",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A VPN point-to-site é a modalidade destinada a conectar redes inteiras por appliances de borda, enquanto site-to-site atende um único usuário remoto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A descrição inverte os conceitos: site-to-site conecta redes por gateways; point-to-site conecta um usuário ou dispositivo remoto à rede virtual.",
+      "section": "1. Conectividade híbrida e VPN site-to-site",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para negociar um túnel, os parâmetros de autenticação e IPsec dos dois lados precisam ser compatíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Os pares precisam concordar sobre os parâmetros de IKE/IPsec e o segredo ou mecanismo de autenticação. Uma divergência impede que o túnel seja estabelecido corretamente.",
+      "section": "1. Conectividade híbrida e VPN site-to-site",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Rotas estáticas e BGP são mecanismos idênticos: ambos criptografam o tráfego e negociam chaves do túnel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Rotas estáticas e BGP são formas de definir ou trocar alcançabilidade de prefixos. Negociação de parâmetros e proteção do tráfego pertencem a IKE e IPsec.",
+      "section": "1. Conectividade híbrida e VPN site-to-site",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma ligação híbrida, as rotas de retorno são desnecessárias quando o gateway de nuvem inicia o túnel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A comunicação IP precisa de caminho de ida e de retorno para completar o fluxo. O início do túnel não substitui rotas para os prefixos remotos em ambos os lados.",
+      "section": "1. Conectividade híbrida e VPN site-to-site",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "AWS Site-to-Site VPN pode associar uma rede remota a um Virtual Private Gateway ou a um Transit Gateway, conforme a arquitetura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A AWS documenta conexões Site-to-Site VPN direcionadas a gateways virtuais privados ou transit gateways, escolhidos de acordo com a topologia pretendida.",
+      "section": "2. AWS Site-to-Site VPN e Direct Connect",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Direct Connect é, por definição, um túnel IPsec pela internet pública entre a empresa e uma VPC.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Direct Connect fornece conectividade de rede dedicada até a AWS. Não é definido como túnel IPsec pela internet, e criptografia precisa ser considerada separadamente.",
+      "section": "2. AWS Site-to-Site VPN e Direct Connect",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma virtual interface do Direct Connect participa da configuração de conectividade e roteamento até serviços ou redes compatíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A VIF é configurada sobre a conexão para selecionar a categoria de serviços ou redes alcançados; ela faz parte do desenho de roteamento e não substitui as associações de gateway necessárias.",
+      "section": "2. AWS Site-to-Site VPN e Direct Connect",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VPN AWS pode coexistir com Direct Connect como caminho alternativo, desde que rotas e preferências estejam configuradas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A AWS documenta desenhos combinados. A existência dos dois serviços não produz failover por si só: anúncios, estado dos caminhos e políticas de roteamento precisam selecionar a alternativa após falha.",
+      "section": "2. AWS Site-to-Site VPN e Direct Connect",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VPN de IP privado sobre Direct Connect pode adicionar proteção IPsec ao tráfego sem usar endereços públicos para o túnel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A AWS documenta VPN Site-to-Site de IP privado sobre Direct Connect, que permite criptografar o tráfego entre a rede local e a AWS sem endereços IP públicos para o túnel.",
+      "section": "2. AWS Site-to-Site VPN e Direct Connect",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Contratar Direct Connect cria automaticamente rotas até qualquer VPC da conta, dispensando VIF e configuração de gateway.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A conectividade depende da interface virtual, dos gateways e associações adequados e da troca ou configuração de rotas. O circuito físico sozinho não configura alcançabilidade a qualquer VPC.",
+      "section": "2. AWS Site-to-Site VPN e Direct Connect",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Azure, ExpressRoute é uma VPN de acesso remoto que estabelece túneis IPsec pela internet para usuários individuais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "ExpressRoute oferece conectividade privada por circuito e peering. A VPN site-to-site é a opção de túnel IPsec/IKE entre o VPN Gateway e o dispositivo local.",
+      "section": "3. Azure VPN Gateway e ExpressRoute",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Local Network Gateway representa no Azure o local remoto e pode conter o endereço do dispositivo VPN e os prefixos da rede local.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Esse recurso representa o site local para fins de conexão e roteamento, incluindo o endereço do equipamento remoto e os intervalos de rede locais que serão alcançados pelo gateway.",
+      "section": "3. Azure VPN Gateway e ExpressRoute",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A coexistência de ExpressRoute e VPN Gateway garante que todo tráfego entre a VNet e o local passe pelo túnel IPsec.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A coexistência não impõe o caminho. Os anúncios e a seleção de rotas podem direcionar o tráfego pelo circuito sem IPsec; a rota deve ser planejada para cumprir o requisito de criptografia.",
+      "section": "3. Azure VPN Gateway e ExpressRoute",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Private peering do ExpressRoute pode ser usado em uma arquitetura com VPN site-to-site sobre o caminho privado, se a configuração e as rotas forem apropriadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação do Azure descreve túneis site-to-site sobre ExpressRoute private peering. Isso exige configurar os endereços privados e o roteamento para que o fluxo protegido use o caminho VPN.",
+      "section": "3. Azure VPN Gateway e ExpressRoute",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "ExpressRoute e Direct Connect são produtos do mesmo provedor e usam necessariamente a mesma configuração de peering.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Direct Connect pertence à AWS e ExpressRoute ao Azure. Ambos entregam conectividade privada dedicada, mas usam recursos e configurações próprios de cada provedor.",
+      "section": "3. Azure VPN Gateway e ExpressRoute",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando os mesmos prefixos são anunciados por VPN e ExpressRoute, o tráfego necessariamente escolhe o túnel VPN por ser criptografado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A seleção de caminho decorre de regras de roteamento, não da presença de criptografia. A documentação do Azure alerta que o caminho ExpressRoute pode ser usado para prefixos anunciados por ambos, sem proteção IPsec.",
+      "section": "3. Azure VPN Gateway e ExpressRoute",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conexão dedicada e privada elimina a necessidade de firewall, segmentação e controle de identidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Privacidade do transporte não é autorização de acesso. Firewalls, segmentação, identidade e monitoramento continuam necessários para limitar o acesso aos recursos.",
+      "section": "4. Escolha da arquitetura, segurança e diagnóstico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Assimetria de rota ocorre quando os sentidos de ida e volta de um fluxo percorrem caminhos diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Caminhos diferentes nos dois sentidos podem interferir com túneis e firewalls com estado, que esperam observar o fluxo de forma coerente.",
+      "section": "4. Escolha da arquitetura, segurança e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o túnel está ativo, mas as aplicações não se comunicam, rotas, prefixos, firewalls e retorno são verificações pertinentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O estado do túnel atesta a negociação, não a conectividade fim a fim. Roteamento nos dois sentidos, endereçamento e regras de segurança precisam permitir o fluxo.",
+      "section": "4. Escolha da arquitetura, segurança e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Basta anunciar rotas no lado da nuvem; as respostas encontram automaticamente o caminho de volta sem anúncios ou rotas locais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A alcançabilidade precisa existir nos dois sentidos. A rede local também precisa conhecer as rotas da nuvem e encaminhar as respostas pelo caminho correto.",
+      "section": "4. Escolha da arquitetura, segurança e diagnóstico",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rota mais específica pode influenciar a seleção do caminho para parte de uma rede anunciada por uma rota agregada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A seleção de rotas considera o prefixo mais específico. Por isso anúncios separados ou mais específicos podem direcionar determinado tráfego ao túnel, desde que a política seja coerente nos dois sentidos.",
+      "section": "4. Escolha da arquitetura, segurança e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para investigar falha de negociação IKE, é útil comparar endereços dos peers, autenticação e parâmetros criptográficos configurados nos dois lados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A negociação depende de que os peers se alcancem e concordem com autenticação e políticas IKE/IPsec. Divergências nesses itens impedem o estabelecimento do túnel.",
+      "section": "4. Escolha da arquitetura, segurança e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "MTU e fragmentação podem ser relevantes ao diagnosticar aplicações que falham apenas com pacotes maiores em um túnel encapsulado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O encapsulamento adiciona cabeçalhos e reduz o espaço disponível no pacote. Problemas de MTU ou fragmentação podem afetar determinados fluxos mesmo quando o túnel está estabelecido.",
+      "section": "4. Escolha da arquitetura, segurança e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um failover confiável depende de caminhos alternativos operacionais e de regras de roteamento que selecionem a alternativa após falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Provisionar dois serviços não implementa sozinho a contingência. Os caminhos, a detecção de falha, os anúncios e as preferências precisam produzir a mudança esperada.",
+      "section": "4. Escolha da arquitetura, segurança e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O propósito de uma VPN de acesso remoto individual e o de uma ligação site-to-site são equivalentes porque ambos usam criptografia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O uso de criptografia não torna iguais os objetivos: point-to-site dá acesso a usuário ou dispositivo remoto; site-to-site liga redes inteiras por seus gateways.",
+      "section": "1. Conectividade híbrida e VPN site-to-site",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VPN site-to-site bem configurada substitui a necessidade de definir rotas para os prefixos remotos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O túnel protege o tráfego, mas os gateways ainda precisam de rotas ou anúncios para os prefixos remotos e de caminho de retorno.",
+      "section": "1. Conectividade híbrida e VPN site-to-site",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual tecnologia protege o tráfego IP dentro do túnel site-to-site?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "BGP, que cifra cada pacote e autentica os dados entre as redes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "IPsec, negociado com parâmetros de IKE entre os pares do túnel.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "DNS, que encapsula os pacotes e troca chaves entre os gateways.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "NAT, que substitui a criptografia ao traduzir os endereços IP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "VIF, que protege os pacotes ao selecionar a interface virtual.",
+          "correct": false
+        }
+      ],
+      "explanation": "IPsec protege o tráfego no túnel; IKE negocia parâmetros e chaves. BGP anuncia rotas, DNS resolve nomes, NAT traduz endereços e VIF participa da conexão Direct Connect.",
+      "section": "1. Conectividade híbrida e VPN site-to-site",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VPN foi negociada, mas hosts locais não alcançam máquinas na nuvem. Qual verificação é mais diretamente pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conferir prefixos, rotas nos dois sentidos e regras de firewall.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Trocar o protocolo BGP por DNS para que os nomes criem rotas automáticas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar IPsec, pois um túnel ativo impede o encaminhamento de pacotes normais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar o endereço de rede de todos os hosts para um prefixo público compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar uma segunda VPC com prefixos iguais para duplicar o destino da conexão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A negociação confirma o túnel, mas a comunicação exige rotas para os prefixos de origem e destino, retorno e regras de segurança que permitam o fluxo. DNS não substitui roteamento e sobreposição dificulta a seleção de destino.",
+      "section": "1. Conectividade híbrida e VPN site-to-site",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual diferença descreve corretamente BGP e IPsec em uma conexão híbrida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "BGP autentica usuários finais; IPsec distribui os prefixos aprendidos pelos gateways.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "BGP cifra o túnel; IPsec decide qual rota tem maior preferência na rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "BGP troca anúncios de rotas; IPsec protege o tráfego transportado no túnel.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "BGP converte endereços privados em públicos; IPsec configura o serviço DNS local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "BGP e IPsec são protocolos de aplicação que não afetam conectividade de rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "BGP serve para trocar informações de alcançabilidade entre pares de roteamento. IPsec protege os pacotes do túnel; um não substitui a função do outro.",
+      "section": "1. Conectividade híbrida e VPN site-to-site",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário corresponde a uma conexão site-to-site?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um notebook de funcionário conecta-se sozinho à VNet durante uma viagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um administrador consulta um painel web público sem estabelecer túnel.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma aplicação resolve o nome DNS de um banco gerenciado na nuvem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um gateway local cria túnel com o gateway de nuvem.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um servidor copia arquivos para armazenamento de objetos por HTTPS.",
+          "correct": false
+        }
+      ],
+      "explanation": "Site-to-site liga uma rede local a uma rede virtual por meio dos gateways ou dispositivos VPN de borda. O acesso de notebook individual é point-to-site, enquanto os demais exemplos não descrevem esse túnel entre redes.",
+      "section": "1. Conectividade híbrida e VPN site-to-site",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual condição de endereçamento deve ser verificada antes de interligar redes locais e virtuais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "As redes devem usar exatamente o mesmo prefixo para facilitar o retorno dos pacotes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os intervalos devem evitar sobreposição para que destinos sejam distinguíveis.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A rede local deve usar somente endereços públicos e a nuvem somente endereços IPv6.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Todos os prefixos devem ser convertidos em nomes DNS antes de configurar rotas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os endereços dos gateways precisam coincidir com os endereços de todos os hosts.",
+          "correct": false
+        }
+      ],
+      "explanation": "Prefixos não sobrepostos permitem ao roteador identificar a rede de destino. Repetir o mesmo intervalo em lados conectados causa ambiguidade, em vez de facilitar o encaminhamento.",
+      "section": "1. Conectividade híbrida e VPN site-to-site",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao configurar uma VPN site-to-site com dispositivo local, o que precisa corresponder entre os pares?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A marca física dos equipamentos, a região de nuvem e o idioma dos consoles.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O identificador DNS dos hosts e o nome comercial do serviço contratado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As políticas de IKE/IPsec e o mecanismo ou segredo de autenticação acordados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O sistema operacional de cada máquina virtual e o tipo de banco de dados usado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O tamanho dos discos virtuais e as regras de retenção de logs das aplicações.",
+          "correct": false
+        }
+      ],
+      "explanation": "O estabelecimento do túnel depende de parâmetros compatíveis de negociação, autenticação e IPsec em ambos os lados. A marca do equipamento pode importar para compatibilidade documentada, mas os demais detalhes listados não substituem a configuração criptográfica.",
+      "section": "1. Conectividade híbrida e VPN site-to-site",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa que rotas locais e da nuvem sejam aprendidas dinamicamente entre os gateways. Qual recurso de roteamento atende esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "BGP, configurado entre os pares para anunciar prefixos alcançáveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "IPsec, configurado como protocolo de seleção dos prefixos menos específicos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DNS, configurado para substituir tabelas de encaminhamento dos roteadores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "NAT, configurado para negociar os caminhos de contingência entre gateways.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "HTTPS, configurado para estabelecer vizinhança de roteamento entre os sites.",
+          "correct": false
+        }
+      ],
+      "explanation": "BGP permite que os pares troquem anúncios de rotas dinamicamente. IPsec protege o túnel, enquanto DNS, NAT e HTTPS não têm a função de protocolo de roteamento entre os gateways.",
+      "section": "1. Conectividade híbrida e VPN site-to-site",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que solução da AWS é um hub para conectar várias VPCs e redes remotas em uma topologia central?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma tabela DNS pública compartilhada por todas as contas da organização.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um Virtual Private Gateway isolado em cada subnet de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma public virtual interface usada como servidor de nomes da rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um Transit Gateway associado às redes que devem trocar tráfego.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma regra NAT por host que substitui os gateways e as rotas da VPC.",
+          "correct": false
+        }
+      ],
+      "explanation": "Transit Gateway funciona como hub de conectividade para VPCs e redes remotas associadas. Uma VIF atende conectividade por Direct Connect, mas não é um servidor DNS ou substituta do hub de roteamento.",
+      "section": "2. AWS Site-to-Site VPN e Direct Connect",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição distingue melhor AWS Site-to-Site VPN de AWS Direct Connect?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "VPN usa apenas circuito físico dedicado; Direct Connect é um túnel IPsec pela internet.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "VPN cria túnel IPsec; Direct Connect é dedicado, sem IPsec automático.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "VPN substitui qualquer gateway; Direct Connect funciona somente entre usuários individuais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "VPN distribui dados por DNS; Direct Connect é o serviço de firewall da VPC.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "VPN e Direct Connect são nomes diferentes para a mesma modalidade de peering.",
+          "correct": false
+        }
+      ],
+      "explanation": "Site-to-Site VPN usa túnel IPsec para ligar redes. Direct Connect é uma conexão de rede dedicada até a AWS; a criptografia IPsec não deve ser presumida sem configuração adicional.",
+      "section": "2. AWS Site-to-Site VPN e Direct Connect",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmativa sobre uma virtual interface do AWS Direct Connect está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela funciona como usuário IAM e concede credenciais de console ao roteador local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela substitui todas as rotas e associações de gateway de uma VPC.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela cria uma subnet pública e distribui endereços aos hosts locais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela configura conectividade lógica sobre o circuito para destinos compatíveis.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Ela cifra automaticamente os pacotes com IPsec sem negociar parâmetros com um peer.",
+          "correct": false
+        }
+      ],
+      "explanation": "VIF é uma interface lógica configurada sobre Direct Connect para o tipo de conectividade pretendido. Ela participa do roteamento, mas não concede identidade, cria subnets ou fornece IPsec automaticamente.",
+      "section": "2. AWS Site-to-Site VPN e Direct Connect",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer manter Direct Connect como caminho principal e VPN AWS como alternativa. O que precisa ser planejado para que o desvio funcione?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar as rotas do local e confiar que o nome da VPN altere o caminho automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar o mesmo prefixo sobreposto em todas as VPCs para forçar a escolha do gateway.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Anúncios e preferências de rota selecionam a alternativa após falha.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Configurar DNS round-robin para substituir a detecção de falha nos roteadores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover o gateway de nuvem e deixar a appliance local terminar ambos os circuitos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os caminhos precisam estar configurados e as políticas de roteamento devem selecionar a VPN quando o Direct Connect falhar. Contratar os dois serviços não determina sozinho os anúncios, a detecção nem a preferência.",
+      "section": "2. AWS Site-to-Site VPN e Direct Connect",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção pode ser usada para proteger com IPsec tráfego privado entre uma rede local e AWS através de Direct Connect, em arquitetura suportada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma VPN de IP privado Site-to-Site sobre Direct Connect configurada com roteamento adequado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma public virtual interface usada sem gateway, pois ela cifra qualquer pacote por padrão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma rota estática no host que converte o circuito dedicado em túnel criptográfico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um registro DNS privado que transforma o fluxo em conexão IPsec entre os roteadores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma regra de firewall que substitui a negociação IKE e cria chaves automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A AWS documenta VPN Site-to-Site de IP privado sobre Direct Connect para criptografar tráfego sem endereços IP públicos para o túnel. A interface, os gateways e as rotas ainda precisam ser configurados.",
+      "section": "2. AWS Site-to-Site VPN e Direct Connect",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que escolha de interface virtual do Direct Connect está associada ao acesso a serviços públicos compatíveis da AWS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma private virtual interface, que publica os prefixos privados de cada subnet.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma public virtual interface, configurada para alcançar serviços públicos compatíveis.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma local network interface, que representa o dispositivo VPN do Azure.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma point-to-site interface, que conecta somente notebooks de funcionários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma transit virtual interface, que substitui qualquer peering e rota BGP.",
+          "correct": false
+        }
+      ],
+      "explanation": "A public virtual interface é usada para alcançar serviços públicos compatíveis da AWS pelo Direct Connect. Uma private VIF é associada à conectividade privada; a terminologia e os destinos dependem do tipo de interface configurado.",
+      "section": "2. AWS Site-to-Site VPN e Direct Connect",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o papel principal do Azure VPN Gateway em uma conexão site-to-site?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Terminar um túnel IPsec/IKE com o dispositivo VPN do local remoto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Fornecer um circuito físico privado gerenciado pelo provedor de telecomunicações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir a tabela de rotas da VNet por registros de nomes DNS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conceder usuários e senhas para entrar no portal do Azure.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenar cópias de segurança de máquinas virtuais no local remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "O VPN Gateway termina a conexão site-to-site IPsec/IKE entre a rede virtual e o dispositivo VPN local. ExpressRoute fornece conectividade por circuito; identidade, DNS e backup têm outros serviços e controles.",
+      "section": "3. Azure VPN Gateway e ExpressRoute",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que informações o Local Network Gateway representa para o Azure?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A identidade de cada usuário local e suas permissões para entrar na VNet.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O nome do circuito ExpressRoute e a fatura mensal do provedor escolhido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O endpoint do dispositivo VPN remoto e os prefixos da rede local alcançável.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O conteúdo criptografado de todos os pacotes armazenados no gateway de nuvem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A lista de subnets públicas da Microsoft que substituem a tabela de rotas local.",
+          "correct": false
+        }
+      ],
+      "explanation": "O objeto representa o site remoto para roteamento: inclui o endereço IP ou FQDN do dispositivo e os prefixos locais. Não representa usuários, faturas nem o conteúdo dos pacotes.",
+      "section": "3. Azure VPN Gateway e ExpressRoute",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição caracteriza corretamente o Azure ExpressRoute?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É uma VPN point-to-site para usuários que trabalham fora do escritório.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É conectividade privada por circuito e peering a serviços Microsoft.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "É um serviço DNS que resolve nomes privados da rede corporativa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É um protocolo IPsec que cifra automaticamente todos os fluxos da VNet.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É uma appliance local que substitui o roteador e o firewall corporativos.",
+          "correct": false
+        }
+      ],
+      "explanation": "ExpressRoute conecta a rede local a serviços Microsoft por circuito privado e peering. Não é VPN individual, serviço DNS nem sinônimo de criptografia IPsec automática.",
+      "section": "3. Azure VPN Gateway e ExpressRoute",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa exige que determinado tráfego Azure-local seja criptografado por IPsec, embora também use ExpressRoute. O que deve validar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Que todas as rotas da VNet apontem diretamente ao circuito, pois o circuito cifra por padrão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Que a VPN Gateway esteja desligada, para impedir que o tráfego use o túnel errado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que o DNS local anuncie os prefixos privados para que sejam encapsulados automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que a política de rotas faça o fluxo protegido seguir pela VPN e não pelo caminho sem IPsec.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Que os mesmos prefixos sejam anunciados por ambos os caminhos sem definir preferência.",
+          "correct": false
+        }
+      ],
+      "explanation": "ExpressRoute não implica IPsec. A documentação alerta que anúncios iguais podem levar o tráfego pelo circuito diretamente; a seleção de rota deve encaminhar o fluxo protegido pelo túnel em ambos os sentidos.",
+      "section": "3. Azure VPN Gateway e ExpressRoute",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa distingue ExpressRoute de VPN site-to-site no Azure?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "ExpressRoute usa circuito privado; VPN site-to-site usa túnel IPsec/IKE entre gateways.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "ExpressRoute cifra com IKE; VPN site-to-site oferece circuito físico sem roteamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ExpressRoute atende somente notebooks; VPN conecta somente serviços públicos Microsoft.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ExpressRoute é protocolo de firewall; VPN é o nome da tabela de rotas da VNet.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ExpressRoute e VPN são o mesmo serviço, diferindo apenas no nome do gateway.",
+          "correct": false
+        }
+      ],
+      "explanation": "ExpressRoute é conectividade privada por circuito e peering, enquanto VPN site-to-site estabelece túnel IPsec/IKE. As tecnologias podem coexistir, mas têm características e configurações diferentes.",
+      "section": "3. Azure VPN Gateway e ExpressRoute",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer usar site-to-site VPN como contingência para ExpressRoute no Azure. Qual aspecto precisa ser definido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A preferência e os anúncios de rotas para que o circuito seja principal e a VPN alternativa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um usuário do portal que confirme manualmente cada pacote transmitido pelo circuito.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um DNS público que altere o endereço MAC do gateway quando o circuito falhar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A remoção do private peering para que a VPN tenha acesso ao mesmo caminho físico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A configuração de prefixos idênticos sem qualquer política para escolher o caminho.",
+          "correct": false
+        }
+      ],
+      "explanation": "O failover depende de anúncios, preferências de rota e comportamento dos dois lados. A documentação descreve ExpressRoute como caminho primário e VPN como contingência para redes conectadas por private peering, mediante roteamento adequado.",
+      "section": "3. Azure VPN Gateway e ExpressRoute",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um túnel VPN sobre private peering, qual risco existe se prefixos iguais forem anunciados por VPN e ExpressRoute?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A nuvem sempre escolhe IPsec, pois a criptografia tem prioridade sobre qualquer rota.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A comunicação é bloqueada pelo DNS porque o prefixo duplicado invalida os nomes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O tráfego pode seguir pelo ExpressRoute sem proteção IPsec, contrariando o requisito.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O gateway apaga automaticamente a rota ExpressRoute e cria um novo prefixo público.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O BGP cifra a rota ExpressRoute e converte o fluxo em túnel site-to-site.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação do Azure alerta que, se os mesmos prefixos forem anunciados por ExpressRoute e VPN, o tráfego pode seguir diretamente pelo circuito sem IPsec. O anúncio e a preferência precisam direcionar o fluxo pelo túnel.",
+      "section": "3. Azure VPN Gateway e ExpressRoute",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual princípio vale ao selecionar entre AWS Direct Connect e Azure ExpressRoute?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambos são obrigatoriamente túneis IPsec públicos com roteamento estático apenas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ambos oferecem conectividade privada dedicada, mas cada provedor tem recursos e peering próprios.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ambos dispensam qualquer troca de rotas porque a contratação cria todas as associações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ambos são serviços de acesso remoto individual sem conexão entre redes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ambos pertencem à AWS e podem ser configurados com a mesma VIF.",
+          "correct": false
+        }
+      ],
+      "explanation": "Direct Connect e ExpressRoute atendem conectividade privada por circuitos, mas são serviços de provedores diferentes e usam seus próprios objetos de peering, gateways e roteamento.",
+      "section": "2. AWS Site-to-Site VPN e Direct Connect",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que mecanismo costuma ser usado para troca dinâmica de rotas em circuitos e gateways de nuvem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "BGP, cujos anúncios podem ser controlados por políticas e atributos de roteamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "IKE, que anuncia prefixos aos roteadores sem estabelecer associações criptográficas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "IPsec, que escolhe a melhor rota com base no conteúdo da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DNS, que distribui prefixos de rede por respostas de nomes a cada pacote.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "TLS, que estabelece vizinhanças de roteamento entre os gateways de nuvem.",
+          "correct": false
+        }
+      ],
+      "explanation": "BGP é o protocolo usado para trocar anúncios de prefixos em muitas conexões híbridas. IKE negocia túneis, IPsec protege tráfego, DNS resolve nomes e TLS protege sessões de aplicação.",
+      "section": "4. Escolha da arquitetura, segurança e diagnóstico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fluxo sai pelo túnel VPN, mas a resposta retorna pelo circuito dedicado direto. Que problema de desenho isso pode representar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma rota assimétrica, que pode quebrar estado de firewall ou comportamento esperado do túnel.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma resolução DNS simétrica, que impede a criação de qualquer rota de retorno.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma duplicação de chave IKE, que obriga o circuito a criptografar os pacotes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma subnet privada válida, que automaticamente corrige os anúncios recebidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um failover completo, pois qualquer caminho de volta significa que a política está correta.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ida e a volta percorrem caminhos diferentes, caracterizando assimetria. Firewalls com estado e o requisito de que o tráfego passe pelo túnel podem falhar; as rotas devem ser coerentes nos dois sentidos.",
+      "section": "4. Escolha da arquitetura, segurança e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência inicial ajuda a diagnosticar um túnel que não estabelece associação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar MTU da aplicação, depois trocar DNS e apagar as rotas do peer remoto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Comparar endereço do peer, autenticação e parâmetros IKE/IPsec dos dois lados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Recriar todas as subnets públicas, sem examinar chaves ou políticas criptográficas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar o firewall local e publicar os prefixos privados como endereços globais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o servidor BGP para substituir a negociação de chaves do túnel.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma falha de negociação requer verificar alcançabilidade do peer, endereço configurado, autenticação e compatibilidade dos parâmetros IKE/IPsec. MTU costuma ser investigada quando o túnel funciona, mas certos pacotes falham.",
+      "section": "4. Escolha da arquitetura, segurança e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação só falha ao transmitir pacotes grandes pelo túnel. Qual item de rede merece investigação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O MTU e a fragmentação, considerando os cabeçalhos adicionados pelo encapsulamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A existência de um Local Network Gateway, mesmo que não haja Azure na arquitetura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A classe do registro DNS, que determina o tamanho máximo de todo pacote IP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O nome da VIF pública, que controla a cifra IPsec em todas as subnets.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O ASN do usuário final, que substitui o tamanho de pacote configurado nos hosts.",
+          "correct": false
+        }
+      ],
+      "explanation": "Encapsulamento reduz o espaço disponível para dados dentro do pacote externo. MTU e tratamento de fragmentação são verificações pertinentes quando fluxos pequenos passam, mas pacotes maiores falham.",
+      "section": "4. Escolha da arquitetura, segurança e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre segurança permanece válida mesmo com ExpressRoute ou Direct Connect?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O circuito privado autoriza automaticamente todas as máquinas da rede corporativa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O peering remove a necessidade de registrar e monitorar mudanças de rota.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Segmentação, identidade, firewall e monitoramento continuam importantes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A criptografia é garantida para cada pacote sem política ou túnel adicional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A conexão dedicada impede que um host comprometido alcance outros destinos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Caminho privado não é controle de autorização. A rede ainda precisa de segmentação, identidade, regras de firewall, proteção de credenciais e monitoramento para reduzir acesso indevido.",
+      "section": "4. Escolha da arquitetura, segurança e diagnóstico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura com dois caminhos, que evidência ajuda a confirmar por que o tráfego escolheu um deles?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o nome do serviço contratado, pois ele define a preferência em todos os roteadores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "As rotas recebidas e anunciadas, especificidade dos prefixos e políticas de preferência.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A quantidade de usuários conectados ao portal da nuvem durante a manutenção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A resolução de nomes, pois DNS decide todos os próximos saltos dos pacotes roteados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A chave compartilhada do túnel, pois ela determina o circuito escolhido pelo BGP.",
+          "correct": false
+        }
+      ],
+      "explanation": "A seleção de caminho depende das rotas disponíveis e de como os roteadores as avaliam. Examinar anúncios, prefixos mais específicos e políticas explica o caminho efetivo; DNS e chave IPsec têm funções diferentes.",
+      "section": "4. Escolha da arquitetura, segurança e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual solução é adequada se o objetivo primário é conectar rapidamente um escritório à VPC com tráfego criptografado sobre transporte IP disponível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma AWS Site-to-Site VPN com gateway, dispositivo local e rotas definidos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma public virtual interface sem gateway nem prefixos anunciados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um circuito Direct Connect sem configuração de roteamento ou associações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um registro DNS que publique as subnets privadas do escritório na internet.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma regra de firewall isolada que converta o escritório em rede virtual AWS.",
+          "correct": false
+        }
+      ],
+      "explanation": "A Site-to-Site VPN fornece túneis IPsec para conectar a rede remota à AWS. Direct Connect atende ao requisito de circuito dedicado, mas por si só não é um túnel IPsec nem cria rotas automaticamente.",
+      "section": "2. AWS Site-to-Site VPN e Direct Connect",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede local precisa representar seus prefixos e appliance VPN ao configurar conexão site-to-site no Azure. Qual recurso descreve esse local?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma ExpressRoute public peering associada a cada host físico do escritório.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um Transit Gateway que representa exclusivamente o appliance remoto no Azure.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um Local Network Gateway com endpoint do dispositivo e espaço de endereços local.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma VIF privada que cria automaticamente a rede local dentro da assinatura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma route table que armazena credenciais de usuários e chaves de sessão.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Local Network Gateway representa o site remoto para roteamento, registrando endpoint do dispositivo VPN e prefixos da rede local. Os demais recursos pertencem a outros serviços ou não guardam essa representação.",
+      "section": "3. Azure VPN Gateway e ExpressRoute",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual requisito é atendido por conectividade privada dedicada, sem que isso implique criptografia IPsec automática?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conectar um usuário individual por VPN point-to-site com autenticação de aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar Direct Connect ou ExpressRoute com circuito e configuração de peering apropriados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Criar nomes DNS locais sem estabelecer qualquer conectividade entre as redes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar somente IPsec pela internet pública sem prover um circuito dedicado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Publicar endereços privados em uma tabela sem gateway nem anúncios de rota.",
+          "correct": false
+        }
+      ],
+      "explanation": "Direct Connect e ExpressRoute fornecem conectividade privada dedicada segundo os respectivos modelos de circuito. A necessidade de IPsec deve ser atendida por túnel/configuração adicional, se o requisito assim determinar.",
+      "section": "2. AWS Site-to-Site VPN e Direct Connect",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que uma equipe deve fazer para reduzir risco de falha silenciosa em um desenho híbrido com caminho principal e backup?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Testar periodicamente o failover, acompanhar túneis e revisar anúncios e rotas efetivas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desativar o monitoramento, pois os circuitos dedicados informam falhas sempre ao host.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Anunciar qualquer prefixo por todos os caminhos sem controlar preferência ou retorno.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter chaves e credenciais em texto aberto junto com as tabelas de roteamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Confiar que a contratação de dois provedores garante por si só continuidade fim a fim.",
+          "correct": false
+        }
+      ],
+      "explanation": "A redundância deve ser validada operacionalmente: verificar estado, anúncios e caminhos efetivos e exercitar a mudança para contingência. Dois serviços provisionados não asseguram sozinhos failover coerente nem proteção de credenciais.",
+      "section": "4. Escolha da arquitetura, segurança e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe descobre que a rota de ida usa VPN e a volta usa ExpressRoute. Qual ação técnica é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Revisar anúncios e preferências de rota em ambos os lados para alinhar o fluxo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Trocar o nome DNS dos servidores, pois nomes diferentes removem assimetria IP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o tamanho da subnet, porque prefixos maiores sempre forçam retorno pelo túnel.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover IPsec e deixar o firewall inferir qual caminho deve ser usado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar o BGP em todos os roteadores sem avaliar rotas estáticas alternativas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A assimetria deve ser corrigida na política de roteamento, alinhando anúncios e preferência nos dois sentidos ao requisito. DNS não escolhe o retorno IP e desativar BGP sem plano alternativo pode eliminar rotas necessárias.",
+      "section": "4. Escolha da arquitetura, segurança e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "AWS Site-to-Site VPN — What is AWS Site-to-Site VPN?",
+      "publisher": "Amazon Web Services",
+      "reference": "Conceitos de VPN, conexão entre rede local e AWS e componentes",
+      "url": "https://docs.aws.amazon.com/vpn/latest/s2svpn/what-is.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "AWS Site-to-Site VPN — Examples",
+      "publisher": "Amazon Web Services",
+      "reference": "Coexistência de Direct Connect e VPN e VPN privada sobre Direct Connect",
+      "url": "https://docs.aws.amazon.com/vpn/latest/s2svpn/Examples.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "AWS Direct Connect User Guide",
+      "publisher": "Amazon Web Services",
+      "reference": "Conexões, gateways, interfaces virtuais e roteamento Direct Connect",
+      "url": "https://docs.aws.amazon.com/directconnect/latest/UserGuide/Welcome.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "About Azure VPN Gateway",
+      "publisher": "Microsoft Learn",
+      "reference": "Tipos de conexão, site-to-site IPsec/IKE, roteamento e coexistência",
+      "url": "https://learn.microsoft.com/en-us/azure/vpn-gateway/vpn-gateway-about-vpngateways",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Azure ExpressRoute FAQ",
+      "publisher": "Microsoft Learn",
+      "reference": "ExpressRoute como conexão privada e distinção de VPN",
+      "url": "https://learn.microsoft.com/en-us/azure/expressroute/expressroute-faqs",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Site-to-Site VPN connections over ExpressRoute private peering",
+      "publisher": "Microsoft Learn",
+      "reference": "Túnel IPsec sobre private peering e seleção de rotas para criptografia",
+      "url": "https://learn.microsoft.com/en-us/azure/vpn-gateway/site-to-site-vpn-private-peering",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Add or remove site-to-site connections",
+      "publisher": "Microsoft Learn",
+      "reference": "Local Network Gateway, requisitos e configuração de VPN site-to-site",
+      "url": "https://learn.microsoft.com/en-us/azure/vpn-gateway/add-remove-site-to-site-connections",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

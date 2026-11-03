@@ -1,0 +1,2696 @@
+{
+  "id": "informatica.interpretacao-pacotes-redes",
+  "subject": "Informática",
+  "title": "Interpretação de pacotes em redes de computadores",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Interpretação de pacotes",
+    "Análise de pacotes de rede",
+    "Leitura de pacotes de rede",
+    "Análise de tráfego de rede",
+    "Captura e análise de pacotes",
+    "Interpretação de tráfego TCP/IP",
+    "Analisador de protocolos Wireshark",
+    "Cabeçalho IPv4 e fragmentação",
+    "Análise dos segmentos TCP",
+    "Análise dos datagramas UDP"
+  ],
+  "scope": {
+    "covers": "Interpretação de capturas de rede em camadas: quadro Ethernet, IPv4, TCP, UDP, ICMP e DNS; endereços, portas, comprimento, TTL, fragmentação, sequência, confirmação, flags, checksum e payload; filtros de captura e de exibição no Wireshark; leitura de conversas e limites das conclusões possíveis a partir de uma captura.",
+    "excludes": "Projeto de redes, configuração de roteadores e firewalls, exploração de vulnerabilidades, criptografia em profundidade, análise forense completa e detalhes de protocolos de aplicação além do necessário para interpretar uma captura."
+  },
+  "theoryTitle": "Como ler e interpretar pacotes de rede",
+  "chapters": [
+    {
+      "title": "1. Da captura ao modelo em camadas",
+      "markdown": "### O problema que este assunto resolve\n\nUma captura registra unidades de comunicação observadas em uma interface. Interpretá-la é reconstruir, campo por campo, quem enviou o tráfego, para quem, por qual protocolo e em que sequência. Um analisador como Wireshark decodifica bytes em campos reconhecíveis, mas não torna automaticamente todo conteúdo visível nem prova a causa de um problema.\n\n> **Siglas e termos deste capítulo**\n> - **PDU**: unidade de dados de um protocolo; quadro, pacote IP, segmento TCP ou datagrama UDP conforme a camada.\n> - **NIC**: placa ou interface de rede na qual o tráfego é capturado.\n> - **MAC**: endereço de enlace usado para entrega no segmento local.\n> - **IP**: endereço lógico de origem e destino na camada de rede.\n> - **Payload**: conteúdo transportado depois dos cabeçalhos de protocolo.\n> - **Dissector**: componente do analisador que reconhece e apresenta os campos de um protocolo.\n\n### Leia de fora para dentro\n\nEm Ethernet com IPv4 e TCP, a encapsulação típica é: quadro Ethernet contém pacote IPv4; o pacote contém segmento TCP; o segmento pode transportar dados de aplicação. UDP ocupa o lugar do TCP quando esse é o protocolo de transporte. Ao selecionar um pacote no Wireshark, o painel de detalhes organiza os campos por protocolo. Expandir cada camada evita confundir, por exemplo, o endereço MAC do próximo salto com o endereço IP do servidor final.\n\n| Camada observada | Campos típicos | Pergunta respondida |\n| --- | --- | --- |\n| Enlace, como Ethernet | MAC de origem e destino, tipo | Qual interface ou equipamento local participa do quadro? |\n| Rede, como IPv4 | IP de origem e destino, TTL, protocolo | Entre quais hosts o pacote é encaminhado? |\n| Transporte, TCP/UDP | Portas, flags ou comprimento | Qual processo/serviço e qual comportamento de transporte? |\n| Aplicação, como DNS | Consulta, nome, resposta | Que mensagem de aplicação foi decodificada? |\n\nO campo **EtherType** informa o tipo de conteúdo carregado pelo quadro, como IPv4 ou IPv6. O campo **Protocol** do IPv4 identifica o protocolo seguinte, por exemplo TCP, UDP ou ICMP. Eles pertencem a cabeçalhos diferentes.\n\n### O que uma captura representa\n\nO número do pacote e o horário são propriedades do registro na captura. Eles ajudam a ordenar eventos, calcular intervalos e localizar retransmissões. A interface de captura importa: uma captura feita no cliente pode mostrar um quadro de saída antes de ele ser descartado por um equipamento; outra interface pode não enxergar tráfego unicast alheio. Perda de pacotes durante a própria captura também pode produzir uma visão incompleta.\n\nA lista de pacotes resume cada quadro em colunas; o painel de detalhes decodifica o selecionado; o painel de bytes exibe os octetos capturados. Um pacote pode ter vários protocolos decodificados em árvore. A decodificação depende do conteúdo disponível, do encapsulamento e do reconhecimento correto do protocolo.\n\n### Como cai na prova\n\n- Diferencie MAC de IP: o primeiro serve ao enlace local; o segundo identifica origem e destino na camada de rede.\n- Não confunda protocolo seguinte no IPv4 com EtherType no Ethernet.\n- A captura mostra o que foi observado naquele ponto e momento, não necessariamente todo o caminho nem a intenção do usuário.\n- Um nome de protocolo exibido pelo dissector é interpretação dos bytes; confira campos e contexto quando a porta não convencional ou dados truncados puderem causar ambiguidade."
+    },
+    {
+      "title": "2. IPv4: endereços, TTL e fragmentação",
+      "markdown": "### O problema que este assunto resolve\n\nO cabeçalho IPv4 descreve o encaminhamento de um datagrama entre endereços IP. Em uma captura, seus campos ajudam a identificar origem e destino, o próximo protocolo, limites de comprimento e sinais de fragmentação. A especificação oficial do IPv4 descreve esses campos e a fragmentação em unidades compatíveis com a rede.\n\n> **Siglas e termos deste capítulo**\n> - **IPv4**: protocolo de rede com endereços de 32 bits.\n> - **TTL**: campo decrementado pelos roteadores para limitar a vida do datagrama.\n> - **DF**: bit Don’t Fragment, que proíbe fragmentar aquele datagrama.\n> - **MF**: bit More Fragments, que indica que há fragmentos seguintes.\n> - **Offset**: posição dos dados do fragmento em relação ao datagrama original, expressa em blocos de oito octetos.\n> - **MTU**: tamanho máximo de pacote que um enlace aceita transportar sem fragmentação.\n\n### Campos úteis na leitura\n\n| Campo IPv4 | Interpretação prática |\n| --- | --- |\n| Version e IHL | Versão do IP e comprimento do cabeçalho; IHL inclui opções quando presentes |\n| Total Length | Tamanho total do datagrama IPv4, incluindo cabeçalho e dados |\n| Identification | Valor usado para reconhecer fragmentos do mesmo datagrama |\n| Flags e Fragment Offset | Indicam restrição e posição dos fragmentos |\n| TTL | Limite de encaminhamentos restante; não é relógio em segundos |\n| Protocol | Identifica o protocolo encapsulado, como TCP, UDP ou ICMP |\n| Header Checksum | Verifica o cabeçalho IPv4, não o conteúdo inteiro da aplicação |\n| Source e Destination | Endereços IP de origem e destino do datagrama |\n\n### Fragmentação sem mistério\n\nSe um datagrama precisa atravessar um enlace com MTU menor e a fragmentação IPv4 é permitida, ele pode ser dividido em fragmentos. Cada fragmento tem seu próprio cabeçalho IPv4; identificação, origem, destino e protocolo permitem associá-los. O **offset** não é contado em bytes unitários, mas em blocos de oito octetos. MF vale 1 nos fragmentos que não são o último; no último vale 0. O destino reúne os fragmentos para remontar o datagrama.\n\nDF ligado significa que o datagrama não deve ser fragmentado. Se ele não couber no próximo enlace, o encaminhador descarta o datagrama e pode informar a condição por ICMP. Não conclua que um pacote é o último fragmento apenas por seu tamanho: use MF e offset. Um fragmento posterior pode não conter o cabeçalho TCP/UDP inicial, portanto portas podem não estar disponíveis em cada linha da captura.\n\n### TTL e checksum\n\nTTL é reduzido por cada roteador que encaminha o pacote. Um valor menor observado mais adiante é compatível com passagem por roteadores, mas não revela sozinho a rota completa. Quando chega a zero, o pacote não continua sendo encaminhado; normalmente a origem recebe ICMP de tempo excedido. Como o TTL muda, o checksum do cabeçalho IPv4 precisa refletir a mudança. Esse checksum cobre somente o cabeçalho IPv4.\n\n### Como cai na prova\n\n- TTL não mede segundos e não é o campo de tempo de uma aplicação.\n- MF=1 anuncia fragmento subsequente; offset localiza a posição dos dados.\n- Total Length conta o datagrama IP completo, ao passo que comprimento de quadro pode incluir cabeçalho Ethernet.\n- Checksum IPv4 não valida o payload TCP/UDP."
+    },
+    {
+      "title": "3. TCP e UDP: portas, controle e entrega",
+      "markdown": "### O problema que este assunto resolve\n\nO cabeçalho de transporte permite relacionar tráfego IP a uma conversa e entender como os dados são enviados. TCP fornece um fluxo confiável e ordenado com confirmação e controle; UDP oferece datagramas sem estabelecer essa mesma conexão nem confirmar, por si, a entrega. A especificação atual do TCP está no RFC 9293; o formato de UDP foi definido no RFC 768.\n\n> **Siglas e termos deste capítulo**\n> - **TCP**: Transmission Control Protocol, transporte orientado a conexão e fluxo de bytes.\n> - **UDP**: User Datagram Protocol, transporte de datagramas sem garantia de entrega pelo próprio protocolo.\n> - **Porta**: identificador de ponto de acesso de transporte em um host.\n> - **SEQ**: número de sequência TCP associado à posição dos dados no fluxo.\n> - **ACK**: confirmação TCP; quando válido, aponta o próximo número de sequência esperado.\n> - **MSS**: quantidade máxima de dados TCP em um segmento, negociada como opção.\n\n### Portas e conversa\n\nO segmento TCP e o datagrama UDP possuem porta de origem e porta de destino. O par de endereços IP e portas de origem/destino, junto ao protocolo de transporte, identifica uma conversa observável. Uma conexão TCP é normalmente distinguida por esse conjunto nos dois sentidos. A porta de destino costuma sugerir o serviço, mas não prova qual aplicação foi usada: serviços podem usar portas não padronizadas, proxies podem intermediar e o conteúdo pode estar cifrado.\n\n### Leitura do TCP\n\nNo início de uma conexão, a troca comum é SYN, SYN/ACK e ACK. SYN inicia a sincronização de números de sequência; SYN/ACK responde e confirma o SYN recebido; o ACK final completa a abertura usual. FIN sinaliza encerramento ordenado de um lado do fluxo. RST indica reinicialização/aborto. A ausência de uma etapa na captura pode decorrer de perda, ponto de captura diferente ou captura iniciada depois do começo; não basta para afirmar que a conexão nunca ocorreu.\n\nO número de sequência identifica a posição do primeiro octeto de dados do segmento (com tratamento especial quando SYN está presente). O campo ACK, quando ativo, informa o próximo número de sequência esperado e, portanto, confirma cumulativamente os octetos anteriores. Se o receptor espera 501 e recebe um ACK=501, a leitura usual é que todos os octetos até 500 foram recebidos. Retransmissões podem aparecer quando não chega confirmação dentro do esperado; captura isolada pode, porém, perder um dos segmentos e aparentar retransmissão.\n\nO **Data Offset** informa onde terminam cabeçalho e opções e começa o payload. A janela anuncia capacidade de recepção conforme o controle de fluxo. Flags como ACK, SYN, FIN, RST, PSH e URG têm significados específicos; não interprete PSH como prova de que uma mensagem da aplicação foi entregue instantaneamente. Opções podem carregar, por exemplo, negociação de MSS e escalonamento da janela.\n\n### Leitura do UDP e dos checksums\n\nO cabeçalho UDP contém portas, comprimento e checksum, seguido pelos dados. O comprimento informado inclui cabeçalho UDP e dados UDP. UDP não tem handshake nem números de sequência e confirmações equivalentes às do TCP. Uma aplicação pode implementar suas próprias confirmações, mas isso não é característica intrínseca do UDP. O checksum UDP protege o datagrama conforme as regras do protocolo e usa também informações de pseudo-cabeçalho IP para detectar encaminhamento incorreto; em IPv4, a especificação permite checksum zero como indicação de ausência de checksum UDP.\n\n### Como cai na prova\n\n- ACK TCP é cumulativo e aponta o próximo octeto esperado; não significa confirmação da aplicação.\n- SYN e FIN ocupam espaço no espaço de sequência TCP, embora não sejam dados de aplicação.\n- UDP não estabelece conexão nem garante entrega; a aplicação pode adicionar mecanismos próprios.\n- Porta de destino é indício, não identificação infalível do conteúdo."
+    },
+    {
+      "title": "4. Wireshark, filtros e raciocínio de diagnóstico",
+      "markdown": "### O problema que este assunto resolve\n\nUma captura real pode conter milhares de quadros. O Wireshark ajuda a selecionar os relevantes, acompanhar conversas e comparar tempos. O guia oficial distingue filtros usados durante a captura e filtros de exibição: o primeiro limita o que será registrado; o segundo apenas esconde da visualização os pacotes que não correspondem.\n\n> **Siglas e termos deste capítulo**\n> - **pcap/pcapng**: formatos de arquivo usados para guardar capturas de pacotes.\n> - **Filtro de captura**: expressão aplicada na captura para decidir quais pacotes serão guardados.\n> - **Filtro de exibição**: expressão aplicada à captura aberta para mostrar apenas pacotes correspondentes.\n> - **Stream**: sequência lógica de tráfego, como um fluxo TCP reconstruído.\n> - **DNS**: protocolo que consulta e responde informações de nomes, frequentemente endereços.\n> - **ICMP**: protocolo de controle e mensagens de erro/diagnóstico da camada IP.\n\n### Filtrar e seguir\n\nFiltros de exibição usam nomes de campos do Wireshark, por exemplo `tcp`, `udp`, `dns`, `icmp`, `ip.addr == 192.0.2.10`, `tcp.port == 443` ou `tcp.flags.syn == 1`. A sintaxe depende do campo e operadores; um filtro aplicado não apaga os pacotes ocultos da captura. Já um filtro de captura, configurado antes ou durante a coleta, pode impedir que tráfego não correspondente seja gravado e não pode recuperar o que deixou de ser capturado.\n\nAo seguir um stream TCP, o analisador apresenta os dados da conversa reconstituída a partir dos segmentos observados. Isso é útil para acompanhar requisição e resposta, mas não supera criptografia: em HTTPS, o payload protegido não se torna texto legível só porque o fluxo foi seguido. O dissector pode ainda decodificar metadados visíveis, como endereços, portas, tamanhos e algumas informações de handshake.\n\n### Uma sequência segura de leitura\n\n1. Confirme interface, intervalo temporal e se a captura aparenta estar completa.\n2. Localize hosts e protocolos pelo resumo; aplique filtro de exibição para reduzir ruído.\n3. Abra os detalhes de Ethernet, IP e transporte, verificando endereços, portas, flags, comprimento e horário.\n4. Agrupe pacotes por conversa e compare ambos os sentidos. Use seguimento de fluxo quando fizer sentido.\n5. Formule uma conclusão proporcional ao observado e registre explicações alternativas, como perda de captura ou tráfego cifrado.\n\nDNS permite observar consulta, nome e resposta quando não há cifragem e a captura inclui a troca. ICMP de destino inacessível ou tempo excedido pode explicar falha de entrega ou TTL expirado. Mas nenhuma mensagem isolada prova que o servidor ou a rede inteira ficou indisponível; confirme sequência, direção, repetição e resposta.\n\n### Como cai na prova\n\n- Filtro de exibição não modifica nem remove os pacotes do arquivo aberto.\n- Filtro de captura pode deixar tráfego fora do arquivo desde o início.\n- `tcp.port == 443` seleciona pacotes que correspondem ao campo/porta, mas não decifra HTTPS.\n- A ausência de pacote numa captura não prova ausência de comunicação fora do ponto ou intervalo capturado."
+    }
+  ],
+  "summary": "Interpretar uma captura é ler cada protocolo em sua camada e relacionar quadro, IP, transporte e aplicação. MAC identifica a entrega no enlace local; IPv4 encaminha datagramas e informa TTL, protocolo e fragmentação; TCP oferece sequência, ACK cumulativo e controle; UDP transporta datagramas sem garantias próprias de entrega. No Wireshark, filtros de captura limitam o que entra no arquivo, filtros de exibição apenas selecionam o que aparece. A análise deve respeitar o ponto e a qualidade da captura, e não presume que portas revelem com certeza uma aplicação ou que payload cifrado seja legível.",
+  "flashcards": [
+    {
+      "front": "Qual é a ordem típica de encapsulamento Ethernet, IPv4 e TCP?",
+      "back": "O quadro Ethernet transporta um pacote IPv4; este transporta um segmento TCP; o segmento pode transportar dados de aplicação."
+    },
+    {
+      "front": "MAC e IP identificam a mesma coisa?",
+      "back": "Não. MAC é endereço de enlace local; IP identifica origem e destino na camada de rede."
+    },
+    {
+      "front": "O que o EtherType indica no quadro Ethernet?",
+      "back": "O protocolo de rede carregado no quadro, como IPv4 ou IPv6."
+    },
+    {
+      "front": "O que o campo Protocol de IPv4 indica?",
+      "back": "O protocolo transportado pelo pacote IP, como TCP, UDP ou ICMP."
+    },
+    {
+      "front": "TTL é um tempo em segundos?",
+      "back": "Não. É um limite decrementado por roteadores para impedir encaminhamento indefinido."
+    },
+    {
+      "front": "O que indica MF=1 em IPv4?",
+      "back": "Que há mais fragmentos depois daquele fragmento."
+    },
+    {
+      "front": "Em que unidade o offset de fragmento IPv4 é expresso?",
+      "back": "Em blocos de oito octetos, relativos aos dados do datagrama original."
+    },
+    {
+      "front": "O que o bit DF solicita?",
+      "back": "Que o datagrama não seja fragmentado."
+    },
+    {
+      "front": "O checksum IPv4 cobre o payload?",
+      "back": "Não. Ele verifica somente o cabeçalho IPv4."
+    },
+    {
+      "front": "Qual é o significado de ACK=501 se o receptor espera sequência 501?",
+      "back": "O receptor confirma cumulativamente os octetos anteriores e espera o octeto de sequência 501."
+    },
+    {
+      "front": "Quais são as três mensagens comuns de abertura TCP?",
+      "back": "SYN, SYN/ACK e ACK."
+    },
+    {
+      "front": "O que FIN sinaliza em TCP?",
+      "back": "O encerramento ordenado do envio por um lado da conexão."
+    },
+    {
+      "front": "O que RST sinaliza em TCP?",
+      "back": "Reinicialização ou aborto da conexão."
+    },
+    {
+      "front": "O que o Data Offset TCP localiza?",
+      "back": "O início dos dados TCP, considerando o comprimento do cabeçalho e das opções."
+    },
+    {
+      "front": "Quais campos essenciais existem no cabeçalho UDP?",
+      "back": "Porta de origem, porta de destino, comprimento e checksum."
+    },
+    {
+      "front": "UDP confirma a entrega por si só?",
+      "back": "Não. A aplicação pode implementar confirmação própria."
+    },
+    {
+      "front": "O filtro de exibição apaga pacotes?",
+      "back": "Não. Ele apenas oculta da lista os que não correspondem."
+    },
+    {
+      "front": "O que faz um filtro de captura?",
+      "back": "Limita quais pacotes serão gravados durante a coleta."
+    },
+    {
+      "front": "Seguir stream TCP decifra HTTPS automaticamente?",
+      "back": "Não. A criptografia continua protegendo o payload."
+    },
+    {
+      "front": "Por que uma porta não identifica com certeza uma aplicação?",
+      "back": "Serviços podem usar portas não convencionais e o tráfego pode ser intermediado ou cifrado."
+    }
+  ],
+  "tips": [
+    "Comece pela sequência Ethernet → IP → TCP/UDP → aplicação para não misturar campos de camadas diferentes.",
+    "Compare origem e destino nos dois sentidos: a resposta pode aparecer com endereços e portas invertidos.",
+    "Ao analisar fragmentação, verifique identificação, MF e offset; os fragmentos posteriores podem não expor as portas.",
+    "Considere o ponto e o intervalo da captura antes de concluir que um pacote não existiu.",
+    "Use filtro de exibição para explorar a captura sem descartar o restante do arquivo.",
+    "Em TCP, leia ACK como próximo número esperado e correlacione-o aos dados e retransmissões observados."
+  ],
+  "traps": [
+    "Trocar o MAC do próximo salto pelo IP do destino final.",
+    "Tratar TTL como cronômetro ou como quantidade exata de segundos.",
+    "Ler offset de fragmento IPv4 diretamente como número de bytes sem multiplicar por oito.",
+    "Afirmar que UDP garante entrega ou que ACK TCP confirma processamento pela aplicação.",
+    "Confundir filtro de exibição, que oculta, com filtro de captura, que restringe o que é armazenado.",
+    "Supor que porta conhecida revele o serviço real ou que seguir fluxo torne dados cifrados legíveis."
+  ],
+  "activeRecall": [
+    "Desenhe o encapsulamento de um quadro Ethernet que contém IPv4, TCP e dados de aplicação.",
+    "Explique a diferença entre endereço MAC e endereço IP usando uma transmissão que cruza roteadores.",
+    "Descreva o papel de Total Length, TTL, Protocol e Header Checksum no IPv4.",
+    "Dado MF=1 e offset diferente de zero, explique por que o pacote é um fragmento intermediário ou posterior.",
+    "Explique por que offset IPv4 usa blocos de oito octetos e como o destino remonta fragmentos.",
+    "Escreva a sequência usual de abertura TCP e diga o que cada segmento comunica.",
+    "Interprete um ACK TCP como próximo octeto esperado, sem confundi-lo com confirmação da aplicação.",
+    "Compare a informação de controle disponível nos cabeçalhos TCP e UDP.",
+    "Diferencie filtro de captura de filtro de exibição no Wireshark e indique o efeito de cada um.",
+    "Cite três razões pelas quais a ausência de um pacote na captura não prova que ele não trafegou."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Campos de camadas diferentes misturados",
+      "summary": "EtherType pertence ao quadro Ethernet; Protocol pertence ao IPv4; MAC é de enlace e IP é de rede."
+    },
+    {
+      "key": "e2",
+      "title": "Fragmentação e TTL interpretados como tamanho ou tempo",
+      "summary": "TTL é decrementado em encaminhamentos; MF e offset descrevem fragmentos; offset usa unidades de oito octetos."
+    },
+    {
+      "key": "e3",
+      "title": "TCP e UDP confundidos",
+      "summary": "TCP tem sequência, ACK cumulativo e controle de conexão; UDP não oferece por si só handshake nem confirmação de entrega."
+    },
+    {
+      "key": "e4",
+      "title": "Filtros do Wireshark trocados",
+      "summary": "Filtro de captura condiciona o que é gravado; filtro de exibição apenas seleciona o que fica visível na análise."
+    },
+    {
+      "key": "e5",
+      "title": "Conclusões além da evidência",
+      "summary": "Captura é localizada e pode estar incompleta; porta não comprova aplicação e payload cifrado não se revela ao seguir stream."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um quadro Ethernet que transporta IPv4 e TCP, os cabeçalhos aparecem em camadas aninhadas, com o quadro contendo o pacote e este contendo o segmento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A encapsulação comum coloca o segmento TCP dentro do pacote IPv4 e este dentro do quadro Ethernet. Cada cabeçalho acrescenta campos próprios à unidade de dados da camada imediatamente superior.",
+      "section": "1. Da captura ao modelo em camadas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O endereço MAC de destino de um quadro IPv4 identifica necessariamente o servidor remoto final, mesmo quando o pacote atravessa roteadores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O MAC é usado na entrega do enlace local e pode apontar para o próximo salto; o endereço IP identifica o destino de rede do datagrama.",
+      "section": "1. Da captura ao modelo em camadas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O EtherType do Ethernet e o campo Protocol do IPv4 ficam em cabeçalhos distintos e indicam o protocolo encapsulado em suas respectivas camadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. EtherType indica o conteúdo de rede carregado no quadro; Protocol do IPv4 indica o protocolo transportado dentro do pacote IP, como TCP ou UDP.",
+      "section": "1. Da captura ao modelo em camadas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma captura feita numa interface necessariamente contém todos os pacotes que passaram pela rede inteira durante o dia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A captura depende do ponto de observação, intervalo, configuração e possíveis perdas; ela não representa automaticamente toda a rede.",
+      "section": "1. Da captura ao modelo em camadas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O painel de detalhes do Wireshark organiza campos decodificados por protocolo e pode ser comparado à visualização dos bytes capturados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A lista resume pacotes, os detalhes mostram a árvore de protocolos e o painel de bytes permite inspecionar os octetos registrados.",
+      "section": "1. Da captura ao modelo em camadas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O TTL do IPv4 representa o número de segundos que o pacote ainda pode permanecer em trânsito.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O campo é decrementado por roteadores e limita encaminhamentos; não é um cronômetro em segundos. Quando se esgota, o datagrama deixa de ser encaminhado e pode haver uma mensagem ICMP de tempo excedido.",
+      "section": "2. IPv4: endereços, TTL e fragmentação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O campo Total Length do IPv4 conta cabeçalho IPv4 e dados do datagrama, mas não o cabeçalho Ethernet externo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Total Length mede o datagrama IP inteiro; o quadro de enlace acrescenta seu próprio cabeçalho fora desse comprimento.",
+      "section": "2. IPv4: endereços, TTL e fragmentação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No IPv4, o fragment offset é expresso diretamente em bytes unitários a partir do início dos dados originais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O offset representa blocos de oito octetos; a posição em bytes é obtida considerando essa unidade. Por exemplo, offset 100 localiza os dados na posição 800 do datagrama original.",
+      "section": "2. IPv4: endereços, TTL e fragmentação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "MF igual a 1 informa que há mais fragmentos depois do fragmento IPv4 observado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. More Fragments ligado identifica que o fragmento não é o último do datagrama original. A remontagem usa também a identificação e os offsets para posicionar os trechos recebidos.",
+      "section": "2. IPv4: endereços, TTL e fragmentação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O checksum do cabeçalho IPv4 verifica também todo o payload de aplicação que o pacote transporta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O checksum IPv4 cobre o cabeçalho IPv4. TCP, UDP e protocolos de aplicação têm mecanismos distintos, quando aplicáveis.",
+      "section": "2. IPv4: endereços, TTL e fragmentação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fragmento IPv4 posterior pode não conter o início do segmento TCP e, por isso, não apresentar as portas no seu próprio conteúdo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As portas TCP ficam no início do segmento; um fragmento com offset posterior pode carregar apenas uma parte mais adiante dos dados originais.",
+      "section": "2. IPv4: endereços, TTL e fragmentação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma abertura TCP usual, o cliente envia SYN, recebe SYN/ACK e responde com ACK.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essa troca sincroniza números de sequência e confirma a resposta antes do fluxo de dados usual. A ausência de uma etapa na captura pode decorrer de perda ou de um ponto de observação diferente.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ACK TCP válido informa o próximo número de sequência esperado e confirma cumulativamente os octetos anteriores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O campo acknowledgment expressa o próximo número esperado, reconhecendo cumulativamente os dados anteriores na sequência. Ele não confirma, por si, que a aplicação processou ou salvou esses dados.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A presença de ACK prova que a aplicação remota já processou e gravou os dados recebidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. ACK confirma dados no nível TCP, não a execução, aceitação ou gravação pela aplicação destinatária. A aplicação precisa de seu próprio mecanismo se quiser confirmar processamento ou persistência.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "UDP não inclui no próprio protocolo um handshake e confirmações de entrega equivalentes aos do TCP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. UDP fornece datagramas com cabeçalho compacto; uma aplicação pode adicionar confirmações, mas elas não são garantidas pelo UDP.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um filtro de exibição aplicado a uma captura aberta remove definitivamente do arquivo todos os pacotes que não correspondem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O filtro de exibição restringe o que aparece na tela; os pacotes continuam no arquivo de captura e podem voltar a ser exibidos ao trocar ou remover o filtro.",
+      "section": "4. Wireshark, filtros e raciocínio de diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um filtro de captura pode impedir que determinados pacotes sejam gravados, e a análise posterior não recupera o tráfego omitido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O filtro de captura atua na coleta; tráfego excluído nessa etapa não está disponível para filtros posteriores de exibição. Por isso, a captura deve ser planejada para preservar o tráfego necessário à investigação.",
+      "section": "4. Wireshark, filtros e raciocínio de diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Seguir um stream TCP no Wireshark revela automaticamente o texto em claro de uma sessão HTTPS cifrada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Seguir stream reordena dados observados, mas não remove a proteção criptográfica do payload HTTPS. Metadados visíveis, como endereços e horários, ainda podem ser analisados.",
+      "section": "4. Wireshark, filtros e raciocínio de diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ausência de uma consulta DNS em uma captura prova que o computador nunca resolveu aquele nome por nenhum mecanismo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A consulta pode ter ocorrido antes do intervalo capturado, em outro ponto, por resposta em cache ou por mecanismo não observado. A conclusão deve ficar restrita ao arquivo e à interface efetivamente analisados.",
+      "section": "4. Wireshark, filtros e raciocínio de diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao inspecionar um quadro Ethernet com endereço MAC de destino do roteador e pacote IPv4 destinado a um servidor externo, qual leitura está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O MAC do roteador substitui o IP do servidor durante todo o percurso entre redes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O quadro é entregue ao próximo salto local, enquanto o IP mantém o servidor como destino de rede.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O endereço IP do servidor só é válido no segmento Ethernet de origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ethernet e IPv4 precisam usar o mesmo endereço de destino em cada cabeçalho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O MAC de destino indica a porta TCP do serviço remoto solicitado e identifica o processo que receberá os dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "O quadro é encaminhado no enlace local ao roteador; o datagrama conserva o endereço IP do servidor final. MAC e IP pertencem a funções distintas.",
+      "section": "1. Da captura ao modelo em camadas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual campo do cabeçalho Ethernet indica que o conteúdo de rede carregado é IPv4?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O campo TTL do cabeçalho IPv4.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O campo EtherType do quadro Ethernet.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O campo acknowledgment do cabeçalho TCP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número da porta de destino UDP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O campo Fragment Offset do datagrama IPv4, que posiciona partes fragmentadas e não identifica o tipo de quadro.",
+          "correct": false
+        }
+      ],
+      "explanation": "EtherType identifica o protocolo de rede transportado no quadro. Os demais campos pertencem a IPv4 ou à camada de transporte.",
+      "section": "1. Da captura ao modelo em camadas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No IPv4, qual campo indica se o conteúdo posterior é TCP, UDP ou ICMP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O EtherType do quadro Ethernet.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O campo Protocol do cabeçalho IPv4.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O campo Window do cabeçalho TCP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O campo Total Length do datagrama.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A porta de origem UDP, que não indica o protocolo transportado pelo pacote IPv4.",
+          "correct": false
+        }
+      ],
+      "explanation": "O campo Protocol aponta o protocolo transportado dentro do pacote IPv4. EtherType identifica o protocolo contido no quadro Ethernet, uma camada acima do enlace.",
+      "section": "1. Da captura ao modelo em camadas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na lista do Wireshark, a equipe quer ver somente pacotes de uma conversa envolvendo o IP 192.0.2.10, sem remover os demais do arquivo. Qual filtro de exibição é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "tcp.flags.syn == 0",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ip.addr == 192.0.2.10",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "frame.number = 192.0.2.10",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "eth.type == tcp",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "udp.length == 192.0.2.10, expressão que compara comprimento e não o endereço IP procurado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O campo ip.addr corresponde a endereço IPv4 de origem ou destino e o operador de igualdade seleciona esse valor. O filtro de exibição não apaga os demais quadros.",
+      "section": "4. Wireshark, filtros e raciocínio de diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista deseja observar somente segmentos TCP que usam a porta 443 em uma captura já aberta. Qual filtro de exibição corresponde à tarefa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ip.ttl == 443",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "tcp.port == 443",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "eth.addr == 443",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "udp.length == 443",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "dns.qry.name == tcp, filtro que consulta nomes DNS em vez de selecionar a porta TCP 443.",
+          "correct": false
+        }
+      ],
+      "explanation": "tcp.port filtra a porta de origem ou destino de TCP. O filtro seleciona tráfego; por si só não identifica com certeza a aplicação nem decifra conteúdo.",
+      "section": "4. Wireshark, filtros e raciocínio de diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual interpretação de TTL igual a 1 em um pacote IPv4 é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O pacote foi criado há exatamente um segundo e expirará ao completar dois segundos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O pacote tem pouco limite de encaminhamento restante, e um roteador que o decremente a zero não o encaminhará adiante.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O pacote só pode ser recebido por uma aplicação que use a porta 1.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O pacote contém exatamente um fragmento restante no datagrama.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O pacote já foi retransmitido uma vez pelo protocolo TCP, pois TTL conta as repetições feitas pelo emissor.",
+          "correct": false
+        }
+      ],
+      "explanation": "TTL limita a vida de encaminhamento ao ser decrementado pelos roteadores; não é tempo em segundos, porta nem contador de fragmentos.",
+      "section": "2. IPv4: endereços, TTL e fragmentação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma captura mostra dois fragmentos IPv4 com a mesma origem, destino e identificação. Qual campo ajuda a posicionar os dados do segundo fragmento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "TTL, interpretado em bytes desde o cabeçalho inicial.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Fragment Offset, interpretado em blocos de oito octetos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Header Checksum, interpretado como posição dos dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "EtherType, que contém a distância do fragmento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porta TCP, que conta a posição do fragmento e permite ao destino remontar os octetos originais.",
+          "correct": false
+        }
+      ],
+      "explanation": "O offset permite reconstruir a posição dos dados do fragmento em relação ao datagrama original, usando unidades de oito octetos.",
+      "section": "2. IPv4: endereços, TTL e fragmentação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência representa a abertura TCP usual entre cliente e servidor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "FIN do cliente, RST do servidor e UDP ACK do cliente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SYN do cliente, SYN/ACK do servidor e ACK do cliente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "ACK do servidor, FIN do cliente e SYN do roteador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DNS do cliente, ICMP do servidor e SYN do Ethernet.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SYN/ACK do cliente, SYN do servidor e FIN do roteador, combinação que estabelece a conexão TCP.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na abertura comum, SYN inicia sincronização, SYN/ACK responde e confirma esse início, e ACK finaliza a troca usual. As três mensagens são do TCP e não devem ser confundidas com consulta DNS ou troca de datagramas UDP.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um segmento TCP anuncia ACK=1201. Qual leitura corresponde ao significado usual do campo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A aplicação remota gravou exatamente 1201 arquivos recebidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O receptor espera o próximo octeto de sequência 1201 e confirma cumulativamente os anteriores.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O pacote contém 1201 bytes de payload depois do cabeçalho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A janela de recepção possui necessariamente 1201 segmentos livres.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A conexão usa obrigatoriamente a porta TCP 1201 como destino e o ACK registra esse número como porta remota.",
+          "correct": false
+        }
+      ],
+      "explanation": "O ACK contém o próximo número de sequência esperado. Ele reconhece os octetos anteriores no TCP, mas não informa ação da aplicação. A confirmação de transporte não demonstra que o programa remoto processou ou persistiu a mensagem.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa de transporte de datagramas com cabeçalho simples e aceita implementar eventual confirmação na própria aplicação. Qual protocolo de transporte atende a essa descrição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "UDP, que não fornece confirmação de entrega própria equivalente à do TCP.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "TCP, que não possui portas de origem ou destino.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ethernet, que confirma a entrega de ponta a ponta entre aplicações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "IPv4, que ordena todos os bytes de aplicação em um fluxo confiável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ICMP, que substitui o transporte de dados de qualquer aplicação e fornece confirmação equivalente à do TCP.",
+          "correct": false
+        }
+      ],
+      "explanation": "UDP fornece datagramas sem garantias próprias de entrega ou ordenação como as do TCP. Uma aplicação pode implementar os mecanismos que necessitar.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cabeçalho UDP informa Length=40. O que esse campo representa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O comprimento do datagrama UDP, incluindo o cabeçalho UDP e os dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O número de roteadores ainda permitido pelo TTL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A quantidade de portas abertas na máquina de origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O comprimento apenas do quadro Ethernet completo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O deslocamento em bytes de um fragmento IPv4, calculado a partir da posição relativa dos dados originais.",
+          "correct": false
+        }
+      ],
+      "explanation": "O comprimento UDP inclui o cabeçalho UDP e os dados UDP. Ele não é o tamanho do quadro Ethernet nem o offset de fragmentação IP; esses valores pertencem a outros cabeçalhos e camadas.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pacote IPv4 tem Total Length de 1500 octetos e cabeçalho IHL de 20 octetos, sem fragmentação. Qual é o tamanho máximo de conteúdo transportado logo após o cabeçalho IPv4?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "1520 octetos, pois é preciso somar o cabeçalho ao Total Length.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "1500 octetos, pois Total Length exclui o cabeçalho IPv4.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "1480 octetos, pois o comprimento total inclui o cabeçalho IPv4 de 20 octetos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "20 octetos, pois IHL informa o tamanho dos dados transportados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "1488 octetos, pois o cabeçalho IPv4 tem sempre 12 octetos e esse tamanho deve ser subtraído do Total Length.",
+          "correct": false
+        }
+      ],
+      "explanation": "Total Length inclui o cabeçalho e os dados. Subtraindo os 20 octetos do cabeçalho informado, restam 1480 octetos para o conteúdo do pacote IPv4. O cabeçalho Ethernet externo não entra nessa conta, pois pertence à camada de enlace.",
+      "section": "2. IPv4: endereços, TTL e fragmentação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fragmento IPv4 apresenta offset igual a 100. Em que posição em octetos começam os dados desse fragmento em relação ao datagrama original?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Na posição 12, porque o offset representa quantidade de cabeçalhos IP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Na posição 100, porque o offset é sempre contado em octetos unitários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Na posição 108, porque deve-se somar oito ao valor do offset.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Na posição 800, porque cada unidade do offset representa oito octetos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Na posição 1600, porque cada unidade representa dezesseis octetos em qualquer fragmento IPv4.",
+          "correct": false
+        }
+      ],
+      "explanation": "O campo offset é medido em unidades de oito octetos; 100 unidades correspondem a 800 octetos a partir do começo dos dados originais.",
+      "section": "2. IPv4: endereços, TTL e fragmentação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pacote IPv4 tem DF ligado e precisa atravessar um enlace cuja MTU é menor que o pacote. Qual resultado é compatível com a semântica do campo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O campo DF instrui o roteador a fragmentar somente o cabeçalho IP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O encaminhador divide o datagrama em fragmentos apesar de DF ligado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O host converte automaticamente o pacote IPv4 em vários segmentos TCP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O destino remove DF e aumenta a MTU do enlace intermediário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O encaminhador não deve fragmentar o pacote e pode descartá-lo, reportando a condição por ICMP.",
+          "correct": true
+        }
+      ],
+      "explanation": "DF significa Don’t Fragment. Se o pacote não couber e a fragmentação estiver proibida, o roteador não o fragmenta; a condição pode ser comunicada por ICMP.",
+      "section": "2. IPv4: endereços, TTL e fragmentação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O TTL de um pacote muda de 64 para 63 entre dois pontos de captura. Qual conclusão é a mais sustentada pelos campos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Prova que exatamente um segundo se passou entre as capturas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É compatível com a passagem por um roteador que decrementou o TTL em uma unidade.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Prova que o pacote foi fragmentado uma vez e remontado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Indica que o servidor confirmou um byte TCP adicional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Demonstra que a captura perdeu exatamente um quadro Ethernet.",
+          "correct": false
+        }
+      ],
+      "explanation": "Roteadores decrementam TTL ao encaminhar. A diferença é compatível com um salto, mas o campo não é relógio e não prova sozinho a rota completa.",
+      "section": "2. IPv4: endereços, TTL e fragmentação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um segmento TCP carrega 100 octetos de dados com sequência inicial 1000, sem SYN ou FIN. Um ACK cumulativo posterior igual a 1100 indica o quê?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O ACK confirma somente o octeto de sequência 1100 e nenhum anterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O receptor ainda espera o primeiro octeto de sequência 1000.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A aplicação recebeu exatamente 1100 mensagens independentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O segmento tinha necessariamente 1100 octetos de payload.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O receptor recebeu os octetos até 1099 e espera o próximo octeto de sequência 1100.",
+          "correct": true
+        }
+      ],
+      "explanation": "Os 100 octetos ocupam as sequências 1000 a 1099. ACK cumulativo 1100 aponta o próximo esperado e confirma os anteriores.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A captura mostra SYN do cliente e SYN/ACK do servidor, mas não registra o ACK final. Qual conclusão é tecnicamente mais cuidadosa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Está provado que nenhum ACK final foi transmitido em qualquer interface.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A captura não mostra o ACK final; ele pode ter sido perdido ou estar fora do ponto/intervalo observado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A conversa era necessariamente UDP porque faltou o terceiro pacote TCP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O servidor concluiu uma sessão de aplicação e encerrou com FIN.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O campo TTL confirma que o cliente ignorou a abertura TCP.",
+          "correct": false
+        }
+      ],
+      "explanation": "A captura é evidência localizada. Ausência do ACK nela não prova que ele não trafegou em outro ponto ou fora do intervalo; verifique completude e interface.",
+      "section": "4. Wireshark, filtros e raciocínio de diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois segmentos TCP com os mesmos endereços e portas aparecem no arquivo, e o segundo repete uma faixa de sequência já observada. Qual hipótese é mais razoável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Prova que o receptor confirmou o conteúdo à aplicação duas vezes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É necessariamente uma nova conexão UDP que reutilizou a porta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pode ser retransmissão, embora a perda de um segmento na própria captura também deva ser considerada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "É fragmentação IPv4, pois retransmissões são identificadas pelo campo MF.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É sempre um ataque, pois TCP nunca transmite uma faixa de sequência novamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma faixa repetida pode indicar retransmissão de dados sem confirmação percebida. A observação depende da captura e não identifica por si só a causa nem prova ataque.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa distingue corretamente uma captura com filtro de captura de uma análise posterior com filtro de exibição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambos apagam permanentemente do arquivo os pacotes que não correspondem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O filtro de exibição impede a placa de receber quadros; o de captura só altera a cor da lista.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O filtro de captura pode deixar quadros fora do arquivo; o de exibição apenas seleciona o que aparece.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O filtro de captura descriptografa dados antes de gravá-los; o de exibição cifra o arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O filtro de exibição é aplicado apenas antes da captura e não pode ser alterado depois.",
+          "correct": false
+        }
+      ],
+      "explanation": "O filtro de captura afeta quais pacotes são coletados; o filtro de exibição atua sobre a apresentação da captura já feita e pode ser mudado sem apagar os demais pacotes.",
+      "section": "4. Wireshark, filtros e raciocínio de diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sessão HTTPS foi capturada e o analista usa Follow TCP Stream. O que ainda pode ser inferido sem chaves de descriptografia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O conteúdo HTTP completo aparece porque TCP remove a criptografia durante a remontagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Podem ser examinados fluxo, direção, tempos e metadados visíveis, mas o payload protegido não vira texto claro.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O stream revela as senhas, pois a porta 443 é sempre texto aberto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Nenhum endereço IP, porta ou horário pode ser visto em uma captura HTTPS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O filtro Follow TCP Stream modifica os pacotes para remover o TLS do arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A remontagem TCP organiza bytes observados, mas não desfaz criptografia. Cabeçalhos e temporização ainda podem ser inspecionados conforme visibilidade da captura.",
+      "section": "4. Wireshark, filtros e raciocínio de diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em IPv4, um pacote UDP foi fragmentado. O analisador mostra as portas no fragmento inicial, mas não nos fragmentos com offset posterior. Qual explicação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cabeçalho UDP está no início dos dados do datagrama e pode não estar presente nos fragmentos posteriores.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Portas UDP são transmitidas somente no último fragmento, que ainda não chegou.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O campo TTL substitui as portas em fragmentos cujo offset é positivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O protocolo UDP elimina os cabeçalhos sempre que ocorre fragmentação IPv4.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cada fragmento recebe necessariamente uma porta UDP aleatória e independente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fragmentação divide os dados originais; somente o fragmento inicial começa pelo cabeçalho UDP. Fragmentos posteriores podem carregar trechos internos sem as portas.",
+      "section": "2. IPv4: endereços, TTL e fragmentação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista vê UDP com porta de destino normalmente associada a DNS. Qual afirmação evita extrapolar o que a captura prova?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A porta sugere um serviço, mas o contexto e os campos da mensagem devem ser examinados para caracterizar o tráfego.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A porta prova que o conteúdo é uma consulta DNS válida e bem-sucedida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A porta demonstra que o endereço IP de destino é necessariamente um servidor público.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número da porta revela que a mensagem foi processada pelo usuário final.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A porta garante que a resposta correspondente também aparece na captura.",
+          "correct": false
+        }
+      ],
+      "explanation": "Portas conhecidas são indícios convencionais, não prova absoluta do serviço, validade da mensagem ou recebimento da resposta.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma captura mostra mensagem ICMP Time Exceeded após um datagrama com TTL expirado. Qual interpretação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um roteador descartou o datagrama ao esgotar TTL e comunicou a condição por ICMP.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O destino TCP confirmou o recebimento integral do payload da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O quadro Ethernet atingiu seu comprimento máximo permitido e foi truncado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O pacote foi remontado com sucesso depois de perder o último fragmento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O servidor UDP enviou uma resposta de nome DNS inválido.",
+          "correct": false
+        }
+      ],
+      "explanation": "ICMP Time Exceeded é compatível com descarte por expiração do TTL durante encaminhamento. Não equivale a confirmação de transporte nem resposta DNS.",
+      "section": "2. IPv4: endereços, TTL e fragmentação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O campo TCP Data Offset vale 8, sem unidades adicionais expressas. O que ele informa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cabeçalho TCP ocupa oito palavras de 32 bits antes do início dos dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O payload TCP contém exatamente oito bytes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O ACK confirma oito segmentos anteriores, independentemente dos números de sequência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A janela TCP contém oito portas disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O quadro Ethernet tem oito octetos de comprimento total.",
+          "correct": false
+        }
+      ],
+      "explanation": "Data Offset conta palavras de 32 bits no cabeçalho TCP e localiza o começo dos dados. Opções podem aumentar o cabeçalho além do tamanho mínimo.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um fluxo TCP, um segmento com FIN é observado após o envio de dados. Qual leitura é a mais correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O emissor sinaliza que não enviará mais dados naquele sentido, iniciando encerramento ordenado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O emissor solicita retransmissão de todos os bytes anteriores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O segmento converte a conexão TCP em datagramas UDP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O receptor confirma que a aplicação gravou permanentemente os dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O pacote necessariamente reinicia a conexão com falha imediata usando RST.",
+          "correct": false
+        }
+      ],
+      "explanation": "FIN é sinal de encerramento ordenado de um lado. RST tem papel de reinicialização/aborto e não deve ser confundido com FIN.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise precisa estabelecer se um servidor respondeu durante uma janela de tempo, e a captura foi feita apenas no cliente antes de uma regra de filtro excluir respostas. Qual conclusão é mais rigorosa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A captura não permite concluir que nenhuma resposta trafegou; o filtro e o ponto observado limitam a evidência.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A ausência na lista prova que o servidor não enviou resposta em nenhuma interface.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O campo ACK transforma pacotes omitidos pelo filtro em respostas visíveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A filtragem converte toda resposta excluída em fragmento IPv4 posterior.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O número da porta permite reconstruir os bytes que nunca foram capturados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A captura contém apenas o tráfego que o ponto e os filtros registraram. Pacotes excluídos ou não visíveis não podem fundamentar uma afirmação universal de ausência.",
+      "section": "4. Wireshark, filtros e raciocínio de diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma captura IPv4, qual é a função do Header Checksum?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Validar os dados completos da aplicação dentro do datagrama.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Detectar erro no cabeçalho IPv4, sem abranger o payload.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Confirmar que o destino recebeu todos os bytes TCP enviados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Identificar o protocolo encapsulado após o cabeçalho IP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Informar a quantidade de fragmentos restantes para remontagem.",
+          "correct": false
+        }
+      ],
+      "explanation": "O checksum IPv4 verifica o cabeçalho IPv4. Ele não cobre o payload, não confirma entrega TCP e não identifica o protocolo seguinte, função do campo Protocol.",
+      "section": "2. IPv4: endereços, TTL e fragmentação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um segmento TCP tem a flag RST ligada. Qual interpretação corresponde a essa flag?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O emissor solicita que o receptor aumente a janela de recepção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O segmento indica que existem mais fragmentos IPv4 a caminho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A conexão está sendo reinicializada ou abortada pelo TCP.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O segmento inicia necessariamente a abertura TCP usual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A aplicação confirmou que persistiu a mensagem recebida.",
+          "correct": false
+        }
+      ],
+      "explanation": "RST é a flag de reset, associada à reinicialização ou ao aborto da conexão TCP. Abertura usa SYN; fragmentação é descrita no cabeçalho IPv4.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta DNS sem cifragem está visível na captura. Qual conjunto de campos ajuda a relacionar a pergunta à resposta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O TTL e o checksum do cabeçalho Ethernet em cada direção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O número de fragmento e a janela TCP do servidor DNS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O MAC de destino e o Data Offset do pacote de resposta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A transação DNS, os nomes consultados, os endereços e a sequência temporal.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O FIN e o RST de um fluxo UDP estabelecido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando a mensagem está visível, os campos DNS e o contexto de origem, destino e tempo permitem correlacionar consulta e resposta. UDP não tem FIN/RST de conexão.",
+      "section": "4. Wireshark, filtros e raciocínio de diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conexão TCP estabelecida envia FIN de um lado e o outro lado reconhece o segmento. O que o FIN representa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O pedido para fragmentar o datagrama em unidades menores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A confirmação de que a aplicação gravou o conteúdo no disco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A primeira mensagem de abertura de uma nova conexão TCP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A reinicialização abrupta da conexão por erro no endereço IP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O encerramento ordenado do envio de dados por aquele lado.",
+          "correct": true
+        }
+      ],
+      "explanation": "FIN sinaliza que o lado remetente não enviará mais dados e inicia encerramento ordenado. O reconhecimento TCP não prova processamento pela aplicação.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O campo UDP Length inclui o cabeçalho UDP e os dados transportados por esse datagrama.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O tamanho indicado começa no cabeçalho UDP e abrange também os dados UDP. O tamanho total do quadro Ethernet é medido em outra camada.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma porta de origem em TCP ou UDP identifica, junto com o endereço IP e o protocolo, um dos extremos de uma conversa observada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Endereços e portas de origem e destino, associados ao protocolo de transporte, permitem distinguir conversas. A porta sozinha não prova qual aplicação gerou o tráfego.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um pacote aparece com checksum IPv4 diferente em dois pontos, isso demonstra necessariamente que o payload foi alterado no caminho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O checksum IPv4 cobre o cabeçalho, e campos como TTL mudam durante o encaminhamento. A diferença não prova alteração do payload da aplicação.",
+      "section": "2. IPv4: endereços, TTL e fragmentação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em TCP, FIN e RST têm o mesmo significado porque ambos indicam sempre o encerramento ordenado da conexão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. FIN participa do encerramento ordenado de um lado do fluxo; RST indica reinicialização ou aborto. As flags não são intercambiáveis.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao expandir um pacote no painel de detalhes do Wireshark, os campos são apresentados conforme a decodificação dos protocolos reconhecidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O painel de detalhes mostra campos em árvore por protocolo. A interpretação depende dos bytes capturados e pode ser limitada por truncamento ou conteúdo cifrado.",
+      "section": "1. Da captura ao modelo em camadas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de campos é mais útil para distinguir duas conexões TCP simultâneas entre os mesmos hosts?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O par de endereços IP e o par de portas TCP, considerado nos dois sentidos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente o TTL, que é único para cada conexão TCP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas o número de quadro atribuído pelo Wireshark.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O tamanho do cabeçalho Ethernet, que identifica cada processo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O bit MF do IPv4, que funciona como identificador permanente da sessão e não distingue endpoints de transporte.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conversa TCP é distinguida pelo protocolo e pelos endereços e portas de origem e destino. TTL e número de quadro não identificam unicamente uma conexão de transporte.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analisador mostra que o cabeçalho TCP possui opções após os campos fixos. Qual campo localiza o começo dos dados TCP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O campo Protocol do IPv4, que mede as palavras do cabeçalho TCP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O Data Offset TCP, que informa o tamanho do cabeçalho em palavras de 32 bits.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O campo MF, que localiza o final das opções do segmento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A porta de destino, que contém o comprimento das opções TCP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O checksum IPv4, que aponta o primeiro byte da aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Data Offset expressa o comprimento do cabeçalho TCP em palavras de 32 bits e indica onde começam os dados. As opções fazem parte do cabeçalho.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma captura contém consulta DNS e resposta com o endereço solicitado. Qual observação indica uma resposta negativa por nome inexistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O campo TTL do IPv4 está maior que o TTL do pacote de consulta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A resposta DNS traz código de resposta de nome inexistente, em vez de resposta com o registro pedido.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O servidor usa porta de origem diferente da porta usada pelo cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O pacote Ethernet tem endereço MAC de destino do roteador local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A resposta contém ACK TCP cumulativo igual ao próximo byte esperado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A resposta DNS contém campos próprios, inclusive código de resposta que informa resultado ou erro. TTL IP, MAC e ACK TCP não substituem o código da mensagem DNS.",
+      "section": "4. Wireshark, filtros e raciocínio de diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que a porta de destino 443, isoladamente, não prova que o payload capturado seja HTTPS legível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque números de porta não podem ser vistos em capturas de rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque toda comunicação na porta 443 é necessariamente UDP e não pode conter dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque a porta sugere um uso convencional, mas o tráfego pode variar e conteúdo TLS permanece cifrado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Porque o Wireshark remove automaticamente as portas dos pacotes TLS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque a porta 443 é um campo do cabeçalho Ethernet e não do transporte, por isso nunca aparece no analisador.",
+          "correct": false
+        }
+      ],
+      "explanation": "A porta é um indício convencional, não prova do protocolo real ou do conteúdo. Mesmo quando HTTPS é reconhecido, o payload protegido não fica legível sem condições de descriptografia.",
+      "section": "4. Wireshark, filtros e raciocínio de diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao analisar um possível problema de roteamento, qual evidência se associa mais diretamente a um pacote descartado por esgotamento do TTL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma mensagem ICMP Time Exceeded relacionada ao datagrama.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma resposta DNS contendo endereço IPv4 válido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um FIN TCP enviado pelo cliente após receber todo o conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O campo UDP Length com valor superior ao cabeçalho mínimo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um EtherType que identifica IPv4 no quadro Ethernet e informa que o TTL chegou a zero.",
+          "correct": false
+        }
+      ],
+      "explanation": "ICMP Time Exceeded pode reportar que o TTL se esgotou durante encaminhamento. DNS, FIN, comprimento UDP e EtherType têm outras funções e não sinalizam diretamente essa condição.",
+      "section": "2. IPv4: endereços, TTL e fragmentação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição diferencia corretamente fragmentação IPv4 de segmentação TCP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fragmentos dividem um datagrama IP; segmentos são unidades de dados do transporte TCP.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Fragmentos são criados por DNS; segmentos são criados pelo quadro Ethernet.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fragmentação altera portas TCP; segmentação altera o EtherType do quadro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "São nomes idênticos para a mesma operação na camada física.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Segmentação ocorre apenas em UDP, enquanto fragmentação ocorre apenas em TCP, sem relação com as camadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Fragmentação é uma função de IPv4 que divide um datagrama; TCP organiza dados em segmentos. São unidades de camadas distintas, embora possam coexistir no mesmo tráfego.",
+      "section": "2. IPv4: endereços, TTL e fragmentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma captura apresenta ACKs repetidos para o mesmo próximo número esperado, enquanto um segmento novo não aparece. Qual leitura é plausível, sem afirmar mais do que os dados mostram?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O receptor pode estar indicando que ainda espera dados ausentes naquela posição do fluxo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Os ACKs provam que a aplicação processou o conteúdo seguinte em ordem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os ACKs convertem o fluxo TCP em uma sequência de datagramas UDP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A repetição demonstra que o endereço MAC do servidor mudou durante o envio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A sequência confirma que nenhum pacote foi perdido durante a captura e que toda aplicação confirmou processamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "ACKs repetidos podem indicar que o receptor continua esperando uma posição anterior do fluxo, por exemplo após perda. A captura incompleta também pode omitir segmentos e limita a certeza.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma analista quer selecionar mensagens ICMP em um arquivo já capturado. Qual abordagem corresponde a filtro de exibição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir um filtro de captura retroativo para reescrever o arquivo original.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apagar todos os quadros Ethernet e iniciar o roteador novamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar o campo UDP Length para alterar o protocolo dos pacotes gravados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar o filtro de exibição `icmp` à captura aberta.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Alterar o TTL de cada pacote para o número correspondente a ICMP.",
+          "correct": false
+        }
+      ],
+      "explanation": "O filtro de exibição `icmp` mostra os pacotes reconhecidos como ICMP na captura aberta sem removê-los do arquivo. Filtros de captura operam durante a coleta.",
+      "section": "4. Wireshark, filtros e raciocínio de diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual interpretação do bit DF do cabeçalho IPv4 é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele solicita que o destino não confirme dados TCP recebidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele indica que o quadro Ethernet não possui endereço de destino.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele proíbe a fragmentação do datagrama IPv4 no caminho.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ele marca o último fragmento de qualquer datagrama IP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele informa o número de porta do processo remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "DF significa Don’t Fragment e sinaliza que o datagrama não deve ser fragmentado. MF e offset, não DF, ajudam a descrever fragmentos já existentes.",
+      "section": "2. IPv4: endereços, TTL e fragmentação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma captura é feita depois que uma conexão TCP já está ativa. Qual limitação deve ser considerada ao avaliar a ausência do handshake?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O handshake pode ter ocorrido antes do início da captura e, por isso, não estar registrado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O TCP inicia sempre pelo campo UDP Length, invisível em capturas tardias.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A ausência prova que a sessão usou IPv4 sem qualquer protocolo de transporte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Wireshark remove SYN e SYN/ACK de todos os arquivos automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O ACK final é armazenado somente no endereço MAC de destino e não integra a sequência de abertura TCP.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma captura iniciada após o estabelecimento pode não incluir SYN, SYN/ACK e ACK. A ausência desses quadros no arquivo não demonstra que a conexão dispensou a abertura TCP.",
+      "section": "4. Wireshark, filtros e raciocínio de diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre o checksum UDP em IPv4 corresponde ao formato definido para o protocolo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O campo é sempre ignorado porque UDP não tem conexão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O checksum pode ser zero em IPv4 para indicar ausência do checksum UDP.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ele substitui o campo Protocol do cabeçalho IPv4.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele contém a confirmação cumulativa dos octetos UDP anteriores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele é calculado somente sobre o endereço MAC de destino e substitui a soma dos dados UDP.",
+          "correct": false
+        }
+      ],
+      "explanation": "A especificação UDP permite checksum zero como indicação de ausência de checksum UDP em IPv4. Isso não o transforma em ACK nem substitui campos do cabeçalho IP.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Wireshark mostra pacote como TCP, embora a porta usada seja não convencional. Qual conduta melhora a interpretação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conferir os campos do cabeçalho e o contexto, pois uma porta incomum pode gerar ambiguidade na identificação da aplicação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Concluir que o pacote é inválido, pois todo TCP precisa usar porta padronizada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar EtherType para a porta convencional antes de analisar a captura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Considerar que TCP não pode transportar dados se a porta não for conhecida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar o TTL como prova do nome exato do serviço que gerou a conexão e da aplicação que recebeu os dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Portas convencionais ajudam, mas serviços podem usar outros números e a decodificação pode depender do contexto. Examine os campos e não conclua o serviço apenas pela porta.",
+      "section": "1. Da captura ao modelo em camadas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o efeito de selecionar um pacote no painel Packet List e expandir seu nó IPv4 no painel de detalhes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O painel apresenta campos decodificados do cabeçalho IPv4 daquele pacote selecionado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O Wireshark altera os endereços IP no arquivo para coincidir com o filtro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O painel converte o datagrama em uma conexão TCP confiável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O pacote é removido da captura depois de ser expandido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O checksum do quadro substitui os campos de endereço do IPv4 e apresenta a decodificação do protocolo selecionado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O painel de detalhes exibe a interpretação dos campos do protocolo no pacote selecionado. Expandir um nó não altera os bytes nem remove o pacote do arquivo.",
+      "section": "1. Da captura ao modelo em camadas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um segmento UDP tem comprimento que inclui oito octetos de cabeçalho e 32 octetos de dados. Qual valor deve constar no campo UDP Length?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "32 octetos, porque o comprimento UDP conta somente os dados da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "40 octetos, porque o campo inclui cabeçalho UDP e dados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "48 octetos, porque se soma o cabeçalho Ethernet ao tamanho UDP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "8 octetos, porque UDP Length representa apenas o cabeçalho fixo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "64 octetos, porque o comprimento é contado em blocos de oito bytes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O cabeçalho UDP tem oito octetos e o campo Length inclui cabeçalho mais dados. Somando os valores do enunciado, o datagrama UDP mede 40 octetos.",
+      "section": "3. TCP e UDP: portas, controle e entrega",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No endereço 192.0.2.10 aparece uma consulta DNS e, logo depois, uma resposta. Qual dado adicional ajuda a confirmar que pertencem à mesma transação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O checksum IPv4 igual, que funciona como identificador DNS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O mesmo TTL em todas as camadas de todos os quadros observados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O campo DF ligado nos dois quadros Ethernet.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número de sequência TCP, mesmo que a consulta use UDP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A relação entre identificador da transação, nome consultado, direções e sequência temporal.",
+          "correct": true
+        }
+      ],
+      "explanation": "A transação DNS pode ser correlacionada pelos campos da própria mensagem, especialmente seu identificador e consulta, além de origem, destino e ordem temporal.",
+      "section": "4. Wireshark, filtros e raciocínio de diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma captura IPv4, o campo Protocol contém o identificador de TCP. O que isso permite concluir sobre a camada seguinte?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Que o pacote é uma resposta DNS e contém um nome de domínio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Que o quadro Ethernet tem necessariamente endereço MAC igual ao endereço IP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que o payload do pacote IP começa com um cabeçalho TCP, salvo efeitos de fragmentação ou captura incompleta.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Que o datagrama foi fragmentado e tem MF ligado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Que a conexão já foi confirmada pela aplicação de destino, provando que o programa remoto recebeu e processou os dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "O campo Protocol identifica TCP como protocolo carregado pelo IPv4. Em fragmentos não iniciais ou capturas truncadas, o cabeçalho TCP completo pode não estar disponível para decodificação.",
+      "section": "1. Da captura ao modelo em camadas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pacote UDP foi capturado sem resposta correspondente no arquivo. Qual conclusão respeita os limites da evidência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O pacote foi recebido e processado, pois UDP sempre confirma a entrega implicitamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A resposta pode não ter ocorrido ou pode ter ficado fora do ponto, intervalo ou filtro da captura.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A resposta foi necessariamente bloqueada pelo checksum IPv4 do pacote de consulta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O host remoto nunca recebeu a solicitação em nenhuma interface de rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O campo MF informa que a aplicação remota enviou uma resposta fora da captura e confirma a entrega UDP.",
+          "correct": false
+        }
+      ],
+      "explanation": "UDP não confirma a entrega por si só, e uma captura pode omitir tráfego por ponto, intervalo ou filtro. A ausência da resposta no arquivo não prova o que ocorreu em outros pontos.",
+      "section": "4. Wireshark, filtros e raciocínio de diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 791 — Internet Protocol",
+      "publisher": "RFC Editor / IETF",
+      "reference": "Formato do cabeçalho IPv4, TTL, checksum, flags e fragmentação",
+      "url": "https://www.rfc-editor.org/rfc/rfc791.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 9293 — Transmission Control Protocol (TCP)",
+      "publisher": "RFC Editor / IETF",
+      "reference": "Cabeçalho TCP, sequência, ACK, flags, abertura e encerramento da conexão",
+      "url": "https://www.rfc-editor.org/rfc/rfc9293.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 768 — User Datagram Protocol",
+      "publisher": "RFC Editor / IETF",
+      "reference": "Campos de porta, comprimento e checksum do cabeçalho UDP",
+      "url": "https://www.rfc-editor.org/rfc/rfc768.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Wireshark User’s Guide",
+      "publisher": "Wireshark Foundation",
+      "reference": "Lista e detalhes de pacotes, filtros, conversas e seguimento de streams",
+      "url": "https://www.wireshark.org/docs/wsug_html/",
+      "accessedAt": "2026-10-31"
+    }
+  ]
+}

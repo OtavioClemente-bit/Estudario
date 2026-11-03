@@ -1,0 +1,1726 @@
+{
+  "id": "informatica.tratamento-erros-programacao",
+  "subject": "Informática",
+  "title": "Tratamento de erros em programação",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Tratamento de erros",
+    "Tratamento de erros em programação",
+    "Tratamento de exceções em programas",
+    "Exceções e falhas em programação",
+    "Erros de sintaxe e execução",
+    "Blocos try catch finally",
+    "Propagação e captura de exceções",
+    "Lançamento de erros em código",
+    "Tratamento de falhas de software",
+    "Limpeza de recursos após exceções"
+  ],
+  "scope": {
+    "covers": "Classificação de erros de sintaxe, execução e lógica; exceções e valores de erro; lançamento, captura e propagação; blocos try, catch/except e finally; hierarquias e exceções específicas; validação de entrada; limpeza de recursos; registro de diagnóstico; tratamento de falhas em operações assíncronas; recuperação, nova tentativa e propagação; práticas seguras de tratamento.",
+    "excludes": "Sintaxe completa de uma linguagem específica, depuração avançada de IDE, monitoramento de produção, protocolos de rede e APIs de bibliotecas particulares. Exemplos em Java, Python e JavaScript ilustram conceitos cuja sintaxe e semântica podem variar entre linguagens."
+  },
+  "theoryTitle": "Erros, exceções e recuperação controlada",
+  "chapters": [
+    {
+      "title": "1. Reconhecer a natureza da falha",
+      "markdown": "### O problema que este assunto resolve\n\nUm programa pode deixar de iniciar, interromper uma operação ou produzir um resultado errado sem apresentar mensagem alguma. Tratar erros começa por identificar em que etapa a falha aparece: enquanto o código é analisado, durante sua execução ou na lógica da solução. Cada situação pede uma resposta diferente.\n\n> **Siglas e termos deste capítulo**\n> - **Erro de sintaxe**: construção que não respeita a gramática da linguagem e impede a análise ou compilação.\n> - **Exceção**: ocorrência durante a execução que altera o fluxo normal e pode ser propagada ou capturada.\n> - **Erro lógico**: algoritmo executa, mas calcula ou decide algo diferente do esperado.\n> - **Validação**: verificação explícita de que uma entrada satisfaz as regras do programa.\n> - **Stack trace / rastreamento**: sequência de chamadas que indica por quais funções a falha se propagou.\n\n### Três categorias que não se confundem\n\n| Categoria | Exemplo | Efeito típico | Como investigar |\n| --- | --- | --- | --- |\n| Sintaxe ou análise | Em Python, esquecer os dois-pontos depois de `if` | O interpretador não consegue analisar aquele código | Corrigir a construção apontada pelo analisador; o local marcado pode ser onde o erro foi percebido, não onde começou |\n| Execução | Dividir por zero ou abrir um arquivo inexistente | Uma operação válida sintaticamente falha ao ser executada; pode produzir exceção | Identificar o tipo, a mensagem e a origem; decidir se há recuperação adequada |\n| Lógica | Somar preços quando a regra exigia multiplicar quantidade por preço | O programa termina normalmente com resultado incorreto | Comparar resultado observado com requisitos, casos de teste e valores esperados |\n\nO tutorial oficial de Python separa erros de sintaxe de exceções: uma expressão sintaticamente correta ainda pode falhar quando executada. Por exemplo, a divisão por zero gera `ZeroDivisionError`; usar um nome não definido pode gerar `NameError`; combinar tipos incompatíveis pode gerar `TypeError`. Esses nomes são próprios do ecossistema Python, mas ilustram categorias comuns.\n\n### Erro detectável não é sempre exceção\n\nUma regra de negócio como “idade deve ser positiva” pode ser verificada antes de executar uma operação perigosa. Se o usuário digitou texto em um campo numérico, a aplicação pode apontar a validação sem tentar converter silenciosamente ou deixar a falha chegar a uma camada distante. Uma exceção serve para sinalizar uma condição excepcional no fluxo; não substitui todas as verificações normais de dados.\n\nUm erro lógico, por sua vez, pode não lançar exceção. Se uma função calcula o total com a taxa de desconto errada, nenhuma captura de exceção corrige automaticamente esse resultado. Testes com entradas e saídas conhecidas e revisão do algoritmo são necessários.\n\n### O que uma mensagem de erro oferece\n\nUma mensagem pode informar tipo, contexto e operação que falhou. O rastreamento ajuda a localizar a chamada que originou o problema e as chamadas que o propagaram. Em Python, a documentação mostra nome do arquivo, linha e tipo de exceção; em JavaScript, objetos `Error` expõem normalmente `name` e `message`. A mensagem auxilia o diagnóstico, mas não prova por si só qual correção é segura.\n\n### Como cai na prova\n\n- Se o código nem pode ser analisado, pense em erro de sintaxe; se uma operação falha enquanto roda, pense em exceção.\n- Se o programa executa até o fim e entrega valor incorreto, pode haver erro lógico mesmo sem exceção.\n- Mensagens e rastreamentos apoiam a investigação; capturar uma exceção não torna automaticamente correto o resultado."
+    },
+    {
+      "title": "2. Lançar, capturar e propagar exceções",
+      "markdown": "### O problema que este assunto resolve\n\nUma função de baixo nível pode detectar uma condição que não consegue resolver sozinha. Ela sinaliza o problema para uma camada que conheça o contexto: a função chamadora pode tentar outra fonte, informar o usuário ou encerrar a operação com segurança. Exceções permitem esse retorno não local, desde que sejam capturadas no ponto apropriado.\n\n> **Siglas e termos deste capítulo**\n> - **`try`**: delimita instruções cuja execução pode falhar.\n> - **`catch` / `except`**: bloco que recebe e trata uma exceção compatível com a linguagem.\n> - **`throw` / `raise`**: instrução usada para lançar uma exceção.\n> - **Propagação**: subida da exceção pela cadeia de chamadas até um tratador compatível.\n> - **Relançamento**: encaminhamento da falha adiante depois de registro ou tratamento parcial.\n> - **Exceção específica**: tipo que descreve melhor a condição, como arquivo ausente ou entrada inválida.\n\n### Fluxo do `try` e do tratador\n\nNo padrão `try/catch`, executa-se primeiro o bloco protegido. Se ele terminar sem exceção, os blocos de captura correspondentes são ignorados. Se uma instrução lançar uma exceção, o restante daquele bloco protegido é interrompido e o controle busca um `catch` ou `except` compatível, começando pelo mais próximo no fluxo aplicável. Uma falha lançada dentro de uma função chamada pelo bloco também pode chegar ao tratador externo.\n\nEm JavaScript, `throw new Error(mensagem)` lança um objeto de erro; o bloco `catch` recebe o valor lançado. A linguagem permite tecnicamente lançar outros valores, mas um objeto `Error` fornece propriedades e rastreamento úteis. Em Java, `throw` exige um objeto derivado de `Throwable`. Python usa `raise` e classes de exceção. Palavras e regras variam; a ideia comum é sinalizar a falha e interceptá-la onde há uma ação coerente.\n\n### Trate o que consegue resolver\n\nUma captura ampla que apenas ignora a exceção transforma uma falha visível em sucesso aparente. Prefira capturar tipos esperados e tomar uma ação que faça sentido: pedir um novo valor para entrada inválida, apresentar uma mensagem compreensível para arquivo ausente ou interromper uma transação que não pode continuar. Se o tipo não é reconhecido ou a camada não pode recuperar, preserve a falha relançando-a ou devolvendo um erro explícito ao chamador.\n\nA ordem dos tratadores importa quando há hierarquia: um tipo mais específico deve ser tratado antes de um tipo geral que também o abrangeria. Caso contrário, o bloco amplo pode interceptar a exceção antes que a regra especializada seja alcançada. Java exige que exceções verificadas sejam capturadas ou declaradas como possíveis no método; exceções não verificadas, como subclasses de `RuntimeException`, não têm essa mesma obrigação de declaração. Não generalize essa regra de Java para todas as linguagens.\n\n### Exceções próprias e contexto\n\nUma aplicação pode definir tipos próprios para distinguir falhas relevantes ao seu domínio, como `PedidoInexistente` ou `LimiteExcedido`. A exceção deve carregar contexto útil sem expor segredos. Ao traduzir uma exceção técnica para outra de nível mais alto, preservar a causa original facilita a investigação e evita perder o rastreamento. O novo tipo informa o significado para a camada superior; a causa explica a falha inicial.\n\n### Como cai na prova\n\n- Uma falha lançada dentro de uma função chamada pelo `try` pode ser capturada pelo bloco que envolve essa chamada.\n- Se nenhum tratador compatível a capturar, ela continua se propagando e pode encerrar a operação ou o programa.\n- Capturar sem agir, registrar ou propagar costuma ocultar o defeito em vez de tratá-lo."
+    },
+    {
+      "title": "3. Finalização e recursos",
+      "markdown": "### O problema que este assunto resolve\n\nArquivos abertos, conexões, travas e outros recursos externos precisam ser liberados mesmo quando uma operação falha. Se a liberação depender apenas do caminho de sucesso, uma exceção pode deixar o recurso ocupado e causar falhas posteriores.\n\n> **Siglas e termos deste capítulo**\n> - **`finally`**: bloco de finalização executado ao sair de uma construção protegida, conforme a semântica da linguagem.\n> - **Recurso**: objeto ou serviço que exige encerramento explícito, como arquivo ou conexão.\n> - **Rollback**: reversão de alterações ainda não confirmadas em uma transação.\n> - **Try-with-resources**: construção Java que fecha automaticamente recursos declarados como parte do `try`.\n> - **RAII / contexto gerenciado**: padrões de linguagens e bibliotecas que associam a liberação ao escopo ou ao ciclo de vida do objeto.\n\n### Papel do `finally`\n\nEm JavaScript, o bloco `finally` é executado depois do `try` e do eventual `catch`, antes da continuação após a construção. Ele também roda quando a exceção não foi capturada ali, sendo útil para fechar um recurso ou restaurar estado. Java também define `finally`; Python oferece `finally` e construções como `with` para administrar recursos. Consulte a semântica da linguagem usada: detalhes de saída abrupta e encerramento forçado do processo não são garantia universal.\n\nEvite retornar ou lançar outra exceção de dentro de `finally` sem necessidade. Em JavaScript, um `return` no `finally` pode substituir um retorno ou até suprimir a exceção que sairia do `try`/`catch`. Assim, código de limpeza deve liberar recursos, não alterar silenciosamente o resultado principal.\n\n### Fechar recursos com o mecanismo adequado\n\nJava oferece `try-with-resources`: recursos declarados na construção são fechados automaticamente ao final do bloco, inclusive quando ocorre exceção. Em Python, `with open(...)` usa um gerenciador de contexto para assegurar o fechamento do arquivo ao sair do escopo. Em linguagens sem mecanismo equivalente, `finally` costuma ser usado para liberar manualmente. Não confunda encerramento de recurso com tratamento da causa: fechar o arquivo evita vazamento, mas não faz a gravação incompleta ter sido bem-sucedida.\n\nEm operações transacionais, a aplicação também precisa distinguir sucesso de falha: confirmar somente quando as operações necessárias terminam corretamente; em caso de erro, cancelar ou reverter quando o mecanismo permitir. Rollback da transação não é sinônimo de recuperar qualquer efeito externo, como mensagem já enviada ou arquivo já transferido.\n\n### Como cai na prova\n\n- A questão descreve liberação de arquivo mesmo diante de exceção: procure `finally`, `with` ou try-with-resources conforme a linguagem.\n- `finally` é voltado à finalização, não a substituir um tratador ou transformar falha em sucesso.\n- Fechar recursos e restaurar transações são ações diferentes; cada uma trata uma consequência específica."
+    },
+    {
+      "title": "4. Recuperação, diagnóstico e boas práticas",
+      "markdown": "### O problema que este assunto resolve\n\nO tratamento de uma falha deve preservar a integridade dos dados, orientar quem usa o sistema e deixar pistas suficientes para a equipe técnica. Mensagens vagas, tentativas infinitas e registros com credenciais podem aumentar o impacto de uma falha.\n\n> **Siglas e termos deste capítulo**\n> - **Log**: registro de eventos e dados técnicos para diagnóstico.\n> - **Retry / nova tentativa**: repetição controlada de uma operação que pode voltar a funcionar.\n> - **Idempotência**: propriedade de repetir uma operação sem duplicar seu efeito final.\n> - **Fail-safe**: comportamento que limita danos quando não é possível prosseguir com segurança.\n> - **Rejeição de Promise**: resultado de falha de uma operação assíncrona em JavaScript.\n\n### Recuperação deliberada\n\nNem todo erro é recuperável. Uma falha temporária de conexão pode justificar nova tentativa limitada, com intervalo e critério de parada. Uma entrada permanentemente inválida não melhora com repetição automática. Repetir uma cobrança ou envio sem verificar idempotência pode duplicar efeitos. A recuperação deve considerar se a operação chegou a produzir efeito antes da falha.\n\nNa validação, rejeite dados inválidos junto à fronteira de entrada e explique o que precisa ser corrigido. Não transforme ausência de dado em valor padrão sem que a regra de negócio autorize. Para falhas inesperadas, interrompa a operação que poderia corromper ou expor dados, preserve o contexto e encaminhe o erro a uma camada que possa responder.\n\n### Registro que ajuda sem vazar informação\n\nRegistre tipo de falha, operação, identificador de correlação e contexto técnico necessário; preserve causa e rastreamento quando disponíveis. Não grave senha, token, chave privada ou conteúdo sensível integralmente. Para a pessoa usuária, prefira mensagem clara e segura, sem stack trace interno. Para a equipe, mantenha detalhes em canal de acesso controlado.\n\nUma captura não deve ser usada para encobrir defeitos: retornar um valor neutro como `0`, `null` ou lista vazia pode parecer sucesso e contaminar decisões posteriores. Se a camada não puder resolver, relance ou converta para um erro explícito mantendo a causa.\n\n### Falhas assíncronas\n\nEm JavaScript, um `try/catch` síncrono não captura automaticamente uma rejeição que aconteça depois em uma operação assíncrona desconectada. Uma função `async` permite usar `try/catch` ao redor de `await`; Promises também podem ter um tratador `.catch()`. Se uma Promise rejeitada não tiver tratador, o ambiente pode sinalizar rejeição não tratada. O tratador deve estar ligado ao fluxo que aguarda ou compõe aquela operação.\n\n### Como cai na prova\n\n- Retry é apropriado para algumas falhas transitórias, mas precisa de limite e análise de efeitos duplicados.\n- Log técnico e mensagem ao usuário atendem públicos diferentes; ambos devem proteger dados sensíveis.\n- Um erro inesperado deve permanecer observável e não virar um resultado aparentemente válido."
+    }
+  ],
+  "summary": "Erros de sintaxe impedem que o código seja analisado; exceções surgem durante a execução; erros lógicos podem produzir resultados incorretos sem interromper o programa. O bloco try protege operações sujeitas a falha, catch/except trata tipos compatíveis e throw/raise sinaliza exceções. Se nenhum tratador adequado agir, a falha se propaga pela cadeia de chamadas. Capture apenas situações que saiba resolver, registrar ou encaminhar, mantendo a causa e o contexto. finally, with e try-with-resources ajudam a liberar recursos, cada qual conforme a linguagem; não devem ocultar falhas. Valide entradas, use novas tentativas limitadas apenas quando fizer sentido, proteja dados em logs e trate corretamente erros assíncronos. Em Java, exceções verificadas devem ser capturadas ou declaradas; essa regra não se aplica igualmente a todas as linguagens.",
+  "flashcards": [
+    {
+      "front": "Qual diferença separa erro de sintaxe de exceção?",
+      "back": "Erro de sintaxe impede analisar ou compilar a construção; exceção surge quando uma instrução sintaticamente válida falha durante a execução."
+    },
+    {
+      "front": "O que caracteriza um erro lógico?",
+      "back": "O programa executa, mas o algoritmo produz uma decisão ou resultado diferente do requisito, possivelmente sem lançar exceção."
+    },
+    {
+      "front": "O que é exceção em tempo de execução?",
+      "back": "Uma ocorrência durante a execução que interrompe o fluxo normal e pode ser capturada ou propagada."
+    },
+    {
+      "front": "Para que serve o bloco try?",
+      "back": "Delimita código cuja execução pode lançar uma exceção a ser tratada por um bloco associado."
+    },
+    {
+      "front": "Qual é o papel de catch ou except?",
+      "back": "Receber uma exceção compatível e executar uma ação de tratamento; se não houver tratamento, ela segue propagando-se."
+    },
+    {
+      "front": "O que significa propagar uma exceção?",
+      "back": "A falha sobe pela cadeia de chamadas até encontrar um tratador compatível ou sair sem tratamento."
+    },
+    {
+      "front": "Para que se usa throw ou raise?",
+      "back": "Para sinalizar explicitamente uma exceção, seja uma condição detectada pelo programa ou uma falha encaminhada."
+    },
+    {
+      "front": "Quando um tratador amplo é arriscado?",
+      "back": "Quando captura falhas que a camada não sabe resolver e as ignora, convertendo erro em aparente sucesso."
+    },
+    {
+      "front": "Por que capturar exceções específicas?",
+      "back": "Permite aplicar respostas diferentes para causas distintas e reduz o risco de ocultar falhas inesperadas."
+    },
+    {
+      "front": "O que faz finally?",
+      "back": "Executa ações de finalização ao sair da construção protegida, como liberar um recurso, conforme a semântica da linguagem."
+    },
+    {
+      "front": "O que é try-with-resources em Java?",
+      "back": "Construção que fecha automaticamente recursos declarados nela ao terminar o bloco, inclusive após exceção."
+    },
+    {
+      "front": "Que construção Python facilita fechar arquivo?",
+      "back": "O gerenciador de contexto com `with`, por exemplo `with open(...)`, que encerra o arquivo ao sair do escopo."
+    },
+    {
+      "front": "Por que evitar return em finally em JavaScript?",
+      "back": "Ele pode substituir o retorno pendente ou suprimir a exceção que sairia do try ou catch."
+    },
+    {
+      "front": "O que deve ser preservado ao converter uma exceção?",
+      "back": "A causa original e contexto relevante, para que a camada superior entenda o significado e a origem técnica."
+    },
+    {
+      "front": "O que significa exceção verificada em Java?",
+      "back": "É uma exceção que o compilador exige capturar ou declarar como possível no método, ao contrário das unchecked."
+    },
+    {
+      "front": "Qual cuidado vale ao repetir uma operação?",
+      "back": "Limitar tentativas e avaliar se repetir pode duplicar efeitos, como cobrança ou envio de mensagem."
+    },
+    {
+      "front": "O que registrar para diagnosticar uma falha?",
+      "back": "Tipo, operação, contexto técnico seguro e rastreamento ou causa, sem incluir credenciais ou dados sensíveis."
+    },
+    {
+      "front": "Por que não exibir stack trace ao usuário?",
+      "back": "Ele pode revelar estrutura interna e detalhes técnicos; a mensagem pública deve ser clara e segura."
+    },
+    {
+      "front": "Como tratar erro de uma Promise em JavaScript?",
+      "back": "Associar catch à Promise ou aguardar com await dentro de try/catch no fluxo assíncrono correspondente."
+    },
+    {
+      "front": "Uma exceção capturada prova que a operação teve sucesso?",
+      "back": "Não. O tratador precisa executar uma recuperação válida ou comunicar a falha; captura sozinha não corrige o efeito."
+    }
+  ],
+  "tips": [
+    "Primeiro classifique a falha: análise do código, execução ou resultado lógico.",
+    "Use tratadores específicos e ordene os tipos mais específicos antes dos mais gerais.",
+    "Se não puder recuperar, preserve a causa e propague a falha em vez de fingir sucesso.",
+    "Associe a liberação do recurso a finally, with ou try-with-resources conforme a linguagem.",
+    "Faça retry limitado somente para falhas que possam ser temporárias e considere efeitos duplicados.",
+    "Separe a mensagem pública do registro técnico e remova segredos dos logs."
+  ],
+  "traps": [
+    "A questão diz que todo resultado errado é exceção. Não: falhas lógicas podem ocorrer com execução normal.",
+    "A questão diz que catch sempre corrige o problema. Não: ele só transfere o fluxo; o código de tratamento precisa agir.",
+    "Um catch vazio ou que devolve valor padrão pode esconder uma falha e simular sucesso.",
+    "finally é usado para capturar qualquer exceção. Seu papel principal é finalizar ou liberar recursos.",
+    "O retry automático é sempre seguro. Repetição pode duplicar efeitos e deve ter limite e critério.",
+    "A regra de Java sobre checked exceptions vale em qualquer linguagem. É uma característica específica do sistema de tipos de Java."
+  ],
+  "activeRecall": [
+    {
+      "question": "Dê um exemplo de erro de sintaxe, um de execução e um lógico.",
+      "answer": "Sintaxe: omitir um delimitador obrigatório; execução: dividir por zero; lógica: calcular desconto com taxa errada apesar de executar sem exceção."
+    },
+    {
+      "question": "Descreva o caminho de uma exceção desde a função que a lança.",
+      "answer": "A execução do bloco atual é interrompida; a exceção procura um tratador compatível na chamada atual e nas chamadas externas. Sem tratador, continua sem tratamento."
+    },
+    {
+      "question": "Quando capturar uma exceção e quando propagá-la?",
+      "answer": "Capture quando a camada tiver ação coerente para recuperar, informar ou traduzir. Se não souber resolver, preserve contexto e propague ou retorne falha explícita."
+    },
+    {
+      "question": "Compare finally, Python with e Java try-with-resources.",
+      "answer": "Todos apoiam finalização de recursos, mas são construções distintas: finally executa bloco de limpeza; with usa gerenciador de contexto; try-with-resources fecha recursos declarados no bloco Java."
+    },
+    {
+      "question": "Por que não retornar um valor neutro em qualquer catch?",
+      "answer": "O chamador pode interpretar o valor como sucesso e seguir com dados incorretos; é preciso recuperar de verdade ou expor a falha."
+    },
+    {
+      "question": "Que cautelas você toma ao registrar uma exceção?",
+      "answer": "Manter tipo, operação, causa e rastreamento úteis, controlar acesso ao log e excluir senhas, tokens e outros dados sensíveis."
+    },
+    {
+      "question": "Como lidar com uma operação assíncrona que falha em JavaScript?",
+      "answer": "Vincular o tratamento ao fluxo da Promise com catch ou usar await dentro de try/catch na função async que aguarda a operação."
+    },
+    {
+      "question": "Quando uma nova tentativa pode piorar uma falha?",
+      "answer": "Quando o erro é permanente ou quando a tentativa anterior pode ter produzido efeitos; repetir cobrança ou envio sem idempotência pode duplicá-los."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Sintaxe, execução e lógica confundidas",
+      "summary": "Sintaxe impede análise; exceção acontece durante execução; erro lógico pode retornar resultado incorreto sem exceção."
+    },
+    {
+      "key": "e2",
+      "title": "Captura tratada como correção automática",
+      "summary": "try/catch transfere o fluxo, mas o tratador precisa recuperar, informar, registrar ou propagar; captura vazia oculta falha."
+    },
+    {
+      "key": "e3",
+      "title": "Exceção inesperada engolida",
+      "summary": "Capturar tipos amplos e devolver valores neutros pode tornar erro aparente em sucesso; preserve causa e contexto."
+    },
+    {
+      "key": "e4",
+      "title": "Finalização confundida com tratamento",
+      "summary": "finally, with e try-with-resources ajudam a liberar recursos; eles não garantem que a operação principal teve êxito."
+    },
+    {
+      "key": "e5",
+      "title": "Repetição e diagnóstico inseguros",
+      "summary": "Retry sem limite pode duplicar efeitos; logs e mensagens não devem expor credenciais ou detalhes internos ao público."
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Errors and Exceptions — Python Tutorial",
+      "publisher": "Python Software Foundation",
+      "reference": "Distinção entre erros de sintaxe e exceções, falhas durante a execução e tratamento de erros.",
+      "url": "https://docs.python.org/3/tutorial/errors.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Lesson: Exceptions — The Java Tutorials",
+      "publisher": "Oracle",
+      "reference": "Exceções, captura, finally, try-with-resources, hierarquia Throwable e exceções verificadas e não verificadas.",
+      "url": "https://docs.oracle.com/javase/tutorial/essential/exceptions/index.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "How to Throw Exceptions — The Java Tutorials",
+      "publisher": "Oracle",
+      "reference": "Instrução throw, classes de exceção próprias e hierarquia Throwable, Error e Exception.",
+      "url": "https://docs.oracle.com/javase/tutorial/essential/exceptions/throwing.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Control flow and error handling — JavaScript Guide",
+      "publisher": "MDN Web Docs",
+      "reference": "throw, try/catch/finally, propagação, objetos Error e limpeza de recursos.",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Control_flow_and_error_handling",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "try...catch — JavaScript Reference",
+      "publisher": "MDN Web Docs",
+      "reference": "Fluxo try/catch/finally, tratamento aninhado, propagação e efeitos de return em finally.",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/try...catch",
+      "accessedAt": "2026-11-02"
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um programa pode executar sem lançar exceção e ainda apresentar erro lógico por calcular um resultado diferente do requisito.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Erro lógico está no raciocínio ou na regra implementada; a execução pode terminar normalmente e retornar um valor incorreto. Capturar exceções não detecta automaticamente todo erro lógico.",
+      "section": "1. Reconhecer a natureza da falha",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, uma expressão sintaticamente válida que tenta dividir por zero pode gerar uma exceção durante a execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação de Python classifica esse caso como exceção em tempo de execução e identifica o tipo como ZeroDivisionError. Isso difere de uma construção que o analisador sequer consegue interpretar.",
+      "section": "1. Reconhecer a natureza da falha",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Todo erro de sintaxe em uma linguagem interpretada é capturado por um bloco try durante a execução normal do programa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Erros de sintaxe podem impedir a análise ou compilação do código antes de o bloco de execução poder tratar a instrução. O comportamento detalhado depende da linguagem e do momento em que o código é analisado.",
+      "section": "1. Reconhecer a natureza da falha",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um rastreamento de chamadas sempre identifica sozinho a causa lógica exata de qualquer resultado incorreto, mesmo sem examinar os dados ou requisitos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O rastreamento ajuda a localizar a cadeia de chamadas associada a uma falha, mas não determina sozinho a causa lógica ou se o resultado atende ao requisito. A investigação também precisa examinar dados, regra e comportamento esperado.",
+      "section": "1. Reconhecer a natureza da falha",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando uma exceção é capturada, o resultado da operação que falhou deve ser considerado correto, pois o fluxo chegou ao bloco catch.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A captura apenas transfere o controle ao tratador. É necessário recuperar a operação, informar a falha ou interromper o fluxo; presumir sucesso pode propagar estado inconsistente.",
+      "section": "2. Lançar, capturar e propagar exceções",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se nenhuma camada capturar uma exceção, ela pode continuar se propagando pelas chamadas e terminar como falha não tratada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A exceção procura um tratador compatível na cadeia de chamadas. Sem um, o ambiente pode encerrar a operação ou o programa e apresentar um erro não tratado.",
+      "section": "2. Lançar, capturar e propagar exceções",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, uma exceção verificada deve ser capturada ou declarada pelo método que pode lançá-la, conforme as regras da linguagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Para checked exceptions, Java impõe o requisito de captura ou declaração na assinatura. Essa obrigação não se estende do mesmo modo às unchecked exceptions, nem deve ser projetada sobre todas as linguagens.",
+      "section": "2. Lançar, capturar e propagar exceções",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em JavaScript, throw só aceita objetos da classe Error; números, strings e outros valores não podem ser lançados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. JavaScript permite lançar qualquer expressão. A documentação recomenda objetos de erro para diagnóstico, mas não restringe throw a instâncias de Error.",
+      "section": "2. Lançar, capturar e propagar exceções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em JavaScript, o bloco finally pode executar depois do try e do catch, inclusive quando a exceção não foi tratada por esses blocos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O finally é executado antes de o controle sair da construção try/catch/finally. Mesmo que a exceção siga sem captura local, o bloco de finalização é executado durante a saída normal dessa construção.",
+      "section": "3. Finalização e recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em JavaScript, um return dentro de finally pode substituir um retorno anterior ou suprimir uma exceção que estava sendo propagada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A semântica documentada do JavaScript permite que o fluxo de controle de finally prevaleça sobre return ou throw pendente. Por isso, retornos nesse bloco costumam ser fonte de bugs e devem ser evitados.",
+      "section": "3. Finalização e recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O try-with-resources de Java fecha os recursos declarados apenas quando o bloco termina sem exceção; numa falha, eles permanecem abertos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A finalidade da construção inclui fechar os recursos ao fim do bloco mesmo quando a execução sai por exceção; essa é uma das vantagens sobre depender do caminho de sucesso.",
+      "section": "3. Finalização e recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Fechar um arquivo no finally garante que os dados de uma gravação interrompida foram persistidos integralmente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Fechar o recurso libera o arquivo, mas não prova que uma gravação interrompida terminou corretamente. A aplicação precisa verificar o resultado e, quando houver suporte, desfazer ou reparar a operação incompleta.",
+      "section": "3. Finalização e recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma nova tentativa sem limite é adequada para qualquer exceção, pois cada repetição aumenta a chance de a operação terminar bem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Falhas permanentes não melhoram com repetição, e tentativas ilimitadas podem sobrecarregar serviços. Além disso, operações com efeitos podem ser duplicadas; retry precisa de limite e critério.",
+      "section": "4. Recuperação, diagnóstico e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação assíncrona em JavaScript pode falhar por rejeição de Promise, que deve ser conectada a um tratador no fluxo que aguarda ou compõe a operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Rejeições de Promise precisam de handler, por catch ou pelo try/catch que envolve um await no fluxo assíncrono correspondente. Um try síncrono que não aguarda a Promise não cobre automaticamente sua rejeição posterior.",
+      "section": "4. Recuperação, diagnóstico e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para facilitar suporte, é recomendável gravar senhas e tokens integrais nos logs junto com o stack trace de cada exceção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Logs devem manter contexto técnico útil sem expor credenciais ou dados sensíveis. O acesso ao registro também precisa ser controlado; detalhes internos não devem ser enviados indiscriminadamente ao usuário.",
+      "section": "4. Recuperação, diagnóstico e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Validar uma entrada na fronteira do sistema pode evitar que um dado inválido alcance uma operação que não sabe tratá-lo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A validação explícita identifica dados que violam as regras antes de operações dependentes deles. Ela complementa o tratamento de exceções e não substitui a captura de falhas inesperadas.",
+      "section": "4. Recuperação, diagnóstico e boas práticas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função Python precisa converter uma string digitada pelo usuário em inteiro. Se o texto não representar número, qual resposta trata melhor essa falha esperada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Capturar a exceção de conversão e pedir um valor inteiro válido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Capturar qualquer exceção e continuar usando o texto como inteiro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Retornar zero para toda entrada inválida sem informar o usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Encerrar a aplicação antes de tentar converter a entrada recebida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Repetir a conversão sem limite até que o mesmo texto funcione.",
+          "correct": false
+        }
+      ],
+      "explanation": "A entrada inválida é uma condição previsível e a aplicação pode pedir correção ao usuário. Continuar com texto não converte o tipo, zero oculta o problema, encerrar todo o programa é desnecessário e repetir a mesma entrada sem alterá-la não resolve a causa.",
+      "section": "1. Reconhecer a natureza da falha",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função de leitura falha porque o arquivo indicado não existe. Qual diagnóstico descreve melhor essa situação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É erro de sintaxe, pois o nome de arquivo não faz parte da gramática.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É falha de execução que pode ser tratada como arquivo ausente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "É erro lógico, pois todo arquivo ausente gera resultado incorreto silencioso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É erro de compilação, pois o arquivo precisa existir antes de compilar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É falha de rede, pois arquivos locais são sempre lidos remotamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A chamada pode ser sintaticamente válida e falhar apenas quando tenta acessar o caminho. A camada pode tratar especificamente a ausência do arquivo, por exemplo solicitando outro caminho; não é necessário atribuir isso a sintaxe, compilação ou rede.",
+      "section": "1. Reconhecer a natureza da falha",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método lança uma exceção e o chamador também não consegue resolver a condição. Qual decisão preserva melhor o diagnóstico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Capturar e ignorar a falha para que a aplicação pareça continuar normalmente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir a falha por uma resposta vazia sem registrar sua causa original.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Propagar a exceção ou traduzi-la mantendo a causa e o contexto úteis.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Executar a mesma operação mais vezes, ainda que o erro seja permanente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Devolver um valor aleatório para evitar interromper as chamadas seguintes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se a camada não sabe recuperar, deve deixar a falha observável. Pode propagar a exceção original ou traduzi-la para um tipo de nível superior preservando a causa. Ignorar, inventar resultado ou repetir sem critério oculta ou agrava o problema.",
+      "section": "2. Lançar, capturar e propagar exceções",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, dois catch poderiam tratar IOException e Exception. Qual organização permite que o tratamento específico seja alcançado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Capturar primeiro Exception e depois IOException, pois o tipo geral encaminha ao específico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Capturar IOException fora de qualquer try e deixar Exception dentro dele.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar somente o catch geral, pois tipos específicos não podem ser capturados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Capturar primeiro IOException e depois Exception, do tipo mais específico ao geral.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Capturar as duas classes em blocos separados, sem considerar a relação de herança.",
+          "correct": false
+        }
+      ],
+      "explanation": "O tratador geral para Exception também pode corresponder a IOException. Se vier primeiro, o ramo específico fica inalcançável. A ordem deve permitir que a exceção mais específica seja tratada antes da classe mais ampla.",
+      "section": "2. Lançar, capturar e propagar exceções",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma biblioteca detecta que a pilha está vazia quando o cliente tenta remover um elemento. Qual sinalização comunica melhor a condição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retornar um elemento inventado e manter a pilha vazia sem informar o chamador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Acessar a memória seguinte para que o erro apareça em outra função depois.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar a chamada e registrar sucesso para preservar a interface da biblioteca.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar a pilha e devolver seu último elemento, mesmo que não exista.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Lançar uma exceção específica que represente a pilha vazia.",
+          "correct": true
+        }
+      ],
+      "explanation": "A precondição não foi atendida e o chamador precisa saber disso. Uma exceção específica comunica a condição para que o cliente decida o próximo passo; valores inventados ou sucesso registrado silenciosamente corrompem o significado da operação.",
+      "section": "2. Lançar, capturar e propagar exceções",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante a leitura de um arquivo, uma exceção pode ocorrer depois da abertura. Qual construção atende diretamente à necessidade de fechá-lo ao sair do bloco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar a construção de gerenciamento de recurso da linguagem, como with em Python.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Fechar o arquivo somente depois da leitura, sem proteger esse caminho contra falhas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Capturar toda exceção e deixar o arquivo aberto para a próxima tentativa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reabrir o mesmo arquivo no bloco catch para encerrar a primeira abertura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar a exceção de leitura, pois o sistema operacional sempre fecha o recurso na hora.",
+          "correct": false
+        }
+      ],
+      "explanation": "O gerenciador de contexto de Python associa o fechamento do arquivo à saída do bloco, inclusive quando ocorre exceção. Fechar apenas no caminho de sucesso pode deixar o recurso aberto; capturar e ignorar não é uma estratégia de liberação.",
+      "section": "3. Finalização e recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação traduz uma falha técnica de acesso ao repositório em uma exceção de domínio. O que deve fazer com a falha original?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descartá-la sempre, pois uma exceção de domínio deve conter somente um nome novo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Preservá-la como causa quando a linguagem ou a biblioteca permitir encadeamento.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Copiar a senha de conexão para a mensagem da exceção de domínio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformá-la em retorno normal e eliminar qualquer registro da falha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Lançar a nova exceção somente depois de apagar o rastreamento anterior.",
+          "correct": false
+        }
+      ],
+      "explanation": "A tradução pode dar significado de domínio à falha sem perder a origem técnica. Encadear a causa e manter contexto útil ajuda a depuração. Segredos não devem entrar na mensagem, e uma exceção não deve virar sucesso sem recuperação real.",
+      "section": "2. Lançar, capturar e propagar exceções",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço remoto retorna erro temporário após uma solicitação que pode já ter sido processada. Qual é a decisão mais segura antes de repetir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir imediatamente até receber sucesso, pois a resposta de erro prova que nada ocorreu.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Enviar a solicitação em paralelo por várias conexões para acelerar a recuperação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar a operação por outra e assumir que o serviço descartou a solicitação original.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificar o efeito possível e usar retry limitado com mecanismo idempotente apropriado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar o tratamento e aguardar que o sistema remoto reverta sozinho a operação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma resposta perdida ou de falha não prova que o serviço remoto deixou de efetuar a operação. A repetição pode duplicar o efeito; é preciso avaliar o estado, usar idempotência quando disponível e limitar novas tentativas com critério.",
+      "section": "4. Recuperação, diagnóstico e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um bloco catch recebe uma exceção desconhecida e a camada não tem como corrigir a condição. Qual resposta evita esconder a falha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Devolver uma lista vazia e marcar a operação como concluída para o chamador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir a exceção por mensagem genérica e eliminar a referência à causa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Registrar contexto seguro e propagar ou relançar a exceção para outra camada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ignorar o objeto recebido e seguir com os dados possivelmente incompletos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tentar novamente sem limite, independentemente do tipo ou do resultado parcial.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se não consegue recuperar, a camada deve preservar a observabilidade e encaminhar a falha. Um registro técnico seguro e o relançamento mantêm a informação para quem poderá decidir; retorno neutro, descarte e retry ilimitado criam falsa conclusão.",
+      "section": "2. Lançar, capturar e propagar exceções",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um método Java, ocorre uma IOException verificada e o método não pode tratá-la localmente. Como deve sinalizar essa possibilidade ao chamador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar a exceção na assinatura para que o chamador possa capturá-la ou declará-la.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Omitir qualquer indicação, pois toda exceção verificada é ignorada pelo compilador Java.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter a falha em um comentário para que o chamador deduza o problema depois.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Retornar null e afirmar que a chamada terminou sem falha nem valor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Capturar Throwable no método e continuar sem examinar a causa recebida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em Java, uma exceção verificada precisa ser capturada ou declarada, de modo que a obrigação chegue a uma camada capaz de tratar. Omitir o contrato não satisfaz a regra de compilação; retornar null ou capturar Throwable sem ação esconde a falha.",
+      "section": "2. Lançar, capturar e propagar exceções",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa Java recebe um objeto Error que representa falha séria da máquina virtual. Qual orientação geral é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Capturá-lo sempre e reiniciar apenas o método atual como se fosse uma entrada inválida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tratá-lo como sinônimo exato de qualquer exceção recuperável da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituí-lo por um retorno padrão e manter o processo em estado normal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Em geral, não o usar para falhas comuns nem pressupor recuperação segura.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Transformá-lo em uma exceção verificada para obrigar todo chamador a continuar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na hierarquia Java, Error representa falhas sérias do ambiente, como certas falhas da máquina virtual; programas comuns geralmente não os capturam como problemas recuperáveis. Exceções de aplicação pertencem a outra categoria e devem ser tratadas conforme seu significado.",
+      "section": "2. Lançar, capturar e propagar exceções",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função Python precisa garantir que um arquivo seja fechado após sua utilização. Qual abordagem expressa essa intenção diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Abrir o arquivo e fechá-lo apenas se todas as leituras terminarem sem exceção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `with` para associar a liberação do arquivo à saída do bloco.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Capturar erros de leitura e manter o arquivo aberto para qualquer outro processo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Guardar o arquivo em variável global para que o sistema o feche depois.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter o arquivo em texto antes de abri-lo e encerrar o recurso automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O gerenciador de contexto `with` encerra o recurso ao sair do bloco, inclusive quando a execução é interrompida por exceção. Colocar o fechamento apenas após operações sujeitas a falha cobre somente o caminho bem-sucedido.",
+      "section": "3. Finalização e recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programador retorna um valor do bloco try e outro valor do finally em JavaScript. Qual resultado deve ser previsto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O valor do try sempre prevalece, pois finally só executa se houver exceção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os dois valores são combinados em uma lista antes de sair da função.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A função lança erro de sintaxe, porque finally não admite instruções de retorno.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A função retorna ambos, na ordem em que foram avaliados nos blocos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O return executado em finally prevalece e pode substituir o retorno pendente.",
+          "correct": true
+        }
+      ],
+      "explanation": "Na semântica do JavaScript, o fluxo de controle de finally pode substituir o retorno que sairia do try ou catch. A mesma interferência pode suprimir uma exceção pendente, motivo pelo qual retornos em finally devem ser evitados.",
+      "section": "3. Finalização e recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer mostrar uma mensagem simples ao usuário e preservar detalhes para análise técnica. Qual estratégia atende aos dois públicos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Exibir o stack trace completo ao usuário e dispensar registros técnicos separados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Suprimir todos os detalhes e apresentar sempre a mensagem “falha desconhecida”.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mostrar orientação segura e guardar contexto técnico controlado sem segredos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Incluir senhas no texto público e limitar o log ao nome da tela acessada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registrar somente o dado pessoal completo para identificar quem causou a falha.",
+          "correct": false
+        }
+      ],
+      "explanation": "A interface deve orientar sem revelar detalhes internos, enquanto o registro técnico conserva tipo, operação e contexto necessários para investigação. Credenciais e dados sensíveis não devem ser gravados indiscriminadamente nem exibidos ao usuário.",
+      "section": "4. Recuperação, diagnóstico e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função JavaScript assíncrona aguarda uma Promise com await. Onde deve ficar o tratador para lidar com sua rejeição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Em um try/catch que envolve o await dentro do fluxo assíncrono correspondente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Em qualquer try/catch síncrono executado antes de a Promise ser criada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente em finally, pois esse bloco converte rejeição em resultado resolvido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Em um catch sem relação com a Promise, para capturar rejeições globais por escopo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A rejeição não precisa ser tratada, porque await transforma toda falha em null.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ao aguardar a Promise com await, sua rejeição se manifesta como exceção naquele fluxo e pode ser capturada por try/catch que envolve o await. Um try que terminou antes da rejeição, sem aguardar a operação, não a captura automaticamente.",
+      "section": "4. Recuperação, diagnóstico e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método pode receber entrada cujo formato está incorreto antes de iniciar uma operação de banco. Qual controle deve vir primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar a operação e esperar que o banco converta qualquer valor recebido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Capturar qualquer falha futura e substituir o dado por um valor aleatório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Repetir a consulta com o mesmo dado até que o banco aceite o formato.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Validar a entrada na fronteira e informar qual regra não foi atendida.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Ocultar a entrada e registrar sucesso antes de consultar a base de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Validar cedo impede que um dado conhecido como inválido chegue a uma operação dependente dele. A mensagem pode orientar a correção. Delegar toda regra ao banco ou repetir o mesmo valor não substitui a validação da entrada.",
+      "section": "4. Recuperação, diagnóstico e boas práticas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada para cobrança pode ter sido processada apesar de uma falha de comunicação. Qual requisito reduz o risco de cobrança duplicada numa nova tentativa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir a chamada em paralelo e aceitar que uma das respostas será a correta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar uma chave ou protocolo idempotente e limitar tentativas conforme a política.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apagar do log a primeira tentativa para evitar que o cliente perceba a falha.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar uma nova cobrança com identificador diferente a cada repetição automática.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter falhas de conexão em confirmação de pagamento sem consultar o serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "Idempotência permite que a mesma operação lógica seja repetida sem duplicar o efeito final, quando o serviço oferece esse mecanismo. A política também limita tentativas e considera a incerteza sobre a primeira execução; identificadores diferentes podem criar cobranças duplicadas.",
+      "section": "4. Recuperação, diagnóstico e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um bloco try contém a chamada de uma função auxiliar, e essa função lança uma exceção que não captura. Onde um tratador compatível pode recebê-la?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente dentro da própria função auxiliar, porque exceções não atravessam chamadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas no primeiro bloco finally encontrado, que converte a falha em sucesso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "No código chamador, desde que seu bloco protegido envolva a chamada e trate o tipo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "No catch associado ao try externo, se a exceção propagada for compatível.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Em qualquer catch do programa, mesmo que não exista relação de chamada ou escopo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma exceção não tratada na função auxiliar pode propagar-se para a chamada que a executou. O catch associado ao try que envolve essa chamada pode capturá-la se o tipo corresponder; não é capturada por qualquer bloco desconectado do fluxo.",
+      "section": "2. Lançar, capturar e propagar exceções",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função de serviço quer distinguir especificamente falha de conexão de falha de validação. Qual escolha melhora esse tratamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Capturar ambas sem consultar tipo ou contexto e devolver a mesma resposta de sucesso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Lançar sempre uma exceção genérica antes de examinar qual condição ocorreu.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar tipos ou resultados distintos e aplicar respostas adequadas a cada condição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar validação e repetir a conexão, pois ambos os problemas são transitórios.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Modelar as falhas de modo distinguível e capturar cada caso com ação coerente.",
+          "correct": true
+        }
+      ],
+      "explanation": "Condições diferentes justificam respostas diferentes: conexão pode ser transitória, enquanto validação exige corrigir a entrada. Tipos de exceção específicos ou resultados explícitos permitem que a camada escolha o tratamento certo, sem confundir causas.",
+      "section": "2. Lançar, capturar e propagar exceções",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um tratador registra uma exceção e precisa encaminhá-la a uma camada superior, sem criar uma falha nova sem relação. Qual prática é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Relançar a exceção original ou traduzi-la preservando sua causa e contexto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Retornar sempre verdadeiro para indicar que o registro foi concluído.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar uma exceção sem mensagem e apagar o rastreamento já disponível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reexecutar toda a aplicação desde o início sem comunicar o evento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter o erro em comentário e seguir com o valor parcial como resultado final.",
+          "correct": false
+        }
+      ],
+      "explanation": "Após registro, a exceção original pode ser relançada. Se a camada precisar traduzi-la, deve manter causa e contexto técnico para que o erro não perca sua origem. Um retorno de sucesso ou falha sem vínculo destrói essa informação.",
+      "section": "2. Lançar, capturar e propagar exceções",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função executa limpeza de um recurso num finally e também deseja comunicar que a operação protegida falhou. Qual implementação mantém essa intenção mais clara?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retornar sucesso no finally para que a limpeza substitua o resultado da operação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Lançar erro genérico no finally, mesmo quando a operação terminar normalmente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar finally para liberar o recurso e deixar a exceção original seguir seu fluxo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar a exceção no catch e usar o finally para marcar a operação como concluída.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Evitar return ou throw substitutivo em finally e manter a falha observável.",
+          "correct": true
+        }
+      ],
+      "explanation": "O bloco de finalização deve cuidar da limpeza, sem substituir o resultado ou a exceção principal. Em JavaScript, return em finally pode suprimir uma falha pendente; manter a limpeza sem controle de fluxo conflitante preserva o diagnóstico.",
+      "section": "3. Finalização e recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método de domínio recebe um número negativo, embora o contrato exija valor positivo. Que decisão é adequada antes de alterar o estado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aceitar o valor e corrigir o estado em uma consulta posterior, sem aviso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Validar a precondição e rejeitar a entrada de modo explícito e compreensível.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Converter todo número negativo em positivo, mesmo que a regra não autorize.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Continuar a operação e depender de uma falha posterior do armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir a entrada por zero e indicar que o estado foi alterado corretamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A regra de domínio pode ser verificada antes de qualquer alteração. Corrigir o valor por conta própria altera o significado da entrada; gravar um substituto ou depender de falha posterior pode deixar o estado incoerente. Rejeitar explicitamente permite ao chamador corrigir os dados sem alterar o estado.",
+      "section": "4. Recuperação, diagnóstico e boas práticas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conexão ao serviço falha de modo intermitente, mas a operação de consulta não produz efeitos colaterais. Qual política pode ser razoável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tentar novamente com limite, intervalo e critério para desistir ou reportar falha.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Repetir sem limite e sem intervalo até que a conexão permaneça ativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter qualquer falha em resultado vazio e informar que a consulta teve êxito.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar retry limitado se a falha puder ser transitória e a operação for segura.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desligar os registros para que a falha não afete o diagnóstico posterior.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma consulta sem efeito colateral pode ser repetida diante de falha transitória, desde que a política limite tentativas e encerre com resultado observável. Repetição infinita sobrecarrega; transformar falha em resultado vazio pode esconder indisponibilidade.",
+      "section": "4. Recuperação, diagnóstico e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo foi aberto e uma leitura lança exceção antes do fim. Em Java, qual mecanismo pode fechar automaticamente o recurso declarado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um catch que recebe qualquer erro e mantém o fluxo com o recurso aberto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um return no bloco finally que substitui a falha e evita encerrar o arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma variável estática que transfere o fechamento ao próximo usuário do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma declaração de exceção na assinatura do método leitor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A construção try-with-resources envolvendo a declaração e o uso do recurso.",
+          "correct": true
+        }
+      ],
+      "explanation": "O try-with-resources fecha os recursos declarados ao sair do bloco, inclusive quando uma exceção interrompe a leitura. Declarar que uma exceção pode ocorrer informa o chamador, mas não fecha o arquivo por si só.",
+      "section": "3. Finalização e recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe encontra um erro que aparece apenas com certo conjunto de dados. Qual uso dos testes ajuda diretamente a evitar regressão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Excluir os dados que causaram o problema e executar apenas o caminho feliz.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar teste reproduzível para a condição de falha e verificar o resultado esperado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Capturar qualquer exceção durante os testes e declará-los aprovados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Repetir o mesmo teste sem registrar sua entrada nem o resultado observado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover a validação para que o conjunto de dados não interrompa o teste.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um caso reproduzível preserva a entrada que revelou a falha e verifica se o comportamento esperado foi restaurado. Ignorar exceções ou remover validações só faz o teste deixar de detectar o defeito.",
+      "section": "4. Recuperação, diagnóstico e boas práticas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma camada de interface precisa apresentar falha sem revelar implementação interna. Qual mensagem é mais adequada para o usuário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O texto completo do stack trace, incluindo caminhos locais e nomes de credenciais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O nome de todas as classes e métodos internos que participaram da chamada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma mensagem genérica sem indicação de ação ou possibilidade de tentar novamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma explicação clara e segura do problema e do próximo passo disponível.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O conteúdo integral do registro técnico para que a pessoa encontre a causa raiz.",
+          "correct": false
+        }
+      ],
+      "explanation": "A mensagem pública deve ajudar a pessoa a entender o problema ou a agir, sem expor detalhes internos. O stack trace e o contexto técnico ficam em registros controlados para suporte; mensagens vagas também podem ser aprimoradas com orientação prática.",
+      "section": "4. Recuperação, diagnóstico e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação transacional falha antes da confirmação. O banco oferece rollback para as alterações pendentes. Que ação mantém o estado consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar a transação mesmo com falha para manter os comandos já executados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ignorar o erro e deixar a sessão decidir depois se grava as alterações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reverter as alterações pendentes e comunicar a falha ao fluxo chamador.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Executar novamente cada comando sem verificar se houve confirmação anterior.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Capturar a exceção e retornar sucesso sem consultar o estado da transação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se as alterações ainda não foram confirmadas e o mecanismo suporta rollback, revertê-las evita deixar parte da transação aplicada. A falha ainda precisa ser comunicada; confirmar ou ocultar o erro não restaura consistência.",
+      "section": "3. Finalização e recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ]
+}

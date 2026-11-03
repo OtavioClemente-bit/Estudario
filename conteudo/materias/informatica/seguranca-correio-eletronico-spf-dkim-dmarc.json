@@ -1,0 +1,2128 @@
+{
+  "id": "informatica.seguranca-correio-eletronico-spf-dkim-dmarc",
+  "subject": "Informática",
+  "title": "Segurança de correio eletrônico: antispam, antivírus, SPF, DKIM e DMARC",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Segurança de correio eletrônico: Anti Spam, antivírus, SPF, DKIM e DMARC",
+    "Segurança de correio eletrônico",
+    "Segurança do correio eletrônico",
+    "Proteção de mensagens de correio eletrônico",
+    "Anti Spam e antivírus no correio eletrônico",
+    "Filtragem antispam de mensagens de e-mail",
+    "Antivírus para mensagens de e-mail",
+    "Autenticação de domínio em correio eletrônico",
+    "SPF para autenticação de e-mail",
+    "DKIM para assinatura de mensagens de e-mail",
+    "DMARC para políticas de autenticação de e-mail",
+    "SPF, DKIM e DMARC no correio eletrônico"
+  ],
+  "scope": {
+    "covers": "Segurança do correio eletrônico por filtragem antispam e antivírus e autenticação de domínio: objetivos, funcionamento e limites de SPF, DKIM e DMARC; registros DNS; alinhamento SPF/DKIM com o domínio do campo From; políticas DMARC e relatórios; implantação, diagnóstico e erros comuns.",
+    "excludes": "Configuração específica de provedores comerciais, criptografia ponta a ponta por S/MIME ou OpenPGP, TLS de transporte em profundidade, administração de servidores SMTP e análise forense de malware."
+  },
+  "theoryTitle": "Camadas de proteção e autenticação no correio eletrônico",
+  "chapters": [
+    {
+      "title": "1. Antispam e antivírus",
+      "markdown": "### O problema que este assunto resolve\n\nCorreio eletrônico é usado para publicidade não solicitada, fraude, phishing e entrega de arquivos ou links maliciosos. O antispam classifica mensagens conforme sinais como reputação do remetente, volume, conteúdo, URLs, anexos e comportamento de envio. O antivírus procura código malicioso em anexos e, conforme a solução, em URLs ou conteúdo. Filtros podem marcar, colocar em quarentena, rejeitar ou entregar a mensagem com aviso.\n\nEssas camadas atuam sobre a mensagem e o contexto; SPF, DKIM e DMARC verificam aspectos de autenticação do domínio. Um e-mail pode passar autenticação e ainda conter golpe ou malware. Também pode falhar um teste por encaminhamento ou configuração legítima incorreta. Portanto, não se deve confundir autenticação com inspeção de conteúdo, nem interpretar qualquer resultado isolado como prova de legitimidade.\n\n> **Siglas e termos deste capítulo**\n> - **Spam**: mensagem não solicitada, em geral distribuída em massa.\n> - **Phishing**: tentativa de induzir a vítima a revelar dados, pagar ou executar ação, frequentemente por falsidade de identidade.\n> - **Antispam**: filtragem que atribui classificação ou ação a mensagens indesejadas.\n> - **Antivírus/antimalware**: ferramenta que detecta ou bloqueia código malicioso conhecido ou suspeito.\n> - **Quarentena**: área de retenção para revisão ou liberação controlada.\n> - **Falso positivo**: mensagem legítima classificada como indesejada; **falso negativo**: ameaça não detectada.\n\n### Como as camadas se complementam\n\nFiltros de conteúdo podem combinar listas de reputação, regras, análise heurística e detecção de anexos ou URLs. Atualizações de assinaturas ajudam a reconhecer ameaças conhecidas; análise heurística pode indicar comportamento suspeito sem uma assinatura exata, mas não garante detecção de ameaça inédita. Criptografia do conteúdo pode impedir inspeção pelo gateway, embora o servidor ainda possa avaliar metadados e o destinatário possa usar controles no ponto final. A triagem deve incluir registro, revisão de falsos positivos e um caminho de denúncia.\n\nA autenticação reduz a falsificação de domínios, mas não substitui o filtro: uma conta legítima comprometida pode enviar spam autenticado; um domínio atacante pode autenticar suas próprias mensagens. O usuário ainda deve desconfiar de solicitações inesperadas de credenciais, pagamentos ou abertura de arquivo.\n\n| Controle | Pergunta principal | Não garante |\n|---|---|---|\n| Antispam | A mensagem se parece com envio indesejado ou abusivo? | Que todo spam ou phishing seja bloqueado |\n| Antivírus | O anexo ou conteúdo analisado parece conter malware? | Detecção de toda ameaça nova ou execução segura |\n| SPF | O IP remetente está autorizado pelo domínio avaliado? | Que o conteúdo seja benigno ou o From visível seja autêntico |\n| DKIM | A assinatura do domínio valida partes assinadas da mensagem? | Confidencialidade ou legitimidade do autor humano |\n| DMARC | SPF ou DKIM passou e alinhou ao domínio From, e qual política o domínio pede? | Aplicação idêntica por todos os receptores |\n\n### Como cai na prova\n\nQuestões costumam trocar os objetivos das ferramentas. Antivírus não é protocolo de autenticação de domínio; SPF não examina anexos; DKIM não criptografa o e-mail; DMARC não substitui as avaliações de SPF e DKIM. Um resultado positivo reduz certos riscos, mas não certifica que a mensagem ou seu conteúdo sejam seguros.",
+      "section": "1. Antispam e antivírus"
+    },
+    {
+      "title": "2. SPF",
+      "markdown": "### O problema que este assunto resolve\n\nO SPF (Sender Policy Framework) permite ao domínio publicar no DNS quais hosts podem enviar mensagens usando aquele domínio no identificador de envelope avaliado. O receptor consulta o registro TXT SPF do domínio associado ao MAIL FROM do SMTP; em caso de caminho nulo, a avaliação usa o HELO/EHLO conforme a especificação. Isso não é necessariamente o mesmo endereço exibido no campo `From:` da mensagem.\n\nO registro começa com `v=spf1` e inclui mecanismos e qualificadores. Por exemplo, `ip4` e `ip6` correspondem a endereços; `include` consulta a política de outro domínio; `all` corresponde ao restante. O qualificador padrão é `+` (pass). `-all` expressa fail para o restante; `~all` softfail; `?all` neutral. A escolha é política do domínio e deve refletir todos os serviços legítimos de envio.\n\n> **Siglas e termos deste capítulo**\n> - **SPF**: Sender Policy Framework.\n> - **DNS TXT**: tipo de registro de texto usado para publicar a política SPF.\n> - **MAIL FROM**: identidade de envelope apresentada na transação SMTP.\n> - **HELO/EHLO**: saudação SMTP que identifica o cliente de envio.\n> - **Mecanismo**: regra que pode corresponder ao host remetente, como `ip4`, `mx`, `include` ou `all`.\n> - **Qualificador**: sinal que determina o resultado quando um mecanismo corresponde.\n\n### Avaliação e limites concretos\n\nOs mecanismos são avaliados em sequência até haver correspondência ou ocorrer outro resultado. `include`, `a`, `mx`, `ptr`, `exists` e o modificador `redirect` podem provocar consultas DNS durante a avaliação. A RFC 7208 limita a dez o total desses termos consultados em uma avaliação; exceder o limite produz `permerror`. `ip4`, `ip6` e `all` não consomem esse limite de consultas. A especificação também recomenda limitar consultas DNS sem resposta útil (void lookups) a duas; exceder o limite implementado resulta em erro permanente.\n\nPublicar mais de um registro SPF para o mesmo nome causa erro de avaliação; não se somam registros independentes. Deve-se consolidar os mecanismos num único registro e evitar cadeias excessivas de `include`. SPF é uma política DNS de autorização de origem, não assinatura criptográfica do conteúdo. Encaminhamento pode fazer a mensagem chegar de um IP que não consta na política original; o resultado SPF pode falhar mesmo quando o encaminhador é legítimo.\n\n### Como cai na prova\n\nAtenção à identidade testada: SPF verifica principalmente o domínio do envelope, não o endereço visível do campo From. A regra `-all` não é sinônimo de quarentena DMARC; é um qualificador SPF que resulta em fail se alcançado. `include` não significa aceitar qualquer remetente: o resultado depende da política incluída. Limites de consulta evitam carga e abuso do DNS.",
+      "section": "2. SPF"
+    },
+    {
+      "title": "3. DKIM",
+      "markdown": "### O problema que este assunto resolve\n\nDKIM (DomainKeys Identified Mail) associa uma assinatura criptográfica à mensagem e a um domínio. O sistema remetente assina cabeçalhos selecionados e o corpo, acrescentando um campo `DKIM-Signature`. O receptor usa o seletor `s=` e o domínio `d=` da assinatura para consultar a chave pública no DNS, no nome formado como `<seletor>._domainkey.<domínio>`. Com a chave pública, verifica se a assinatura confere com as partes assinadas.\n\nA assinatura pode mostrar que as partes cobertas não foram alteradas de modo incompatível com a verificação e que o domínio identificado em `d=` participou da assinatura. Não criptografa a mensagem, não esconde seu conteúdo, não valida a identidade civil do remetente e não garante que o domínio seja confiável. A assinatura pode cobrir apenas certos campos; cabeçalhos acrescentados posteriormente ou conteúdo não assinado não recebem essa garantia.\n\n> **Siglas e termos deste capítulo**\n> - **DKIM**: DomainKeys Identified Mail.\n> - **Assinatura digital**: valor criptográfico verificável por uma chave pública correspondente.\n> - **`d=`**: domínio associado à assinatura DKIM.\n> - **`s=`**: seletor usado para localizar a chave pública no DNS.\n> - **Canonicalização**: normalização definida para comparar cabeçalhos ou corpo na geração e validação.\n> - **`h=` e `bh=`**: indicam, respectivamente, cabeçalhos assinados e hash do corpo na assinatura.\n\n### Chaves, alteração e encaminhamento\n\nO domínio publica a chave pública em DNS e mantém a chave privada protegida no sistema que assina. A rotação deve publicar novo seletor/chave, direcionar os assinadores para ele e retirar a chave antiga somente após deixar de ser necessária para validar mensagens em trânsito. Se o corpo ou cabeçalho coberto sofrer alteração incompatível, a verificação pode falhar. Sistemas de listas de discussão que reescrevem o assunto ou o corpo podem quebrar a assinatura. Uma mensagem pode conter mais de uma assinatura; DMARC pode passar se pelo menos uma assinatura válida estiver alinhada ao domínio autor.\n\nDKIM não impede que alguém com acesso legítimo ao serviço envie conteúdo malicioso, nem que um domínio fraudulento assine suas próprias mensagens. A decisão de confiança combina domínio, alinhamento, reputação, filtros e contexto.\n\n### Como cai na prova\n\nA localização da chave usa seletor e domínio, não o endereço IP remetente. `d=` identifica o domínio da assinatura e é um dos identificadores comparados por DMARC. Uma assinatura válida prova a integridade das partes assinadas sob a chave correspondente, não a confidencialidade nem a honestidade do conteúdo.",
+      "section": "3. DKIM"
+    },
+    {
+      "title": "4. DMARC e implantação",
+      "markdown": "### O problema que este assunto resolve\n\nDMARC (Domain-based Message Authentication, Reporting, and Conformance) vincula resultados SPF e DKIM ao domínio autor mostrado no campo `From:` da mensagem. O domínio publica um registro de política DNS TXT num nome iniciado por `_dmarc`, por exemplo `_dmarc.exemplo.com`. A política pode pedir ao receptor que trate falhas como `none` (sem ação de política solicitada), `quarantine` (suspeita/segregação) ou `reject` (rejeição), e pode indicar destinos de relatórios agregados pelo mecanismo previsto no registro. O receptor toma a decisão final segundo a política local e as especificações.\n\nDMARC passa quando ao menos um identificador autenticado passa e está alinhado ao domínio do `From:`: o domínio autenticado pelo SPF ou o domínio `d=` de uma assinatura DKIM válida. Alinhamento relaxado aceita o mesmo domínio organizacional; alinhamento estrito exige igualdade do domínio. Pode-se escolher modo separadamente para SPF (`aspf`) e DKIM (`adkim`), conforme a sintaxe vigente. Um SPF pass sem alinhamento não basta; uma assinatura DKIM válida de domínio não relacionado também não basta.\n\n> **Siglas e termos deste capítulo**\n> - **DMARC**: Domain-based Message Authentication, Reporting, and Conformance.\n> - **Domínio autor**: domínio do campo RFC 5322 `From:` usado na avaliação DMARC.\n> - **Alinhamento**: correspondência entre domínio autor e identificador autenticado por SPF ou DKIM.\n> - **`p`**: política publicada para o domínio autor.\n> - **`rua`**: destino solicitado para relatórios agregados.\n> - **Relatório agregado**: resumo periódico de mensagens e resultados por domínio, não relatório de cada usuário.\n\n### Implantação e leitura dos relatórios\n\nPara que DMARC funcione, o domínio deve inventariar todos os remetentes legítimos, configurar SPF e DKIM e confirmar que pelo menos um método passa alinhado ao `From:`. É prudente começar observando os resultados com política `none`, estudar os relatórios agregados e corrigir fontes legítimas antes de aumentar a aplicação para quarentena ou rejeição. Uma política forte publicada antes de configurar todos os serviços pode bloquear mensagens legítimas.\n\nA série oficial atualizada em 2026 para DMARC inclui RFC 9989 (mecanismo), RFC 9990 (relatórios agregados) e RFC 9991 (relatórios de falha), que substituem em conjunto a especificação original RFC 7489. Os relatórios agregados em geral trazem contagens, resultados SPF/DKIM, alinhamento e disposição aplicada; servem para identificar emissores não inventariados e abuso do domínio. Eles não certificam que cada mensagem seja segura. Falha temporária ou permanente de DNS pode impedir uma conclusão DMARC e deixa o tratamento a critério do receptor.\n\n### Como cai na prova\n\nDMARC não executa uma terceira autenticação criptográfica: avalia SPF e DKIM, verifica alinhamento com o `From:` e publica preferências e pedidos de feedback. Para passar, basta SPF alinhado ou DKIM alinhado; não é necessário que ambos passem. A política publicada é uma solicitação ao receptor e não substitui a filtragem local. Relatórios ajudam a administrar a implantação, mas não são lista de bloqueio automática.",
+      "section": "4. DMARC e implantação"
+    }
+  ],
+  "summary": "Antispam classifica mensagens indesejadas e antivírus/antimalware procura conteúdo malicioso; nenhum dos dois é substituído pela autenticação de domínio. SPF autoriza hosts de envio para o domínio do envelope avaliado por consulta DNS TXT; DKIM verifica assinatura de cabeçalhos/corpo cobertos com chave publicada em DNS, sem cifrar o e-mail. DMARC relaciona os resultados SPF/DKIM ao domínio do campo From por alinhamento estrito ou relaxado, publica política e solicita relatórios. Uma mensagem só passa DMARC se pelo menos um identificador SPF ou DKIM passar alinhado. Resultados positivos não provam que o conteúdo é seguro. Configuração correta exige inventariar remetentes legítimos, monitorar relatórios e aplicar políticas gradualmente.",
+  "flashcards": [
+    {
+      "front": "Qual é a função central de um filtro antispam?",
+      "back": "Classificar e tratar mensagens indesejadas com sinais de conteúdo, reputação, URLs, anexos e comportamento; não autentica por si só o domínio autor."
+    },
+    {
+      "front": "Qual é a função de um antivírus de correio eletrônico?",
+      "back": "Examinar conteúdo e anexos em busca de malware conhecido ou suspeito, podendo bloquear, limpar ou colocar mensagens em quarentena."
+    },
+    {
+      "front": "O que SPF autoriza?",
+      "back": "Quais hosts podem enviar usando o domínio avaliado na identidade de envelope SMTP, conforme política DNS do domínio."
+    },
+    {
+      "front": "Onde se publica a política SPF?",
+      "back": "Em registro DNS TXT do domínio remetente, normalmente começando com v=spf1."
+    },
+    {
+      "front": "Qual identidade SPF é usada pelo DMARC?",
+      "back": "A identidade SPF validada do MAIL FROM; para caminho nulo, a avaliação considera HELO/EHLO conforme a especificação."
+    },
+    {
+      "front": "O que expressam os qualificadores SPF?",
+      "back": "+ pass, - fail, ~ softfail e ? neutral; sem qualificador, o padrão é +."
+    },
+    {
+      "front": "O que significa SPF -all?",
+      "back": "Se a avaliação chegar a all, retorna fail para o remetente restante; isso não equivale à política DMARC reject."
+    },
+    {
+      "front": "Quantos termos que causam consultas DNS o SPF permite numa avaliação?",
+      "back": "No máximo dez termos de consulta (include, a, mx, ptr, exists e redirect); exceder resulta em permerror."
+    },
+    {
+      "front": "O que faz DKIM?",
+      "back": "Assina criptograficamente campos selecionados e o corpo da mensagem, para que o receptor verifique a assinatura usando chave pública DNS."
+    },
+    {
+      "front": "O que identificam d= e s= em DKIM-Signature?",
+      "back": "d= informa o domínio associado à assinatura; s= o seletor para localizar a chave pública DNS."
+    },
+    {
+      "front": "Onde se consulta a chave DKIM?",
+      "back": "No nome DNS <seletor>._domainkey.<domínio indicado em d=>."
+    },
+    {
+      "front": "DKIM cifra o conteúdo?",
+      "back": "Não. DKIM assina e permite verificar integridade das partes cobertas, mas não oferece confidencialidade."
+    },
+    {
+      "front": "Qual domínio DMARC compara?",
+      "back": "O domínio autor do campo From: da mensagem com identificadores autenticados SPF e DKIM."
+    },
+    {
+      "front": "Quando DMARC passa?",
+      "back": "Quando pelo menos um identificador autenticado por SPF ou DKIM passa e está alinhado ao domínio do From:."
+    },
+    {
+      "front": "O que é alinhamento relaxado?",
+      "back": "Os identificadores têm o mesmo domínio organizacional, embora os nomes completos possam ser diferentes."
+    },
+    {
+      "front": "O que é alinhamento estrito?",
+      "back": "O domínio autenticado é idêntico ao domínio autor do From:."
+    },
+    {
+      "front": "Onde se publica política DMARC?",
+      "back": "Em registro TXT no nome DNS que começa com _dmarc, como _dmarc.exemplo.com."
+    },
+    {
+      "front": "O que significam p=none, quarantine e reject?",
+      "back": "Preferências de política para falhas: sem ação de política solicitada, tratar como suspeita/segregar, ou rejeitar, sujeitas ao processamento do receptor."
+    },
+    {
+      "front": "Para que servem os relatórios agregados DMARC?",
+      "back": "Mostrar tendências e contagens de resultados, alinhamento e disposição para ajudar o domínio a identificar emissores legítimos e uso indevido."
+    },
+    {
+      "front": "Um DMARC pass torna a mensagem confiável e segura?",
+      "back": "Não. Confirma autenticação alinhada do domínio por SPF ou DKIM, mas não avalia a intenção do remetente ou a segurança do conteúdo."
+    }
+  ],
+  "tips": [
+    "Separe identidade de conteúdo: SPF, DKIM e DMARC autenticam domínios; antispam e antivírus examinam conteúdo e comportamento.",
+    "Localize o From visível: DMARC compara o domínio From: e não o confunde automaticamente com MAIL FROM.",
+    "Confira o alinhamento: SPF pass ou DKIM válido contribui para DMARC somente quando o identificador alinha com From:.",
+    "Leia SPF como sequência: mecanismos são avaliados em ordem; include consulta outra política e all pode ser regra final.",
+    "Interprete DKIM pelo seletor: os parâmetros s= e d= apontam à chave pública publicada no DNS.",
+    "Implante DMARC com visibilidade: inventarie serviços e corrija remetentes legítimos antes de pedir política mais rigorosa."
+  ],
+  "trapsLegacy": [
+    "SPF não autentica diretamente o From: seu resultado liga-se à identidade de envelope; DMARC exige alinhamento com o From:.",
+    {
+      "title": "Assinatura válida não significa mensagem honesta",
+      "text": "DKIM comprova uma relação criptográfica com o domínio assinante e as partes assinadas; não declara que o conteúdo é benigno."
+    },
+    "DMARC não exige SPF e DKIM simultaneamente: um dos dois mecanismos basta, desde que passe e esteja alinhado ao domínio autor.",
+    {
+      "title": "Política DMARC não força o receptor cegamente",
+      "text": "A política expressa a preferência do domínio; o receptor decide o tratamento segundo suas regras e o padrão aplicável."
+    },
+    {
+      "title": "Autenticação não é filtro de malware",
+      "text": "Conta comprometida ou domínio malicioso podem enviar mensagens autenticadas com conteúdo nocivo."
+    },
+    {
+      "title": "Encaminhamento pode afetar SPF",
+      "text": "O IP do encaminhador pode não estar autorizado pelo domínio original; DKIM preservada e alinhada pode ainda permitir DMARC pass."
+    }
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique em uma frase a diferença entre antispam e SPF.",
+      "answer": "Antispam classifica mensagens indesejadas; SPF verifica se o host remetente está autorizado pela política DNS do domínio de envelope."
+    },
+    {
+      "question": "Quais dados de uma assinatura DKIM levam à chave DNS?",
+      "answer": "O seletor s= e o domínio d= formam <s>._domainkey.<d>."
+    },
+    {
+      "question": "Por que SPF pass pode não produzir DMARC pass?",
+      "answer": "Porque o domínio SPF autenticado pode não estar alinhado ao domínio do campo From:."
+    },
+    {
+      "question": "O que deve estar alinhado para DMARC passar via DKIM?",
+      "answer": "Uma assinatura deve validar e o domínio d= dela deve estar alinhado ao domínio autor do From:."
+    },
+    {
+      "question": "Dê uma limitação de DKIM após uma lista de discussão alterar a mensagem.",
+      "answer": "Mudança em conteúdo ou cabeçalho coberto pode invalidar a assinatura, embora outra assinatura válida ainda possa existir."
+    },
+    {
+      "question": "O que fazer antes de pedir política DMARC de rejeição?",
+      "answer": "Inventariar e autenticar os remetentes legítimos, observar os resultados e corrigir falhas de alinhamento indicadas pelos relatórios."
+    },
+    {
+      "question": "Como SPF reage ao excesso de consultas DNS?",
+      "answer": "Mais de dez termos que causam consulta numa avaliação resulta em permerror conforme RFC 7208."
+    },
+    {
+      "question": "Por que um resultado DMARC positivo não dispensa antivírus?",
+      "answer": "DMARC valida origem de domínio alinhada, não examina nem garante a segurança do conteúdo e dos anexos."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Identidades de e-mail distintas",
+      "summary": "MAIL FROM é a identidade do envelope SMTP; From: é o domínio autor exibido ao destinatário. SPF usa a primeira identidade e DMARC avalia alinhamento com a segunda."
+    },
+    {
+      "key": "e2",
+      "title": "Autenticação não equivale a reputação",
+      "summary": "SPF e DKIM demonstram autorização ou assinatura por domínio. Não provam que a conta, o domínio ou o conteúdo sejam benignos."
+    },
+    {
+      "key": "e3",
+      "title": "Passagem DMARC requer alinhamento",
+      "summary": "Um resultado SPF ou DKIM válido sem alinhamento ao domínio From: não é suficiente; um único resultado válido e alinhado basta."
+    },
+    {
+      "key": "e4",
+      "title": "Controles têm objetivos diferentes",
+      "summary": "Antispam, antimalware e autenticação de domínio reduzem riscos diferentes e devem compor defesa em camadas."
+    },
+    {
+      "key": "e5",
+      "title": "Política é preferência publicada",
+      "summary": "A política DMARC orienta o receptor sobre falhas; filtros locais e condições técnicas continuam relevantes para a disposição final."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "O filtro antispam pode usar reputação, conteúdo e comportamento de envio para classificar uma mensagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A classificação pode combinar sinais do remetente, volume, URLs, anexos e conteúdo. Isso não autentica criptograficamente o domínio e tampouco garante que todas as mensagens indesejadas serão detectadas.",
+      "section": "1. Antispam e antivírus",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um antivírus de gateway garante a detecção de qualquer malware, inclusive ameaças nunca observadas antes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Assinaturas reconhecem ameaças conhecidas e análise heurística pode apontar comportamentos suspeitos, mas nenhuma delas garante identificar todo código malicioso inédito. Atualizações e outras camadas continuam necessárias.",
+      "section": "1. Antispam e antivírus",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "SPF consulta a política DNS do domínio associado à identidade de envelope SMTP para avaliar se o host remetente está autorizado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A avaliação usa o MAIL FROM e, em caminhos nulos, considera o HELO/EHLO conforme a especificação. O endereço mostrado no From: não é necessariamente essa identidade.",
+      "section": "2. SPF",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um único registro SPF pode conter mecanismos combinados, mas publicar dois registros SPF separados para o mesmo nome é uma forma válida de somar autorizações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os mecanismos devem ser consolidados no registro SPF daquele nome. Registros SPF múltiplos causam erro de avaliação em vez de formar uma lista cumulativa de remetentes autorizados.",
+      "section": "2. SPF",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O qualificador SPF sem sinal explícito é positivo, portanto uma correspondência sem qualificador produz pass.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O qualificador padrão é +, que corresponde ao resultado pass. Os sinais -, ~ e ? produzem, respectivamente, fail, softfail e neutral quando o mecanismo corresponde.",
+      "section": "2. SPF",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os mecanismos ip4, ip6 e all consomem o limite de dez termos SPF que provocam consultas DNS durante a avaliação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A RFC 7208 exclui ip4, ip6 e all desse limite, pois não provocam consultas DNS durante a avaliação. Termos como include, a, mx, ptr, exists e redirect são contados.",
+      "section": "2. SPF",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A assinatura DKIM cifra o corpo do e-mail para que somente o destinatário com a chave privada possa lê-lo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. DKIM é uma assinatura verificável com chave pública DNS, não um mecanismo de confidencialidade. O conteúdo continua legível conforme o transporte e os controles de acesso usados.",
+      "section": "3. DKIM",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O domínio indicado no parâmetro d= é associado à assinatura DKIM e pode ser comparado por DMARC ao domínio do From:.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. d= identifica o domínio DKIM autenticado. Uma assinatura válida só contribui para o resultado DMARC se esse domínio também satisfizer o modo de alinhamento configurado.",
+      "section": "3. DKIM",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma lista de discussão alterar parte do corpo coberto pela assinatura, a verificação DKIM pode falhar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A verificação compara o corpo e os cabeçalhos assinados de acordo com a assinatura e a canonicalização aplicável. Uma reescrita incompatível pode invalidá-la, embora outras assinaturas possam ser verificadas separadamente.",
+      "section": "3. DKIM",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma assinatura DKIM válida demonstra por si só que o autor humano é quem afirma ser e que a mensagem não é fraudulenta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A assinatura relaciona partes assinadas a um domínio e a uma chave; não prova a identidade civil do autor, nem que uma conta legítima não foi comprometida ou que o conteúdo seja honesto.",
+      "section": "3. DKIM",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "DMARC pode passar quando SPF passa alinhado ao From:, mesmo que nenhuma assinatura DKIM passe alinhada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. DMARC requer ao menos um identificador autenticado alinhado: SPF ou DKIM. Não exige simultaneamente o sucesso dos dois mecanismos.",
+      "section": "4. DMARC e implantação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para DMARC, um SPF pass de qualquer domínio basta, ainda que o domínio autenticado não tenha alinhamento com o From:.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. DMARC não trata um SPF pass isolado como suficiente: o identificador SPF autenticado também precisa estar alinhado com o domínio autor do From:, em modo relaxado ou estrito.",
+      "section": "4. DMARC e implantação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No alinhamento estrito DMARC, o domínio autenticado precisa ser idêntico ao domínio autor do campo From:.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Alinhamento estrito exige igualdade dos domínios. O relaxado admite nomes diferentes quando compartilham o mesmo domínio organizacional.",
+      "section": "4. DMARC e implantação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A política DMARC publicada elimina a necessidade de filtros locais do receptor, pois define sozinha o destino obrigatório de cada mensagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O domínio publica uma preferência de tratamento para falhas, mas o receptor processa a mensagem conforme sua implementação e política local. Filtragem de conteúdo e reputação continuam relevantes.",
+      "section": "4. DMARC e implantação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um e-mail pode passar SPF, DKIM e DMARC e ainda assim ser phishing enviado por uma conta legítima comprometida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esses resultados tratam da autorização e autenticação do domínio e do alinhamento. Não analisam a intenção do remetente nem certificam que links, solicitações ou anexos sejam seguros.",
+      "section": "1. Antispam e antivírus",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os relatórios agregados DMARC podem ajudar a identificar servidores legítimos que ainda não foram incluídos corretamente na configuração de autenticação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os relatórios resumem resultados, identificadores, alinhamento e disposição. O administrador pode cruzar esses dados com seus remetentes autorizados antes de endurecer a política.",
+      "section": "4. DMARC e implantação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem é marcada como suspeita por um filtro de conteúdo. Qual interpretação distingue corretamente esse resultado de autenticação de domínio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O filtro comprovou que o domínio do From: não consta no SPF e que nenhum remetente autorizado pode enviar por esse domínio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O filtro confirmou malware no anexo e descartou qualquer risco de phishing por link.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A classificação comprova que a assinatura DKIM foi criada com chave privada roubada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A mensagem necessariamente falhou DMARC porque filtros só marcam falhas de alinhamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O filtro classificou sinais de conteúdo, como reputação ou URLs; isso não determina o resultado de SPF, DKIM ou DMARC para o domínio.",
+          "correct": true
+        }
+      ],
+      "explanation": "Antispam e filtros de conteúdo avaliam sinais como reputação, conteúdo e URLs para decidir se uma mensagem merece atenção ou bloqueio. SPF, DKIM e DMARC verificam aspectos de autenticação e alinhamento do domínio; a classificação do filtro, isoladamente, não informa se esses mecanismos passaram ou falharam.",
+      "section": "1. Antispam e antivírus",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer reduzir anexos maliciosos no correio corporativo. Qual configuração atende diretamente a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar os endereços IP de usuários ao registro DMARC como regra de quarentena e usar essa lista para inspecionar os bytes dos anexos recebidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar chaves DKIM para cada usuário destinatário e rejeitar arquivos sem assinatura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Exigir que SPF assine criptograficamente o conteúdo de todos os anexos recebidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Inspecionar anexos com antimalware atualizado e colocar em quarentena os arquivos que a análise considerar suspeitos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Substituir todos os filtros por uma política SPF terminada em -all.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um antimalware de gateway ou de endpoint pode inspecionar anexos, usar assinaturas e outras técnicas de detecção, e reter arquivos suspeitos para análise. SPF não assina anexos; DKIM autentica partes cobertas de mensagens, enquanto DMARC trata autenticação e alinhamento de domínio, não a inspeção do conteúdo dos arquivos.",
+      "section": "1. Antispam e antivírus",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização está identificando qual identidade o SPF consulta no fluxo SMTP. Qual dado deve ser examinado primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O nome de exibição no aplicativo de leitura, que sempre define a identidade usada pelo SPF e prevalece sobre os dados do envelope SMTP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O domínio do servidor IMAP usado pelo destinatário para abrir a caixa postal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A identidade do envelope SMTP, normalmente MAIL FROM; em caminho de retorno nulo, considera-se o identificador HELO/EHLO aplicável.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O domínio d= de qualquer assinatura DKIM, mesmo sem consulta ao DNS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O domínio do primeiro link encontrado no corpo da mensagem recebida.",
+          "correct": false
+        }
+      ],
+      "explanation": "SPF verifica se o endereço IP que se conectou está autorizado pela política do domínio associado à identidade do envelope SMTP, em geral MAIL FROM. Quando o caminho de retorno é nulo, usa-se a identidade HELO/EHLO aplicável. O domínio visível no From: não substitui esses dados para a checagem SPF e entra na análise de alinhamento do DMARC.",
+      "section": "2. SPF",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma administradora encontrou dois registros TXT começando por v=spf1 no mesmo nome DNS. Qual correção é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter os dois registros, pois os receptores sempre concatenam suas autorizações e escolhem automaticamente a política mais permissiva encontrada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Publicar cada registro em um servidor DNS diferente para que o receptor escolha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter um registro em DKIM, conservando o mesmo nome e os mesmos mecanismos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover o domínio From: dos e-mails para que o SPF selecione um dos registros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reunir as autorizações necessárias em um único registro SPF válido publicado para aquele nome DNS.",
+          "correct": true
+        }
+      ],
+      "explanation": "Para cada nome DNS deve haver uma política SPF única e bem formada. Se diferentes serviços legítimos precisarem ser autorizados, a administradora deve integrar os mecanismos adequados em um único registro, respeitando os limites aplicáveis. Receptores não combinam automaticamente vários registros SPF independentes publicados para o mesmo nome.",
+      "section": "2. SPF",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um registro SPF, qual efeito tem o mecanismo ip4 quando o IP remetente corresponde ao endereço ou rede informado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Há correspondência apenas se a chave DKIM publicada autorizar também o endereço IP, pois SPF consulta a chave para confirmar a assinatura criptográfica da conexão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Compara o IP sem consulta DNS; o qualificador define o resultado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O mecanismo cria uma assinatura do corpo da mensagem usando o endereço de rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O mecanismo redireciona a consulta ao destinatário para um servidor SMTP alternativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A correspondência sempre significa softfail, qualquer que seja o qualificador SPF.",
+          "correct": false
+        }
+      ],
+      "explanation": "ip4 compara o IP de conexão com a faixa indicada e não causa consulta DNS no momento da avaliação. O qualificador, que por padrão é +, determina o resultado se o mecanismo corresponder.",
+      "section": "2. SPF",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política contém include:provedor.exemplo. O que esse mecanismo faz na avaliação SPF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aceita sempre qualquer IP do provedor, ignorando a política publicada por ele, os qualificadores e o resultado da avaliação SPF remota.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Avalia a política incluída e pode consumir consultas DNS.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Assina os campos From: e Subject: com a chave pública do provedor incluído.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substitui o domínio From: pelo domínio do provedor em qualquer mensagem recebida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ativa a política DMARC reject no domínio incluído sem alterar seus registros DNS.",
+          "correct": false
+        }
+      ],
+      "explanation": "include solicita uma avaliação da política SPF do domínio incluído. Só há correspondência conforme o resultado dessa política, e o mecanismo conta entre os termos que causam consultas DNS, sujeitos ao limite da RFC 7208.",
+      "section": "2. SPF",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma avaliação SPF percorre include, mx, a e redirect em cadeias que excedem dez termos que provocam consultas. Qual resultado previsto deve ser considerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Neutral, porque o limite transforma toda política longa em ausência de preferência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pass, porque todos os mecanismos com consulta DNS autorizam o último servidor consultado, mesmo quando a política excede o limite estabelecido para a avaliação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permerror por exceder o limite de consultas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Softfail, porque redirect sempre converte erros de processamento em resultado aproximado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fail, porque o receptor deve interpretar qualquer excesso como correspondência de -all.",
+          "correct": false
+        }
+      ],
+      "explanation": "A RFC 7208 exige que a avaliação limite a dez os termos que causam consultas DNS, incluindo include, a, mx, ptr, exists e redirect. Exceder esse limite produz permerror; não equivale a passar nem a corresponder automaticamente a all.",
+      "section": "2. SPF",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe revisa a expressão -all no final de sua política SPF. Qual descrição está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A expressão exige que cada mensagem seja assinada pelo servidor DNS autoritativo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A expressão rejeita, por si só e em qualquer receptor, todas as mensagens DMARC inválidas, inclusive quando o receptor não aplica a política publicada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "all alcançado com - resulta em fail.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A expressão permite qualquer remetente, pois o sinal menos significa resultado neutral.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A expressão encerra a conexão TLS antes de o receptor consultar a mensagem.",
+          "correct": false
+        }
+      ],
+      "explanation": "O mecanismo all corresponde a qualquer host restante; o qualificador - transforma essa correspondência em SPF fail. A aplicação de políticas DMARC e decisões do receptor são etapas distintas.",
+      "section": "2. SPF",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador quer configurar DKIM para saída de um serviço de e-mail. Qual associação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O serviço usa o registro SPF como chave criptográfica e elimina o campo DKIM-Signature.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O serviço publica a chave privada em TXT, e o receptor cria a assinatura ao receber a mensagem, usando a chave privada exposta pelo domínio para confirmar quem a enviou.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O serviço informa apenas o IP em d=, e o receptor compara com o MX do destinatário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Assina com a chave privada; o receptor busca a chave pública via s= e d=.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O serviço cifra o conteúdo com chave pública, e o destinatário usa a chave privada DNS.",
+          "correct": false
+        }
+      ],
+      "explanation": "O assinador protege a chave privada e inclui parâmetros d= e s= na assinatura. O verificador busca a chave pública associada a <s>._domainkey.<d> e verifica as partes cobertas pela assinatura.",
+      "section": "3. DKIM",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual nome DNS é consultado para obter a chave pública da assinatura com s=notifica e d=exemplo.com?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "exemplo.com._spf.notifica",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "_dmarc.notifica.exemplo.com",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "notifica._domainkey.exemplo.com",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "notifica._smtp.exemplo.com",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "_domainkey.d=exemplo.com;s=notifica",
+          "correct": false
+        }
+      ],
+      "explanation": "A chave DKIM é localizada combinando seletor e domínio no formato <seletor>._domainkey.<domínio>. Os parâmetros indicados levam a notifica._domainkey.exemplo.com.",
+      "section": "3. DKIM",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmativa descreve corretamente o que uma assinatura DKIM válida oferece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Esconde o corpo da mensagem de todos os servidores que processam o transporte SMTP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Prova que cada pessoa citada no From: é titular civil da chave privada utilizada e que a mensagem foi escrita por ela, sem possibilidade de uso por conta comprometida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Verifica as partes assinadas, sem cifrar ou atestar benignidade.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Garante que todo cabeçalho existente foi assinado, mesmo se não estiver coberto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Assegura que antivírus e filtros locais não precisam mais analisar a mensagem.",
+          "correct": false
+        }
+      ],
+      "explanation": "DKIM fornece verificação criptográfica do domínio assinante e das partes efetivamente cobertas. Não cifra o conteúdo, não autentica identidade civil, não assina automaticamente todo cabeçalho e não avalia risco de malware.",
+      "section": "3. DKIM",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O receptor valida uma mensagem que contém mais de uma assinatura DKIM. Como deve tratar essas assinaturas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Deve escolher a assinatura com domínio mais longo sem verificar criptograficamente nenhuma.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Verifica as assinaturas individualmente; uma assinatura DKIM válida e alinhada ao From: pode satisfazer a parte DKIM de DMARC.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Deve ignorar todas as assinaturas se pelo menos uma assinatura falhar na validação, mesmo que as demais tenham chave válida, assinatura íntegra e alinhamento com o domínio do From:.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Deve somar as chaves públicas para exigir que todas as assinaturas passem em conjunto e descartar qualquer mensagem que contenha uma assinatura inválida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Deve tratar qualquer assinatura válida como DMARC pass, sem conferir seu alinhamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma mensagem pode trazer assinaturas DKIM independentes, e o receptor avalia cada uma segundo sua chave e os dados cobertos. Para contribuir com DMARC, pelo menos uma precisa validar e estar alinhada ao domínio do From:. Uma assinatura inválida não anula automaticamente outra válida, e uma válida sem alinhamento não satisfaz o requisito.",
+      "section": "3. DKIM",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chave privada usada para assinar mensagens foi comprometida. Qual ação administrativa é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mudar apenas o assunto de cada mensagem e manter a chave privada exposta no assinador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Publicar a chave privada em DMARC para que os receptores bloqueiem assinaturas fraudulentas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter o registro SPF existente em assinatura e conservar a chave comprometida indefinidamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar todos os campos From: para que DKIM passe sem identificação de domínio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conter o comprometimento, substituir a chave privada, publicar a chave pública nova sob seletor e migrar os assinadores, retirando a chave antiga quando apropriado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma chave privada comprometida não deve continuar assinando mensagens. É necessário conter o incidente, gerar e proteger uma nova chave, publicar sua parte pública em um seletor DNS e atualizar os sistemas assinadores; a chave exposta deve ser retirada conforme a transição. O DNS publica a chave pública, nunca a privada.",
+      "section": "3. DKIM",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem assinada chega a uma lista que reescreve o corpo assinado e o assunto coberto. O que pode ocorrer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DMARC garante restauração do corpo original a partir do seletor DKIM publicado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A assinatura passa obrigatoriamente, pois DKIM ignora todos os campos além do remetente SMTP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A verificação da assinatura original pode falhar se a lista alterar o corpo ou cabeçalhos incluídos na assinatura, pois o conteúdo validado deixa de corresponder ao assinado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "SPF corrige a assinatura quebrada ao copiar automaticamente a chave privada da lista.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O receptor deve considerar que a lista é maliciosa, mesmo sem verificar qualquer outro sinal.",
+          "correct": false
+        }
+      ],
+      "explanation": "DKIM verifica o corpo e os cabeçalhos efetivamente cobertos, considerando as regras de canonicalização da assinatura. Se uma lista reescrever uma dessas partes de modo incompatível, a verificação da assinatura original pode falhar. Isso, por si só, não prova intenção maliciosa e não há recuperação automática do conteúdo original pela chave pública.",
+      "section": "3. DKIM",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem usa From: avisos@news.exemplo.com e tem assinatura válida d=exemplo.com. Qual é o resultado do alinhamento DKIM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Falha DKIM, pois a assinatura não corresponde ao endereço IP do destinatário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Alinhamento estrito, pois todos os subdomínios são idênticos ao domínio raiz.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "No modo relaxado, a assinatura pode alinhar porque exemplo.com e news.exemplo.com compartilham o mesmo domínio organizacional; no estrito, os nomes não são idênticos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Pass DMARC automático, mesmo se a assinatura DKIM não validar criptograficamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sem alinhamento em qualquer modo, pois o domínio de assinatura nunca pode ser raiz.",
+          "correct": false
+        }
+      ],
+      "explanation": "No alinhamento relaxado, o domínio DKIM d= e o domínio do From: podem ter nomes diferentes, desde que pertençam ao mesmo domínio organizacional; aqui, news.exemplo.com e exemplo.com atendem a essa condição. No modo estrito, os nomes completos precisam coincidir. Além do alinhamento, a assinatura precisa validar criptograficamente.",
+      "section": "4. DMARC e implantação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um SPF pass tem MAIL FROM em provedor.net, DKIM falha e From: mostra marca.org. Qual conclusão DMARC é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DMARC rejeita sempre a mensagem sem considerar política, modo ou avaliação local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DMARC passa porque qualquer SPF pass autoriza qualquer domínio From: da mensagem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DMARC passa porque o nome de exibição pode substituir marca.org durante o alinhamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não há pass DMARC demonstrado: o SPF pass não está alinhado e DKIM não passou.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "DMARC não pode avaliar mensagens com SPF pass quando DKIM também foi tentado.",
+          "correct": false
+        }
+      ],
+      "explanation": "DMARC exige ao menos um método autenticado e alinhado ao domínio do From:. O SPF autenticou provedor.net, que não corresponde a marca.org, e DKIM falhou; portanto, não há identificador alinhado que faça o mecanismo passar.",
+      "section": "4. DMARC e implantação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual registro o administrador deve publicar para expressar a política DMARC do domínio exemplo.com?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um CNAME no nome mailfrom.exemplo.com apontando ao endereço From: de cada usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um MX no nome dkim.exemplo.com contendo a chave privada de assinatura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um SPF no nome _domainkey.exemplo.com que especifique apenas a política p=reject.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um TXT no domínio do destinatário contendo a lista de todas as caixas postais locais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um TXT no nome _dmarc.exemplo.com com a versão e as tags DMARC pertinentes.",
+          "correct": true
+        }
+      ],
+      "explanation": "DMARC é anunciado como registro TXT no nome que começa por _dmarc, aqui _dmarc.exemplo.com. A política identifica a preferência do domínio autor e pode incluir solicitação de relatórios.",
+      "section": "4. DMARC e implantação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa está configurando DMARC e quer receber resumos das mensagens avaliadas por receptores participantes. Qual tag tem essa finalidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "all, que instrui todos os servidores DNS a enviar relatórios diários.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "d=, que especifica o destinatário dos anexos maliciosos em quarentena.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ip4, que lista caixas postais para receber uma cópia de cada mensagem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "s=, que publica a regra de rejeição para todos os subdomínios do domínio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "rua, que indica destino solicitado para relatórios agregados.",
+          "correct": true
+        }
+      ],
+      "explanation": "A tag rua indica URIs solicitadas para relatórios agregados DMARC. d= e s= são parâmetros de assinatura DKIM; ip4 e all são mecanismos SPF, não destinos de relatório.",
+      "section": "4. DMARC e implantação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe recebe relatórios agregados DMARC. Qual uso é mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar os relatórios para recuperar corpos completos e senhas de todos os destinatários.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tratar cada linha como prova de que a mensagem contém malware e deve ser apagada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Correlacionar IPs e resultados SPF/DKIM/alinhamento para localizar fontes legítimas ou uso indevido.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desativar filtros locais, pois os relatórios agregados examinam a intenção do conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir a zona DNS pelas linhas do relatório para permitir que o receptor reconfigure SPF.",
+          "correct": false
+        }
+      ],
+      "explanation": "Relatórios agregados ajudam o administrador do domínio a compreender fluxos de envio, autenticação, alinhamento e disposições e a encontrar sistemas legítimos não configurados. Não são análise de malware nem arquivo de conteúdo de mensagens.",
+      "section": "4. DMARC e implantação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um domínio pretende mudar diretamente de ausência de monitoramento para política DMARC reject, sem inventariar seus remetentes terceirizados. Qual risco operacional é mais provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SPF deixará de consultar o DNS para os servidores de terceiros já cadastrados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O receptor será obrigado a transformar toda mensagem aceita em mensagem DKIM assinada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mensagens legítimas podem falhar alinhamento e ser rejeitadas antes que a equipe identifique a fonte.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O campo From: será substituído automaticamente pelo nome do domínio que publica a política.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A política reject fará o filtro antispam deixar de avaliar mensagens de outros domínios.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um remetente legítimo terceirizado pode usar domínio de envelope ou domínio DKIM não alinhado ao From:. Sem inventário, testes e correções, a política pode levar receptores a rejeitar mensagens legítimas que falhem DMARC.",
+      "section": "4. DMARC e implantação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem encaminhada falha SPF porque o IP do encaminhador não está autorizado pelo domínio de envelope original. Qual interpretação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A avaliação SPF deve usar o endereço IP indicado na assinatura DKIM e ignorar a conexão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O resultado prova que o encaminhador falsificou o From: e que DMARC sempre rejeitará.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O encaminhamento pode alterar o IP avaliado; DKIM preservada e alinhada ainda pode permitir DMARC pass.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Todo encaminhamento reescreve obrigatoriamente o domínio autor e cria alinhamento estrito.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O encaminhamento transforma automaticamente o qualificador SPF fail em pass no DNS.",
+          "correct": false
+        }
+      ],
+      "explanation": "SPF observa o host que conecta ao receptor; após encaminhamento, esse host pode não constar na política do domínio original. Se uma assinatura DKIM continuar válida e alinhada ao From:, ela pode satisfazer DMARC apesar da falha SPF.",
+      "section": "4. DMARC e implantação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem exibe From: cobranca@empresa.com, passa SPF para MAIL FROM=envio.empresa.com e tem DKIM válido d=empresa.com. No modo relaxado, qual resultado é possível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DMARC pode passar por DKIM alinhado e também por SPF relaxadamente alinhado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "DMARC falha necessariamente porque MAIL FROM e From: não são textos idênticos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DMARC passa apenas se SPF e DKIM falharem ao mesmo tempo em modo estrito.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DMARC falha porque endereço local cobranca precisa coincidir com o seletor DKIM.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "DMARC não avalia subdomínios e domínios raiz em nenhum modo de alinhamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "O DKIM d=empresa.com coincide com o domínio autor empresa.com, logo uma assinatura válida está alinhada. No modo relaxado, envio.empresa.com também compartilha o domínio organizacional empresa.com com o From:, podendo alinhar via SPF.",
+      "section": "4. DMARC e implantação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um domínio recebe resultado SPF permerror por excesso de termos DNS. Como esse resultado deve ser interpretado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A política SPF não pôde ser avaliada corretamente; o erro não é um pass nem um fail de correspondência comum.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A mensagem passou SPF porque a consulta atingiu o limite máximo de servidores autorizados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O conteúdo falhou DKIM, pois permerror é um resultado de integridade de assinatura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O domínio solicitou automaticamente ao receptor a disposição DMARC quarantine.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O servidor remetente é sempre malicioso e deve ser bloqueado sem outras verificações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Excesso do limite de termos que provocam consultas resulta em permerror na avaliação SPF. Significa erro permanente de processamento da política, não autenticação positiva nem uma regra automática de DMARC quarantine.",
+      "section": "2. SPF",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um receptor vê DKIM pass com d=servico.net, enquanto From: contém boletim.org. O domínio do serviço não compartilha o domínio organizacional boletim.org. Qual conclusão está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A assinatura é válida, mas não alinhada; por si só não produz DMARC pass para boletim.org.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A assinatura é inválida porque todo d= deve repetir exatamente o endereço de e-mail completo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A mensagem passa DMARC porque uma assinatura válida dispensa comparação de domínios.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O domínio servico.net substitui automaticamente o domínio From: na mensagem recebida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A assinatura valida o IP remetente em SPF e converte o resultado SPF em pass alinhado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A verificação DKIM pode ser válida para servico.net, mas DMARC compara esse domínio autenticado ao domínio autor boletim.org. Sem igualdade estrita ou domínio organizacional comum em modo relaxado, não há alinhamento.",
+      "section": "4. DMARC e implantação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador observa SPF fail e DKIM fail para uma mensagem com From: do seu domínio. Qual afirmação sobre DMARC e conteúdo é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "DMARC pass ocorre porque SPF e DKIM falham simultaneamente e confirmam alinhamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A mensagem contém necessariamente um vírus, pois duas falhas provam malware no anexo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sem identificador alinhado que passe, não há DMARC pass.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O receptor é obrigado em qualquer circunstância a rejeitar, ignorando a política publicada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A mensagem deve ser aceita, pois duas falhas anulam a verificação do domínio From:.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se ambos falham, não há mecanismo SPF/DKIM válido e alinhado para obter DMARC pass. A disposição considera a política publicada e o processamento do receptor; as falhas não diagnosticam malware nem impõem uma única decisão universal.",
+      "section": "4. DMARC e implantação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço terceirizado assina mensagens com d=fornecedor.net e envia usando From: marca.com. SPF passa para um subdomínio marca.com, mas o modo aspf é estrito e MAIL FROM não é exatamente marca.com. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DMARC passa porque qualquer SPF pass alinha no modo estrito, mesmo em outro domínio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Nenhum identificador alinha no modo indicado: DKIM usa outro domínio e SPF não é idêntico.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "DMARC passa porque o DKIM d= do fornecedor é confiável por definição de terceiro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DMARC converte o modo aspf estrito em relaxado sempre que DKIM também é usado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "DMARC não avalia SPF quando a organização delega o envio a um prestador externo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com aspf estrito, o identificador SPF deve ser idêntico ao domínio autor; um subdomínio não basta. A assinatura DKIM do fornecedor também não alinha a marca.com. Assim, os resultados indicados não fornecem identificador alinhado.",
+      "section": "4. DMARC e implantação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa usa vários provedores legítimos de campanhas, faturamento e suporte. Qual sequência reduz risco ao implantar DMARC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar DKIM e SPF em todos os provedores até a política atingir quarentena.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Publicar reject imediatamente, sem revisar fontes, e apagar os relatórios para evitar divergências.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar um SPF separado para cada provedor e presumir que os receptores os combinarão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Inventariar fontes, alinhar SPF/DKIM, monitorar e depois endurecer a política.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Colocar os endereços de cada usuário no campo rua e aceitar qualquer mensagem de retorno.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma implantação segura começa identificando todas as fontes, incluindo terceiros, e assegurando autenticação alinhada. Relatórios em fase de observação ajudam a localizar falhas legítimas antes de solicitar aplicação mais rigorosa, reduzindo bloqueios indevidos.",
+      "section": "4. DMARC e implantação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que um receptor mantém antispam mesmo quando suas mensagens legítimas passam DMARC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A política DMARC não contém domínio algum e, por isso, precisa ser substituída por antispam.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DMARC só funciona quando nenhum filtro de conteúdo está instalado no servidor receptor, pois a presença do filtro invalida qualquer resultado SPF e impede a entrega de mensagens autenticadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DMARC avalia autenticação e alinhamento do domínio, mas não identifica intenção maliciosa nem substitui a análise de reputação, links e anexos pelo receptor.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Antispam é o único mecanismo que publica chaves públicas de domínio na zona DNS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma mensagem aprovada por DMARC tem necessariamente o conteúdo cifrado com TLS ponta a ponta.",
+          "correct": false
+        }
+      ],
+      "explanation": "DMARC verifica se SPF ou DKIM passou com alinhamento ao domínio do From:, mas não avalia por si só a intenção da mensagem, a reputação do remetente, a segurança de URLs ou a presença de malware em anexos. Antispam e antimalware continuam úteis para analisar esses sinais e reduzir ameaças que podem vir de contas autenticadas.",
+      "section": "1. Antispam e antivírus",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um receptor tem resultado DKIM pass, mas o domínio d= é terceiro sem alinhamento com o From:. O que muda se SPF falhar também?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O resultado torna-se alinhado se o servidor terceirizado tiver certificado TLS válido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A mensagem passa automaticamente porque qualquer DKIM pass encerra o cálculo DMARC, ainda que o domínio da assinatura seja completamente diferente do domínio autor do From:.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O receptor deve substituir d= pelo domínio From: antes de verificar a assinatura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como DKIM está desalinhado e SPF também falhou, não resta identificador autenticado e alinhado; portanto DMARC falha, embora a ação posterior dependa da política e do receptor.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O endereço IP do destinatário serve como segundo domínio autenticado para DMARC.",
+          "correct": false
+        }
+      ],
+      "explanation": "O DKIM pass informa que a assinatura daquele domínio foi validada, mas o resultado não atende DMARC quando d= não se alinha ao domínio autor do From:. Se SPF também falha, nenhum dos dois identificadores fornece um pass alinhado; assim, DMARC falha, e o receptor considera a política publicada junto de seus próprios critérios de tratamento.",
+      "section": "4. DMARC e implantação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista precisa distinguir falha SPF por encaminhamento de alteração de conteúdo que quebrou DKIM. Que evidência ajuda a separar as causas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar apenas o nome exibido do remetente, que determina simultaneamente ambos os resultados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conferir o IP de conexão e a identidade de envelope usados por SPF contra a política DNS; separadamente, verificar o resultado DKIM e quais partes assinadas sofreram alteração.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Contar o número de destinatários, pois isso prova que o corpo foi criptografado por SPF.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Consultar apenas o registro DMARC e presumir que ele contém os bytes originais da mensagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Comparar o antivírus instalado no remetente com o endereço IP do servidor destinatário.",
+          "correct": false
+        }
+      ],
+      "explanation": "SPF depende do IP da conexão e da identidade de envelope consultada, então um encaminhador pode explicar uma falha de autorização. DKIM depende da validação criptográfica do corpo e dos cabeçalhos cobertos, que podem ter sido modificados no trânsito. Comparar separadamente os resultados e os dados correspondentes ajuda a localizar a causa sem confundir os mecanismos.",
+      "section": "2. SPF",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O registro DMARC é válido, mas uma consulta DNS necessária falha temporariamente durante avaliação da política. Qual cautela é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Rejeitar obrigatoriamente a mensagem porque qualquer consulta DNS perdida equivale a p=reject.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tratar toda falha temporária como pass alinhado, sem executar SPF ou DKIM.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Registrar o erro temporário e não inferir um pass ou fail DMARC conclusivo; a resposta operacional diante da falha DNS depende do receptor.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Converter o erro em assinatura DKIM válida se o domínio publicar um registro rua.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aceitar necessariamente a mensagem e desativar a política local do receptor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando um erro DNS impede obter os dados necessários à avaliação, não se deve converter automaticamente a falha de consulta em pass ou fail DMARC. A política do domínio não pode ser aplicada como se o resultado estivesse conclusivamente calculado; o receptor decide o tratamento operacional conforme a natureza do erro e seus procedimentos locais.",
+      "section": "4. DMARC e implantação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que descreve corretamente a relação entre reputação do domínio e autenticação SPF/DKIM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A autenticação indica autorização SPF ou validação de assinatura DKIM vinculada a domínio; reputação é uma avaliação separada, baseada em outros sinais e histórico de envio.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SPF calcula uma pontuação de reclamações de usuários, transforma esse histórico em uma chave DKIM e publica a reputação no DNS para obrigar os destinatários a aceitar as mensagens do domínio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DKIM passa somente depois que todos os destinatários classificam o domínio como confiável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DMARC elimina reputação ao obrigar todos os receptores a aceitar mensagens alinhadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Antispam substitui registros de DNS por uma lista local de nomes de domínio organizacionais.",
+          "correct": false
+        }
+      ],
+      "explanation": "SPF verifica se um host está autorizado para a identidade de domínio avaliada e DKIM valida uma assinatura ligada ao domínio assinante. Reputação é uma avaliação adicional que filtros podem formar a partir de sinais e histórico de envio; ela não é o resultado criptográfico desses protocolos nem é substituída por eles.",
+      "section": "1. Antispam e antivírus",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um antivírus no gateway detecta um anexo suspeito e o coloca em quarentena. Qual procedimento operacional é coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter o arquivo retido, registrar o alerta e encaminhá-lo para análise apropriada antes de qualquer liberação; não desativar a proteção só para entregar a mensagem.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Alterar o campo From: e marcar automaticamente SPF pass para a mensagem retida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Publicar o arquivo suspeito como chave DKIM para que outros receptores o reconheçam.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter a quarentena em política DMARC none para todo o domínio remetente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Enviar o anexo a todos os usuários para determinar por votação se é malicioso.",
+          "correct": false
+        }
+      ],
+      "explanation": "A quarentena impede a entrega imediata do arquivo suspeito e permite registrar o alerta e avaliar possível ameaça ou falso positivo por procedimento controlado. A equipe não deve liberá-lo sem análise adequada; essa ação protege o conteúdo e não altera a autenticação SPF nem a política DNS do remetente.",
+      "section": "1. Antispam e antivírus",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem usa From: alertas.sub.exemplo.com, SPF autenticado sub.exemplo.com e aspf relaxado. Se esses nomes compartilham o mesmo domínio organizacional, qual conclusão é possível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O alinhamento estrito admite domínios diferentes quando pertencem à mesma organização, pois nesse modo basta compartilhar o domínio organizacional; a igualdade dos nomes completos só seria necessária no modo relaxado, que é mais rigoroso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O alinhamento é estrito porque dois subdomínios sempre são idênticos por definição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O identificador SPF pode alinhar no modo relaxado se a autenticação SPF passou e ambos os domínios pertencem à mesma organização; no modo estrito, nomes diferentes não bastariam.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "DMARC passa sem verificar o resultado SPF porque as duas cadeias contêm um ponto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A política aspf altera o resultado do antivírus e dispensa DKIM no conteúdo.",
+          "correct": false
+        }
+      ],
+      "explanation": "No modo relaxado, identificadores podem diferir e ainda alinhar quando compartilham o mesmo domínio organizacional. A autenticação SPF também precisa passar; o modo estrito, ao contrário, requer domínios idênticos.",
+      "section": "4. DMARC e implantação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem legítima falha SPF após encaminhamento, mas conserva DKIM válida e alinhada. Qual afirmação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O encaminhador precisa substituir o domínio original do From: pelo seu próprio domínio para que a identidade SPF original passe, sem alterar a mensagem encaminhada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DMARC falha sempre que SPF falha, ainda que DKIM alinhada passe, porque o protocolo exige que os dois mecanismos autentiquem com sucesso em toda mensagem recebida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O encaminhador precisa adicionar seu próprio From: para restaurar a autenticação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DMARC ainda pode passar porque basta que SPF ou DKIM valide e esteja alinhado ao domínio do From:; por isso, DKIM válida e alinhada pode compensar a falha SPF após encaminhamento.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A mensagem é necessariamente rejeitada por qualquer política DMARC publicada.",
+          "correct": false
+        }
+      ],
+      "explanation": "DMARC pode passar se pelo menos um dos mecanismos, SPF ou DKIM, obtiver resultado válido e alinhado ao domínio do From:. Assim, uma assinatura DKIM que continue válida e alinhada pode sustentar o pass DMARC mesmo que o encaminhamento altere o IP observado e faça SPF falhar.",
+      "section": "4. DMARC e implantação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de camadas é mais apropriado para reduzir spam, malware e falsificação de domínio sem confundir seus objetivos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar só DKIM, pois a assinatura impede spam, malware, mensagens de conta comprometida e qualquer tentativa de phishing mesmo quando o domínio remetente foi autenticado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Combinar filtros antispam, antimalware, SPF e DKIM alinhados a DMARC, com revisão e monitoramento.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar só SPF, pois autorização de IP também inspeciona corpo, links e anexos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar só DMARC, pois sua política cria antivírus e remove automaticamente todos os links.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar filtragem e autenticação para que usuários decidam a segurança de cada arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os controles cobrem riscos diferentes: antispam classifica mensagens, antimalware analisa código suspeito, SPF autoriza origem de envelope, DKIM valida assinatura e DMARC exige alinhamento e expressa política/relato. A combinação é defesa em camadas.",
+      "section": "1. Antispam e antivírus",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "traps": [
+    "SPF verifica a identidade de envelope SMTP; DMARC compara identificadores autenticados ao domínio visível do From:.",
+    "DKIM válida não assegura honestidade: assinatura liga partes cobertas a um domínio, não certifica o conteúdo como benigno.",
+    "DMARC não exige SPF e DKIM juntos: um único método válido e alinhado ao domínio autor permite passar.",
+    "A política DMARC orienta o receptor, mas a disposição também considera processamento e regras locais.",
+    "Autenticação de domínio não substitui antivírus: mensagens autenticadas ainda podem carregar phishing ou malware.",
+    "Encaminhamento pode mudar o IP visto pelo SPF; uma assinatura DKIM alinhada ainda pode manter DMARC pass."
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 7208 — Sender Policy Framework (SPF) for Authorizing Use of Domains in Email",
+      "publisher": "RFC Editor / IETF",
+      "reference": "Identidades SPF, mecanismos, qualificadores, consultas DNS e resultados de avaliação",
+      "url": "https://www.rfc-editor.org/rfc/rfc7208.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 6376 — DomainKeys Identified Mail (DKIM) Signatures",
+      "publisher": "RFC Editor / IETF",
+      "reference": "Formato da assinatura, seletores, domínio d=, chave pública DNS e verificação",
+      "url": "https://www.rfc-editor.org/rfc/rfc6376.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 9989 — Domain-Based Message Authentication, Reporting, and Conformance (DMARC)",
+      "publisher": "RFC Editor / IETF",
+      "reference": "Especificação DMARC atual: identidade autora, alinhamento, política, avaliação e falhas DNS; substitui RFC 7489 em conjunto com RFCs 9990 e 9991",
+      "url": "https://www.rfc-editor.org/rfc/rfc9989.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 9990 — Domain-Based Message Authentication, Reporting, and Conformance (DMARC) Aggregate Reporting",
+      "publisher": "RFC Editor / IETF",
+      "reference": "Relatórios agregados, dados de autenticação, alinhamento e política publicados",
+      "url": "https://www.rfc-editor.org/rfc/rfc9990.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 9991 — Domain-Based Message Authentication, Reporting, and Conformance (DMARC) Failure Reporting",
+      "publisher": "RFC Editor / IETF",
+      "reference": "Relatórios de falha DMARC e restrições de envio de relatórios",
+      "url": "https://www.rfc-editor.org/rfc/rfc9991.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SP 800-177 Rev. 1 — Trustworthy Email",
+      "publisher": "National Institute of Standards and Technology (NIST)",
+      "reference": "Uso de SPF, DKIM e DMARC para autenticação de domínio e medidas complementares de segurança de e-mail",
+      "url": "https://csrc.nist.gov/pubs/sp/800/177/r1/final",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Phishing",
+      "publisher": "National Institute of Standards and Technology (NIST)",
+      "reference": "Filtros de e-mail, antivírus mantido e autenticação de remetentes como medidas de proteção complementares",
+      "url": "https://www.nist.gov/itl/smallbusinesscyber/guidance-topic/phishing",
+      "accessedAt": "2026-10-31"
+    }
+  ]
+}
