@@ -27,6 +27,12 @@ Decida UMA de quatro coisas e grave `conteudo/entrada/itens-sem-materia/<n>.json
    e, se precisar, abra a matéria em `conteudo/materias/<area>/<arquivo>.json` para confirmar. Só ligue se a matéria
    realmente ensina aquilo que o item pede. Item amplo (ex.: "Constituição Federal de 1988") liga na matéria mais geral
    que existir do assunto; se não houver uma geral, vire matéria nova.
+   **Item que cita uma norma pelo número** (lei, decreto, resolução, portaria, circular, instrução normativa, lei
+   municipal/estadual): só ligue a uma matéria cujo texto trate DESSA norma (abra a matéria e procure o número). Uma
+   matéria do tema geral que não cita a norma NÃO serve (03/11: 10% das ligações tinham esse defeito, e o aluno
+   estudava sem ver a norma pedida). Nesse caso, matéria nova sobre a norma.
+   **Item que pede várias coisas** (ex.: "Pacote Office", "INSS e FGTS"): só ligue se a matéria cobrir todas; senão,
+   matéria nova que cubra o conjunto.
 2. **materia-nova** — nenhuma matéria cobre o item e ele é conteúdo que se estuda (ex.: "Tuberculose", "Macros" do Excel,
    "Regime pluviométrico", "Gestão democrática" na educação). Escreva a matéria completa (abaixo) e use o id dela.
    Se um item posterior da lista for o mesmo assunto, ligue-o à matéria que você criou.
