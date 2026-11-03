@@ -94,13 +94,14 @@ async function trabalhador(n: number) {
   const so = Deno.env.get("CODEX_SO_PRIORIDADE") === "1" ? prioritarias() : null;
   const fila = pendentes(so).filter((p) => (falhas.get(p.id) ?? 0) < 6 && (total[p.id] ?? 0) < MAX_TOTAL && !emAndamento.has(p.id));
   if (so) fila.splice(0, fila.length, ...fila.filter((p) => so.has(p.id)));
-  // Segunda conta do Codex (CODEX_ORDEM=reversa): pega do fim da lista, para não disputar a mesma matéria com a primeira.
-  const metade = (id: string) => [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 2;
-  // Desde 03/11 a conta 1 só decide itens e as contas 2 e 3 escrevem matérias. A fila vem ordenada pelo número de
-  // editais que a matéria cobre; para as duas pegarem as mais usadas sem disputar a mesma, uma fica com as posições
-  // metade (pelo id, que não muda quando a fila anda) e a outra com a outra metade ("reversa" e "meio" são os nomes que os .cmd delas já usam).
+  // A fila vem ordenada pelo número de editais que a matéria cobre. As três contas escrevem ao mesmo tempo, cada uma
+  // com uma parte fixa (pelo id, que não muda quando a fila anda), para pegarem as mais usadas sem disputar a mesma
+  // matéria: três partes, uma por conta ("reversa", "meio" e "terco";
+  const metade = (id: string) => [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 3;
+  // os dois primeiros são os nomes que os .cmd das contas 2 e 3 já usavam). A conta 1 decide itens e também escreve.
   if (Deno.env.get("CODEX_ORDEM") === "reversa") fila.splice(0, fila.length, ...fila.filter((p) => metade(p.id) === 0));
   if (Deno.env.get("CODEX_ORDEM") === "meio") fila.splice(0, fila.length, ...fila.filter((p) => metade(p.id) === 1));
+  if (Deno.env.get("CODEX_ORDEM") === "terco") fila.splice(0, fila.length, ...fila.filter((p) => metade(p.id) === 2));
   if (!fixo && !fila.length) { log(`[${n}] nada mais a pegar`); break; }
   const alvo: { id: string; itens: string[] } = fixo ?? fila[0];
   fixo = null;
