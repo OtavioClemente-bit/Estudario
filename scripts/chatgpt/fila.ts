@@ -62,7 +62,8 @@ function montar(): Item[] {
       if (n < 5) continue;
       const r = ler(`${ROOT}conteudo/recortes/${banca.name}/${f.name}`);
       const qs = (r.questions ?? []).length;
-      if (qs >= 200) continue;
+      // Até 200 questões por recorte; os muito cobrados (40+ editais) vão até 400 (meta de 1 milhão, 03/11).
+      if (qs >= (n >= 40 ? 400 : 200)) continue;
       // Rodadas: o mesmo recorte pode receber novo lote (chatgpt-2, -3…) quando o anterior foi enviado há mais
       // de 2 dias; nunca dois lotes do mesmo recorte esperando ao mesmo tempo. 7 e 8xx ficam para outras fontes.
       const prefixo = `${banca.name}.${topic}.chatgpt-`;
@@ -123,12 +124,12 @@ if (cmd === "montar") {
     try { Deno.statSync(`${ROOT}conteudo/entrada/materias-codex-2/${i.nome}.json`); comCodex = true; } catch { /* não começou */ }
     if (comCodex) i.enviado = "pulado (Codex)";
   }
-  // Explicações das questões de prova real (scripts/oficiais/pedidos.ts): 1 de cada 5 pedidos do ChatGPT
+  // Explicações das questões de prova real (scripts/oficiais/pedidos.ts): 2 de cada 5 pedidos do ChatGPT (era 1/5 até 03/11)
   // (o Gemini, que só faz QUESTOES, não recebe), até a fila delas acabar.
   const FILA_OFICIAIS = `${ROOT}work/oficiais/fila.json`;
   let oficiais: Array<{ pedido: string; enviado: string | null }> = [];
   if (!tipo) try { oficiais = JSON.parse(Deno.readTextFileSync(FILA_OFICIAIS)); } catch { /* sem fila de oficiais */ }
-  const vezOficiais = oficiais.filter((p) => !p.enviado).slice(0, Math.max(1, Math.floor(n / 5)));
+  const vezOficiais = oficiais.filter((p) => !p.enviado).slice(0, Math.max(1, Math.round(n * 0.4)));
   const sel = livres().slice(0, n - vezOficiais.length);
   const agora = new Date().toLocaleString("pt-BR");
   for (const i of sel) i.enviado = agora;

@@ -42,8 +42,18 @@ function pendentes(so: Set<string> | null = null): { id: string; itens: string[]
   for (const p of prioridade) porId.set(p.id, [...p.itens, ...(porId.get(p.id) ?? [])]);
   const ordem = new Map(prioridade.map((p, i) => [p.id, i]));
   // só a lista de prioridade: não confere os outros rascunhos (o conferidor em todos levava ~15 min por rodada)
+  // Peso de cada matéria = quantos editais têm os itens que ela cobre (coluna "editais" do TSV). Antes contava só
+  // os itens, e quase todos valem 1: o Codex gastava rodadas em itens de um edital só (03/11).
+  const editaisDoItem = new Map<string, number>();
+  try {
+    for (const l of Deno.readTextFileSync(`${ROOT}conteudo/fila/itens-sem-materia.tsv`).split(/\r?\n/).slice(1)) {
+      const [n, texto] = l.split("\t");
+      if (texto) editaisDoItem.set(texto.trim(), Number(n) || 1);
+    }
+  } catch { /* sem TSV: peso 1 */ }
+  const peso = (itens: string[]) => itens.reduce((s, t) => s + (editaisDoItem.get(t.trim()) ?? 1), 0);
   return [...porId.entries()].filter(([id]) => id && (!so || so.has(id)) && !existe(id) && !reservadas.has(id)).map(([id, itens]) => ({ id, itens: [...new Set(itens)] }))
-    .sort((a, b) => (ordem.get(a.id) ?? 1e9) - (ordem.get(b.id) ?? 1e9) || b.itens.length - a.itens.length);
+    .sort((a, b) => (ordem.get(a.id) ?? 1e9) - (ordem.get(b.id) ?? 1e9) || peso(b.itens) - peso(a.itens));
 }
 // Tentativas de cada matéria, guardadas entre execuções: o ciclo do .cmd reabre este programa e não deve insistir
 // para sempre na mesma. Até 12 rodadas no total (escrita + correções); depois o rascunho fica para a minha revisão.
