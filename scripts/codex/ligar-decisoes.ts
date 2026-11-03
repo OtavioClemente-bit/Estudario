@@ -10,7 +10,9 @@ import { normalizeAlias } from "../../supabase/functions/_shared/library.ts";
 const ITENS = "conteudo/entrada/itens-sem-materia";
 const arg = Deno.args.find((a) => a.startsWith("--ids="));
 if (!arg) { console.error("passe --ids=a,b,c"); Deno.exit(1); }
-const ids = new Set(arg.slice(6).split(",").filter(Boolean));
+// --ids=@arquivo lê a lista de um arquivo (a linha de comando do Windows não aguenta milhares de ids).
+const lista = arg.slice(6).startsWith("@") ? Deno.readTextFileSync(arg.slice(7)) : arg.slice(6);
+const ids = new Set(lista.split(/[,\s]+/).filter(Boolean));
 const simular = Deno.args.includes("--simular");
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const VAZIAS = new Set("para com sobre entre como pela pelo pelos pelas dos das nos nas aos uma que lei estado estadual municipal municipio publica publico servico servidor educacao gestao direito nocoes geral basica ensino".split(" "));
