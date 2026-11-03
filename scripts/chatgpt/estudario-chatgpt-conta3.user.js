@@ -2,6 +2,8 @@
 // @name         Estudário – fila automática do ChatGPT (conta 3)
 // @namespace    estudario-conta3
 // @version      1.2
+// @updateURL    http://127.0.0.1:8788/estudario-chatgpt-conta3.meta.js
+// @downloadURL  http://127.0.0.1:8788/estudario-chatgpt-conta3.user.js
 // @description  Envia os pedidos da fila do Estudário ao projeto "Gerador Estudário" e salva no PC os arquivos entregues.
 // @match        https://chatgpt.com/*
 // @grant        GM_xmlhttpRequest

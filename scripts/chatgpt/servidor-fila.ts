@@ -14,6 +14,13 @@ const json = (x: unknown, status = 200) => new Response(JSON.stringify(x), { sta
 
 Deno.serve({ hostname: "127.0.0.1", port: 8788 }, async (req) => {
   const u = new URL(req.url);
+  // Os scripts do Tampermonkey se atualizam sozinhos por aqui (@updateURL), sem colar código à mão.
+  if (req.method === "GET" && /^\/(estudario-[a-z0-9-]+\.(user|meta)\.js)$/.test(u.pathname)) {
+    try {
+      const nome = u.pathname.slice(1).replace(".meta.js", ".user.js");
+      return new Response(await Deno.readTextFile(`${ROOT}scripts/chatgpt/${nome}`), { headers: { "content-type": "text/javascript; charset=utf-8" } });
+    } catch { return new Response("não achei", { status: 404 }); }
+  }
   if (req.method === "GET" && u.pathname === "/proximos") {
     const n = Math.min(Number(u.searchParams.get("n") ?? 10), 40);
     const o = await new Deno.Command("deno", { args: ["run", "-A", `${ROOT}scripts/chatgpt/fila.ts`, "proximos", String(n), ...(u.searchParams.get("tipo") === "QUESTOES" ? ["QUESTOES"] : [])], stdout: "piped" }).output();

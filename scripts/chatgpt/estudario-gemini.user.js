@@ -1,7 +1,9 @@
 // ==UserScript==
 // @name         Estudário – fila automática do Gemini
 // @namespace    estudario
-// @version      1.8
+// @version      1.9
+// @updateURL    http://127.0.0.1:8788/estudario-gemini.meta.js
+// @downloadURL  http://127.0.0.1:8788/estudario-gemini.user.js
 // @description  Envia os pedidos da fila do Estudário ao Gemini (modo Argon) e salva no PC o JSON de cada resposta (arquivos .chatgpt-80N).
 // @match        https://gemini.google.com/*
 // @grant        GM_xmlhttpRequest
@@ -94,8 +96,11 @@ PEDIDO:
 
   async function esperarResposta() {
     // Termina quando há bloco de código, a barra de ações da resposta aparece e o texto parou de mudar.
+    // Prazo pelo relógio, não por número de voltas: com a aba em segundo plano o Chrome atrasa os timers e
+    // "240 voltas de 5 s" virava horas; a aba ficava presa em "esperando a resposta" até alguém recarregar (03/11).
     let antes = -1, iguais = 0;
-    for (let i = 0; i < 240; i++) { // até 20 min
+    const fim = Date.now() + 20 * 60_000;
+    while (Date.now() < fim) {
       await w(5000);
       set("dono", { id: ABA, t: Date.now() });
       const r = [...document.querySelectorAll("model-response")].pop();
@@ -128,6 +133,7 @@ PEDIDO:
         atualizar("esperando a resposta…");
         const r = await esperarResposta();
         set("atual", null);
+        set("vivo", Date.now());
         set("proximo", Date.now() + PAUSA());
         if (r.erro) { set("falhas", get("falhas", 0) + 1); atualizar(r.erro); if (/recusou/.test(r.erro)) set("proximo", Date.now() + 30 * 60_000); return; }
         let ok = false;
@@ -183,7 +189,7 @@ PEDIDO:
       set("atual", { nome: nomeDe(pedido), t: Date.now() });
       fila.shift(); set("fila", fila);
       b.click();
-      for (let i = 0; i < 600 && !naConversa(); i++) await w(500); // até 5 min
+      for (const fim = Date.now() + 5 * 60_000; Date.now() < fim && !naConversa();) await w(500); // até 5 min
       enviando = false;
       return passo(); // já na conversa: espera a resposta
     } catch (e) {
@@ -191,6 +197,13 @@ PEDIDO:
     } finally { enviando = false; }
   }
 
+  // Vigia: se esta aba é a dona e nada foi salvo nem falhou em 35 min, recarrega a página (o mesmo que o dono do
+  // projeto fazia à mão quando a aba "travava" com a mensagem parada).
+  set("vivo", Date.now());
+  setInterval(() => {
+    if (!get("ativo", false) || get("dono", {}).id !== ABA || Date.now() < get("proximo", 0)) return;
+    if (Date.now() - get("vivo", Date.now()) > 35 * 60_000) { set("vivo", Date.now()); location.href = "/app"; }
+  }, 60_000);
   setTimeout(passo, 4000);
   setInterval(passo, 20_000);
   setInterval(atualizar, 30_000);
