@@ -232,7 +232,9 @@ class DefaultSupabaseAuthRepository(
         if (session == null) {
             flowOf(state)
         } else if (expiry == null || expiry <= clockSeconds()) {
-            flowOf(SupabaseSessionState.Ready(null))
+            // Venceu (o acesso dura cerca de uma hora): renova com a chave guardada antes de dar a
+            // conta como saída. Se renovar, o store emite a sessão nova e este fluxo é trocado.
+            flow { if (!renewQuietly()) emit(SupabaseSessionState.Ready(null)) }
         } else {
             flow {
                 emit(state)
@@ -247,10 +249,15 @@ class DefaultSupabaseAuthRepository(
                     ) maxCheckSeconds else expiry - now
                     delay(waitSeconds * 1_000)
                 }
-                emit(SupabaseSessionState.Ready(null))
+                if (!renewQuietly()) emit(SupabaseSessionState.Ready(null))
             }
         }
     }
+
+    // Fora do cancelamento: a sessão nova salva troca este fluxo no meio, e a chave nova de
+    // renovação precisa ser gravada mesmo assim (a antiga já não vale).
+    private suspend fun renewQuietly(): Boolean =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { refreshSession() }
 
     override fun sessionExpiresAt(): Long? =
         (sessionStore.current() as? SupabaseSessionState.Ready)?.session?.expiresAtEpochSeconds

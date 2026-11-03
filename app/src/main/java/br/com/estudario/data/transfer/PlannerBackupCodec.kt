@@ -32,7 +32,7 @@ internal object PlannerBackupCodec {
     suspend fun restore(db: AppDatabase, root: JSONObject) {
         val d = db.plannerDao()
         root.a("studyPlans").forEach { x -> d.insertPlan(StudyPlanEntity(x.s("id"),x.l("competitionId"),x.s("name"),x.s("objective"),x.l("start"),x.nl("exam"),x.b("active"),x.b("master"),x.b("archived"),x.l("revision"),x.l("createdAt"),x.l("updatedAt"),x.ns("profile") ?: "DO_ZERO",x.ni("block") ?: 50,x.ni("weeklyQuestions") ?: 100,x.ni("topicQuestions") ?: 15,x.ni("simulations") ?: 2,x.ni("discursives") ?: 0,x.optBoolean("interleave", true),x.ni("dailyShare") ?: 60)) }
-        root.a("studyPlanRevisions").forEach { x -> d.insertRevision(StudyPlanRevisionEntity(x.s("planId"),x.l("revision"),x.l("base"),x.s("reason"),x.ns("proposalId"),x.s("summary"),x.l("createdAt"))) }
+        root.a("studyPlanRevisions").distinctBy { it.s("planId") to it.l("revision") }.forEach { x -> d.insertRevision(StudyPlanRevisionEntity(x.s("planId"),x.l("revision"),x.l("base"),x.s("reason"),x.ns("proposalId"),x.s("summary"),x.l("createdAt"))) }
         d.upsertAvailability(root.a("studyAvailability").map { x -> StudyAvailabilityEntity(x.s("planId"),x.i("day"),x.i("minutes"),x.b("unavailable"),safeEnum(x.s("mode"), AvailabilityMode.SIMPLE)) })
         root.a("studyDayOverrides").forEach { x -> d.upsertDayOverride(StudyDayOverrideEntity(x.s("planId"),x.l("day"),x.ni("minutes"),x.b("unavailable"),x.b("locked"))) }
         // Backup antigo não tem os dois eixos pessoais: a ausência cai no padrão neutro em vez de
