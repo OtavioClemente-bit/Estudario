@@ -1,0 +1,2466 @@
+{
+  "id": "informatica.administracao-ambientes-virtualizados",
+  "subject": "Informática",
+  "title": "Administração e gerenciamento de ambientes de virtualização",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Administração e gerenciamento de ambientes de virtualização",
+    "Administração de ambientes virtualizados",
+    "Gerenciamento de ambientes virtualizados",
+    "Gerenciamento de ambientes de virtualização",
+    "Administração de máquinas virtuais",
+    "Gerenciamento de máquinas virtuais",
+    "Gestão de servidores Hyper-V",
+    "Gerenciamento de hosts de virtualização",
+    "Operação de infraestrutura virtualizada",
+    "Virtualização de servidores e máquinas",
+    "Gestão de recursos de máquinas virtuais",
+    "Administração de clusters Hyper-V",
+    "Monitoramento de ambientes virtualizados"
+  ],
+  "scope": {
+    "covers": "Administração operacional de ambientes virtualizados com ênfase em Hyper-V no Windows Server: inventário, estados e configurações de máquinas virtuais; alocação e monitoramento de CPU, memória, rede e armazenamento; checkpoints e discos diferenciais; migração ao vivo e de armazenamento; autenticação e isolamento do tráfego de migração; clusters, volumes compartilhados, alta disponibilidade e failover; replicação para recuperação de desastres; rotina de manutenção, capacidade, segurança e diagnóstico.",
+    "excludes": "Projeto detalhado de datacenters, instalação e configuração aprofundada de produtos comerciais específicos, comandos completos de PowerShell, administração interna dos sistemas convidados, licenciamento, arquitetura de nuvem pública e sintaxe de redes ou armazenamento de fabricantes distintos."
+  },
+  "theoryTitle": "Operação confiável de hosts, máquinas virtuais e clusters",
+  "chapters": [
+    {
+      "title": "1. O que o administrador gerencia",
+      "markdown": "### O problema que este assunto resolve\n\nA virtualização permite que um servidor físico execute várias máquinas virtuais (VMs). O administrador passa a cuidar de duas camadas relacionadas: o **host**, que fornece CPU, memória, interfaces de rede e armazenamento, e cada **convidado**, que recebe recursos virtuais e executa seu próprio sistema operacional. Uma VM pode estar ligada, desligada, pausada ou salva; o estado e a localização importam para operações, manutenção e diagnóstico.\n\n> **Siglas e termos deste capítulo**\n> - **Host**: servidor físico com a função de hipervisor.\n> - **Convidado (guest)**: sistema operacional executado dentro da VM.\n> - **Hipervisor**: camada que apresenta recursos virtuais aos convidados e coordena o acesso ao hardware.\n> - **VM**: máquina virtual, composta por configuração, discos virtuais, dispositivos e estado de execução.\n> - **Inventário**: lista das VMs, estado, host atual, consumo e configurações.\n\n### Inventário, ciclo de vida e configurações\n\nO inventário deve permitir responder: quais VMs existem, em que host estão, quais estão ligadas, quanto consomem, que redes e discos usam, e quem é responsável por cada carga. No Windows Admin Center, a ferramenta de máquinas virtuais exibe estados como Running, Off, Paused e Saved, consumo de CPU e memória, alertas, eventos e, conforme o ambiente, métricas de IOPS e vazão de armazenamento. Também permite criar, iniciar, desligar, salvar, pausar, retomar, reiniciar, renomear e excluir VMs.\n\nAo criar uma VM, são definidos nome, geração, local dos arquivos, processadores virtuais, memória, adaptadores de rede, discos e mídia de instalação. As configurações ficam organizadas por áreas, como memória, processadores, discos, redes, ordem de inicialização e checkpoints. Algumas alterações exigem que a VM esteja desligada. A geração da VM também afeta os dispositivos virtuais e as opções disponíveis.\n\n| Estado | Significado operacional |\n| --- | --- |\n| **Running** | O convidado está em execução e consome recursos do host. |\n| **Off** | A VM está desligada; seus arquivos permanecem armazenados. |\n| **Paused** | A execução foi suspensa temporariamente, mantendo recursos e estado alocados. |\n| **Saved** | O estado da VM foi gravado em disco para permitir retomada posterior. |\n\nA console do host, por exemplo via VMConnect, é diferente de uma sessão de rede dentro do convidado: pode ser usada para instalação, recuperação ou acesso quando a rede da VM falha. A administração remota do host deve usar contas autorizadas e canais de gestão protegidos.\n\n### Como administrar com dados\n\nUm painel de host ou cluster reúne uso de CPU e memória do host e dos convidados, VMs de maior consumo, alertas, eventos e indicadores de entrada e saída. O dado só é útil quando interpretado junto ao perfil da carga. CPU alta pode indicar demanda ou contenção; memória sob pressão pode provocar degradação; latência de disco pode comprometer serviços mesmo com CPU ociosa. Registre linha de base, tendência e horário dos eventos.\n\n### Como cai na prova\n\n- Host e convidado são camadas distintas: o host fornece recursos; o convidado executa seu sistema operacional.\n- Inventário e monitoramento incluem estado, localização, CPU, memória, saúde e eventos; IOPS e vazão ajudam a investigar armazenamento.\n- Pausar, salvar e desligar não são sinônimos. Alterações de configuração podem exigir desligamento da VM."
+    },
+    {
+      "title": "2. Capacidade e alocação de recursos",
+      "markdown": "### O problema que este assunto resolve\n\nConsolidar vários servidores em poucos hosts reduz equipamentos, mas cria disputa por recursos compartilhados. A administração deve manter capacidade disponível para a carga normal e para falhas ou manutenções planejadas. Somar vCPUs e memória configuradas sem considerar o consumo real pode levar a superlotação e lentidão.\n\n> **Siglas e termos deste capítulo**\n> - **vCPU**: processador virtual apresentado à VM.\n> - **IOPS**: operações de entrada e saída por segundo.\n> - **Vazão (throughput)**: quantidade de dados transferida por unidade de tempo.\n> - **Pressão de memória**: competição por memória física no host.\n> - **NUMA**: arquitetura que agrupa processadores e memória em nós com acesso local mais rápido.\n\n### Planejamento de CPU e memória\n\nA quantidade de processadores virtuais deve acompanhar a necessidade observada do convidado. Atribuir vCPUs em excesso não cria capacidade física; se muitas VMs precisarem delas simultaneamente, haverá contenção e aumento do tempo de espera. Acompanhe uso sustentado, picos, fila e impacto no serviço. Avalie também limites e prioridades que a plataforma oferece, preservando capacidade para tarefas do próprio host.\n\nA memória pode ser fixa ou dinâmica, conforme o hipervisor e a carga. No Hyper-V, Dynamic Memory ajusta a memória atribuída de acordo com a demanda configurada e observada; isso melhora o aproveitamento, mas não substitui dimensionamento nem garante memória quando o host está saturado. Observe memória atribuída, demanda e pressão, além do comportamento do sistema convidado. Smart Paging pode ajudar em uma condição específica de inicialização quando falta memória, mas não é substituto para capacidade adequada.\n\n### Armazenamento e rede\n\nUma VM depende tanto da capacidade quanto do desempenho de armazenamento. Monitore espaço livre, latência, IOPS e vazão dos volumes que guardam configuração, discos virtuais e arquivos associados. Um volume cheio pode impedir expansão, checkpoint, gravação de estado ou consolidação de discos diferenciais. Em cluster Hyper-V, Cluster Shared Volumes (CSV) permitem que nós acessem simultaneamente o armazenamento compartilhado da carga; a saúde do disco e do caminho de rede até ele é parte da saúde da VM.\n\nNa rede virtual, associe cada adaptador à rede correta e padronize os switches virtuais que serão necessários nos hosts de destino. Separe, conforme o desenho, tráfego de gerenciamento, convidados, armazenamento e migração. A segmentação reduz interferência e exposição; um switch com nome ou configuração incompatível no destino pode impedir migração ou desconectar a VM.\n\n### Capacidade em cluster\n\nDimensionar um cluster exige considerar a falha de um nó e a drenagem de um nó para manutenção. A capacidade que parece suficiente com todos os hosts disponíveis pode não suportar todas as VMs quando um deles sai. Verifique a distribuição, reservas, espaço e desempenho dos recursos compartilhados, e teste a operação de failover. Métricas históricas ajudam a separar pico ocasional de tendência de crescimento.\n\n### Como cai na prova\n\n- Mais vCPUs configuradas não significam mais CPU física; excesso pode aumentar contenção.\n- CPU, memória, IOPS, vazão, espaço livre e conectividade de rede são dimensões diferentes de capacidade.\n- Dynamic Memory ajusta alocação, mas não elimina a necessidade de dimensionar o host e acompanhar pressão."
+    },
+    {
+      "title": "3. Checkpoints, discos e proteção de dados",
+      "markdown": "### O problema que este assunto resolve\n\nAntes de uma mudança, pode ser útil capturar um ponto de retorno de uma VM. No Hyper-V, um **checkpoint** registra o estado de configuração e a relação com os discos naquele momento; alterações posteriores podem ser gravadas em discos diferenciais, como arquivos AVHDX. A cadeia de discos precisa permanecer íntegra e consolidada.\n\n> **Siglas e termos deste capítulo**\n> - **VHDX**: formato de disco rígido virtual usado pelo Hyper-V.\n> - **AVHDX**: disco diferencial associado, frequentemente, a um checkpoint.\n> - **Checkpoint**: captura pontual do estado da VM e de seus discos para retorno ou uso operacional.\n> - **Mesclagem (merge)**: incorporação das alterações de um disco diferencial ao disco pai.\n> - **Backup**: cópia recuperável dos dados, independente do checkpoint operacional.\n\n### Checkpoint não é backup\n\nCheckpoint é útil para uma reversão operacional controlada, mas depende dos arquivos e da cadeia de discos do ambiente. Não é cópia isolada em outro local, não protege contra perda do volume e não substitui política de backup e teste de restauração. Checkpoints antigos podem crescer, consumir espaço, tornar a cadeia mais complexa e dificultar operações de backup, migração ou mesclagem.\n\nO administrador deve inventariar checkpoints, identificar sua finalidade e responsável, removê-los quando já não forem necessários e acompanhar o resultado da mesclagem. Ao excluir um checkpoint, a plataforma pode mesclar as alterações no disco pai; a operação requer espaço e tempo de I/O. Não apague arquivos AVHDX manualmente: isso pode romper a relação pai-filho e tornar os dados inacessíveis.\n\nPara diagnosticar falhas de criação, exclusão ou mesclagem, verifique espaço no volume, estado da VM, arquivos esperados, bloqueios por antivírus ou software de backup, permissões e saúde do cluster/CSV. A documentação da Microsoft recomenda examinar arquivos VHDX, AVHDX, MRT e RCT e conferir se os checkpoints listados pela ferramenta correspondem aos arquivos presentes. Preserve os arquivos antes de intervenções de reparo.\n\n### Backup, réplica e restauração\n\nBackup produz cópias recuperáveis segundo uma política de retenção e deve ser testado por restaurações. Replicação mantém uma cópia atualizada da VM em outro local para recuperação de desastre; no Hyper-V Replica a replicação é assíncrona. Isso reduz dependência de SAN compartilhada, mas não equivale a backup histórico: corrupção ou exclusão pode ser replicada. Defina o ponto e o tempo de recuperação esperados e teste failover, retorno e consistência da aplicação.\n\n### Como cai na prova\n\n- Checkpoint facilita retorno a um estado anterior, porém não substitui backup externo e testado.\n- AVHDX pode integrar uma cadeia de discos; apagá-lo diretamente pode quebrar essa cadeia.\n- Falta de espaço, arquivo bloqueado, permissões e checkpoints órfãos são causas concretas de falhas de merge."
+    },
+    {
+      "title": "4. Migração e manutenção planejada",
+      "markdown": "### O problema que este assunto resolve\n\nPara atualizar ou retirar temporariamente um host, as VMs precisam ser movidas sem interromper, ou com interrupção controlada, os serviços. A migração ao vivo do Hyper-V transfere uma VM em execução entre hosts com indisponibilidade não perceptível ao usuário. Ela pode ser feita em cluster ou entre hosts configurados sem Failover Clustering.\n\n> **Siglas e termos deste capítulo**\n> - **Migração ao vivo (live migration)**: transferência de VM ligada entre hosts, com interrupção mínima.\n> - **Migração de armazenamento**: movimentação dos arquivos/discos da VM para outro destino de armazenamento.\n> - **CredSSP**: protocolo de autenticação que exige sessão no host de origem para certas migrações.\n> - **Kerberos**: protocolo de autenticação que pode usar delegação restrita para permitir operação remota.\n> - **Delegação restrita**: autorização limitada a serviços e destinos definidos no domínio.\n\n### Pré-requisitos e procedimento\n\nEm hosts sem cluster, a documentação exige Hyper-V nos computadores de origem e destino, configuração da migração ao vivo, compatibilidade suportada entre os hosts e uma conta autorizada nos dois computadores (grupo local Hyper-V Administrators ou Administrators, salvo o fluxo de delegação restrita). Em geral, os computadores devem estar no mesmo domínio do Active Directory ou em domínios confiáveis. As ferramentas de gerenciamento precisam estar disponíveis no computador usado para iniciar a operação.\n\nNo Hyper-V Manager, o operador conecta os servidores, seleciona a VM, escolhe **Move**, informa o tipo de movimentação, destino e opções, revisa o resumo e inicia. PowerShell oferece `Move-VM`; opções como incluir armazenamento permitem mover também discos e arquivos associados. Em cluster, Windows Admin Center pode selecionar a VM e a opção Manage > Move para direcioná-la a outro nó. Acompanhe o progresso e confirme que o host de destino passou a constar no inventário.\n\nA autenticação muda o fluxo. **CredSSP** evita configurar delegação restrita, mas requer que o administrador entre no host de origem antes de iniciar a migração; na movimentação de volta, pode ser necessário entrar no outro host. **Kerberos** permite iniciar sem essa sessão prévia, desde que a delegação restrita esteja configurada para serviços de migração e, se o armazenamento também for movido, para CIFS. A configuração da delegação requer privilégio de administrador do domínio.\n\nA rede de migração merece proteção: a orientação oficial recomenda restringir o tráfego a redes privadas e confiáveis, pois o tráfego de migração ao vivo não é criptografado ao ser enviado pela rede. Separe redes ou use VLAN e controles adequados. Confirme conectividade, firewall, switches virtuais compatíveis, acesso ao armazenamento, CPU e versão de configuração da VM.\n\n### Manutenção, falha e retorno\n\nAntes de manutenção, avalie dependências, capacidade do cluster e saúde do destino; migre as VMs ou drene os papéis do nó, confirme que os serviços continuam saudáveis e só então aplique atualizações ou reinicie. Para falha inesperada, o failover do cluster tenta reiniciar a VM em outro nó elegível; isso não é a mesma coisa que migração ao vivo, que é planejada. Registre o resultado e valide as aplicações após a movimentação.\n\n### Como cai na prova\n\n- Migração ao vivo move uma VM em execução; failover responde à indisponibilidade de um nó.\n- CredSSP requer sessão no host de origem; Kerberos dispensa a sessão quando a delegação restrita está correta.\n- O tráfego de migração não deve circular sem proteção em rede não confiável; rede isolada reduz exposição."
+    },
+    {
+      "title": "5. Alta disponibilidade, replicação e recuperação",
+      "markdown": "### O problema que este assunto resolve\n\nUma VM em execução ainda depende de host, energia, rede, armazenamento e aplicação. Para reduzir indisponibilidade, ambientes virtualizados combinam cluster, migração planejada, failover, replicação e backup. Cada mecanismo trata de uma falha diferente e precisa ser testado.\n\n> **Siglas e termos deste capítulo**\n> - **Failover Clustering**: serviço de cluster do Windows que monitora nós e recursos e pode reiniciar papéis em outro nó.\n> - **CSV**: Cluster Shared Volume, armazenamento acessível pelos nós do cluster para cargas como VMs.\n> - **HA**: alta disponibilidade, desenho para manter ou recuperar serviços diante de falhas.\n> - **RPO**: perda máxima de dados aceitável, expressa como ponto temporal de recuperação.\n> - **RTO**: tempo-alvo para restaurar um serviço após interrupção.\n\n### Cluster e failover\n\nEm Failover Clustering, recursos configurados como papéis de cluster podem ser colocados em outro nó quando há falha, desde que os nós, a configuração e o armazenamento estejam saudáveis e compatíveis. CSV permite acesso dos nós ao volume compartilhado e facilita a movimentação dos papéis. A migração ao vivo é útil para manutenção planejada; o failover é a resposta automatizada a uma falha e pode envolver reinicialização do convidado. Portanto, alta disponibilidade não significa ausência absoluta de interrupção.\n\nUma rotina de cluster inclui validar nós, redes, armazenamento, recursos e logs; conferir quais VMs são realmente papéis do cluster; acompanhar alertas e testar procedimentos. A visão conectada ao cluster no Windows Admin Center mostra VMs do cluster e pode apresentar eventos de todos os nós, identificando o servidor de origem do evento. Mudanças em configurações de host feitas pela conexão de cluster podem ser aplicadas a todos os nós; é preciso compreender o escopo antes de salvar.\n\n### Replicação e recuperação de desastre\n\nHyper-V Replica envia alterações de forma assíncrona a um host ou site secundário. Permite iniciar recuperação em outro local quando o primário falha, mas pode haver perda das alterações ainda não replicadas. A Microsoft descreve intervalos de recuperação que podem chegar a dezenas de segundos, conforme a configuração e a versão; o valor efetivo deve ser confirmado para o ambiente. Azure Site Recovery pode coordenar replicação, failover e failback para Azure. Nenhum desses mecanismos elimina a necessidade de definir RPO/RTO, proteger credenciais e ensaiar a recuperação.\n\n| Recurso | Uso principal | Limite que o administrador deve lembrar |\n| --- | --- | --- |\n| Migração ao vivo | Manutenção planejada sem desligar a VM | Depende de compatibilidade, rede, autenticação e destino apto. |\n| Failover do cluster | Recuperar papel após falha de nó | Pode reiniciar a VM e não protege contra falha da aplicação ou corrupção replicada. |\n| Réplica | Recuperação em host/site secundário | É assíncrona; pode haver perda desde a última réplica. |\n| Backup | Restaurar dados ou VM a um ponto retido | Precisa de cópia protegida e teste de restauração. |\n\n### Como cai na prova\n\n- CSV dá acesso compartilhado a volumes pelos nós; cluster monitora e pode recuperar papéis.\n- Réplica assíncrona não garante cópia instantânea sem perda; avalie o último ponto replicado.\n- HA, réplica e backup têm objetivos diferentes e devem fazer parte de um plano de recuperação testado."
+    },
+    {
+      "title": "6. Segurança, monitoramento e diagnóstico",
+      "markdown": "### O problema que este assunto resolve\n\nUm ambiente com muitas VMs amplia a superfície de administração: contas privilegiadas, consoles, redes virtuais, arquivos de disco e canais de migração. A equipe precisa limitar acesso, observar sinais de falha e registrar mudanças para identificar a causa sem agravar o incidente.\n\n> **Siglas e termos deste capítulo**\n> - **RBAC**: controle de acesso baseado em funções, que limita ações conforme o papel.\n> - **VLAN**: segmentação lógica de uma rede local.\n> - **Log de eventos**: registro de eventos operacionais e falhas do host, hipervisor e cluster.\n> - **Baseline**: medida de referência do comportamento normal da carga.\n\n### Controle e isolamento\n\nConceda permissões administrativas apenas a quem precisa, com escopo compatível com a responsabilidade. Separe a administração do host da administração comum do convidado; credenciais de console do host têm poder elevado. Proteja os arquivos de configuração e discos virtuais com permissões de sistema de arquivos adequadas. Na migração, limite a rede a caminhos confiáveis, pois o tráfego pode não ser criptografado. Revise autenticação, delegação e contas de serviço após mudanças no domínio.\n\nSwitches e VLANs devem refletir a segmentação prevista. Uma VM ligada à VLAN de gestão por engano pode expor interfaces administrativas; uma migração para host sem switch equivalente pode falhar. Mantenha configurações consistentes entre nós, atualize hosts e ferramentas conforme a política de mudança e valide compatibilidade antes de atualizar versões de configuração de VMs, pois algumas atualizações não podem ser revertidas para hosts antigos.\n\n### Observabilidade e roteiro de diagnóstico\n\nComece pelo sintoma, horário e escopo: uma VM, várias VMs, um nó ou todo o cluster. Consulte estado da VM, alertas, eventos do Hyper-V e do cluster, consumo de CPU/memória, IOPS, vazão e espaço livre. Compare com a linha de base e procure mudanças recentes em host, firmware, rede, armazenamento, permissões ou software de backup.\n\nPara uma migração malsucedida, verifique se os hosts estão online e compatíveis, se o destino tem capacidade e armazenamento, se os switches necessários existem, se a rede de migração é alcançável e se autenticação/delegação está correta. Para checkpoint ou disco, verifique espaço, arquivos AVHDX/VHDX, cadeia pai-filho, bloqueios, tarefas de backup e saúde de CSV. Não apague arquivos nem edite configurações às cegas. Registre a evidência e faça uma mudança por vez.\n\n### Como cai na prova\n\n- O diagnóstico relaciona estado, eventos, capacidade e alterações recentes; não se resume a reiniciar o host.\n- Permissões de arquivos de VM, privilégio no host, autenticação de migração e isolamento de rede são controles distintos.\n- Padronizar os hosts e documentar alterações reduz falhas de movimentação e facilita identificar a origem."
+    }
+  ],
+  "summary": "Administrar virtualização exige observar conjuntamente hosts, VMs, capacidade, rede, armazenamento e proteção. Mantenha inventário e linha de base; dimensione CPU, memória e I/O para demanda e contingência; trate checkpoints como recursos temporários, não como backups; use migração ao vivo para manutenção e failover para responder a falhas; proteja e teste replicação e restauração; restrinja acessos e tráfego de gestão; e diagnostique com estado, métricas, eventos e mudanças recentes.",
+  "flashcards": [
+    {
+      "front": "O que diferencia host de convidado?",
+      "back": "Host é o servidor físico que executa o hipervisor; convidado é o sistema operacional dentro da VM."
+    },
+    {
+      "front": "Quais dados básicos devem aparecer no inventário de VMs?",
+      "back": "Identidade, estado, host, responsáveis, recursos, redes, discos e eventos ou alertas relevantes."
+    },
+    {
+      "front": "O que mostra um painel de host Hyper-V?",
+      "back": "Estado e quantidade de VMs, uso de CPU e memória, alertas, eventos e, conforme o cenário, IOPS e vazão."
+    },
+    {
+      "front": "Por que muitas vCPUs podem prejudicar o desempenho?",
+      "back": "Elas não criam CPU física; cargas simultâneas podem competir e aumentar contenção e espera."
+    },
+    {
+      "front": "O que faz Dynamic Memory no Hyper-V?",
+      "back": "Ajusta a memória atribuída conforme demanda e configuração, sem dispensar planejamento de capacidade."
+    },
+    {
+      "front": "O que mede IOPS?",
+      "back": "Quantidade de operações de entrada e saída de armazenamento por segundo."
+    },
+    {
+      "front": "O que é vazão de armazenamento?",
+      "back": "Volume de dados transferido por unidade de tempo; complementa latência e IOPS."
+    },
+    {
+      "front": "O que é CSV em um cluster Hyper-V?",
+      "back": "Cluster Shared Volume: volume compartilhado que pode ser acessado pelos nós para armazenar cargas como VMs."
+    },
+    {
+      "front": "O que é um checkpoint?",
+      "back": "Registro de um estado pontual da VM e de seus discos, útil para retorno operacional controlado."
+    },
+    {
+      "front": "Por que checkpoint não substitui backup?",
+      "back": "Depende da cadeia e do armazenamento da VM e não oferece necessariamente cópia independente e retida."
+    },
+    {
+      "front": "O que é um arquivo AVHDX?",
+      "back": "Um disco diferencial do Hyper-V, frequentemente ligado à cadeia criada por checkpoints."
+    },
+    {
+      "front": "O que pode ocorrer ao excluir um AVHDX diretamente?",
+      "back": "A cadeia pai-filho pode ser rompida e os dados da VM podem ficar inacessíveis."
+    },
+    {
+      "front": "O que ocorre na mesclagem de checkpoint?",
+      "back": "Alterações do disco diferencial são incorporadas ao disco pai, consumindo espaço e I/O."
+    },
+    {
+      "front": "Quais causas comuns impedem o merge de checkpoints?",
+      "back": "Pouco espaço, arquivos bloqueados, permissões, cadeia corrompida, estado inadequado ou arquivos órfãos."
+    },
+    {
+      "front": "O que a migração ao vivo faz?",
+      "back": "Move uma VM em execução entre hosts com indisponibilidade não perceptível ou mínima."
+    },
+    {
+      "front": "Qual é a diferença entre migração ao vivo e failover?",
+      "back": "Migração é movimentação planejada; failover é recuperação de um papel após falha."
+    },
+    {
+      "front": "Qual condição de autenticação acompanha CredSSP na migração Hyper-V?",
+      "back": "O operador deve entrar no host de origem para iniciar a migração, inclusive no fluxo de retorno quando aplicável."
+    },
+    {
+      "front": "O que Kerberos requer para iniciar migração sem sessão no host de origem?",
+      "back": "Delegação restrita corretamente configurada para os serviços e destinos necessários."
+    },
+    {
+      "front": "Por que restringir a rede de migração?",
+      "back": "O tráfego de migração pode não ser criptografado; rede privada e confiável reduz exposição."
+    },
+    {
+      "front": "O que faz Hyper-V Replica?",
+      "back": "Replica VMs de forma assíncrona para um destino secundário para apoiar recuperação de desastre."
+    },
+    {
+      "front": "Qual risco permanece com replicação assíncrona?",
+      "back": "Alterações posteriores ao último ponto replicado podem não estar disponíveis após failover."
+    },
+    {
+      "front": "O que é RPO?",
+      "back": "Ponto temporal de recuperação que representa a perda de dados tolerável."
+    },
+    {
+      "front": "O que é RTO?",
+      "back": "Tempo-alvo para restaurar o serviço depois de uma interrupção."
+    },
+    {
+      "front": "Por que testar restauração e failover?",
+      "back": "Para confirmar que cópias e procedimentos realmente atendem aos objetivos de recuperação."
+    },
+    {
+      "front": "O que verificar antes de migrar uma VM?",
+      "back": "Compatibilidade, autorização, capacidade, rede, switch, autenticação e acesso ao armazenamento no destino."
+    }
+  ],
+  "tips": [
+    "Associe cada métrica ao recurso: CPU, memória, IOPS, vazão e espaço livre respondem a gargalos diferentes.",
+    "Antes da manutenção, drene ou migre as cargas e confirme saúde e capacidade do destino.",
+    "Após mover a VM, confirme o novo host, conectividade do convidado e funcionamento da aplicação.",
+    "Trate checkpoints como temporários: registre motivo, responsável e plano de remoção.",
+    "Para falha de migração, confira primeiro compatibilidade, credenciais, rede, switches e armazenamento.",
+    "Teste failover e restauração em exercícios controlados; uma réplica visível não prova que o serviço recupera."
+  ],
+  "traps": [
+    "Checkpoint não equivale a backup independente.",
+    "Migração ao vivo planejada não é failover automático após falha.",
+    "CredSSP e Kerberos não têm o mesmo requisito de sessão e delegação.",
+    "Aumentar vCPUs ou memória configurada não cria capacidade física no host.",
+    "Réplica assíncrona pode perder alterações desde o último ponto replicado.",
+    "Apagar AVHDX manualmente pode romper a cadeia de discos da VM."
+  ],
+  "activeRecall": [
+    "Explique o fluxo de administração desde o inventário até a validação da aplicação após uma migração.",
+    "Compare os sinais que indicam gargalo de CPU, memória, armazenamento e rede.",
+    "Descreva por que checkpoint e backup têm funções diferentes e como remover um checkpoint com segurança.",
+    "Compare CredSSP e Kerberos no fluxo de migração Hyper-V sem cluster.",
+    "Liste as verificações de host, destino, autenticação, rede e armazenamento antes de live migration.",
+    "Compare migração ao vivo, failover do cluster, Hyper-V Replica e backup por objetivo e limitação.",
+    "Explique como CSV apoia as VMs de um cluster e o que precisa ser monitorado nele.",
+    "Monte um roteiro de diagnóstico para uma VM que não migra e outra com falha ao mesclar checkpoint."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confundir checkpoint com backup",
+      "summary": "Checkpoint é ponto operacional dependente dos discos da VM; backup é uma cópia recuperável retida e testada.",
+      "description": "Checkpoint registra ponto operacional dependente da cadeia de discos; backup é uma cópia recuperável conforme retenção e precisa ser testado."
+    },
+    {
+      "key": "e2",
+      "title": "Confundir migração com failover",
+      "summary": "Migração é planejada; failover reage a falha e pode reiniciar a VM em outro nó.",
+      "description": "Migração ao vivo desloca uma VM em execução para manutenção ou balanceamento; failover reage à falha de nó e pode reiniciar a VM."
+    },
+    {
+      "key": "e3",
+      "title": "Supor que recursos virtuais criam recursos físicos",
+      "summary": "vCPU e memória virtuais compartilham limites físicos; dimensione pela demanda concorrente e contingência.",
+      "description": "vCPU e memória configuradas compartilham capacidade física. Dimensionamento deve considerar demanda concorrente, pressão e contingência."
+    },
+    {
+      "key": "e4",
+      "title": "Ignorar cadeia de discos e espaço",
+      "summary": "AVHDX pode depender de um disco pai e exige espaço para mesclagem; apagá-lo pode romper a cadeia.",
+      "description": "AVHDX pode depender de discos pais e exige espaço e I/O para merge. Remoção manual pode inutilizar a cadeia."
+    },
+    {
+      "key": "e5",
+      "title": "Tratar réplica assíncrona como cópia sem perda",
+      "summary": "A réplica pode estar atrasada; perda e recuperação dependem do ponto replicado e do teste do procedimento.",
+      "description": "A réplica reflete um ponto anterior no tempo; confirme RPO, consistência e passos de failover e failback."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No Hyper-V, o host é o servidor físico que executa o hipervisor, enquanto o convidado é o sistema operacional instalado dentro de uma máquina virtual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O host fornece hardware e executa a camada de virtualização. O convidado é o sistema operacional que usa os recursos virtuais apresentados pelo host.",
+      "section": "1. O que o administrador gerencia",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A visão de inventário e monitoramento pode reunir estado das VMs, CPU e memória, alertas, eventos e métricas de armazenamento disponíveis para o ambiente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O Windows Admin Center apresenta inventário, estados, consumo de CPU e memória, eventos e, em cenários compatíveis, IOPS e vazão. Isso permite relacionar saúde da VM à do host.",
+      "section": "1. O que o administrador gerencia",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VM pausada e uma VM salva são estados equivalentes, pois em ambos os casos a execução é gravada em disco e os recursos do host são liberados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Pausar suspende temporariamente a execução mantendo seu estado no host; salvar grava o estado para retomada posterior. Não são estados equivalentes nem implicam necessariamente o mesmo uso de recursos.",
+      "section": "1. O que o administrador gerencia",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Algumas configurações de uma VM podem exigir que ela seja desligada antes de serem alteradas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A disponibilidade de mudanças depende da configuração e da geração da VM; a documentação administrativa alerta que algumas opções só podem ser alteradas com a VM parada.",
+      "section": "1. O que o administrador gerencia",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O painel de gestão é suficiente para provar que uma aplicação convidada está correta, mesmo sem verificar seu serviço ou conectividade após a mudança de host.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O painel mostra estado e métricas de infraestrutura, mas a validação da aplicação e da conectividade do convidado continua necessária após operações administrativas.",
+      "section": "1. O que o administrador gerencia",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "IOPS e vazão descrevem exatamente a mesma propriedade de armazenamento, de modo que uma das duas medições é sempre redundante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. IOPS é quantidade de operações por segundo; vazão é volume de dados por tempo. Uma carga pode ter muitas operações pequenas ou poucas transferências grandes, por isso as métricas são complementares.",
+      "section": "2. Capacidade e alocação de recursos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A atribuição de mais vCPUs a uma VM aumenta por si só a quantidade de processadores físicos disponíveis no host.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. vCPUs são recursos virtuais atendidos pelos processadores físicos existentes. Aumentar sua quantidade não cria capacidade física e pode elevar contenção quando várias cargas disputam CPU.",
+      "section": "2. Capacidade e alocação de recursos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dynamic Memory do Hyper-V ajusta a memória atribuída conforme parâmetros e demanda, mas não dispensa o monitoramento da pressão de memória do host.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O ajuste dinâmico pode melhorar o aproveitamento do host, mas a memória física permanece limitada. O administrador deve observar demanda, memória atribuída e pressão para evitar saturação.",
+      "section": "2. Capacidade e alocação de recursos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para dimensionar um cluster, basta confirmar capacidade com todos os nós ativos; a saída de um nó para manutenção não afeta a capacidade que resta aos convidados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A falha ou drenagem de um nó transfere carga para os demais. É preciso prever capacidade de contingência e verificar se recursos restantes sustentam as VMs e o desempenho necessário.",
+      "section": "2. Capacidade e alocação de recursos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um volume cheio pode impedir checkpoint, gravação de estado ou mesclagem de discos, mesmo quando a CPU do host está ociosa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Espaço livre é uma dimensão própria da capacidade. Operações de disco exigem local para gravar dados e mesclar diferenças; CPU ociosa não resolve falta de armazenamento.",
+      "section": "2. Capacidade e alocação de recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Remover manualmente um arquivo AVHDX que parece antigo é um procedimento seguro, pois o Hyper-V sempre reconstrói automaticamente a cadeia de discos da VM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. AVHDX pode conter diferenças necessárias e depender de um disco pai. Apagá-lo fora da ferramenta pode romper a cadeia e tornar dados inacessíveis; primeiro deve-se inspecionar checkpoints e executar procedimento controlado.",
+      "section": "3. Checkpoints, discos e proteção de dados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Hyper-V Replica mantém atualizações de forma assíncrona, de modo que a cópia secundária pode estar atrás do primário no momento de uma interrupção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A replicação assíncrona envia alterações ao destino sem exigir gravação simultânea nos dois lados. O ponto disponível no secundário limita o que pode ser recuperado e deve ser considerado no RPO.",
+      "section": "5. Alta disponibilidade, replicação e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A migração ao vivo é uma movimentação planejada de VM em execução; o failover do cluster responde a uma falha e pode reiniciar o papel em outro nó.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os mecanismos têm gatilhos e efeitos diferentes. Migração ao vivo permite manutenção com a carga ativa; failover busca recuperar um papel após falha, e pode haver interrupção enquanto a VM reinicia.",
+      "section": "5. Alta disponibilidade, replicação e recuperação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como uma réplica é mantida em outro host, ela também é necessariamente um backup histórico protegido contra exclusão ou corrupção replicada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Replicação ajuda a recuperar em outro local, mas pode propagar alterações danosas e não implica retenção histórica independente. Backup protegido e restauração testada continuam necessários.",
+      "section": "5. Alta disponibilidade, replicação e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A orientação da Microsoft recomenda restringir o tráfego de migração ao vivo a redes privadas e confiáveis porque esse tráfego não é criptografado ao ser enviado pela rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação de configuração do Hyper-V recomenda isolamento em rede confiável, por isolamento físico ou tecnologias como VLAN, pois o tráfego de live migration não é criptografado em trânsito.",
+      "section": "4. Migração e manutenção planejada",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No fluxo de migração ao vivo sem cluster, CredSSP permite iniciar remotamente sem entrar no host de origem, enquanto Kerberos exige uma sessão local prévia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O requisito é o inverso: CredSSP exige sessão no host de origem; Kerberos pode dispensá-la quando a delegação restrita está devidamente configurada.",
+      "section": "4. Migração e manutenção planejada",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer reduzir lentidão em VMs. Qual conjunto de medidas oferece diagnóstico mais completo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Observar somente CPU média do host e reiniciá-lo quando houver lentidão, mesmo que a causa seja outra dimensão de recursos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Comparar CPU, memória, IOPS, vazão, espaço livre e eventos com a linha de base.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aumentar simultaneamente vCPU e memória de todas as VMs do cluster.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar checkpoints para todas as VMs e apagar os discos diferenciais antigos, mesmo sem identificar o gargalo nem preservar os dados das VMs.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar alertas para evitar que picos transitórios influenciem a operação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Desempenho pode ser limitado por CPU, memória, armazenamento ou rede. Métricas distintas e eventos comparados com a linha de base permitem localizar a dimensão afetada; reinicializações ou aumentos indiscriminados não identificam a causa.",
+      "section": "1. O que o administrador gerencia",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VM ligada precisa ser movida para outro host sem interrupção perceptível durante manutenção planejada. Qual recurso atende melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Checkpoint, que transfere a execução para um disco de recuperação e, por isso, é próprio para mover uma VM ligada entre hosts.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Migração ao vivo, configurada entre origem e destino compatíveis.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Failover, iniciado sempre antes de uma manutenção planejada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Backup, restaurado no destino enquanto a origem permanece ativa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Replicação assíncrona, que apaga a VM de origem ao terminar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Migração ao vivo move uma VM em execução entre hosts com indisponibilidade mínima e serve para manutenção planejada. Checkpoint, backup e réplica têm outros objetivos; failover responde a falha do papel ou nó.",
+      "section": "4. Migração e manutenção planejada",
+      "errorConceptKey": "e2",
+      "sourceType": "REAL",
+      "board": "Microsoft Learn",
+      "agency": "Microsoft",
+      "year": 2026,
+      "sourceUrl": "https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/manage/live-migration-overview"
+    },
+    {
+      "statement": "No monitoramento de armazenamento de VMs, o que representa IOPS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A quantidade de operações de entrada e saída realizadas por segundo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A quantidade de memória atribuída às máquinas virtuais do host.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O número de processadores físicos habilitados no servidor Hyper-V.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O tempo total de indisponibilidade registrado em um cluster.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O espaço livre em todos os discos diferenciais do ambiente.",
+          "correct": false
+        }
+      ],
+      "explanation": "IOPS conta operações de entrada e saída por segundo. Memória, CPU, indisponibilidade e espaço livre são indicadores diferentes e também precisam ser acompanhados.",
+      "section": "2. Capacidade e alocação de recursos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe observa contenção de CPU em várias VMs. Qual conclusão sobre a atribuição de processadores virtuais é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar vCPUs aumenta diretamente os núcleos físicos disponíveis no host, inclusive quando nenhum núcleo físico adicional existe no servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A contenção desaparece quando cada VM recebe todos os núcleos físicos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "vCPUs compartilham CPU física, então a alocação deve refletir demanda e capacidade.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O número de vCPUs controla apenas a quantidade de memória da VM.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A solução é criar mais checkpoints para distribuir os processos entre discos.",
+          "correct": false
+        }
+      ],
+      "explanation": "vCPUs são recursos lógicos servidos pela CPU física. Aumentar sua quantidade não acrescenta processadores reais e pode piorar competição. Deve-se medir a demanda e dimensionar com capacidade física suficiente.",
+      "section": "2. Capacidade e alocação de recursos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um host com memória dinâmica habilitada, qual prática administrativa continua necessária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ignorar memória do host porque a alocação dinâmica remove qualquer limite físico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Monitorar demanda, memória atribuída e pressão junto à capacidade disponível.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Atribuir memória máxima a toda VM para impedir que o convidado cresça.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar o estado Paused como mecanismo de expansão de memória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar eventos de memória e avaliar apenas o espaço do CSV.",
+          "correct": false
+        }
+      ],
+      "explanation": "Dynamic Memory pode ajustar a memória de VMs, mas o host continua limitado por memória física. Acompanhar demanda e pressão revela se o conjunto de cargas excede a capacidade real.",
+      "section": "2. Capacidade e alocação de recursos",
+      "errorConceptKey": "e3",
+      "sourceType": "REAL",
+      "board": "Microsoft Learn",
+      "agency": "Microsoft",
+      "year": 2026,
+      "sourceUrl": "https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/overview"
+    },
+    {
+      "statement": "Um checkpoint antigo ocupa espaço e a equipe quer removê-lo. Qual é o procedimento mais seguro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar manualmente os arquivos AVHDX mais antigos no explorador de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar o estado Paused como mecanismo de expansão de memória, embora ele não aumente a memória física disponível no host.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover o checkpoint pela ferramenta Hyper-V e acompanhar a mesclagem.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desligar o cluster e excluir todos os arquivos de estado da VM.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar outro checkpoint e eliminar o disco-base para liberar espaço.",
+          "correct": false
+        }
+      ],
+      "explanation": "A remoção pela ferramenta permite que o Hyper-V gerencie a cadeia e a mesclagem. A exclusão manual de AVHDX pode quebrar as relações entre discos; deve-se também verificar espaço livre e progresso da operação.",
+      "section": "3. Checkpoints, discos e proteção de dados",
+      "errorConceptKey": "e4",
+      "sourceType": "REAL",
+      "board": "Microsoft Learn",
+      "agency": "Microsoft",
+      "year": 2026,
+      "sourceUrl": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/virtualization/hyper-v-snapshots-checkpoints-differencing-disks"
+    },
+    {
+      "statement": "A criação e a mesclagem de checkpoint falham em uma VM. Qual conjunto inicial de verificações é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente uso de CPU do convidado e versão do navegador usado pelo administrador, sem verificar espaço, estado da VM ou arquivos da cadeia.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Espaço livre, estado da VM, arquivos esperados, bloqueios, permissões e saúde do CSV.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Quantidade de contas locais do sistema convidado e horário do último login.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exclusivamente a VLAN do adaptador público e o nome DNS da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apenas reiniciar o host e remover arquivos diferenciais que não estejam visíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação de diagnóstico orienta examinar espaço no volume, estado da VM, discos esperados, checkpoints órfãos, bloqueios, permissões e status do cluster/CSV. Reiniciar e apagar arquivos às cegas pode agravar a perda de dados.",
+      "section": "3. Checkpoints, discos e proteção de dados",
+      "errorConceptKey": "e4",
+      "sourceType": "REAL",
+      "board": "Microsoft Learn",
+      "agency": "Microsoft",
+      "year": 2026,
+      "sourceUrl": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/virtualization/hyper-v-snapshots-checkpoints-differencing-disks"
+    },
+    {
+      "statement": "Qual descrição distingue corretamente checkpoint de backup?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Checkpoint é sempre uma cópia independente; backup apenas aponta ao disco ativo, mesmo que isso destrua a cadeia da VM.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Checkpoint registra ponto operacional dependente da VM; backup é cópia recuperável retida.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Checkpoint substitui backup quando os discos são armazenados em CSV.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Backup preserva somente CPU e memória, enquanto checkpoint preserva a rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "São nomes diferentes para a mesma função de replicação assíncrona.",
+          "correct": false
+        }
+      ],
+      "explanation": "Checkpoint mantém um ponto de estado ligado aos arquivos e à cadeia da VM. Backup deve oferecer cópia recuperável de acordo com uma política de retenção; uma função não substitui a outra.",
+      "section": "3. Checkpoints, discos e proteção de dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao selecionar a movimentação de uma VM ligada, qual conjunto de condições deve ser verificado antes de iniciar a migração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o nome da VM, pois o hipervisor cria automaticamente todas as dependências, sem conferir rede, autorização ou armazenamento no destino.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Compatibilidade dos hosts, autorização, rede, switches, armazenamento e capacidade do destino.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apenas o espaço do disco local de origem e o estado do serviço DNS do convidado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente a versão do Windows cliente instalado na estação administrativa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar controles do cluster, autenticação e firewall durante a transferência.",
+          "correct": false
+        }
+      ],
+      "explanation": "A migração depende de hosts compatíveis e autorizados, rede alcançável, autenticação correta, switches necessários, armazenamento acessível e recursos suficientes no destino. Falhar em qualquer dependência pode interromper a movimentação.",
+      "section": "4. Migração e manutenção planejada",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma migração sem cluster usa CredSSP. O operador inicia a ação remotamente sem entrar no servidor de origem e recebe erro de credenciais. Qual medida corrige o fluxo previsto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Entrar no host de origem antes da migração ou configurar Kerberos com delegação restrita.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desativar a autenticação e permitir que qualquer computador mova a VM, dispensando autorização nos hosts de origem e destino.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar um checkpoint no destino e substituir o serviço de migração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar memória da VM, pois CredSSP depende do espaço de paginação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Copiar o arquivo AVHDX por SMB sem autorizar o host de destino.",
+          "correct": false
+        }
+      ],
+      "explanation": "CredSSP requer uma sessão no host de origem. Para iniciar sem essa sessão, pode-se configurar Kerberos e delegação restrita para os serviços pertinentes; isso exige permissões de domínio apropriadas.",
+      "section": "4. Migração e manutenção planejada",
+      "errorConceptKey": null,
+      "sourceType": "REAL",
+      "board": "Microsoft Learn",
+      "agency": "Microsoft",
+      "year": 2026,
+      "sourceUrl": "https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/deploy/set-up-hosts-for-live-migration-without-failover-clustering"
+    },
+    {
+      "statement": "Ao configurar Kerberos para live migration com movimentação de armazenamento, qual observação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O operador deve permitir delegação irrestrita para qualquer serviço do domínio, sem limitar os destinos autorizados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A delegação só se aplica ao sistema convidado, nunca às contas de computador dos hosts, e deve autorizar qualquer serviço do domínio sem restrição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A delegação restrita contempla o serviço de migração e também CIFS quando os arquivos de armazenamento serão movidos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Kerberos dispensa configuração de confiança e autorização nos dois hosts.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Basta habilitar DNS no convidado; o serviço de migração não usa autenticação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A orientação oficial descreve delegação restrita para o serviço Microsoft Virtual System Migration Service e, quando o armazenamento também se move, CIFS. O escopo limitado atende à tarefa sem conceder delegação irrestrita.",
+      "section": "4. Migração e manutenção planejada",
+      "errorConceptKey": null,
+      "sourceType": "REAL",
+      "board": "Microsoft Learn",
+      "agency": "Microsoft",
+      "year": 2026,
+      "sourceUrl": "https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/deploy/set-up-hosts-for-live-migration-without-failover-clustering"
+    },
+    {
+      "statement": "Qual sequência descreve adequadamente a movimentação de uma VM ligada no Hyper-V Manager?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conectar os servidores, escolher Move na VM, definir tipo e destino, revisar o resumo e concluir.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apagar a VM de origem, formatar o destino, restaurar o backup e atualizar o DNS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desligar o hipervisor, mover os arquivos e importar sem conferir as opções.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar réplica, apagar o CSV e deixar o cluster decidir o destino automaticamente, sem validar conectividade, autorização ou localização dos arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar a VLAN do host, remover as credenciais e reiniciar os dois servidores.",
+          "correct": false
+        }
+      ],
+      "explanation": "O assistente oficial conecta os hosts, inicia Move a partir da VM, permite escolher tipo de movimentação, destino e opções, e apresenta um resumo antes de concluir. O resultado deve ser acompanhado e validado.",
+      "section": "4. Migração e manutenção planejada",
+      "errorConceptKey": null,
+      "sourceType": "REAL",
+      "board": "Microsoft Learn",
+      "agency": "Microsoft",
+      "year": 2026,
+      "sourceUrl": "https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/manage/use-live-migration-without-failover-clustering-to-move-a-virtual-machine"
+    },
+    {
+      "statement": "Uma equipe pretende migrar VMs em uma rede corporativa compartilhada. Qual controle reduz o risco de exposição do tráfego de migração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Isolar o tráfego em rede privada e confiável, por rede física ou segmentação apropriada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Enviar o tráfego pela rede pública sem restrição porque live migration sempre cifra os dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar a VLAN dos convidados e conceder acesso de console a todos os usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desligar o firewall e a autenticação para acelerar a transferência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenar credenciais de administrador em arquivo no diretório compartilhado da VM.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação Microsoft alerta que o tráfego de live migration não é criptografado em trânsito e recomenda redes privadas e confiáveis, isoladas fisicamente ou por segmentação como VLAN.",
+      "section": "4. Migração e manutenção planejada",
+      "errorConceptKey": null,
+      "sourceType": "REAL",
+      "board": "Microsoft Learn",
+      "agency": "Microsoft",
+      "year": 2026,
+      "sourceUrl": "https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/deploy/set-up-hosts-for-live-migration-without-failover-clustering"
+    },
+    {
+      "statement": "Um nó do cluster precisa receber atualização. Qual ação corresponde à manutenção planejada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desligar o nó sem verificar as VMs e contar com o backup para mantê-las ligadas, mesmo sem destino disponível.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Migrar ou drenar os papéis, validar a saúde das cargas e só então atualizar o nó.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Excluir os papéis do cluster antes de identificar suas dependências.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar checkpoints e reiniciar todos os nós simultaneamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar monitoramento para que alertas não indiquem a manutenção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Manutenção planejada deve retirar as cargas do nó de forma controlada, confirmar destino e saúde do serviço e então aplicar a atualização. Migração ao vivo ou drenagem evita depender de uma recuperação não planejada.",
+      "section": "4. Migração e manutenção planejada",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual função dos Cluster Shared Volumes é relevante à administração de VMs em um cluster Hyper-V?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir a autenticação de migração e criptografar automaticamente todo tráfego, mesmo removendo controles e usando o volume sem proteção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Permitir que nós do cluster acessem volumes compartilhados usados por cargas como VMs.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Criar cópias históricas de cada arquivo de convidado a cada reinicialização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter processadores virtuais em núcleos físicos nos nós do cluster.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar o sistema operacional convidado sem discos virtuais associados.",
+          "correct": false
+        }
+      ],
+      "explanation": "CSV é armazenamento compartilhado acessível pelos nós do cluster e pode hospedar arquivos de VMs. Ele não substitui backup, autenticação ou recursos físicos de CPU.",
+      "section": "5. Alta disponibilidade, replicação e recuperação",
+      "errorConceptKey": null,
+      "sourceType": "REAL",
+      "board": "Microsoft Learn",
+      "agency": "Microsoft",
+      "year": 2026,
+      "sourceUrl": "https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/overview"
+    },
+    {
+      "statement": "Qual cenário descreve melhor o failover de uma VM configurada como papel de cluster?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Durante uma atualização planejada, a VM é transferida com execução contínua e sem evento de falha.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Após falha de um nó, o cluster tenta recuperar o papel em outro nó elegível.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A aplicação é restaurada de um backup sem iniciar o sistema operacional convidado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O armazenamento de origem é apagado antes de qualquer detecção de falha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A rede de convidados é convertida automaticamente em rede de gerenciamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Failover reage à falha de nó ou recurso e tenta colocar o papel de cluster em outro nó saudável. Pode haver reinicialização e interrupção; é distinto de live migration planejada.",
+      "section": "5. Alta disponibilidade, replicação e recuperação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação distingue corretamente replicação assíncrona de backup?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Backup transfere a VM em execução sem interrupção entre dois hosts do mesmo cluster.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Réplica sempre conserva todas as versões históricas; backup mantém apenas a versão ativa, dispensando cópias protegidas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Réplica mantém estado recente em outro destino; backup fornece cópia retida e restaurável conforme política.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Os dois mecanismos são idênticos e dispensam exercício de recuperação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Réplica impede que exclusão ou corrupção no primário alcance o destino.",
+          "correct": false
+        }
+      ],
+      "explanation": "A réplica assíncrona dá uma cópia atualizada em local secundário, sujeita ao atraso da replicação. Backup oferece retenção e recuperação de pontos protegidos; ambos requerem desenho e testes próprios.",
+      "section": "5. Alta disponibilidade, replicação e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização deseja definir quanto dado pode perder e quanto tempo aceita ficar sem serviço. Quais objetivos correspondem a essas decisões?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "vCPU para perda de dados e VLAN para tempo de indisponibilidade, usando CPU como medida dessa perda.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "IOPS para tempo de recuperação e CSV para perda de dados aceitável, usando CPU como medida dessa perda.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RTO para número de operações de disco e RPO para uso de memória, sem relação com a recuperação do serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RPO indica a perda de dados aceitável; RTO define o tempo-alvo para recuperar o serviço.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "AVHDX para prazo de recuperação e CredSSP para retenção de cópias.",
+          "correct": false
+        }
+      ],
+      "explanation": "RPO define o ponto temporal de recuperação e, por consequência, a perda de dados tolerada. RTO define o tempo-alvo para restaurar o serviço. Eles orientam replicação, backup e exercícios de recuperação.",
+      "section": "5. Alta disponibilidade, replicação e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma VM migrar para outro nó, qual validação operacional é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conferir somente que o nome da VM continua igual no console administrativo e dispensar teste de serviço ou conectividade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apagar logs de origem e considerar que a mudança foi bem-sucedida sem inspeção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Confirmar host no inventário, conectividade, saúde da VM e funcionamento da aplicação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Criar novos usuários administrativos dentro do sistema convidado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar monitoramento até o próximo ciclo de manutenção.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conclusão no assistente não substitui verificação. O administrador deve confirmar localização, estado, rede e saúde do serviço para detectar incompatibilidade de switch, armazenamento ou aplicação.",
+      "section": "4. Migração e manutenção planejada",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao criar uma VM por Windows Admin Center, qual conjunto corresponde a escolhas de configuração expostas pela ferramenta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas VLAN, checkpoint e arquivo de log do serviço convidado, deixando geração, discos e memória a cargo do DNS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente nome DNS e endereço público, pois o hipervisor define o restante automaticamente e deixa geração, discos e memória a cargo do DNS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Nome, geração, local, processadores, memória, adaptadores, discos e mídia de instalação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "RPO, RTO, retenção de backup e conta de domínio do usuário final.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tipo de licença da aplicação, senha do convidado e política de firewall da empresa.",
+          "correct": false
+        }
+      ],
+      "explanation": "O fluxo de criação inclui nome e geração da VM, caminho dos arquivos, processadores virtuais, memória, rede, discos e fonte para instalar o sistema. Políticas de backup e configuração interna do aplicativo são etapas distintas.",
+      "section": "1. O que o administrador gerencia",
+      "errorConceptKey": null,
+      "sourceType": "REAL",
+      "board": "Microsoft Learn",
+      "agency": "Microsoft",
+      "year": 2026,
+      "sourceUrl": "https://learn.microsoft.com/en-us/windows-server/manage/windows-admin-center/use/manage-virtual-machines"
+    },
+    {
+      "statement": "O que a linha de base de desempenho ajuda o administrador a fazer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar o comportamento atual com padrões normais e distinguir pico de tendência.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir controles de acesso, backup e documentação de mudanças.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garantir que nenhuma VM ultrapasse a memória física configurada, sem comparar tendências nem investigar eventos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter logs do convidado em checkpoints persistentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Determinar automaticamente que toda lentidão vem da rede virtual.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma linha de base registra padrões de uso e permite comparar alterações atuais, separar variação normal de tendência e priorizar a investigação. Ela não identifica sozinha a causa nem substitui controles operacionais.",
+      "section": "2. Capacidade e alocação de recursos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um cluster, o administrador altera uma configuração de host a partir da conexão do cluster no Windows Admin Center. O que deve considerar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cluster replica a opção somente depois de reinicializar todas as VMs, sem necessidade de avaliar o alcance da mudança.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A mudança afeta apenas o convidado selecionado e nunca alcança os hosts.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A mudança pode ser aplicada a todos os nós do cluster e deve ser avaliada nesse escopo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Toda configuração aplicada ao host é automaticamente revertida na próxima migração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Windows Admin Center não oferece configurações de host em conexões de cluster.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação do Windows Admin Center informa que mudanças de configuração de host feitas pela conexão de cluster ou hiperconvergente são aplicadas a todos os nós. O operador precisa considerar o alcance antes de salvar.",
+      "section": "6. Segurança, monitoramento e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "REAL",
+      "board": "Microsoft Learn",
+      "agency": "Microsoft",
+      "year": 2026,
+      "sourceUrl": "https://learn.microsoft.com/en-us/windows-server/manage/windows-admin-center/use/manage-virtual-machines"
+    },
+    {
+      "statement": "Uma migração falha antes de iniciar a transferência. Qual diagnóstico é mais consistente com as dependências documentadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Editar o sistema operacional da VM e apagar os eventos do host de origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o tamanho do disco convidado e desativar a validação do cluster.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Verificar hosts, domínio, privilégios, protocolo de autenticação, rede e armazenamento de destino.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Trocar a senha do usuário final e criar um checkpoint remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar o switch de destino para que o tráfego seja roteado pelo host, mesmo deixando a VM sem rede ou conectividade configurada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A configuração oficial exige hosts e função Hyper-V adequados, autorização nos dois servidores, relação de domínio ou confiança, autenticação e conectividade corretas. A movimentação também depende do destino e do armazenamento necessários.",
+      "section": "4. Migração e manutenção planejada",
+      "errorConceptKey": null,
+      "sourceType": "REAL",
+      "board": "Microsoft Learn",
+      "agency": "Microsoft",
+      "year": 2026,
+      "sourceUrl": "https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/deploy/set-up-hosts-for-live-migration-without-failover-clustering"
+    },
+    {
+      "statement": "Ao migrar uma VM com checkpoints entre hosts com versões de processador diferentes, qual medida pode ser necessária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desligar a VM e habilitar compatibilidade de processador para hosts com versões diferentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o número de checkpoints para igualar as instruções de CPU.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover a autenticação Kerberos e permitir migração por rede pública.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter os discos para AVHDX antes de conferir suporte do destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o nome do host e manter incompatibilidade de hardware sem validação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação de live migration descreve falha de compatibilidade de hardware em certos cenários com processadores diferentes e checkpoint. Desligar a VM e habilitar a opção de compatibilidade do processador é uma resolução documentada.",
+      "section": "4. Migração e manutenção planejada",
+      "errorConceptKey": null,
+      "sourceType": "REAL",
+      "board": "Microsoft Learn",
+      "agency": "Microsoft",
+      "year": 2026,
+      "sourceUrl": "https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/manage/use-live-migration-without-failover-clustering-to-move-a-virtual-machine"
+    },
+    {
+      "statement": "Qual conjunto representa controles diferentes que devem coexistir na segurança de um ambiente virtualizado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Replicação e maior quantidade de vCPUs, suficientes para proteger dados e acesso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente senha do convidado, porque ela protege também o host e o armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas checkpoint e VLAN, que substituem autorização e registro de eventos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permissão administrativa, proteção de arquivos, autenticação de migração e segmentação de rede.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar consoles e logs, deixando toda administração aos usuários finais.",
+          "correct": false
+        }
+      ],
+      "explanation": "A superfície virtual inclui host privilegiado, arquivos da VM, autenticação entre hosts e tráfego de rede. São camadas distintas: um controle isolado não protege as demais.",
+      "section": "6. Segurança, monitoramento e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VM usa a rede errada após a migração. Que verificação é especialmente pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar checkpoint do host e desligar a interface de gerenciamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o RPO da réplica, pois isso seleciona automaticamente o switch correto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover os discos virtuais para que o convidado renegocie o adaptador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Confirmar que o switch virtual e a segmentação necessários existem e são consistentes no destino.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Diminuir a memória dinâmica para fazer o adaptador obter outra VLAN.",
+          "correct": false
+        }
+      ],
+      "explanation": "A configuração da VM conecta seu adaptador a um switch virtual. O destino precisa oferecer a rede e a segmentação correspondentes; switches ausentes ou divergentes podem impedir migração ou deixar a VM sem conectividade.",
+      "section": "2. Capacidade e alocação de recursos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual roteiro é mais seguro quando o administrador investiga falha de checkpoint em produção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar AVHDX ocultos, reiniciar os nós e depois verificar se a VM inicia, sem conferir a cadeia, as permissões ou a existência de cópia recuperável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Registrar sintomas e horários, checar logs, espaço, estado, cadeia, bloqueios e mudanças recentes antes de alterar arquivos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar o cluster, excluir o disco pai e tentar recriar o checkpoint.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desligar o monitoramento, renomear todos os discos e executar failover.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reiniciar o convidado repetidamente sem observar eventos nem espaço livre.",
+          "correct": false
+        }
+      ],
+      "explanation": "Diagnóstico sistemático preserva evidências e evita romper a cadeia. A orientação da Microsoft inclui conferir backups, espaço, estado, arquivos, checkpoints, permissões, saúde do cluster e dados de erro antes da correção.",
+      "section": "6. Segurança, monitoramento e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "REAL",
+      "board": "Microsoft Learn",
+      "agency": "Microsoft",
+      "year": 2026,
+      "sourceUrl": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/virtualization/hyper-v-snapshots-checkpoints-differencing-disks"
+    },
+    {
+      "statement": "Uma migração teve êxito administrativo, mas usuários relatam que a aplicação não responde. Qual próximo passo é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar outro checkpoint e desativar o adaptador de rede permanentemente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Considerar a aplicação saudável porque o assistente informou que a transferência concluiu.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Excluir os logs e mover novamente a VM para o primeiro host sem análise.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Validar rede, serviço convidado, eventos e armazenamento no destino antes de encerrar o incidente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aumentar vCPUs até que o serviço responda, sem observar consumo ou eventos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conclusão da migração prova a movimentação dos recursos, não a saúde ponta a ponta da aplicação. Verifique adaptador e switch, conectividade do convidado, serviços, eventos e armazenamento para localizar o defeito.",
+      "section": "6. Segurança, monitoramento e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que padronizar nomes e configurações de switches virtuais nos hosts de um cluster?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para permitir que a rede de gerenciamento seja compartilhada sem controle.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Para fazer cada host apresentar mais CPU física ao mesmo convidado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para eliminar a necessidade de autenticação ou de armazenamento acessível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para transformar checkpoint em cópia de backup automática.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para manter as redes de VM disponíveis no destino e reduzir falhas durante migração.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma VM depende de switch e rede compatíveis no destino. Padronizar a configuração entre hosts reduz falha de movimentação e evita que o adaptador fique desconectado ou associado a uma rede incorreta.",
+      "section": "2. Capacidade e alocação de recursos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre atualização da versão de configuração de uma VM deve orientar uma migração para host mais novo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar compatibilidade antes de atualizar, pois algumas versões novas não permitem voltar a hosts antigos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Atualizar sempre antes de conferir os hosts, já que a mudança pode ser revertida livremente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A versão só afeta o DNS do convidado, sem relação com recursos do hipervisor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar checkpoint para tornar reversível qualquer atualização de versão de configuração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A versão é escolhida pelo usuário na console e não integra a configuração persistente da VM nem influencia a migração.",
+          "correct": false
+        }
+      ],
+      "explanation": "A compatibilidade da versão de configuração precisa ser considerada entre origem e destino. A documentação alerta que atualizar para uma versão mais nova pode impedir migração de volta a hosts antigos e que essa ação não é reversível em certos cenários.",
+      "section": "4. Migração e manutenção planejada",
+      "errorConceptKey": null,
+      "sourceType": "REAL",
+      "board": "Microsoft Learn",
+      "agency": "Microsoft",
+      "year": 2026,
+      "sourceUrl": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/virtualization/hyper-v-virtual-machine-live-migration"
+    },
+    {
+      "statement": "Uma organização considera Hyper-V Replica como única proteção contra falha. Qual avaliação administrativa é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A réplica funciona como checkpoint local e não transfere dados a outro destino.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A réplica garante retenção ilimitada e impede qualquer corrupção no primário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A réplica converte automaticamente o host secundário em cluster ativo e elimina RTO.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A réplica substitui monitoração, autenticação e planejamento de capacidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A réplica apoia recuperação em outro local, mas deve ser combinada com backup e teste de restauração.",
+          "correct": true
+        }
+      ],
+      "explanation": "Hyper-V Replica apoia recuperação de desastre com cópia assíncrona em destino secundário. O plano ainda precisa de backup independente, objetivos de recuperação, capacidade, segurança e testes de failover e failback.",
+      "section": "5. Alta disponibilidade, replicação e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "REAL",
+      "board": "Microsoft Learn",
+      "agency": "Microsoft",
+      "year": 2026,
+      "sourceUrl": "https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/overview"
+    },
+    {
+      "statement": "Qual indicador ajuda a identificar se o armazenamento, e não a CPU, limita uma VM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas o uso médio de CPU do convidado durante o mês anterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente a quantidade de contas de administrador do domínio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O número de checkpoints no inventário, sem examinar o volume.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O nome do host e a geração da VM, sem observar desempenho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Latência, IOPS, vazão e espaço livre no volume que guarda os arquivos da VM.",
+          "correct": true
+        }
+      ],
+      "explanation": "Latência, IOPS, vazão e espaço são medidas de armazenamento que ajudam a identificar gargalos ou falta de capacidade. Uso de CPU sozinho não revela lentidão de disco.",
+      "section": "2. Capacidade e alocação de recursos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O cluster tem três nós e um deles falha. O que deve estar previsto no planejamento de capacidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Que os nós restantes consigam assumir papéis e sustentar a carga dentro do desempenho aceitável.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Que toda VM desligue, pois o cluster só monitora nomes de host.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que CSV crie novos processadores físicos no nó sobrevivente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que a replicação assíncrona ocorra sem qualquer destino configurado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Que o administrador apague checkpoints para liberar memória RAM automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Alta disponibilidade depende de nós aptos e recursos suficientes após a falha. A capacidade deve prever carga deslocada, além de armazenamento, rede e saúde dos recursos compartilhados.",
+      "section": "5. Alta disponibilidade, replicação e recuperação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma operação de manutenção, a equipe quer mover o armazenamento da VM junto com a execução. Qual descrição corresponde à opção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma migração que inclui os arquivos de disco e associados no destino escolhido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um failover que apaga os arquivos da VM de origem antes de copiá-los.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma réplica que transforma o disco ativo em checkpoint local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma operação de console que move somente a tela do convidado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma atualização de memória que não altera localização de armazenamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Hyper-V permite escolher o tipo de movimentação e incluir armazenamento. O destino precisa ter espaço, conectividade e permissões; se Kerberos for usado, a delegação CIFS é necessária para movimentar armazenamento conforme a orientação oficial.",
+      "section": "4. Migração e manutenção planejada",
+      "errorConceptKey": null,
+      "sourceType": "REAL",
+      "board": "Microsoft Learn",
+      "agency": "Microsoft",
+      "year": 2026,
+      "sourceUrl": "https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/manage/use-live-migration-without-failover-clustering-to-move-a-virtual-machine"
+    },
+    {
+      "statement": "Qual é o papel do log de eventos no diagnóstico de uma falha de host ou de cluster?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover alertas depois que o operador abre a console administrativa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Garantir que a VM seja restaurada automaticamente sem verificar sua configuração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir medições de CPU, memória, IOPS e rede em qualquer investigação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenar os discos diferenciais e a memória do convidado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fornecer registros com horário e origem que ajudam a relacionar falha e mudanças recentes.",
+          "correct": true
+        }
+      ],
+      "explanation": "Eventos fornecem evidência temporal e identificam componentes e nós envolvidos. Devem ser correlacionados com métricas, estados e mudanças recentes; não substituem esses outros dados nem recuperam a VM sozinhos.",
+      "section": "6. Segurança, monitoramento e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um volume CSV aparece degradado e várias VMs apresentam lentidão de disco. Qual abordagem é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reiniciar as VMs repetidamente sem avaliar falhas do caminho de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Investigar estado do CSV, caminhos e armazenamento, correlacionando eventos e métricas das VMs.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Criar checkpoints para reduzir a latência física do volume compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mover os convidados para a rede pública e apagar seus discos pais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar vCPU a todas as VMs e desligar alertas do cluster, supondo que isso contorne falhas no caminho de disco.",
+          "correct": false
+        }
+      ],
+      "explanation": "CSV e armazenamento compartilhado são dependências das VMs do cluster. Deve-se avaliar saúde do volume, caminhos, eventos e métricas de I/O; alterações de CPU não corrigem uma falha ou gargalo de disco.",
+      "section": "5. Alta disponibilidade, replicação e recuperação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que a política de administração deve limitar quem acessa o console do host?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A senha do sistema convidado restringe automaticamente todos os administradores do host.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O console do host serve apenas para exibir informações públicas sem permitir alterações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A conta de console controla exclusivamente o DNS público da organização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O acesso ao host é necessário para todo usuário final operar seu aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Credenciais administrativas do host têm alcance sobre as VMs e seus recursos virtuais.",
+          "correct": true
+        }
+      ],
+      "explanation": "O host controla execução, discos, redes e configurações de VMs. Acesso administrativo pode permitir ações de alto impacto; deve ser concedido apenas a operadores autorizados e protegido por controles adequados.",
+      "section": "6. Segurança, monitoramento e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VM não migra porque o switch virtual necessário não existe no destino. Qual interpretação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Toda VM migra sem rede, e o switch do host de origem é copiado como disco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Switches são usados apenas para armazenamento e não afetam adaptadores da VM.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O cluster cria automaticamente qualquer VLAN e rede que a VM use.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O problema se resolve aumentando memória do convidado e removendo seus logs.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A migração depende de redes e switches compatíveis nos hosts participantes.",
+          "correct": true
+        }
+      ],
+      "explanation": "A VM usa um adaptador associado a um switch virtual, que precisa estar disponível e coerente no destino. A ausência ou configuração incompatível pode bloquear a movimentação ou deixar a rede do convidado indisponível.",
+      "section": "4. Migração e manutenção planejada",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual princípio deve orientar a concessão de permissões sobre arquivos de configuração e discos virtuais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardar credenciais dentro dos discos diferenciais e permitir acesso público.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Dar controle total a todos os usuários para evitar falhas de permissão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover permissões do serviço Hyper-V para que os discos fiquem protegidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Compartilhar arquivos de VM sem autenticação porque estão em formato virtual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conceder acesso necessário apenas a contas e serviços que executam tarefas autorizadas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Arquivos de VM contêm configuração e dados que precisam de proteção, mas serviços autorizados também precisam acessá-los. Permissões devem ser restritas ao necessário, sem conceder acesso amplo nem quebrar a operação do hipervisor.",
+      "section": "6. Segurança, monitoramento e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma migração ao vivo bem-sucedida comprova que a aplicação continua acessível a seus usuários, sem necessidade de validação adicional.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim, porque o hipervisor confirma automaticamente todas as funções de negócio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Não; deve-se validar rede, serviços e saúde da aplicação após a movimentação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Sim, desde que a VM tenha pelo menos um checkpoint ativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não; a única forma de validar é desligar todos os nós do cluster.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim, mas somente se a réplica assíncrona estiver desligada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O hipervisor conclui a movimentação da VM, mas a disponibilidade de aplicação depende de rede, sistema convidado e serviços. A equipe deve validar a carga ponta a ponta antes de encerrar a manutenção.",
+      "section": "4. Migração e manutenção planejada",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa quer reduzir o risco de indisponibilidade durante falha de hardware de um nó. Qual conjunto de recursos se alinha melhor a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mudar o nome das VMs e deixar o failover como responsabilidade do convidado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Checkpoints locais sem cluster e sem cópia de segurança dos discos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mais memória dinâmica no nó, sem configurar papéis ou armazenamento compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma console remota conectada ao host que falhou, sem nó de destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cluster com papéis monitorados, armazenamento acessível, capacidade restante e testes de failover.",
+          "correct": true
+        }
+      ],
+      "explanation": "Alta disponibilidade requer papéis configurados, nós elegíveis, armazenamento e rede saudáveis, capacidade para receber a carga e procedimentos testados. Nenhuma opção isolada garante recuperação diante de falha física.",
+      "section": "5. Alta disponibilidade, replicação e recuperação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ação ajuda a distinguir um pico transitório de uma tendência de esgotamento de capacidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar métricas históricas com a linha de base e registrar mudanças no período para avaliar duração e direção do consumo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Observar apenas o valor instantâneo e apagar os alertas anteriores, presumindo que uma leitura isolada dispensa investigação de eventos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reiniciar o host e presumir que a capacidade permaneceu adequada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar todos os limites sem identificar qual recurso está pressionado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar somente o estado ligado ou desligado das VMs como indicador de tendência, dispensando métricas de consumo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Séries históricas e linha de base mostram duração, recorrência e direção do consumo. Registrar mudanças permite relacionar crescimento a novas cargas ou alterações, em vez de reagir apenas a um valor isolado.",
+      "section": "6. Segurança, monitoramento e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe define o failback de uma réplica após recuperar o site primário. O que deve fazer antes de considerar o serviço normalizado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar checkpoint local e ignorar o ponto de recuperação da réplica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apagar a réplica imediatamente, sem avaliar quais alterações foram feitas durante o failover.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reiniciar o primário e presumir que todos os dados foram reconciliados automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar backup e monitoramento até a próxima falha do site.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Seguir procedimento testado, sincronizar o estado necessário e validar aplicação e rede após o retorno.",
+          "correct": true
+        }
+      ],
+      "explanation": "Failback precisa de procedimento que preserve o estado atualizado e evite divergência entre os lados. A equipe deve sincronizar conforme a tecnologia e confirmar conectividade e funcionamento da aplicação, além de testar a sequência previamente.",
+      "section": "5. Alta disponibilidade, replicação e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um painel conectado a um cluster, onde o administrador deve procurar eventos de todos os nós e identificar o servidor que os originou?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Na tela de configuração de memória, sem consultar canais de eventos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente na console do convidado, pois eventos de host não são centralizados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Na lista de checkpoints, que registra automaticamente todos os eventos do cluster.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "No arquivo de disco VHDX, que contém os logs de todos os hosts.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Na visualização de eventos do Hyper-V, usando a identificação do host na coluna de máquina.",
+          "correct": true
+        }
+      ],
+      "explanation": "O Windows Admin Center pode exibir eventos dos nós em uma conexão de cluster e identifica o servidor de origem na coluna Machine. Isso ajuda a correlacionar sintomas com um nó específico.",
+      "section": "6. Segurança, monitoramento e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "REAL",
+      "board": "Microsoft Learn",
+      "agency": "Microsoft",
+      "year": 2026,
+      "sourceUrl": "https://learn.microsoft.com/en-us/windows-server/manage/windows-admin-center/use/manage-virtual-machines"
+    },
+    {
+      "statement": "Qual decisão demonstra uso correto de checkpoints em uma rotina de mudança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar checkpoints automáticos para substituir o monitoramento de backup.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter todos indefinidamente porque checkpoints não consomem armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar os discos pais quando o checkpoint já tiver sido criado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar checkpoints como único mecanismo de recuperação de desastre entre sites.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registrar finalidade e responsável, avaliar impacto em disco e remover quando deixar de ser necessário.",
+          "correct": true
+        }
+      ],
+      "explanation": "Checkpoints têm utilidade operacional pontual, mas podem consumir espaço e aumentar a complexidade da cadeia. A gestão deve saber sua finalidade, monitorar impacto e removê-los pela ferramenta quando não forem mais necessários.",
+      "section": "3. Checkpoints, discos e proteção de dados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Hyper-V virtualization in Windows Server and Windows",
+      "publisher": "Microsoft Learn",
+      "reference": "Visão geral de Hyper-V, alta disponibilidade, CSV, migração, réplica e Dynamic Memory",
+      "url": "https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/overview",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Live Migration Overview",
+      "publisher": "Microsoft Learn",
+      "reference": "Migração ao vivo de VM em execução, manutenção e relação com Failover Clustering",
+      "url": "https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/manage/live-migration-overview",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Use live migration without Failover Clustering to move a VM",
+      "publisher": "Microsoft Learn",
+      "reference": "Requisitos e procedimento com Hyper-V Manager ou PowerShell",
+      "url": "https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/manage/use-live-migration-without-failover-clustering-to-move-a-virtual-machine",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Set up hosts for live migration without Failover Clustering",
+      "publisher": "Microsoft Learn",
+      "reference": "Autorização, CredSSP, Kerberos, delegação restrita e isolamento de rede",
+      "url": "https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/deploy/set-up-hosts-for-live-migration-without-failover-clustering",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Manage Virtual Machines with Windows Admin Center",
+      "publisher": "Microsoft Learn",
+      "reference": "Inventário, métricas, criação e configurações de VM, migração em cluster e eventos",
+      "url": "https://learn.microsoft.com/en-us/windows-server/manage/windows-admin-center/use/manage-virtual-machines",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Guidance for troubleshooting Hyper-V snapshots, checkpoints, and differencing disks (AVHDX)",
+      "publisher": "Microsoft Learn",
+      "reference": "Espaço, cadeia de discos, arquivos órfãos, permissões e diagnóstico de checkpoints",
+      "url": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/virtualization/hyper-v-snapshots-checkpoints-differencing-disks",
+      "accessedAt": "2026-11-01"
+    }
+  ]
+}

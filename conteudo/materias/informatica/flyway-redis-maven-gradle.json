@@ -1,0 +1,1912 @@
+{
+  "id": "informatica.flyway-redis-maven-gradle",
+  "subject": "Informática",
+  "title": "Flyway, Redis, Maven e Gradle",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Flyway, Redis, Maven e Gradle no desenvolvimento",
+    "Ferramentas Flyway Redis Maven Gradle",
+    "Migração de banco com Flyway e Redis",
+    "Redis e ferramentas de build Java",
+    "Gerenciador de dependências Maven e Gradle",
+    "Flyway para versionar bancos de dados",
+    "Redis como armazenamento de estruturas de dados",
+    "Maven e ciclo de vida de construção",
+    "Integração de Flyway Maven e Gradle",
+    "Flyway Redis Maven Gradle para concursos",
+    "Ferramentas de banco e construção de software"
+  ],
+  "scope": {
+    "covers": "Fundamentos práticos de Flyway (migrações versionadas e repetíveis, histórico e checksum), Redis (estruturas de dados, expiração, operações, persistência RDB e AOF), Maven (POM, coordenadas, dependências, escopos e ciclos de vida) e Gradle (scripts, projetos, fases, tarefas, plugins e configurações de dependência).",
+    "excludes": "Comandos SQL específicos de SGBD, administração avançada de Redis Cluster, sintaxe exaustiva de plugins, configuração completa de pipelines e comparação de versões específicas das ferramentas."
+  },
+  "theoryTitle": "Ferramentas de migração, dados e build",
+  "chapters": [
+    {
+      "title": "1. Flyway: migrações versionadas de banco",
+      "markdown": "### O problema que este assunto resolve\n\nA estrutura e alguns dados de referência de um banco mudam junto com o sistema. Se cada ambiente receber alterações manuais, desenvolvimento, teste e produção podem ficar incompatíveis. O Flyway registra scripts de migração no controle de versão e aplica as pendências ao banco de forma ordenada. Ele não é um backup: seu papel é documentar e executar alterações planejadas.\n\n> **Siglas e termos deste capítulo**\n> - **Migração**: script que altera estrutura ou dados de referência.\n> - **DDL**: comandos que definem estruturas, como criação ou alteração de tabela.\n> - **Checksum**: resumo calculado do conteúdo do arquivo para detectar divergência.\n> - **Schema history**: tabela de histórico criada pelo Flyway no banco.\n\n### Tipos, nomes e ordem\n\nMigrações versionadas têm nomes como `V3__adicionar_status.sql`: o prefixo `V` marca a versão, o separador é composto por dois sublinhados, e a descrição identifica a mudança. Cada versão aplicada é executada uma vez. Migrações repetíveis usam `R__` e não têm número; são reaplicadas quando seu checksum muda, sendo úteis para objetos cuja definição é mantida integralmente, como uma view. Numa execução, pendências versionadas rodam primeiro em ordem de versão e as repetíveis depois, ordenadas pela descrição.\n\nA `flyway_schema_history` mantém versão, descrição, script, checksum, horário e resultado, entre outros dados. `migrate` aplica pendências; `info` mostra situação; `validate` confere arquivos contra o histórico. Uma migração versionada aplicada deve permanecer imutável: uma correção posterior recebe novo arquivo e nova versão.\n\n| Situação | Ação adequada | O que não significa |\n| --- | --- | --- |\n| Versão pendente | `migrate` executa a mudança | Não repete todas as antigas |\n| Divergência em arquivo aplicado | Investigar e corrigir com nova migração | `repair` não executa SQL corretivo |\n| Banco preexistente sem histórico | Baseline pode registrar um marco | Não recria o banco nem faz backup |\n| Limpeza de esquema | `clean` remove objetos gerenciados | Não é procedimento de recuperação |\n\nO Flyway é integrado em pipelines, linha de comando e plugins de build, inclusive Maven e Gradle. A equipe deve testar as mesmas migrações em ambientes sucessivos e proteger comandos destrutivos em produção.\n\n### Como cai na prova\n\n- `V` representa migração versionada e `R` repetível; repetíveis não possuem número de versão.\n- Alterar arquivo versionado já executado pode causar divergência de checksum; a solução normal é criar outra versão.\n- `migrate` aplica, `info` informa, `validate` compara e `clean` remove objetos."
+    },
+    {
+      "title": "2. Redis: estruturas de dados, expiração e persistência",
+      "markdown": "### O problema que este assunto resolve\n\nRedis é um armazenamento de dados em memória com comandos voltados a estruturas nativas. É usado, por exemplo, para cache, contadores, filas e processamento de eventos. A aplicação escolhe o tipo da estrutura e opera por chaves; isso não transforma Redis automaticamente em banco relacional nem garante que os dados sobrevivam a toda falha.\n\n> **Siglas e termos deste capítulo**\n> - **Chave**: identificador associado a um valor Redis.\n> - **TTL**: tempo de vida restante de uma chave com expiração.\n> - **RDB**: formato de snapshots pontuais do conjunto de dados.\n> - **AOF**: registro append-only de comandos que modificam o conjunto.\n\n### Estruturas adequadas ao uso\n\n| Tipo | Propriedade concreta | Uso típico |\n| --- | --- | --- |\n| String | Sequência de bytes; também pode representar contador | Token, valor de cache ou contador |\n| Hash | Campos e valores agrupados sob uma chave | Atributos de uma entidade |\n| List | Sequência ordenada pela inserção | Fila simples ou histórico sequencial |\n| Set | Membros únicos sem ordem | Associação e teste de pertencimento |\n| Sorted set | Membros únicos ordenados por pontuação | Ranking e prioridade |\n| Stream | Entradas de eventos com campos, em sequência | Log de eventos e grupos consumidores |\n\nUma chave pode receber expiração; após o prazo, deixa de estar disponível. Cache com TTL limita a permanência de cópias, mas não substitui a decisão sobre a fonte oficial dos dados. Comandos de atualização de uma estrutura Redis são atômicos no servidor, o que ajuda em operações como incrementar um contador sem leitura-modificação-escrita separada. Operações multi-comando exigem cuidado próprio.\n\n### RDB e AOF\n\nRDB salva snapshots pontuais. É compacto e útil para cópias e reinicialização, mas uma falha entre snapshots pode perder alterações recentes. AOF registra comandos de escrita para reconstruir o estado durante a inicialização; a frequência de sincronização em disco altera o compromisso entre durabilidade e custo. Redis também permite combinar os mecanismos ou desabilitar persistência quando o uso é deliberadamente volátil, como certos caches. Réplicas e persistência não eliminam a necessidade de estratégia de backup e recuperação.\n\n### Como cai na prova\n\n- Set não guarda duplicatas; sorted set associa pontuação e mantém ordenação; lista conserva ordem de inserção.\n- RDB é fotografia periódica; AOF registra operações de escrita para reaplicação.\n- TTL expira a chave; não é sinônimo de política de backup nem de exclusão imediata por uma aplicação externa."
+    },
+    {
+      "title": "3. Maven: POM, dependências e ciclos de vida",
+      "markdown": "### O problema que este assunto resolve\n\nMaven padroniza a construção de projetos e o gerenciamento de bibliotecas. A unidade de configuração é o POM (`pom.xml`), um documento XML que descreve o projeto, dependências, plugins, perfis e regras de build. O Maven combina as declarações do projeto com valores herdados do Super POM.\n\n> **Siglas e termos deste capítulo**\n> - **POM**: Project Object Model, modelo e configuração do projeto.\n> - **GAV**: coordenadas `groupId`, `artifactId` e `version`.\n> - **Repositório local**: cache/área local de artefatos Maven.\n> - **Goal**: unidade de trabalho fornecida por um plugin.\n\n### Identificação e dependências\n\nAs coordenadas GAV identificam um artefato: grupo ou organização, nome do artefato e versão. O tipo de empacotamento padrão é `jar` quando não se informa outro. Dependências também usam coordenadas e são resolvidas de repositórios configurados. A declaração de dependência inclui escopo, que afeta em quais classpaths e fases ela é disponibilizada.\n\n| Escopo | Uso típico |\n| --- | --- |\n| `compile` | Disponível na compilação e normalmente no runtime; é o padrão |\n| `provided` | Necessária para compilar, mas fornecida pelo ambiente de execução |\n| `runtime` | Necessária ao executar, mas não à compilação do código principal |\n| `test` | Restrita à compilação e execução de testes |\n\nDependências transitivas vêm de dependências declaradas por outras bibliotecas. O POM pode centralizar propriedades e versões; `dependencyManagement` gerencia versões padrão, mas não adiciona sozinho a dependência ao projeto. Plugins fornecem goals e podem associar goals a fases.\n\n### Ciclos de vida\n\nHá três ciclos predefinidos: `default` para construir e distribuir, `clean` para limpar saídas anteriores e `site` para gerar documentação do projeto. No ciclo `default`, fases como `validate`, `compile`, `test`, `package`, `verify`, `install` e `deploy` ocorrem em sequência. Solicitar uma fase executa também as anteriores daquele ciclo. `install` publica o artefato no repositório local; `deploy` o transfere ao repositório remoto de distribuição. Um goal de plugin pode ser chamado diretamente ou vinculado a uma fase.\n\n### Como cai na prova\n\n- `pom.xml` descreve o projeto; GAV identifica artefato; `test` precede `package` no ciclo default.\n- `install` é local, enquanto `deploy` envia para repositório remoto.\n- `dependencyManagement` centraliza regras de versão, sem incluir automaticamente cada dependência."
+    },
+    {
+      "title": "4. Gradle: projetos, tarefas e dependências",
+      "markdown": "### O problema que este assunto resolve\n\nGradle é uma ferramenta de automação de build baseada em projetos, scripts de configuração, plugins e tarefas. Os scripts podem usar DSL Groovy (`build.gradle`) ou Kotlin (`build.gradle.kts`). O arquivo de configurações define a estrutura de projetos incluídos, enquanto os arquivos de build configuram cada projeto.\n\n> **Siglas e termos deste capítulo**\n> - **DSL**: linguagem específica de domínio usada para configurar o build.\n> - **Task**: unidade de trabalho que pode declarar entradas, saídas e dependências.\n> - **DAG**: grafo acíclico dirigido que expressa dependências e ordem entre tarefas.\n> - **Configuration**: categoria que determina como uma dependência participa do build.\n\n### Fases e tarefas\n\nO ciclo do Gradle tem inicialização, configuração e execução. Na inicialização são identificados os projetos e builds participantes, normalmente a partir de `settings.gradle(.kts)`. Na configuração são avaliados os scripts e construído o grafo de tarefas. Na execução são realizadas as tarefas selecionadas e seus pré-requisitos. Uma tarefa declarada como dependente de outra será ordenada depois dela; tarefas independentes podem ser executadas em paralelo quando as condições permitem.\n\nPlugins acrescentam convenções, tarefas e configurações. O plugin Java, por exemplo, fornece tarefas e configurações usuais de compilação e teste. `dependencies {}` declara bibliotecas e módulos. Com o plugin `java-library`, `api` representa dependência exposta aos consumidores da biblioteca; `implementation` é necessária à implementação e não expõe sua API transitiva da mesma maneira; `compileOnly` é necessária apenas para compilação; `runtimeOnly` apenas em runtime; `testImplementation` atende ao código de teste. As configurações disponíveis dependem dos plugins aplicados.\n\nA resolução de dependências baixa e seleciona artefatos conforme as declarações, repositórios e regras de resolução. A tarefa `dependencies` ajuda a inspecionar a árvore de dependências. O wrapper do Gradle permite que o projeto invoque uma distribuição determinada por arquivos versionados do próprio projeto.\n\n### Como cai na prova\n\n- Ordem correta: inicialização identifica projetos; configuração monta o grafo; execução roda tarefas.\n- `api` pode expor dependências ao consumidor; `implementation` declara dependência de implementação.\n- Plugins introduzem convenções e tarefas; tarefas formam grafo por relações declaradas, não por ordem textual arbitrária."
+    }
+  ],
+  "summary": "Flyway controla alterações de banco por migrações. Arquivos V<versão>__descrição são executados uma vez em ordem; R__descrição é repetível quando seu checksum muda. A flyway_schema_history guarda o histórico; migrate aplica, info informa, validate compara. Redis oferece estruturas como strings, hashes, listas, sets, sorted sets e streams; TTL expira chaves. RDB armazena snapshots, enquanto AOF registra escritas para reconstrução. Maven usa pom.xml, coordenadas groupId:artifactId:version, escopos de dependência e ciclos default, clean e site. No ciclo default, install publica no repositório local e deploy envia ao remoto. Gradle usa scripts Groovy ou Kotlin, projetos, plugins e tarefas; seu ciclo passa por inicialização, configuração e execução. Configurações como api, implementation, compileOnly, runtimeOnly e testImplementation distinguem como dependências entram nos classpaths.",
+  "flashcards": [
+    {
+      "front": "Que padrão identifica uma migração versionada SQL do Flyway?",
+      "back": "V<versão>__<descrição>.sql, com dois sublinhados entre versão e descrição."
+    },
+    {
+      "front": "Quando uma repetível do Flyway é aplicada novamente?",
+      "back": "Quando o checksum de seu conteúdo muda; ela roda depois das versionadas pendentes."
+    },
+    {
+      "front": "O que registra flyway_schema_history?",
+      "back": "Migrações aplicadas, versões, scripts, checksums, tempos e resultados."
+    },
+    {
+      "front": "Qual comando do Flyway aplica migrações pendentes?",
+      "back": "migrate."
+    },
+    {
+      "front": "Qual comando apresenta estado das migrações?",
+      "back": "info."
+    },
+    {
+      "front": "Para que serve validate no Flyway?",
+      "back": "Compara migrações disponíveis com registros e checksums do histórico."
+    },
+    {
+      "front": "Por que não editar migração versionada já aplicada?",
+      "back": "A alteração diverge do checksum registrado e os bancos já migrados não executariam a nova versão do arquivo."
+    },
+    {
+      "front": "Que estrutura Redis guarda campos e valores?",
+      "back": "Hash."
+    },
+    {
+      "front": "Qual diferença central entre set e sorted set?",
+      "back": "Set reúne membros únicos sem ordem; sorted set associa pontuações e ordena membros."
+    },
+    {
+      "front": "Que tipo Redis representa log de eventos append-only?",
+      "back": "Stream."
+    },
+    {
+      "front": "O que faz TTL em uma chave Redis?",
+      "back": "Define sua expiração após determinado tempo de vida."
+    },
+    {
+      "front": "O que persiste RDB?",
+      "back": "Snapshots pontuais do conjunto de dados."
+    },
+    {
+      "front": "O que persiste AOF?",
+      "back": "Comandos de escrita que podem ser reaplicados para reconstruir o estado."
+    },
+    {
+      "front": "Qual arquivo é a configuração central do Maven?",
+      "back": "pom.xml."
+    },
+    {
+      "front": "Quais campos formam GAV?",
+      "back": "groupId, artifactId e version."
+    },
+    {
+      "front": "Qual o escopo Maven padrão de dependência?",
+      "back": "compile."
+    },
+    {
+      "front": "O que faz Maven install?",
+      "back": "Instala o artefato no repositório local."
+    },
+    {
+      "front": "O que faz Maven deploy?",
+      "back": "Publica o artefato em repositório remoto de distribuição."
+    },
+    {
+      "front": "Quais são os três ciclos Maven?",
+      "back": "default, clean e site."
+    },
+    {
+      "front": "Quais linguagens DSL comuns há no Gradle?",
+      "back": "Groovy e Kotlin."
+    },
+    {
+      "front": "Quais são as três fases Gradle?",
+      "back": "Inicialização, configuração e execução."
+    },
+    {
+      "front": "O que representa uma task Gradle?",
+      "back": "Uma unidade de trabalho no build, que pode declarar dependências, entradas e saídas."
+    },
+    {
+      "front": "O que significa implementation no Gradle?",
+      "back": "Dependência necessária para implementar o projeto, sem expor sua API transitiva como api."
+    },
+    {
+      "front": "Qual configuration Gradle atende dependências só de execução?",
+      "back": "runtimeOnly."
+    }
+  ],
+  "tips": [
+    "Decore a diferença de função: Flyway versiona alterações, Redis armazena estruturas de dados, Maven e Gradle automatizam builds.",
+    "No Flyway, dois sublinhados separam a versão da descrição; repetível começa por R e não tem versão numérica.",
+    "Associe Redis Hash a campos, Set a unicidade e Sorted set a unicidade mais pontuação ordenadora.",
+    "RDB é snapshot; AOF é sequência de escritas reaplicáveis. Considere o risco de alterações posteriores ao snapshot.",
+    "Em Maven, install aponta ao repositório local e deploy ao remoto.",
+    "Em Gradle, pense primeiro no grafo de tarefas: o grafo é formado na configuração e executado depois."
+  ],
+  "traps": [
+    "Confundir Flyway validate com migrate: validar não executa as alterações pendentes.",
+    "Achar que repair corrige a estrutura de banco: ele ajusta registros do histórico, não executa SQL corretivo.",
+    "Tratar Redis como necessariamente efêmero: persistência pode usar RDB, AOF ou ambos.",
+    "Confundir expiração de chave com backup: TTL limita vida útil, mas não arquiva nem recupera dados.",
+    "Trocar install por deploy no Maven: um usa repositório local; o outro publica remotamente.",
+    "Achar que uma dependência em dependencyManagement já está incluída: sua declaração de uso continua necessária.",
+    "Confundir configuração com execução no Gradle: a configuração constrói o grafo, a execução roda as tarefas selecionadas.",
+    "Supor que api e implementation são equivalentes em biblioteca: api pode fazer a dependência integrar a API exposta ao consumidor."
+  ],
+  "activeRecall": [
+    "Explique por que uma migração Flyway aplicada é mantida imutável e como registrar uma correção posterior.",
+    "Diferencie migrate, info, validate e clean pelo efeito sobre o banco.",
+    "Compare set e sorted set Redis quanto à unicidade e à ordenação dos membros.",
+    "Explique como RDB e AOF reconstroem dados e qual risco de perda cada opção implica.",
+    "Interprete groupId, artifactId e version em uma coordenada Maven.",
+    "Diferencie compile, provided, runtime e test no Maven.",
+    "Explique o que acontece com as fases anteriores quando se solicita package no ciclo default.",
+    "Diferencie install e deploy pelo repositório de destino.",
+    "Compare api, implementation, compileOnly e runtimeOnly no Gradle.",
+    "Descreva como plugins alteram as tarefas e configurações que um build Gradle pode usar."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Migração e histórico Flyway",
+      "summary": "V é versionada e executada uma vez; R é reaplicada por mudança de checksum. O histórico registra estado e checksum, e migrações aplicadas não devem ser reescritas."
+    },
+    {
+      "key": "e2",
+      "title": "Estruturas Redis confundidas",
+      "summary": "Hash mapeia campos, list mantém sequência, set garante unicidade, sorted set ordena por score e stream registra entradas de eventos."
+    },
+    {
+      "key": "e3",
+      "title": "Persistência Redis simplificada",
+      "summary": "RDB grava fotografia pontual e AOF registra escritas para reconstrução; cache em memória não significa que a persistência esteja sempre desligada."
+    },
+    {
+      "key": "e4",
+      "title": "POM e ciclo Maven",
+      "summary": "POM descreve projeto e GAV identifica artefato; fases formam ciclos sequenciais; install usa repositório local e deploy usa remoto."
+    },
+    {
+      "key": "e5",
+      "title": "Fases e dependências Gradle",
+      "summary": "Inicialização identifica projetos, configuração constrói grafo e execução roda tarefas. Configurações como api e implementation definem exposição e uso das dependências."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No Flyway, uma migração `V4__adicionar_indice.sql` já foi aplicada em produção. Como registrar depois a criação de outro índice?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alterar o arquivo V4 e solicitar validate para aplicar só o trecho novo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar uma nova migração versionada com versão posterior e a alteração pendente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Renomear V4 como repetível para que o script inteiro seja executado novamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar a linha do histórico para que migrate repita a versão antiga.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar info para executar diretamente o comando de criação do índice.",
+          "correct": false
+        }
+      ],
+      "explanation": "Migrações versionadas aplicadas são imutáveis; a nova mudança deve entrar em outra versão. Editar V4 diverge do checksum e validate apenas verifica, enquanto info relata estado.",
+      "section": "1. Flyway: migrações versionadas de banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe mantém a definição completa de uma view em um único arquivo Flyway e deseja reaplicá-la quando seu conteúdo mudar. Qual tipo se ajusta a essa finalidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma migração baseline sem arquivo de descrição associado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma migração versionada que será executada novamente a cada migrate.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma migração repetível, cujo checksum identifica alteração no conteúdo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma migração undo que roda após qualquer mudança no arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um callback de validação, que substitui o histórico de migrações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Repetíveis são apropriadas para definições mantidas no arquivo, como views, e rodam novamente quando o checksum muda. Versionadas rodam uma vez; undo e baseline têm outra finalidade.",
+      "section": "1. Flyway: migrações versionadas de banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Flyway usa `migrate` para aplicar migrações pendentes, em vez de reaplicar toda a sequência já registrada no banco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O Flyway compara as migrações disponíveis com o histórico e aplica as pendentes; as versionadas já registradas não são executadas novamente.",
+      "section": "1. Flyway: migrações versionadas de banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um banco antigo será incorporado ao controle do Flyway sem recriar seus objetos. Qual recurso marca no histórico que ele já parte de uma versão existente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Baseline, que registra um marco inicial para as migrações futuras.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Clean, que identifica objetos existentes e os cadastra como backup.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Validate, que converte automaticamente o esquema atual em arquivos versionados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Info, que grava a versão atual como se a migração tivesse rodado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Repair, que executa os scripts antigos e os registra sem alterações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Baseline marca a versão de partida de um banco existente para que migrações posteriores sejam executadas a partir dali. Clean remove objetos, e os comandos de consulta ou reparo não substituem esse marco.",
+      "section": "1. Flyway: migrações versionadas de banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma migração Flyway repetível alterada será processada antes das migrações versionadas pendentes, pois seu checksum mudou.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Numa execução, as versionadas pendentes rodam primeiro; repetíveis alteradas vêm depois, ordenadas pela descrição.",
+      "section": "1. Flyway: migrações versionadas de banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a função principal da tabela `flyway_schema_history`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazenar cópias físicas dos dados antes de cada alteração de esquema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter o histórico de migrações, incluindo scripts e checksums registrados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituir o catálogo do banco e guardar todas as tabelas da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar consultas de aplicação e armazenar seus resultados em cache.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Controlar somente usuários e permissões da conexão JDBC utilizada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A tabela é o registro do Flyway sobre migrações, estado e checksum. Ela não é cópia de segurança, catálogo completo nem cache da aplicação.",
+      "section": "1. Flyway: migrações versionadas de banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando `validate` do Flyway aplica as migrações pendentes e altera o esquema para igualá-lo aos arquivos disponíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Validate compara os arquivos disponíveis com os registros do histórico e verifica, entre outros pontos, os checksums. Ele não executa SQL nem altera o esquema; migrate é o comando que aplica as migrações pendentes.",
+      "section": "1. Flyway: migrações versionadas de banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comportamento diferencia uma migração versionada de uma repetível no Flyway?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A versionada não tem nome de arquivo, enquanto a repetível recebe uma versão numérica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A versionada roda em cada execução e a repetível fica congelada após a primeira.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A versionada altera só dados, enquanto a repetível altera exclusivamente tabelas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A versionada é aplicada uma vez por versão; a repetível é reaplicada quando seu checksum muda.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A versionada é executada pelo banco sem registro e a repetível pelo histórico.",
+          "correct": false
+        }
+      ],
+      "explanation": "A versão identifica uma alteração executada uma vez, enquanto a repetível é detectada por descrição e checksum e reaplicada após mudança de conteúdo.",
+      "section": "1. Flyway: migrações versionadas de banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Executar `clean` em uma base gerenciada pelo Flyway pode remover objetos do esquema, razão pela qual o comando deve ser protegido em ambientes com dados reais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Clean apaga objetos nos esquemas que o Flyway gerencia e pode destruir estruturas necessárias à aplicação. Ele não cria backup nem restaura o estado anterior; por isso, sua configuração deve impedir execução acidental em ambientes de produção.",
+      "section": "1. Flyway: migrações versionadas de banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num arquivo `V2__criar_tabela.sql`, o que indicam o prefixo e o separador antes da descrição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "V indica migração versionada e dois sublinhados separam versão de descrição.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "V indica migração repetível e um sublinhado encerra a descrição do script.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "V indica arquivo de validação e dois pontos separam versão de autor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "V indica script de desfazer e dois hífens identificam o número de execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "V indica configuração de conexão e dois pontos iniciam o nome da tabela.",
+          "correct": false
+        }
+      ],
+      "explanation": "No padrão de nome do Flyway, V marca migração versionada. O número que vem em seguida identifica a versão, e o separador duplo sublinhado delimita o começo da descrição do script SQL.",
+      "section": "1. Flyway: migrações versionadas de banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma migração já aplicada tem checksum divergente. Qual procedimento preserva melhor o histórico do banco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar o histórico e reaplicar o arquivo alterado, aceitando a execução duplicada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desligar toda validação e deixar a ferramenta interpretar a mudança como nova.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Restaurar o arquivo aplicado e lançar a correção necessária em uma nova migração.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Renomear o arquivo antigo para repetível e executar clean antes do deploy.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar info até que o Flyway atualize o checksum sem aplicar qualquer comando.",
+          "correct": false
+        }
+      ],
+      "explanation": "Restaurar a migração imutável mantém correspondência com os ambientes que já a executaram. A mudança efetiva deve ganhar uma nova versão; apagar histórico ou ignorar validação encobre divergências.",
+      "section": "1. Flyway: migrações versionadas de banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para corrigir uma mudança em todos os ambientes, a equipe deve editar a migração versionada Flyway já aplicada e executar migrate novamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Editar a migração aplicada pode alterar o checksum e não executa a correção em bancos que já registraram aquela versão. O procedimento é manter o arquivo original e acrescentar uma nova migração versionada com a mudança.",
+      "section": "1. Flyway: migrações versionadas de banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Redis, um sistema precisa testar pertencimento de forma direta e evitar armazenar duas vezes o mesmo membro. Qual estrutura é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma lista, que por definição rejeita todos os elementos duplicados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um hash, que ordena automaticamente os campos pelo valor associado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um stream, que apaga eventos antigos ao detectar uma repetição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um sorted set, que exige uma pontuação para cada campo de hash.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um set, que mantém membros únicos e permite operações de pertencimento.",
+          "correct": true
+        }
+      ],
+      "explanation": "Set armazena membros únicos e permite testar pertencimento, além de operações de união, interseção e diferença. Listas permitem repetição e mantêm sequência.",
+      "section": "2. Redis: estruturas de dados, expiração e persistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação quer manter um placar com participantes únicos e consultar os maiores valores primeiro. Que tipo Redis oferece membros associados a pontuações e ordenação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Hash, pois seus campos são sempre ordenados por pontuação numérica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sorted set, pois ordena membros únicos segundo um score associado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "List, pois remove duplicatas e preserva uma ordem por score.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "String, pois toda sequência de bytes contém ranking embutido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Stream, pois cada entrada recebe automaticamente nota e posição global.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sorted sets mantêm membros únicos com score e oferecem consultas por pontuação ou posição. A ordenação não é uma propriedade equivalente de hashes ou listas.",
+      "section": "2. Redis: estruturas de dados, expiração e persistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um hash Redis ordena seus campos por uma pontuação numérica associada e, por isso, é o tipo indicado para criar um ranking.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Hash agrupa campos e valores sob uma chave, mas não mantém ordenação por score. Para membros únicos associados a pontuações e consultados em ordem, o tipo apropriado é sorted set.",
+      "section": "2. Redis: estruturas de dados, expiração e persistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual tipo Redis modela uma sequência de entradas de eventos, cada qual com campos, adequada a um log append-only?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Set, porque armazena eventos únicos sempre na ordem em que chegaram.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Hash, porque preserva a sequência temporal de todos os pares inseridos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Stream, porque registra entradas sequenciais e oferece grupos de consumidores.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Sorted set, porque atribui a cada evento um identificador de consumidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "String, porque divide automaticamente seu conteúdo em eventos nomeados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Streams são estruturas de log com entradas formadas por campos e valores, leitura ordenada e suporte a grupos consumidores.",
+      "section": "2. Redis: estruturas de dados, expiração e persistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma lista Redis mantém strings em sequência de inserção e pode representar uma fila simples, ao passo que um set representa membros únicos sem ordenação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Listas preservam uma sequência ordenada por inserção e podem ter duplicatas; sets não oferecem essa ordem e mantêm elementos únicos.",
+      "section": "2. Redis: estruturas de dados, expiração e persistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que ocorre quando se associa um TTL a uma chave Redis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A chave passa a expirar após seu tempo de vida, deixando de ser acessível.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A chave é copiada em um arquivo de backup no instante da gravação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O valor é convertido em uma lista para remover campos antigos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A chave ganha persistência garantida contra qualquer falha de servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O TTL replica a chave para todas as instâncias sem configuração adicional.",
+          "correct": false
+        }
+      ],
+      "explanation": "TTL configura o tempo até a expiração da chave. Não realiza backup, não garante durabilidade e não configura replicação.",
+      "section": "2. Redis: estruturas de dados, expiração e persistência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O mecanismo RDB do Redis grava snapshots pontuais; uma falha ocorrida depois do último snapshot pode deixar de fora escritas mais recentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. RDB representa o conjunto de dados em momentos específicos, e alterações posteriores ainda não capturadas podem ser perdidas se houver encerramento inesperado.",
+      "section": "2. Redis: estruturas de dados, expiração e persistência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como a persistência AOF contribui para reconstruir o conjunto de dados Redis após reinício?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazena somente índices ordenados e descarta os comandos de escrita recebidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cria uma tabela relacional e importa suas linhas como chaves Redis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guarda uma única fotografia periódica e não reaplica operações anteriores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Registra operações de escrita que podem ser reaplicadas na inicialização.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Mantém chaves expiradas indefinidamente até um backup ser restaurado.",
+          "correct": false
+        }
+      ],
+      "explanation": "AOF registra comandos que modificam os dados e o Redis pode reaplicá-los durante a inicialização para reconstruir o estado. RDB é o método baseado em snapshots.",
+      "section": "2. Redis: estruturas de dados, expiração e persistência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Redis precisa desativar toda persistência porque seus dados são mantidos em memória, mesmo quando a aplicação exige recuperação após reinício.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Redis pode persistir dados com RDB, AOF ou a combinação dos dois. A escolha depende do equilíbrio desejado entre durabilidade, desempenho e perda tolerável.",
+      "section": "2. Redis: estruturas de dados, expiração e persistência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ranking necessita de participantes únicos, pontuações numéricas e consultas por faixa de score. Qual estrutura Redis atende diretamente a esses requisitos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma lista, cujo índice é sempre uma pontuação numérica e sem duplicatas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um sorted set, que associa score a membro único e permite consultas ordenadas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um hash, que garante ordenação por score sem qualquer consulta adicional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um stream, que remove membros repetidos antes de compor o ranking.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um set, que mantém os elementos ordenados pelo valor numérico associado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sorted set combina unicidade dos membros com score e operações de intervalo ou posição. Set não mantém pontuação e list não garante essa ordenação.",
+      "section": "2. Redis: estruturas de dados, expiração e persistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para reduzir perda recente após falhas, uma equipe avalia o AOF e sua política de sincronização em disco. Qual afirmação descreve corretamente o compromisso envolvido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sincronizar em toda escrita reduz a durabilidade e diminui o número de gravações físicas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A frequência de fsync não afeta durabilidade nem o custo operacional do AOF.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "AOF dispensa registros de escrita quando se escolhe sincronização mais frequente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A sincronização sempre ocorre apenas na parada ordenada do processo Redis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sincronização mais frequente tende a reforçar durabilidade, com possível custo de desempenho.",
+          "correct": true
+        }
+      ],
+      "explanation": "A política de fsync controla quando os registros são sincronizados em disco. Maior frequência reduz a janela potencial de perda, mas pode aumentar custo; o comportamento concreto depende da política configurada.",
+      "section": "2. Redis: estruturas de dados, expiração e persistência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chave com expiração configurada no Redis funciona como cópia de segurança que pode ser restaurada depois que o prazo vencer.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. TTL determina expiração, não cria cópia recuperável. Backup e persistência são mecanismos separados e devem ser planejados conforme as necessidades dos dados.",
+      "section": "2. Redis: estruturas de dados, expiração e persistência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um POM mínimo do Maven, quais elementos identificam coordenadas básicas de um artefato?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "plugin, goal e phase, que indicam autor, produto e versão de publicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "source, target e test, que identificam o grupo e o número de artefato.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "groupId, artifactId e version, que compõem a identificação GAV.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "repository, profile e packaging, que substituem o nome da versão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "compile, install e deploy, que formam a coordenada única do projeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "GAV é composto por groupId, artifactId e version. Plugins e fases descrevem execução do build, não as coordenadas básicas do artefato.",
+      "section": "3. Maven: POM, dependências e ciclos de vida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual arquivo guarda informações e configurações centrais de um projeto Maven?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "settings.gradle, que define plugins e tarefas do projeto Maven.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "pom.xml, que descreve dependências e configuração do projeto.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "flyway_schema_history, que lista todos os artefatos instalados localmente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "gradle.properties, que define o ciclo default para o Maven.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "maven-wrapper.jar, que substitui todas as declarações POM do projeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "O POM é a unidade fundamental de configuração Maven e normalmente é salvo como pom.xml. Os demais nomes pertencem a Gradle ou Flyway.",
+      "section": "3. Maven: POM, dependências e ciclos de vida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual escopo Maven é normalmente usado quando a dependência é necessária tanto para compilar quanto para executar o código principal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "test, pois disponibiliza a biblioteca em todos os ambientes de execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "provided, pois o Maven sempre empacota a dependência no artefato final.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "runtime, pois a biblioteca também é necessária durante a compilação principal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "compile, que é o escopo padrão e participa de compilação e runtime.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "system, pois substitui qualquer dependência disponível em repositório.",
+          "correct": false
+        }
+      ],
+      "explanation": "Compile é o escopo padrão e está disponível na compilação e normalmente no runtime. Test é restrito a testes; provided espera fornecimento pelo ambiente.",
+      "section": "3. Maven: POM, dependências e ciclos de vida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Maven, o escopo `test` disponibiliza a dependência no classpath normal da aplicação em produção, mesmo que ela seja usada só pelos testes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O escopo test limita a dependência ao classpath de compilação e execução dos testes. Ela não se torna dependência normal da aplicação em produção; compile ou outro escopo adequado deve expressar esse uso.",
+      "section": "3. Maven: POM, dependências e ciclos de vida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual resultado distingue `install` de `deploy` no ciclo de vida Maven?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Install roda os testes; deploy compila as fontes pela primeira vez.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Install remove o artefato local; deploy o publica no diretório target.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Install instala no repositório local; deploy envia ao repositório remoto.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Install gera documentação; deploy limpa os resultados de compilações antigas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Install publica em qualquer repositório remoto; deploy só altera o POM.",
+          "correct": false
+        }
+      ],
+      "explanation": "Install coloca o artefato no repositório local para outros projetos locais. Deploy transfere o artefato ao repositório remoto compartilhado.",
+      "section": "3. Maven: POM, dependências e ciclos de vida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quais ciclos de vida predefinidos o Maven oferece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "compile, test e package, que são os únicos ciclos existentes no Maven.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "initialize, configure e execute, que formam fases do Gradle.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "install, deploy e verify, que são repositórios de plugins Maven.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "validate, dependency e assembly, que são os três arquivos do POM.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "default, clean e site, com propósitos distintos de construção, limpeza e documentação.",
+          "correct": true
+        }
+      ],
+      "explanation": "Maven possui os ciclos default, clean e site. Compile, test e package são fases do ciclo default, não nomes dos três ciclos.",
+      "section": "3. Maven: POM, dependências e ciclos de vida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao solicitar a fase `package` no ciclo default Maven, o processo percorre fases anteriores daquele ciclo antes de empacotar o artefato.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As fases de um ciclo são sequenciais. Alcançar package percorre fases anteriores, como validate, compile e test, de acordo com as associações de goals aplicáveis.",
+      "section": "3. Maven: POM, dependências e ciclos de vida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação web será executada em servidor que já fornece determinada biblioteca. Qual escopo Maven expressa que ela é necessária à compilação, mas fornecida pelo ambiente de execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "test, pois o servidor disponibilizará a biblioteca apenas durante testes locais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "runtime, pois a biblioteca nunca precisa estar no classpath de compilação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "compile, pois o artefato deve incluir sempre todas as bibliotecas do servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "provided, pois a plataforma de execução é responsável por fornecê-la.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "import, pois esse escopo instala a biblioteca no servidor automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Provided declara dependência necessária para compilação que se espera que o ambiente forneça em runtime. Não significa que Maven instale a biblioteca no servidor.",
+      "section": "3. Maven: POM, dependências e ciclos de vida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O elemento `dependencyManagement` do POM, por si só, inclui cada biblioteca listada no classpath do projeto sem que ela seja declarada como dependência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. DependencyManagement centraliza metadados, como versões e escopos padrão, para dependências que o projeto venha a declarar. Uma entrada nesse bloco não faz o Maven baixar a biblioteca nem acrescentá-la ao classpath se ela não for usada em uma declaração de dependência.",
+      "section": "3. Maven: POM, dependências e ciclos de vida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um time quer publicar um artefato para consumo por outros desenvolvedores em um repositório compartilhado. Que fase Maven corresponde a essa publicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "compile, que transfere o artefato final ao repositório remoto configurado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "package, que instala o arquivo no repositório local de cada máquina.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "verify, que realiza a publicação remota após os testes de integração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "clean, que envia a versão empacotada para os consumidores cadastrados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "deploy, que transfere o artefato final para um repositório remoto.",
+          "correct": true
+        }
+      ],
+      "explanation": "Deploy é a fase de distribuição do ciclo default que publica o artefato em repositório remoto para compartilhamento. Install ocorre antes e o deposita apenas no repositório local do ambiente de build.",
+      "section": "3. Maven: POM, dependências e ciclos de vida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No ciclo Maven default, `test` normalmente antecede `package`, enquanto `install` ocorre depois de empacotamento e verificação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As fases seguem uma sequência: teste antecede o empacotamento e install acontece depois de verify, antes de deploy.",
+      "section": "3. Maven: POM, dependências e ciclos de vida",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Gradle, em que fase os scripts dos projetos são avaliados e o grafo das tarefas é construído?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Na fase de execução, antes de identificar quais projetos participam do build.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Na fase de instalação, após publicação no repositório Maven remoto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Na fase de compilação, que substitui a leitura de settings.gradle.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Na fase de limpeza, quando o Gradle decide quais scripts serão ignorados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Na fase de configuração, depois da identificação inicial dos projetos.",
+          "correct": true
+        }
+      ],
+      "explanation": "A inicialização identifica os projetos participantes. Depois, na configuração, os scripts são avaliados e o grafo de tarefas é montado; a execução realiza as tarefas selecionadas.",
+      "section": "4. Gradle: projetos, tarefas e dependências",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência apresenta corretamente as fases de um build Gradle?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configuração, instalação e publicação, com tarefas definidas depois do build.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Compilação, empacotamento e deploy, sem fase de identificação de projetos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Inicialização, configuração e execução, nessa ordem geral.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Validação, limpeza e site, que antecedem qualquer script Gradle.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Resolução, publicação e encerramento, como fases fixas de toda tarefa.",
+          "correct": false
+        }
+      ],
+      "explanation": "A inicialização determina os projetos e builds que participam. Em seguida, a configuração avalia os scripts e monta o grafo de tarefas. Só então a execução agenda e realiza as tarefas selecionadas e seus pré-requisitos.",
+      "section": "4. Gradle: projetos, tarefas e dependências",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os arquivos de build Gradle podem usar DSL Groovy ou DSL Kotlin, conforme a forma escolhida pelo projeto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A DSL pode ser escrita em Groovy em arquivos como build.gradle ou em Kotlin em arquivos build.gradle.kts. Ambas configuram o build e expressam plugins, dependências e tarefas.",
+      "section": "4. Gradle: projetos, tarefas e dependências",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual configuration Gradle é apropriada a uma dependência necessária somente ao executar a aplicação, e não à compilação do código principal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "api, que publica toda biblioteca como interface exposta ao consumidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "compileOnly, que exige a presença da biblioteca em runtime.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "testImplementation, que inclui a dependência na aplicação em produção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "runtimeOnly, que declara uso no runtime sem necessidade de compilação principal.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "implementation, que impede a biblioteca de ser usada durante a execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "RuntimeOnly se destina a dependências necessárias ao runtime, mas não à compilação das fontes principais. TestImplementation se limita aos testes.",
+      "section": "4. Gradle: projetos, tarefas e dependências",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No plugin `java-library` do Gradle, `api` pode expor uma dependência aos consumidores da biblioteca, enquanto `implementation` expressa uso interno da implementação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Api é usada quando a dependência participa da API exposta da biblioteca; implementation representa dependência de implementação e evita exposição desnecessária.",
+      "section": "4. Gradle: projetos, tarefas e dependências",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um build Gradle identifica projetos participantes antes de configurar scripts e só então executa as tarefas necessárias.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essa sequência corresponde às fases de inicialização, configuração e execução, embora detalhes de resolução possam depender do build e das configurações habilitadas.",
+      "section": "4. Gradle: projetos, tarefas e dependências",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma biblioteca Gradle possui um tipo usado em assinaturas públicas e outro usado apenas internamente. Como declarar essas dependências de modo a comunicar sua exposição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar runtimeOnly nos dois casos, pois a compilação ignora API e implementação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar api para a dependência exposta e implementation para a dependência interna.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar testImplementation para a API pública e compileOnly para todo uso interno.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar implementation na API pública e api na dependência sem uso por consumidores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar apenas compileClasspath, que é o bucket declarativo de toda dependência externa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com java-library, api indica dependência necessária à API consumida por projetos dependentes, enquanto implementation é apropriada ao uso interno. Classpaths de resolução não são os buckets declarativos equivalentes.",
+      "section": "4. Gradle: projetos, tarefas e dependências",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Gradle, a fase de execução ocorre antes da configuração, pois o grafo de tarefas só é construído depois que as tarefas selecionadas terminam.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A configuração constrói o grafo de tarefas antes da fase de execução; esse grafo define quais tarefas serão executadas e suas relações de ordem.",
+      "section": "4. Gradle: projetos, tarefas e dependências",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa Gradle depende de outra por uma relação declarada no build. Que efeito essa dependência produz no grafo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A tarefa pré-requisito passa a ser ordenada antes da tarefa dependente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A tarefa dependente é removida do grafo em qualquer invocação do build.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As tarefas são sempre executadas em paralelo, ignorando suas entradas e saídas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Gradle converte automaticamente as duas tarefas em um único plugin Maven.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A dependência altera a fase de inicialização e exclui os projetos incluídos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma relação de dependência determina que a tarefa pré-requisito seja concluída antes da tarefa dependente. O grafo permite paralelismo entre tarefas independentes, mas respeita as dependências declaradas.",
+      "section": "4. Gradle: projetos, tarefas e dependências",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Gradle, plugins podem adicionar tarefas, configurações e convenções ao projeto, de modo que os recursos disponíveis dependem dos plugins aplicados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Plugins encapsulam comportamento e convenções de build e criam, conforme o caso, tarefas e configurações que o projeto pode usar.",
+      "section": "4. Gradle: projetos, tarefas e dependências",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer examinar bibliotecas diretas e transitivas de um projeto Gradle antes de investigar conflito de versões. Que recurso pode apresentar a árvore de dependências?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A tarefa `dependencies`, que lista dependências agrupadas por configuração.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A fase `deploy`, que imprime somente as versões do plugin Java.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O arquivo `flyway_schema_history`, que mantém o classpath de runtime.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A configuração `testImplementation`, que resolve todas as bibliotecas sem saída.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O bloco `settings`, que imprime metadados de cada artefato publicado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A tarefa dependencies permite inspecionar a árvore por configuração, útil para entender dependências diretas e transitivas. A configuração testImplementation declara dependências de teste, não exibe a árvore por si só.",
+      "section": "4. Gradle: projetos, tarefas e dependências",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao aplicar apenas o plugin `java` do Gradle, a configuração `api` é criada para expor dependências aos consumidores da biblioteca.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A configuração api é adicionada pelo plugin java-library. O plugin java cria configurações como implementation, compileOnly, runtimeOnly e testImplementation, mas não a configuração de API pública da biblioteca.",
+      "section": "4. Gradle: projetos, tarefas e dependências",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Java usa uma classe de uma biblioteca apenas no código de teste. Qual configuração Gradle costuma representar esse uso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "api, para que toda biblioteca de teste seja parte da interface pública da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "runtimeOnly, para que o compilador de testes não veja a biblioteca.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "testImplementation, destinada a dependências do conjunto de testes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "compileOnly, que disponibiliza a dependência apenas no runtime dos testes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "implementation, que remove a dependência do classpath de compilação de produção.",
+          "correct": false
+        }
+      ],
+      "explanation": "TestImplementation declara bibliotecas necessárias para compilar e executar testes. Outras configurações atendem compilação ou execução principal conforme o caso.",
+      "section": "4. Gradle: projetos, tarefas e dependências",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`compileOnly` no Gradle representa uma dependência exigida somente durante a execução da aplicação, sem necessidade no classpath de compilação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. CompileOnly indica dependência necessária para compilação, mas não incluída no runtime regular. RuntimeOnly expressa o caso de uso apenas durante execução.",
+      "section": "4. Gradle: projetos, tarefas e dependências",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Flyway — Migrations",
+      "publisher": "Redgate",
+      "reference": "Migrações versionadas, repetíveis, histórico e ordem de execução",
+      "url": "https://documentation.red-gate.com/flyway/flyway-concepts/migrations",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Flyway — Repeatable migrations",
+      "publisher": "Redgate",
+      "reference": "Checksum, reaplicação e ordenação de migrações repetíveis",
+      "url": "https://documentation.red-gate.com/fd/repeatable-migrations-273973335.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Redis data types",
+      "publisher": "Redis",
+      "reference": "Tipos de dados nativos e propriedades de strings, hashes, listas, sets, sorted sets e streams",
+      "url": "https://redis.io/docs/latest/develop/data-types/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Redis persistence",
+      "publisher": "Redis",
+      "reference": "Snapshots RDB, append-only file AOF e compromissos de persistência",
+      "url": "https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Introduction to the POM",
+      "publisher": "Apache Maven",
+      "reference": "Estrutura do POM, coordenadas GAV, dependências e defaults",
+      "url": "https://maven.apache.org/guides/introduction/introduction-to-the-pom.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Introduction to the Build Lifecycle",
+      "publisher": "Apache Maven",
+      "reference": "Ciclos default, clean e site e fases do ciclo de construção",
+      "url": "https://maven.apache.org/guides/introduction/introduction-to-the-lifecycle.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Build Lifecycle",
+      "publisher": "Gradle",
+      "reference": "Fases de inicialização, configuração, execução e grafo de tarefas",
+      "url": "https://docs.gradle.org/current/userguide/build_lifecycle.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Dependency Management Basics",
+      "publisher": "Gradle",
+      "reference": "Declaração de dependências e configurações api, implementation e runtime",
+      "url": "https://docs.gradle.org/current/userguide/dependency_management_basics.html",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

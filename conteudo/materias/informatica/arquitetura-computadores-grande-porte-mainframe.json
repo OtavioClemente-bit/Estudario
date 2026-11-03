@@ -1,0 +1,1796 @@
+{
+  "id": "informatica.arquitetura-computadores-grande-porte-mainframe",
+  "subject": "Informática",
+  "title": "Arquitetura de computadores de grande porte: mainframe",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Arquitetura de grande porte",
+    "Arquitetura de computadores de grande porte",
+    "Computadores de grande porte e mainframe",
+    "Arquitetura de mainframe IBM Z",
+    "Arquitetura IBM Z para mainframes",
+    "Organização de um computador mainframe",
+    "Componentes de um sistema de grande porte",
+    "Processadores e partições IBM Z",
+    "Subsistema de canais de entrada e saída",
+    "Particionamento lógico PR/SM LPAR",
+    "Arquitetura de processamento IBM Z",
+    "Mainframe, CPC e canais de comunicação"
+  ],
+  "scope": {
+    "covers": "Arquitetura de computadores mainframe, com referência concreta às plataformas IBM Z: CPC e unidades de processamento, funções dos processadores CP, SAP, IFL, zIIP e ICF, memória e cache, firmware e consoles de gerenciamento, PR/SM e LPAR, virtualização com z/VM, subsistema de canais, CHPID, FICON e acesso a dispositivos, confiabilidade e manutenção, Coupling Facility, XCF e sysplex, compartilhamento de dados e disponibilidade.",
+    "excludes": "Configuração operacional detalhada de z/OS, comandos e JCL, administração de banco de dados, programação em assembler, modelos e capacidades de equipamentos específicos e comparação comercial de fabricantes."
+  },
+  "theoryTitle": "Como se organiza um mainframe",
+  "chapters": [
+    {
+      "title": "1. Visão geral: CPC, unidades e memória",
+      "markdown": "### O problema que este assunto resolve\n\nUm mainframe atende muitas transações simultâneas, com dados compartilhados e exigência de operação contínua. Para isso, não basta acelerar um processador: a arquitetura combina unidades de processamento, memória, subsistemas de entrada e saída, caminhos redundantes e recursos de isolamento. A família IBM Z é um exemplo documentado de plataforma de grande porte.\n\n> **Siglas e termos deste capítulo**\n> - **CPC**: Central Processor Complex, conjunto central que reúne processadores, memória e funções de controle do sistema.\n> - **PU**: Processor Unit, unidade física de processamento que pode receber uma caracterização funcional.\n> - **CP**: Central Processor, processador de uso geral para o sistema operacional e as aplicações.\n> - **SAP**: System Assist Processor, processador que executa funções internas do subsistema de entrada e saída.\n> - **IFL**: Integrated Facility for Linux, processador caracterizado para cargas Linux.\n> - **zIIP**: Integrated Information Processor, mecanismo especializado que pode executar partes elegíveis de determinadas cargas sob z/OS.\n> - **ICF**: Integrated Coupling Facility, processador dedicado à execução do código da Coupling Facility.\n\n### O CPC e a caracterização das unidades\n\nNo IBM Z, um CPC pode conter várias PUs. A caracterização atribui papéis diferentes a unidades fisicamente semelhantes. A distinção é funcional: nem toda PU executa o sistema operacional e os programas comuns. Um CP executa cargas gerais; o SAP cuida de trabalho interno de E/S; o IFL é voltado a Linux; o ICF executa o código da Coupling Facility. Um zIIP atende trabalho que o sistema operacional e os produtos reconhecem como elegível. A elegibilidade depende do software e da natureza da carga; não significa que qualquer programa possa ser enviado livremente para esse processador.\n\n| Elemento | Papel arquitetural |\n| --- | --- |\n| CP | Processa instruções do sistema operacional e aplicações de propósito geral |\n| SAP | Executa funções de serviço do subsistema de E/S, como encaminhamento e tratamento de caminhos |\n| IFL | Fornece capacidade de processamento para Linux no ambiente IBM Z |\n| zIIP | Executa parcelas elegíveis de cargas reconhecidas pelo z/OS e software associado |\n| ICF | Executa Licensed Internal Code da Coupling Facility |\n| PU sobressalente | Pode substituir uma unidade com falha, conforme a configuração disponível |\n\nO CPC combina processadores e memória principal, mas a arquitetura também usa memórias cache em diferentes níveis para reduzir o tempo de acesso a dados e instruções usados com frequência. Cache não substitui memória principal: é armazenamento menor e mais próximo dos processadores. Coerência entre caches e acesso ordenado aos dados são importantes quando várias unidades trabalham em paralelo.\n\n### Console, microcódigo e operação\n\nO firmware de máquina e o Licensed Internal Code (LIC) fornecem funções abaixo do sistema operacional. A Hardware Management Console (HMC) e o Support Element (SE) permitem operadores configurar e monitorar recursos de hardware e partições. Esses componentes não são a aplicação de negócio nem substituem o sistema operacional: fazem parte do gerenciamento e controle da plataforma. A separação permite ativar partições, consultar estado e executar ações de manutenção sem tratar cada recurso como um computador físico isolado.\n\n### Como cai na prova\n\n- Uma questão pode trocar CP e SAP: CP processa as cargas gerais; SAP auxilia o subsistema de E/S.\n- IFL é associado a Linux; ICF executa a função de Coupling Facility; zIIP é para trabalho elegível, não para qualquer instrução.\n- Cache acelera acessos frequentes, mas não é sinônimo de memória principal.\n- HMC e SE gerenciam a máquina; não são processadores de aplicação."
+    },
+    {
+      "title": "2. Particionamento lógico e virtualização",
+      "markdown": "### O problema que este assunto resolve\n\nUma organização pode precisar executar ambientes diferentes no mesmo equipamento físico, preservando limites entre eles. O particionamento lógico divide recursos de um CPC em sistemas separados, cada qual com processadores, memória e dispositivos atribuídos ou compartilhados de modo controlado.\n\n> **Siglas e termos deste capítulo**\n> - **LPAR**: logical partition, partição lógica que funciona como ambiente de sistema separado.\n> - **PR/SM**: Processor Resource/Systems Manager, tecnologia de firmware IBM Z que implementa e administra partições lógicas.\n> - **Hipervisor**: camada que abstrai recursos físicos e oferece máquinas virtuais.\n> - **z/VM**: sistema IBM que pode atuar como hipervisor e executar máquinas virtuais em uma LPAR.\n> - **HMC**: console de gerenciamento de hardware para configurar e supervisionar a plataforma.\n> - **IPL**: Initial Program Load, processo de carregamento inicial de um sistema operacional.\n\n### LPAR não é apenas uma máquina virtual de aplicação\n\nPR/SM permite definir uma ou mais LPARs no CPC. Cada partição pode receber uma configuração própria de processadores, memória e canais de E/S. O z/OS pode executar diretamente em uma LPAR; Linux também pode executar diretamente numa LPAR ou como convidado de z/VM. Assim, LPAR e máquina virtual de z/VM são níveis diferentes de organização: a primeira é criada pelo particionamento de firmware, e a segunda é oferecida pelo hipervisor em execução.\n\nUma LPAR pode ter recursos dedicados ou compartilhados conforme a configuração autorizada. Em processadores compartilhados, o firmware administra a distribuição de capacidade entre partições; isso não significa que as partições passem a compartilhar o mesmo sistema operacional ou o mesmo espaço de memória de forma irrestrita. A arquitetura mantém isolamento e controla quais recursos e caminhos cada partição pode usar.\n\n| Nível | Exemplo | Responsabilidade principal |\n| --- | --- | --- |\n| Hardware do CPC | Processadores, memória e canais físicos | Fornecer os recursos físicos |\n| PR/SM | Definição e execução de LPARs | Distribuir e isolar recursos entre partições |\n| Sistema operacional da LPAR | z/OS ou Linux | Gerenciar processos, memória e dispositivos da partição |\n| Hipervisor convidado | z/VM dentro de uma LPAR | Criar máquinas virtuais adicionais |\n| Aplicação | Sistema transacional ou serviço | Implementar a função de negócio |\n\n### Exemplo de configuração\n\nUm CPC pode hospedar uma LPAR com z/OS para transações, uma LPAR com Linux para serviços distribuídos e outra LPAR que executa o código da Coupling Facility. Cada uma recebe recursos e conectividade adequados à sua finalidade. Um operador usa HMC ou SE para ativar a configuração; o sistema operacional é então iniciado na partição apropriada. A LPAR de Coupling Facility é um caso especial: executa o código de controle da CF, e não recebe um IPL convencional de z/OS.\n\n### Como cai na prova\n\n- PR/SM particiona recursos físicos em LPARs; z/VM pode virtualizar para convidados dentro de uma LPAR.\n- Um sistema operacional executado diretamente numa LPAR não precisa estar sob z/VM.\n- Isolamento lógico não elimina a necessidade de planejar memória, processadores e canais para cada partição.\n- A CF pode ser uma LPAR especializada com código de controle próprio, sem IPL de sistema operacional convencional."
+    },
+    {
+      "title": "3. Entrada e saída: subsistema de canais",
+      "markdown": "### O problema que este assunto resolve\n\nEm sistemas transacionais, processadores não devem ficar ocupados controlando cada detalhe de cada transferência com discos, fitas e redes. A arquitetura de E/S organiza caminhos entre a partição, o CPC e os dispositivos, permitindo que o trabalho de transferência avance com suporte especializado.\n\n> **Siglas e termos deste capítulo**\n> - **E/S**: entrada e saída de dados entre processador/memória e dispositivos.\n> - **CHPID**: identificador de caminho de canal usado na configuração de E/S.\n> - **FICON**: interface de canal de fibra usada para conectar dispositivos de E/S em IBM Z.\n> - **Controladora**: componente que gerencia um ou mais dispositivos e se comunica pelo canal.\n> - **DASD**: Direct Access Storage Device, armazenamento de acesso direto usado em ambientes mainframe.\n> - **IOCDS**: conjunto de dados de configuração de E/S utilizado para descrever a configuração de canais e dispositivos.\n\n### Do pedido de E/S ao dispositivo\n\nO sistema operacional solicita uma operação de E/S. A configuração associa dispositivos a controladoras e caminhos de canal; o subsistema encaminha a operação por um caminho disponível. No IBM Z, identificadores como CHPID descrevem caminhos na configuração. Os SAPs executam funções internas de assistência de E/S. Os canais e controladoras transferem dados sem exigir que a CPU de uso geral acompanhe cada etapa de baixo nível.\n\nUm dispositivo pode ter mais de um caminho configurado, conforme hardware, configuração e política operacional. Caminhos alternativos aumentam flexibilidade e podem apoiar disponibilidade; não se deve supor que todos os caminhos são automaticamente intercambiáveis ou que qualquer dispositivo está acessível a todas as partições. A configuração determina conectividade, compartilhamento e associação.\n\nFICON é uma tecnologia de canal de fibra para conexão de armazenamento e outros recursos de E/S. O meio físico pode ser fibra, mas a abstração vista pelo sistema continua sendo uma conexão de canal definida e administrada. O subsistema de canais de IBM Z executa funções de direcionamento e controle de E/S. A arquitetura separa a execução de instruções da aplicação da movimentação detalhada de dados entre memória e dispositivos.\n\n### Redundância e diagnóstico\n\nPara reduzir interrupções, projetos de grande porte combinam caminhos alternativos, controladoras e dispositivos redundantes quando o serviço exige. A existência de redundância precisa ser acompanhada por configuração correta e monitoração: um caminho reserva que não esteja definido ou testado não garante recuperação. O software pode detectar falhas, selecionar recursos disponíveis ou emitir mensagens para operação, conforme o tipo de dispositivo e a configuração.\n\n### Como cai na prova\n\n- Canal e SAP auxiliam a E/S; não confundir com o processador CP que executa as aplicações gerais.\n- CHPID identifica caminho de canal na configuração; não é número de série de disco nem endereço IP.\n- FICON designa uma interface de canal, não o próprio volume de armazenamento.\n- Mais de um caminho pode apoiar disponibilidade, mas acesso depende de configuração e conectividade reais."
+    },
+    {
+      "title": "4. Disponibilidade, Coupling Facility e sysplex",
+      "markdown": "### O problema que este assunto resolve\n\nUm serviço importante pode precisar continuar operando mesmo diante de falha de sistema ou de componente, e várias instâncias podem cooperar sobre dados comuns. No z/OS, sysplex reúne sistemas que cooperam; no Parallel Sysplex, a Coupling Facility fornece estruturas compartilhadas e mecanismos de coordenação de alta velocidade.\n\n> **Siglas e termos deste capítulo**\n> - **CF**: Coupling Facility, recurso de coordenação e compartilhamento de estruturas para sistemas de um sysplex.\n> - **CFCC**: Coupling Facility Control Code, código que executa as funções da CF.\n> - **XCF**: Cross-System Coupling Facility, componente z/OS que permite comunicação entre programas autorizados em sistemas do sysplex.\n> - **Sysplex**: conjunto de sistemas z/OS cooperantes, com comunicação e recursos compartilhados conforme a configuração.\n> - **Parallel Sysplex**: arquitetura de cluster IBM Z que usa CF e links de acoplamento para compartilhar dados e coordenar sistemas.\n> - **CFRM**: Coupling Facility Resource Manager, funções e políticas de gerenciamento de recursos/estruturas da CF.\n\n### Estruturas da Coupling Facility\n\nA CF é implementada como uma partição lógica especial ou recurso dedicado que executa CFCC. Ela oferece estruturas para cache, listas e bloqueios (locks), entre outras funções usadas por subsistemas e aplicações. Essas estruturas permitem que imagens z/OS coordenem trabalho e compartilhem dados com integridade. A aplicação ou produto define as estruturas necessárias; a CF não é simplesmente um disco compartilhado nem um processador comum de aplicações.\n\nOs links de acoplamento conectam LPARs/sistemas à CF. Há conexões internas, como Internal Coupling, em configurações compatíveis, e links físicos entre partições ou CPCs. A definição dos dois lados da conexão e o planejamento de conectividade importam. Um sysplex também usa conjuntos de dados de controle, como os couple data sets, compartilhados pelos sistemas para registrar configurações e políticas.\n\nXCF fornece comunicação entre programas autorizados no mesmo sistema ou em outros sistemas do sysplex. O Parallel Sysplex combina XCF, CF, links, sistemas z/OS, armazenamento compartilhado e mecanismos de tempo e gerenciamento conforme a implantação. O objetivo é permitir processamento cooperativo e compartilhamento consistente; não transforma vários sistemas operacionais numa única instância de sistema.\n\n### Confiabilidade e recuperação\n\nMainframes são projetados com recursos de detecção, isolamento e recuperação de falhas, mas disponibilidade não é sinônimo de invulnerabilidade. A configuração pode incluir processadores sobressalentes, fontes e caminhos redundantes, correção de erros e substituição de unidade com falha. A manutenção de capacidade exige procedimentos, peças, monitoração e planejamento. Em um sysplex, sistemas remanescentes podem continuar o serviço se a aplicação, os dados, os links e as políticas estiverem preparados para isso.\n\n### Como cai na prova\n\n- CF oferece estruturas de cache, listas e locks; XCF é componente de comunicação entre programas no sysplex.\n- Um sysplex é composto por sistemas z/OS cooperantes; não é um único sistema operacional distribuído automaticamente.\n- A CF executa CFCC numa partição especial e não recebe IPL convencional de z/OS.\n- Alta disponibilidade depende de desenho, redundância, software e operação, e não apenas da palavra mainframe."
+    }
+  ],
+  "summary": "A arquitetura IBM Z organiza os recursos de um mainframe em CPCs, que reúnem PUs, memória e funções de controle. PUs podem ser caracterizadas como CP para cargas gerais, SAP para assistência de E/S, IFL para Linux, zIIP para trabalho elegível e ICF para executar a Coupling Facility. PR/SM particiona o CPC em LPARs; z/VM pode criar máquinas virtuais dentro de uma LPAR. O subsistema de canais, CHPID, FICON, controladoras e dispositivos formam caminhos de entrada e saída, que podem ser redundantes quando corretamente configurados. Em sysplex, XCF permite comunicação entre programas de sistemas z/OS; Parallel Sysplex usa Coupling Facility e links para estruturas compartilhadas de cache, listas e locks, apoiando coordenação e compartilhamento consistente. Recursos de redundância e recuperação elevam disponibilidade, mas dependem de configuração, software e operação planejados.",
+  "flashcards": [
+    {
+      "front": "O que reúne um CPC?",
+      "back": "O Central Processor Complex reúne processadores, memória e funções de controle de um sistema IBM Z."
+    },
+    {
+      "front": "O que é uma PU?",
+      "back": "Uma unidade física de processamento que pode receber caracterização funcional, como CP, SAP, IFL, zIIP ou ICF."
+    },
+    {
+      "front": "Qual é o papel do CP?",
+      "back": "Executar o sistema operacional e aplicações de propósito geral."
+    },
+    {
+      "front": "Qual é o papel do SAP?",
+      "back": "Executar funções internas de assistência ao subsistema de entrada e saída."
+    },
+    {
+      "front": "Para que serve um IFL?",
+      "back": "Fornece capacidade de processamento voltada a cargas Linux na plataforma IBM Z."
+    },
+    {
+      "front": "O que caracteriza um zIIP?",
+      "back": "Processador especializado que executa parcelas elegíveis de cargas reconhecidas pelo z/OS e software associado."
+    },
+    {
+      "front": "O que executa num ICF?",
+      "back": "O código Licensed Internal Code da Coupling Facility, não aplicações comuns de usuário."
+    },
+    {
+      "front": "O que PR/SM faz?",
+      "back": "Divide recursos do CPC em partições lógicas e controla seu isolamento e distribuição."
+    },
+    {
+      "front": "O que significa LPAR?",
+      "back": "Logical partition: partição lógica que executa um ambiente de sistema separado."
+    },
+    {
+      "front": "Como z/VM se relaciona a LPAR?",
+      "back": "z/VM pode executar numa LPAR e oferecer máquinas virtuais convidadas dentro dela."
+    },
+    {
+      "front": "O que é o subsistema de canais?",
+      "back": "Conjunto arquitetural de caminhos e funções de controle que conecta partições aos dispositivos de E/S."
+    },
+    {
+      "front": "O que identifica um CHPID?",
+      "back": "Um caminho de canal descrito na configuração de entrada e saída."
+    },
+    {
+      "front": "O que é FICON?",
+      "back": "Uma interface de canal de fibra usada para conectar dispositivos de entrada e saída em IBM Z."
+    },
+    {
+      "front": "O que é a Coupling Facility?",
+      "back": "Um recurso que executa CFCC e oferece estruturas compartilhadas para coordenação de sistemas de um sysplex."
+    },
+    {
+      "front": "Cite três estruturas oferecidas pela CF.",
+      "back": "Estruturas de cache, de lista e de bloqueio (lock)."
+    },
+    {
+      "front": "Qual a função de XCF?",
+      "back": "Permitir comunicação e cooperação entre programas autorizados em sistemas do sysplex."
+    },
+    {
+      "front": "O que é um sysplex?",
+      "back": "Um conjunto de sistemas z/OS cooperantes, conectados conforme uma configuração comum."
+    },
+    {
+      "front": "O que distingue Parallel Sysplex?",
+      "back": "Usa Coupling Facility e links de acoplamento para comunicação e compartilhamento coordenado de dados."
+    },
+    {
+      "front": "CF é um disco compartilhado?",
+      "back": "Não. É uma função de processamento e memória estruturada para coordenação e compartilhamento no sysplex."
+    },
+    {
+      "front": "Por que definir caminhos de E/S redundantes?",
+      "back": "Para oferecer alternativas de conectividade quando um caminho falha, se hardware, configuração e software suportarem a recuperação."
+    }
+  ],
+  "tips": [
+    "Associe CP a processamento geral e SAP a assistência de entrada e saída.",
+    "Memorize IFL para Linux e ICF para Coupling Facility; as siglas diferem por finalidade.",
+    "Separe os níveis: CPC físico, LPAR criada por PR/SM, sistema operacional e, opcionalmente, convidados de z/VM.",
+    "Em uma questão sobre CHPID, procure o caminho de canal; em uma sobre FICON, procure a interface de canal de fibra.",
+    "Lembre que XCF comunica programas no sysplex e a CF oferece estruturas para coordenação e compartilhamento.",
+    "Disponibilidade exige caminhos e recursos redundantes configurados, monitorados e coerentes com a aplicação."
+  ],
+  "traps": [
+    "Atribuir ao SAP a execução da aplicação geral troca sua função com a do CP.",
+    "Dizer que qualquer carga pode usar zIIP ignora que a elegibilidade depende do z/OS e do software.",
+    "Tratar LPAR e máquina virtual de z/VM como sinônimos confunde níveis diferentes de virtualização.",
+    "Confundir canal com endereço IP ou CHPID com identificador de disco troca conceitos de E/S.",
+    "Dizer que Coupling Facility é um volume DASD ignora que ela executa CFCC e fornece estruturas especializadas.",
+    "Supor que redundância garante disponibilidade sem configuração e operação deixa de considerar falhas comuns e dependências."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o caminho conceitual entre um pedido de E/S e um dispositivo.",
+      "answer": "O sistema operacional solicita a operação; a configuração associa dispositivo, controladora e caminhos de canal. O subsistema encaminha a solicitação por um caminho disponível, com assistência dos SAPs e transferência pelo canal/controladora."
+    },
+    {
+      "question": "Compare CP, SAP, IFL, zIIP e ICF por finalidade.",
+      "answer": "CP executa cargas gerais; SAP auxilia E/S; IFL atende Linux; zIIP executa parcelas elegíveis de cargas reconhecidas; ICF executa o código da Coupling Facility."
+    },
+    {
+      "question": "Explique os níveis CPC, PR/SM, LPAR e z/VM.",
+      "answer": "CPC é o equipamento que provê recursos físicos; PR/SM particiona esses recursos; LPAR é um ambiente lógico separado; z/VM pode executar numa LPAR e criar máquinas virtuais convidadas."
+    },
+    {
+      "question": "Como a arquitetura mantém separadas duas LPARs no mesmo CPC?",
+      "answer": "PR/SM controla quais recursos físicos e caminhos são atribuídos ou compartilhados e preserva isolamento entre as partições; cada uma executa seu próprio ambiente de sistema."
+    },
+    {
+      "question": "Qual diferença existe entre FICON e CHPID?",
+      "answer": "FICON é uma interface de canal de fibra; CHPID é o identificador de um caminho de canal na configuração de E/S."
+    },
+    {
+      "question": "O que a CF oferece e como se conecta ao sysplex?",
+      "answer": "Ela executa CFCC numa partição especial ou recurso dedicado, fornece estruturas de cache, lista e locks e conecta-se a sistemas por links de acoplamento."
+    },
+    {
+      "question": "Qual é a relação entre XCF e Parallel Sysplex?",
+      "answer": "XCF viabiliza comunicação entre programas autorizados nos sistemas z/OS; Parallel Sysplex combina essa cooperação com CF, links e recursos compartilhados."
+    },
+    {
+      "question": "Por que um projeto de alta disponibilidade precisa de mais que hardware redundante?",
+      "answer": "Também requer caminhos definidos, software preparado, dados consistentes, monitoração, políticas de recuperação e procedimentos operacionais testados."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Papéis dos processadores trocados",
+      "summary": "CP executa cargas de propósito geral; SAP auxilia funções de E/S; IFL é voltado a Linux; zIIP executa partes elegíveis; ICF executa CFCC."
+    },
+    {
+      "key": "e2",
+      "title": "Níveis de particionamento confundidos",
+      "summary": "PR/SM cria LPARs no CPC; z/VM pode executar dentro de uma LPAR e fornecer máquinas virtuais. São níveis diferentes."
+    },
+    {
+      "key": "e3",
+      "title": "Caminhos de E/S interpretados como dispositivos",
+      "summary": "CHPID identifica caminho de canal, FICON é interface de canal e o dispositivo/controladora são elementos distintos da conexão."
+    },
+    {
+      "key": "e4",
+      "title": "Sysplex e Coupling Facility simplificados",
+      "summary": "XCF comunica programas entre sistemas z/OS; CF oferece estruturas compartilhadas de cache, lista e lock para cooperação. Sysplex não é uma única instância de sistema operacional."
+    },
+    {
+      "key": "e5",
+      "title": "Disponibilidade presumida",
+      "summary": "Redundância só ajuda quando recursos estão configurados e monitorados e sistemas, dados e aplicações têm mecanismos de recuperação coerentes."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No CPC, qual processador é destinado à execução geral do sistema operacional e das aplicações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CP, processador central de uso geral para cargas do sistema e aplicações.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SAP, mecanismo reservado ao encaminhamento interno das operações de entrada e saída.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "IFL, unidade caracterizada especificamente para executar workloads de Linux.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ICF, mecanismo que executa o código de controle da Coupling Facility.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CHPID, identificador associado a um caminho no subsistema de canais de E/S.",
+          "correct": false
+        }
+      ],
+      "explanation": "O CP processa instruções do sistema operacional e das aplicações de propósito geral. SAP auxilia o subsistema de E/S; IFL atende Linux; ICF executa CFCC; CHPID é um identificador de caminho, não um processador.",
+      "section": "1. Visão geral: CPC, unidades e memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual caracterização de PU é associada a Linux na plataforma IBM Z?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CP, usado para executar o sistema e workloads gerais em uma partição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SAP, usado para assistência de funções internas do subsistema de E/S.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "IFL, voltado à execução de cargas Linux no ambiente IBM Z.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "ICF, que executa o código da função de acoplamento do sysplex.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CHPID, que representa um caminho de canal na configuração de dispositivos.",
+          "correct": false
+        }
+      ],
+      "explanation": "IFL significa Integrated Facility for Linux e é a caracterização de processador voltada a Linux. CP, SAP e ICF têm outras funções; CHPID designa um caminho de canal.",
+      "section": "1. Visão geral: CPC, unidades e memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso de software divide recursos físicos do CPC em partições lógicas IBM Z?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "XCF, que oferece comunicação entre programas autorizados em sistemas z/OS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "PR/SM, tecnologia que administra o particionamento lógico em LPARs.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "FICON, interface de canal de fibra para conexões de entrada e saída.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CFCC, código que executa estruturas compartilhadas da Coupling Facility.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "HMC, console usada por operadores para gerenciar a configuração física.",
+          "correct": false
+        }
+      ],
+      "explanation": "PR/SM implementa e controla partições lógicas no IBM Z. XCF é componente de comunicação, FICON é interface de canal, CFCC executa a CF e HMC é console de gerenciamento.",
+      "section": "2. Particionamento lógico e virtualização",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma configuração IBM Z, o que é uma LPAR?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um canal físico de fibra conectado a uma unidade externa de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma estrutura de lista que mantém registros compartilhados pela Coupling Facility.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um processador auxiliar usado para tratar comandos de dispositivos de E/S.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma partição lógica que executa um ambiente de sistema separado no CPC.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um conjunto de dados de controle usado como repositório de políticas do sysplex.",
+          "correct": false
+        }
+      ],
+      "explanation": "LPAR é uma partição lógica do CPC, isolada e configurada com recursos próprios ou compartilhados de modo controlado. Canal, estrutura da CF, processador auxiliar e conjunto de dados têm outras funções.",
+      "section": "2. Particionamento lógico e virtualização",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em que cenário z/VM pode aparecer na arquitetura de grande porte?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como um canal de fibra que interliga dispositivos DASD a uma controladora.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Como a memória cache de terceiro nível do processador central.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Como a tabela que registra os caminhos definidos para cada dispositivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como o código de controle executado dentro de uma Coupling Facility.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como hipervisor que pode executar em uma LPAR e oferecer máquinas virtuais.",
+          "correct": true
+        }
+      ],
+      "explanation": "z/VM pode executar numa LPAR e virtualizar recursos IBM Z para máquinas convidadas. Não é canal, cache, tabela de configuração de E/S nem o CFCC da Coupling Facility.",
+      "section": "2. Particionamento lógico e virtualização",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na configuração de canais de E/S, o que identifica o CHPID?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O caminho de canal descrito na configuração do subsistema de entrada e saída.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A partição lógica que hospeda o código de controle da Coupling Facility.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O número de unidades de processamento habilitadas para executar Linux.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A política que escolhe as estruturas compartilhadas entre membros do sysplex.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A identificação de uma máquina virtual apresentada por um hipervisor convidado.",
+          "correct": false
+        }
+      ],
+      "explanation": "CHPID é o identificador de um caminho de canal na configuração de E/S. Não identifica LPAR, processadores, política de CF ou máquina virtual.",
+      "section": "3. Entrada e saída: subsistema de canais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição de FICON está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É o mecanismo PR/SM que separa partições de processador e memória.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É uma interface de canal de fibra usada para conexão de E/S em IBM Z.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "É o componente z/OS que comunica programas entre sistemas do sysplex.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É o código que executa as estruturas de cache, lista e bloqueio da CF.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É a unidade de processamento que executa aplicações de uso geral no CPC.",
+          "correct": false
+        }
+      ],
+      "explanation": "FICON é uma interface de canal de fibra para conectar dispositivos de entrada e saída. PR/SM particiona, XCF comunica no sysplex, CFCC executa na CF e CP processa cargas gerais.",
+      "section": "3. Entrada e saída: subsistema de canais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso fornece estruturas de cache, lista e locks para sistemas participantes do Parallel Sysplex?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "HMC, console de gerenciamento usada para configurar e supervisionar o hardware.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SAP, processador que auxilia operações do subsistema de entrada e saída.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Coupling Facility, recurso executado em partição especial ou equipamento dedicado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "FICON, interface de canal usada para conectar dispositivos de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PR/SM, tecnologia que divide os recursos do CPC entre partições lógicas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A Coupling Facility executa CFCC e oferece estruturas compartilhadas de cache, lista e bloqueio para coordenação do sysplex. Os outros elementos têm funções de gerenciamento, E/S ou particionamento.",
+      "section": "4. Disponibilidade, Coupling Facility e sysplex",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a função central do XCF em um ambiente z/OS sysplex?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Caracterizar uma PU para executar exclusivamente cargas Linux no CPC.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Identificar caminhos de canal e controladoras no inventário da máquina.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar máquinas virtuais convidadas dentro de uma LPAR de produção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir comunicação entre programas autorizados no mesmo ou em outros sistemas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Transferir diretamente blocos de dados entre memória cache e processadores.",
+          "correct": false
+        }
+      ],
+      "explanation": "XCF é o componente z/OS que permite a comunicação entre programas autorizados no mesmo sistema ou em sistemas do sysplex. As demais opções descrevem IFL, caminhos, hipervisor ou cache.",
+      "section": "4. Disponibilidade, Coupling Facility e sysplex",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual papel é atribuído ao SAP no CPC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar tarefas internas de suporte ao subsistema de entrada e saída.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Hospedar máquinas virtuais completas para sistemas operacionais convidados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar exclusivamente o código CFCC na partição da Coupling Facility.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Prover a memória de massa em que os volumes DASD armazenam arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Comunicar programas z/OS localizados em sistemas distintos do sysplex.",
+          "correct": false
+        }
+      ],
+      "explanation": "O SAP executa código interno para funções do subsistema de E/S, como gerenciamento e tratamento de caminhos. Máquinas virtuais cabem a um hipervisor; CFCC roda na CF; DASD é armazenamento; comunicação entre programas é função de XCF.",
+      "section": "1. Visão geral: CPC, unidades e memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer executar Linux no IBM Z. Qual afirmação sobre IFL é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "IFL é uma interface física de fibra que liga o servidor a volumes DASD.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "IFL é a partição especial onde os sistemas z/OS mantêm dados de XCF.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "IFL é um tipo de processador caracterizado para cargas de Linux.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "IFL é a tabela persistente que registra os caminhos e dispositivos de E/S.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "IFL é o código de controle que implementa listas e locks do sysplex.",
+          "correct": false
+        }
+      ],
+      "explanation": "IFL designa Integrated Facility for Linux, um processador caracterizado para cargas Linux. Não é canal, partição z/OS, tabela de E/S nem código da CF.",
+      "section": "1. Visão geral: CPC, unidades e memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que ocorre numa configuração em que z/VM executa numa LPAR?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O z/VM substitui o PR/SM e passa a particionar fisicamente o CPC.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A LPAR deixa de existir e torna-se um caminho do subsistema de canais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A Coupling Facility assume a função de memória virtual do hipervisor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O sistema convidado passa a executar necessariamente no processador SAP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O hipervisor pode oferecer máquinas virtuais convidadas dentro daquela LPAR.",
+          "correct": true
+        }
+      ],
+      "explanation": "PR/SM cria LPARs no CPC; z/VM pode ser executado como sistema/hipervisor em uma LPAR e oferecer máquinas virtuais. Não elimina PR/SM nem converte a partição em canal.",
+      "section": "2. Particionamento lógico e virtualização",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma LPAR contém Linux executando diretamente, sem um hipervisor convidado. Qual interpretação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A descrição é impossível, pois todo Linux IBM Z precisa ser convidado de z/VM.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A LPAR foi criada pelo XCF e não possui recursos do CPC atribuídos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O Linux está necessariamente executando dentro do código CFCC.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Linux pode executar diretamente em LPAR criada por PR/SM.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O ambiente é um caminho FICON porque sistemas Linux não usam partições.",
+          "correct": false
+        }
+      ],
+      "explanation": "Linux pode executar diretamente numa LPAR; também pode executar como convidado de z/VM ou KVM em cenários compatíveis. A presença de z/VM não é obrigatória para o modo LPAR.",
+      "section": "2. Particionamento lógico e virtualização",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante análise de arquitetura, um operador encontra vários CHPIDs associados a caminhos de dispositivos. O que eles representam?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Identificadores de usuários autorizados a acessar volumes do sysplex.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Identificadores de caminhos de canal na configuração de entrada e saída.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Nomes de estruturas de lista mantidas dentro da Coupling Facility.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Contadores de partições lógicas que receberam memória do CPC.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Endereços de rede usados pelo XCF para comunicação TCP/IP entre sistemas.",
+          "correct": false
+        }
+      ],
+      "explanation": "CHPID identifica caminho de canal; o sistema associa caminhos a conectividade de dispositivos e partições conforme a configuração de E/S. Não identifica usuários, estruturas CF, quantidade de LPARs ou endereços IP.",
+      "section": "3. Entrada e saída: subsistema de canais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma arquitetura de E/S pode definir mais de um caminho entre um sistema e um dispositivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para que cada caminho execute uma cópia independente do sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Para que os CHPIDs substituam a memória principal quando houver falha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para que o sistema ignore a configuração das controladoras conectadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para permitir alternativas de conectividade, conforme hardware e configuração disponíveis.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Para converter automaticamente FICON em comunicação de programas XCF.",
+          "correct": false
+        }
+      ],
+      "explanation": "Caminhos alternativos podem apoiar disponibilidade e flexibilidade de acesso. Eles precisam estar conectados e configurados corretamente; não substituem memória, sistema operacional nem comunicação XCF.",
+      "section": "3. Entrada e saída: subsistema de canais",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve melhor a Coupling Facility num Parallel Sysplex?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É o conjunto de volumes DASD em que cada sistema grava sua cópia privada dos dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É um serviço TCP/IP que roteia mensagens de usuários entre redes externas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É um recurso que executa CFCC e mantém estruturas compartilhadas para coordenação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "É a console de operação que ativa partições e altera perfis do CPC.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É o conjunto de processadores CP responsável por executar aplicações de negócio.",
+          "correct": false
+        }
+      ],
+      "explanation": "A CF executa Coupling Facility Control Code e fornece estruturas de cache, lista, locks e outras funções para os sistemas cooperantes. DASD, TCP/IP, console e CP são elementos diferentes.",
+      "section": "4. Disponibilidade, Coupling Facility e sysplex",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma LPAR de Coupling Facility é ativada. Qual descrição do que ela executa está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executa automaticamente uma instância completa de z/OS e recebe IPL convencional antes de inicializar controladoras DASD e aplicações de usuário na partição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executa Linux de usuário e apresenta volumes FICON como máquinas convidadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executa o hipervisor z/VM para dividir cada lock entre partições comuns.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executa o sistema de gerenciamento HMC dentro de uma partição de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Carrega CFCC e fornece as funções da Coupling Facility sem IPL comum de sistema operacional.",
+          "correct": true
+        }
+      ],
+      "explanation": "A LPAR especial da CF executa o código de controle CFCC, carregado na ativação. A documentação IBM indica que não há IPL de sistema operacional necessário ou suportado nessa LPAR especial.",
+      "section": "2. Particionamento lógico e virtualização",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em dois sistemas z/OS de um sysplex, que componente viabiliza comunicação entre programas autorizados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "XCF, componente z/OS usado para cooperação entre programas no mesmo ou em outros sistemas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "IFL, processador voltado à execução de cargas Linux no ambiente IBM Z.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "FICON, interface de canal de fibra usada para conectar dispositivos de E/S.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SAP, processador que executa funções internas de assistência ao subsistema de E/S.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "HMC, console que configura o hardware e monitora as partições do CPC.",
+          "correct": false
+        }
+      ],
+      "explanation": "XCF permite a comunicação entre programas autorizados do sysplex. IFL atende Linux, SAP auxilia a E/S e HMC gerencia o hardware; links e Coupling Facility têm funções distintas.",
+      "section": "4. Disponibilidade, Coupling Facility e sysplex",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que estruturas de lock da Coupling Facility são úteis para aplicações distribuídas entre sistemas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque convertem cada programa em uma partição física independente no CPC.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque permitem coordenar acesso concorrente a recursos compartilhados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Porque substituem todos os volumes de dados por processadores IFL Linux.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque definem endereços IP e rotas externas para as redes do sysplex.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque tornam desnecessárias as políticas e definições de conectividade da CF.",
+          "correct": false
+        }
+      ],
+      "explanation": "Locks são mecanismos de serialização: ajudam sistemas que compartilham um recurso a coordenar acessos concorrentes. Eles não criam partições, não substituem armazenamento ou roteamento IP e não dispensam configuração da CF.",
+      "section": "4. Disponibilidade, Coupling Facility e sysplex",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um zIIP está instalado no CPC. Qual conclusão respeita sua função arquitetural?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Toda instrução executada pelas aplicações passa automaticamente para esse processador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O processador substitui os SAPs e assume todas as operações de canal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O equipamento converte a LPAR em um sistema operacional compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Parcelas elegíveis de certas cargas podem ser executadas nele sob controle do software.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Sua presença prova que o CPC executa apenas sistemas Linux convidados.",
+          "correct": false
+        }
+      ],
+      "explanation": "zIIP é um processador especializado para trabalho elegível reconhecido por z/OS e produtos associados. Ele não recebe qualquer instrução arbitrária e não substitui SAP, PR/SM ou sistema operacional.",
+      "section": "1. Visão geral: CPC, unidades e memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto afirma que a mera existência de dois caminhos de canal assegura continuidade do serviço, mesmo que um deles nunca tenha sido definido e testado. Qual é a falha nessa afirmação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todo caminho de canal precisa executar uma LPAR própria para ter utilidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "FICON só pode conectar uma impressora, nunca armazenamento de acesso direto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A configuração de canais elimina a necessidade de controladoras e dispositivos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O SAP torna redundância impossível quando uma aplicação faz muitas transações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Redundância requer conectividade válida e mecanismos operacionais preparados para falhas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um caminho reserva não oferece benefício se não estiver conectado, definido, acessível e integrado à estratégia de recuperação. Disponibilidade resulta do conjunto de hardware, configuração, software e operação, não da contagem nominal de caminhos.",
+      "section": "3. Entrada e saída: subsistema de canais",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um par de sistemas é chamado de sysplex. Isso significa que ambos executam uma única instância compartilhada do z/OS?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Sysplex reúne instâncias distintas de z/OS que cooperam por mecanismos de comunicação e recursos compartilhados. A cooperação não funde os sistemas operacionais numa só instância.",
+      "section": "4. Disponibilidade, Coupling Facility e sysplex",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O CP é o processador de propósito geral do CPC, enquanto o SAP auxilia funções internas do subsistema de entrada e saída.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. CP executa sistema operacional e aplicações gerais; SAP executa tarefas internas de apoio ao processamento de E/S, como gestão e tratamento de caminhos.",
+      "section": "1. Visão geral: CPC, unidades e memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Toda aplicação executada num IBM Z pode transferir qualquer instrução diretamente para um zIIP, sem depender de suporte do sistema ou do produto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. zIIP atende trabalho elegível identificado pelo sistema operacional e pelo software associado. Não é um processador geral para qualquer instrução escolhida livremente por uma aplicação.",
+      "section": "1. Visão geral: CPC, unidades e memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "PR/SM pode dividir os recursos de um CPC em LPARs, cada uma configurada para executar um ambiente de sistema separado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. PR/SM implementa o particionamento lógico no IBM Z. Cada LPAR recebe recursos e conectividade conforme a configuração e pode executar seu próprio sistema operacional.",
+      "section": "2. Particionamento lógico e virtualização",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Linux em IBM Z só pode executar como convidado de z/VM; execução direta em LPAR não é suportada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Linux pode executar diretamente em LPAR, ou como convidado de z/VM ou KVM em configurações compatíveis. O hipervisor convidado é uma opção, não requisito universal.",
+      "section": "2. Particionamento lógico e virtualização",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "CHPID identifica um caminho de canal na configuração de entrada e saída, e não um endereço IP de aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. CHPID é usado na definição de caminhos de canal do subsistema de E/S. Endereço IP é um conceito de rede, em camada diferente.",
+      "section": "3. Entrada e saída: subsistema de canais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "FICON é o nome de uma interface de canal de fibra usada em conexões de E/S de IBM Z.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. FICON é uma tecnologia de canal de fibra para comunicação com dispositivos de E/S; não é o nome de um volume nem do sistema operacional.",
+      "section": "3. Entrada e saída: subsistema de canais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A Coupling Facility é um dispositivo DASD convencional, usado apenas para guardar cópias completas de arquivos do sysplex.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A CF executa CFCC e oferece estruturas especializadas, como cache, listas e locks, para compartilhamento e coordenação. Não é apenas armazenamento de arquivos DASD.",
+      "section": "4. Disponibilidade, Coupling Facility e sysplex",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "XCF dá suporte à cooperação entre programas autorizados no mesmo sistema z/OS ou em outros sistemas do sysplex.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. XCF é componente de z/OS que permite a comunicação entre programas autorizados, tanto na mesma imagem quanto entre sistemas participantes do sysplex. A cooperação usa os mecanismos e caminhos configurados para esse ambiente.",
+      "section": "4. Disponibilidade, Coupling Facility e sysplex",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma configuração de Parallel Sysplex torna desnecessários o planejamento de conectividade e os caminhos operacionais entre sistemas e Coupling Facility.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A CF e os sistemas precisam de links e definições compatíveis; políticas e conectividade determinam o uso das estruturas. O modelo não dispensa planejamento de canais nem operação.",
+      "section": "4. Disponibilidade, Coupling Facility e sysplex",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma PU pode ser caracterizada como ICF para executar a função da Coupling Facility, enquanto um CP executa cargas gerais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. ICF é dedicado a executar a função da CF; CP processa sistema operacional e aplicações gerais. A caracterização define o papel funcional da unidade.",
+      "section": "1. Visão geral: CPC, unidades e memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A HMC é um processador de aplicação de propósito geral instalado dentro de cada LPAR.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. HMC é uma console de gerenciamento de hardware, usada por operadores para configurar e supervisionar a plataforma, como partições e recursos do CPC. O processamento de aplicações ocorre nas unidades destinadas às cargas da LPAR, como CP; a console não é um processador de aplicação.",
+      "section": "1. Visão geral: CPC, unidades e memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A LPAR de Coupling Facility executa um código de controle especializado, em vez de receber o IPL convencional de um sistema operacional como z/OS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. CFCC é carregado na LPAR especial da CF durante a ativação; a documentação IBM informa que IPL de sistema operacional não é necessário nem suportado nessa partição.",
+      "section": "2. Particionamento lógico e virtualização",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma unidade física sobressalente estiver disponível, toda falha de hardware será substituída automaticamente sem impacto operacional possível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma PU sobressalente pode substituir determinada unidade com falha em configurações compatíveis, mas isso não implica recuperação automática de toda falha nem ausência garantida de impacto. Disponibilidade depende do componente e do projeto.",
+      "section": "4. Disponibilidade, Coupling Facility e sysplex",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Mais de um caminho de canal pode apoiar a disponibilidade de acesso a dispositivos, desde que os caminhos estejam corretamente configurados e utilizáveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Caminhos alternativos podem manter conectividade diante de falhas, mas a redundância precisa existir de fato no hardware e na configuração, e ser compatível com o software e o dispositivo.",
+      "section": "3. Entrada e saída: subsistema de canais",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O sysplex transforma automaticamente todas as instâncias z/OS numa única instância de sistema operacional com memória irrestritamente compartilhada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Cada imagem z/OS permanece uma instância distinta. Sysplex oferece mecanismos de comunicação e compartilhamento coordenado, com limites e recursos configurados; não funde espaços de memória dos sistemas.",
+      "section": "4. Disponibilidade, Coupling Facility e sysplex",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa executa z/OS e Linux em LPARs distintas do mesmo CPC. Isso é compatível com o particionamento lógico IBM Z.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. PR/SM permite particionar recursos do CPC em LPARs independentes, que podem executar ambientes de sistema diferentes quando suportados e configurados.",
+      "section": "2. Particionamento lógico e virtualização",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A capacidade de recuperação de um sysplex depende apenas da presença da Coupling Facility; aplicações e conectividade não afetam o resultado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A CF é um componente importante, mas recuperação depende também de links, dados, políticas, sistemas remanescentes, software preparado e procedimentos operacionais. A arquitetura não elimina dependências da aplicação.",
+      "section": "4. Disponibilidade, Coupling Facility e sysplex",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um CPC, qual alternativa define adequadamente a memória cache?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É a memória principal que contém permanentemente todos os volumes DASD do servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É uma cópia de segurança externa restaurada quando o processador sofre falha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É uma tabela de configuração que associa CHPIDs a controladoras e dispositivos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É o mecanismo que coordena comunicações autorizadas entre sistemas do sysplex.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É armazenamento menor e próximo ao processador que reduz latência de acessos frequentes.",
+          "correct": true
+        }
+      ],
+      "explanation": "Cache mantém cópias de dados ou instruções usados com frequência, próximos ao processador, para reduzir o tempo de acesso. Não é memória de massa permanente, backup, tabela de E/S nem componente de comunicação XCF.",
+      "section": "1. Visão geral: CPC, unidades e memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe identifica uma unidade sobressalente (spare) no inventário de PUs. Qual é a finalidade possível desse recurso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir uma PU com falha, conforme configuração e capacidade disponíveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenar cópias permanentes dos arquivos de dados de cada LPAR ativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atuar como console externa para os operadores alterarem perfis de ativação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter todo caminho FICON em enlace de comunicação entre sistemas XCF.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar como instância z/OS adicional sem receber processadores nem memória.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma PU não caracterizada pode ficar como sobressalente e, em configurações adequadas, substituir uma unidade que apresente falha. Ela não é armazenamento, console, conversor de canais ou sistema operacional completo.",
+      "section": "1. Visão geral: CPC, unidades e memória",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o papel do Support Element e da HMC no gerenciamento IBM Z?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar programas de negócio dentro do espaço de endereçamento de cada LPAR.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir estruturas de lista usadas por aplicações transacionais no sysplex.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permitir configuração e supervisão dos recursos de hardware e partições.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Substituir os canais e controladoras na movimentação de dados de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Distribuir os locks da Coupling Facility entre processadores de propósito geral.",
+          "correct": false
+        }
+      ],
+      "explanation": "HMC e Support Element são componentes de gerenciamento da plataforma, usados para configurar, ativar e supervisionar recursos de hardware e partições. Não executam aplicações de negócio nem substituem estruturas CF ou caminhos de E/S.",
+      "section": "1. Visão geral: CPC, unidades e memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto descreve melhor os componentes de um Parallel Sysplex?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um sistema operacional único, sem canais, que distribui automaticamente a memória física entre usuários.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sistemas z/OS cooperantes, Coupling Facility, links e recursos compartilhados definidos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Máquinas Linux isoladas, conectadas somente por endereço IP e armazenamento local privado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma console HMC, um canal FICON e um processador SAP, sem sistemas z/OS participantes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um grupo de partições que compartilham livremente toda a memória e dispensam políticas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Parallel Sysplex é uma arquitetura de cluster que combina sistemas z/OS independentes, CF, links de acoplamento e recursos de suporte compartilhados conforme a configuração. Não funde sistemas operacionais nem elimina políticas, conectividade ou controle de acesso.",
+      "section": "4. Disponibilidade, Coupling Facility e sysplex",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como o subsistema de canais contribui para o processamento de entrada e saída?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executa as aplicações em lugar do sistema operacional e elimina as controladoras.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Transforma cada unidade SAP em memória principal compartilhada por todas as LPARs.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converte automaticamente toda operação de disco em mensagem de comunicação XCF.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Organiza caminhos e funções de controle que encaminham operações às controladoras e dispositivos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Substitui a caracterização de processadores por endereços de rede dos dispositivos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O subsistema de canais e sua configuração encaminham operações de E/S entre sistemas e dispositivos por caminhos definidos, envolvendo controladoras e canais. Não executam aplicações em lugar do sistema operacional nem convertem E/S em comunicação XCF.",
+      "section": "3. Entrada e saída: subsistema de canais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A memória cache substitui integralmente a memória principal e serve como armazenamento permanente de todos os dados do mainframe.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Cache é menor e mais próxima dos processadores, guardando cópias temporárias de itens usados com frequência para reduzir latência. A memória principal e os dispositivos de armazenamento mantêm papéis diferentes.",
+      "section": "1. Visão geral: CPC, unidades e memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema operacional pode executar diretamente numa LPAR sem que z/VM esteja presente como hipervisor intermediário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. PR/SM fornece a partição lógica e Linux, por exemplo, pode executar diretamente nela. z/VM é uma alternativa de virtualização para hospedar convidados, não um requisito para toda LPAR.",
+      "section": "2. Particionamento lógico e virtualização",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Mainframe hardware: Processing units",
+      "publisher": "IBM Documentation",
+      "reference": "CPC e caracterizações CP, SAP, IFL, zAAP, zIIP, ICF e unidades sobressalentes",
+      "url": "https://www.ibm.com/docs/en/zos-basic-skills?topic=concepts-mainframe-hardware-processing-units",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Hypervisor-specific information",
+      "publisher": "IBM Documentation",
+      "reference": "PR/SM e execução de Linux em LPAR, z/VM e KVM",
+      "url": "https://www.ibm.com/docs/en/linux-on-systems?topic=614-hypervisors",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Coupling facility support",
+      "publisher": "IBM Documentation",
+      "reference": "Funções, estruturas, LPAR de Coupling Facility e conexão por canais",
+      "url": "https://www.ibm.com/docs/en/systems-hardware/zsystems/3932-A02?topic=introduction-coupling-facility-support",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Characteristics of a sysplex",
+      "publisher": "IBM Documentation",
+      "reference": "XCF, comunicação, sistemas e recursos de sysplex",
+      "url": "https://www.ibm.com/docs/en/zos/3.2.0?topic=introduction-characteristics-sysplex",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Managing coupling facility resources",
+      "publisher": "IBM Documentation",
+      "reference": "Compartilhamento, integridade, disponibilidade e estruturas da Coupling Facility",
+      "url": "https://www.ibm.com/docs/en/zos/3.1.0?topic=sysplex-managing-coupling-facility-resources",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Coupling channels",
+      "publisher": "IBM z/OS Basic Skills",
+      "reference": "Links de acoplamento, XCF e comunicação entre sistemas do sysplex",
+      "url": "https://www.ibm.com/docs/en/zos-basic-skills?topic=channels-coupling",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

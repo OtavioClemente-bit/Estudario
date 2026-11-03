@@ -1,0 +1,2015 @@
+{
+  "id": "informatica.devops-devsecops-linguagens-script",
+  "subject": "Informática",
+  "title": "DevOps e DevSecOps: linguagens de script",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "DevOps e linguagens de script",
+    "DevSecOps e linguagens de script",
+    "Linguagens de script em DevOps",
+    "Shell Script com Bash",
+    "Scripts de automação em Bash",
+    "Programação de Shell Script Bash",
+    "Automação com Windows PowerShell",
+    "Scripts para administração PowerShell",
+    "Programação de scripts em Python",
+    "Python para automação de tarefas",
+    "Bash PowerShell e Python em DevOps",
+    "Segurança de scripts em DevSecOps",
+    "Execução segura de comandos em scripts",
+    "Tratamento de erros em linguagens de script",
+    "Pipelines e variáveis em linguagens de script"
+  ],
+  "scope": {
+    "covers": "Uso de Bash, Windows PowerShell e Python para automação de tarefas em DevOps e DevSecOps: sintaxe e execução de scripts; variáveis, argumentos, expansão e quoting no Bash; status de saída, pipelines e redirecionamento; objetos, cmdlets, parâmetros, variáveis automáticas e tratamento de erros no PowerShell; tipos de dados, funções, exceções, arquivos e subprocessos no Python; portabilidade, logs, segredos, entrada não confiável, injeção de comandos, permissões e verificações automatizadas em pipelines de integração e implantação contínuas.",
+    "excludes": "Administração detalhada de sistemas operacionais, criação de aplicações completas, frameworks de desenvolvimento, configuração de produtos de CI/CD específicos, sintaxe aprofundada de outras linguagens e exploração ofensiva de vulnerabilidades."
+  },
+  "theoryTitle": "Scripts confiáveis para automação DevOps e DevSecOps",
+  "chapters": [
+    {
+      "title": "1. Scripts no fluxo DevOps e DevSecOps",
+      "markdown": "### O problema que este assunto resolve\n\nEm uma equipe de desenvolvimento, as mesmas tarefas se repetem: preparar um ambiente, executar verificações, empacotar uma versão, publicar artefatos e confirmar o resultado. Se cada pessoa executa esses passos manualmente, em ordem diferente e com valores digitados de memória, os resultados variam e os erros ficam difíceis de reproduzir. Um script transforma uma sequência explícita de comandos em uma rotina repetível que pode ser revisada, versionada e chamada por uma pessoa ou por uma esteira de CI/CD.\n\n**DevOps** aproxima desenvolvimento e operações para entregar e manter software com ciclos de feedback curtos e automação. **DevSecOps** incorpora controles de segurança a esse fluxo: os scripts e a esteira não são exceção à revisão, à proteção de credenciais e ao tratamento de entradas. Bash, PowerShell e Python podem integrar essas rotinas, mas cada qual tem semântica própria; um comando colado entre shells não necessariamente se comporta igual.\n\n> **Siglas e termos deste capítulo**\n> - **Shell**: programa que interpreta comandos e interage com o sistema operacional.\n> - **Script**: arquivo de instruções executadas por um interpretador ou runtime.\n> - **CI/CD**: integração contínua e entrega contínua ou implantação contínua, conforme o processo da equipe.\n> - **DevOps**: práticas de colaboração e automação entre desenvolvimento e operação de sistemas.\n> - **DevSecOps**: integração contínua de atividades e controles de segurança no ciclo de desenvolvimento e operação.\n> - **Idempotência**: propriedade de uma operação cujo resultado final não se multiplica quando ela é repetida sob as mesmas condições.\n\n### Uma rotina reproduzível, com limites claros\n\nUm bom script recebe parâmetros explícitos, valida o que recebeu, executa poucas responsabilidades relacionadas e informa sucesso ou falha por um resultado observável. Por exemplo, uma etapa de build pode validar a configuração, chamar os testes e parar a publicação quando um comando anterior falhar. A automação não torna a operação automaticamente segura: um script executado com permissões excessivas ainda pode apagar arquivos, publicar um pacote errado ou expor credenciais.\n\n| Prática | Efeito no fluxo de entrega |\n| --- | --- |\n| Guardar o script no controle de versão | Permite revisão, histórico e associação à mudança de software |\n| Fixar e documentar dependências | Reduz diferenças entre máquinas e execuções |\n| Validar parâmetros antes de agir | Evita que entrada malformada determine caminhos ou comandos |\n| Registrar o resultado sem segredos | Ajuda a diagnosticar falhas sem revelar credenciais |\n| Rodar com o menor privilégio necessário | Limita o impacto de erro ou comprometimento |\n| Tornar etapas repetíveis com segurança | Facilita nova tentativa após falha de infraestrutura |\n\n### Escolha consciente do interpretador\n\nBash é comum em ambientes Unix e em muitas imagens de build. O PowerShell é uma shell e linguagem de automação com objetos .NET, disponível em Windows e também em versões multiplataforma; alguns cmdlets e recursos, porém, dependem do sistema operacional. Python é uma linguagem geral, útil quando a tarefa pede lógica, tratamento de dados ou bibliotecas além da composição de comandos do shell. A escolha considera o ambiente-alvo, as dependências instaladas, as interfaces de entrada e saída e o conhecimento de manutenção da equipe.\n\nNão se deve pressupor que `sh`, Bash, `cmd.exe` e PowerShell interpretam aspas, expansão de variáveis, curingas e códigos de saída da mesma maneira. Um script precisa declarar ou documentar seu interpretador, respeitar a plataforma em que roda e falhar de modo visível quando uma dependência não está disponível.\n\n### Como cai na prova\n\n- A automação reduz diferenças de execução quando os passos ficam versionados, revisáveis e parametrizados; ela não substitui controles de acesso nem testes.\n- DevSecOps inclui segurança no fluxo automatizado, como proteção de segredos e verificação de entradas.\n- Bash, PowerShell e Python são alternativas com modelos diferentes; não são sintaxes intercambiáveis.\n- Idempotência é útil para repetição segura, mas não significa que qualquer script possa ser executado de novo sem avaliar efeitos."
+    },
+    {
+      "title": "2. Bash: expansão, quoting, processos e status",
+      "markdown": "### O problema que este assunto resolve\n\nBash combina comandos externos com recursos do shell para percorrer arquivos, compor etapas e reagir ao resultado de cada processo. O shell, porém, interpreta metacaracteres antes de iniciar o comando. Uma variável sem aspas pode virar vários argumentos ou padrões de nome de arquivo; substituição de comando pode executar texto; uma pipeline pode esconder a falha de um processo anterior. Entender a ordem dessas operações é essencial para automação previsível.\n\n> **Siglas e termos deste capítulo**\n> - **Shebang**: primeira linha como `#!/usr/bin/env bash`, que indica o interpretador usado quando o arquivo é executado dessa forma.\n> - **Argumento posicional**: parâmetro recebido pelo script, acessado como `$1`, `$2` e assim por diante.\n> - **Quoting**: uso de aspas ou escapes para controlar a interpretação de caracteres pelo shell.\n> - **Exit status**: código de término de um comando; convencionalmente zero indica sucesso e valor diferente de zero indica falha.\n> - **Pipeline**: sequência de comandos em que a saída de um processo alimenta a entrada do próximo por `|`.\n> - **Glob**: padrão de nomes, como `*.log`, expandido pelo shell conforme os arquivos encontrados.\n\n### Variáveis e expansão: o shell interpreta primeiro\n\nAtribuições simples não levam espaços ao redor de `=`: `ambiente=teste`. Para ler o valor, usa-se `$ambiente` ou `${ambiente}`. As chaves tornam o limite do nome explícito: `${nome}_backup`. Uma substituição de comando como `hoje=$(date +%F)` executa o comando entre parênteses e captura sua saída padrão, removendo as quebras de linha finais. Não é uma forma segura de avaliar texto recebido como dado.\n\nAspas simples preservam literalmente os caracteres internos, sem expansão de variáveis. Aspas duplas preservam agrupamento e impedem divisão em palavras e expansão de nomes de arquivo, mas ainda permitem `$variavel` e `$(comando)`. Portanto, ao passar uma variável como um único argumento, use `\"$variavel\"`; escrever `$variavel` sem aspas pode dividir seu conteúdo por `IFS` e depois expandir curingas. Para todos os argumentos recebidos preservando cada limite, `\"$@\"` é o padrão apropriado; `\"$*\"` os junta em uma única palavra.\n\n| Escrita | Interpretação relevante |\n| --- | --- |\n| `\"$arquivo\"` | Um argumento com o valor inteiro, inclusive espaços |\n| `$arquivo` | Pode sofrer divisão em palavras e expansão de nomes |\n| `'texto $x'` | Texto literal; `$x` não é expandido |\n| `\"texto $x\"` | Expande `$x`, preservando a palavra agrupada |\n| `$(comando)` | Executa o comando e substitui pela saída padrão |\n\n### Controle de fluxo e códigos de saída\n\n`if comando; then ...; fi` testa o status do comando, não uma string especial de sucesso. `&&` executa o próximo comando se o anterior retornar sucesso; `||` o executa se houver falha. `return` encerra uma função com status; `exit` encerra o shell ou script. A variável `$?` contém o status do comando executado mais recentemente, então uma chamada intermediária antes de examiná-la pode sobrescrever o valor que interessava.\n\nUma configuração frequente é `set -o pipefail`, que faz o status da pipeline refletir falha de algum comando, em vez de considerar apenas o último. `set -u` trata expansão de variável não definida como erro, e `set -e` tenta encerrar em certas falhas. `errexit` tem exceções ligadas a testes condicionais, listas e contextos de função; não é substituto para verificar explicitamente operações críticas. Um script robusto combina configuração deliberada, verificações e mensagens de erro claras.\n\n### Processos, redirecionamento e segurança\n\n`>` redireciona a saída padrão e normalmente cria ou trunca o arquivo indicado; `>>` acrescenta ao final; `2>` redireciona o fluxo de erro padrão; `2>&1` direciona também o erro para onde a saída padrão estiver indo naquele ponto. A ordem das redireções importa. Uma pipeline conecta a saída padrão à entrada do próximo processo; o fluxo de erro não entra automaticamente nessa conexão.\n\nCaminhos e argumentos devem ser tratados como dados: entre aspas, validados para a operação pretendida e passados sem `eval`. A interpolação de conteúdo não confiável dentro de texto que depois é interpretado pelo shell pode permitir injeção de comandos. Evite montar código shell a partir de uma variável. Verifique códigos de saída, use permissões mínimas e não imprima tokens ou senhas na saída capturada pela esteira.\n\n### Como cai na prova\n\n- `\"$@\"` mantém os argumentos separados; `\"$*\"` os agrupa em uma palavra.\n- Aspas duplas não impedem expansão de variável ou substituição de comando; aspas simples impedem.\n- Sem `pipefail`, o status padrão da pipeline normalmente é o do último comando, embora os detalhes dependam das opções e do shell.\n- `set -e` não cobre todos os contextos de falha; para operações críticas confira o resultado de modo explícito.\n- `eval` reinterpreta texto como código e aumenta o risco de injeção."
+    },
+    {
+      "title": "3. Windows PowerShell: objetos, parâmetros e erros",
+      "markdown": "### O problema que este assunto resolve\n\nPowerShell automatiza tarefas por cmdlets e funções. Ao contrário de shells que em geral conectam texto entre processos nativos, o pipeline do PowerShell transporta objetos: um cmdlet pode produzir objetos com propriedades tipadas, e o seguinte pode filtrá-los sem analisar colunas de texto formatado. Isso facilita tarefas administrativas, desde que o script use parâmetros, propriedades e tratamento de erros corretamente.\n\n> **Siglas e termos deste capítulo**\n> - **Cmdlet**: comando nativo do PowerShell, em geral nomeado como `Verbo-Substantivo`.\n> - **Pipeline de objetos**: fluxo de objetos de saída de um comando para o próximo por `|`.\n> - **Script block**: bloco de comandos entre chaves, passado a comandos ou usado em funções.\n> - **Variável automática**: variável mantida pelo PowerShell, como `$?`, `$LASTEXITCODE` ou `$PSScriptRoot`.\n> - **Erro não terminante**: erro que pode ser emitido sem encerrar automaticamente toda a execução.\n> - **Erro terminante**: erro que interrompe uma instrução, pipeline ou script e pode ser capturado por `try/catch` conforme o contexto.\n\n### Objetos e pipeline\n\nUm comando como `Get-ChildItem` produz objetos de arquivo e diretório. `Where-Object { $_.Length -gt 1000 }` examina cada objeto recebido; `Select-Object Name, Length` escolhe propriedades; `Sort-Object Length` ordena objetos. `$PSItem` e seu alias `$_` representam o objeto corrente em um script block de processamento. Para descobrir propriedades e métodos, `Get-Member` inspeciona o tipo.\n\n`Format-Table` e `Format-List` destinam-se à apresentação. Após converter objetos em saída formatada, comandos seguintes não devem ser tratados como se ainda recebessem os objetos originais. Em scripts, filtre e selecione dados antes de formatar a saída final. Ao chamar executáveis nativos, o PowerShell interage com texto e códigos de saída do processo, que diferem de erros de cmdlets.\n\n### Variáveis, argumentos e caminhos\n\nVariáveis começam por `$`, como `$ambiente`. Parâmetros nomeados melhoram legibilidade e reduzem dependência da ordem posicional. Funções avançadas podem usar `[CmdletBinding()]`, validação de parâmetros e blocos `begin`, `process` e `end`; `process` trata cada objeto recebido pela pipeline. `$PSScriptRoot` identifica o diretório do script, o que permite localizar arquivos auxiliares sem depender do diretório corrente de quem o chamou. Use `-LiteralPath` quando o caminho deve ser entendido literalmente e não como padrão com curingas.\n\n`$?` indica se a operação PowerShell mais recente teve sucesso. `$LASTEXITCODE` registra o código de saída do último programa nativo; ele não é a mesma variável. Um script pode conferir o valor e lançar um erro explícito se o executável retornou código diferente do esperado. Não suponha que um erro não terminante de cmdlet sempre interromperá a execução.\n\n### Erros e execução de scripts\n\n`try/catch/finally` trata erros terminantes: o bloco `try` contém a operação, `catch` responde à exceção e `finally` executa a limpeza mesmo quando ocorre erro. Para que erros não terminantes de cmdlets selecionados entrem nesse fluxo, `-ErrorAction Stop` pode escalá-los. `$ErrorActionPreference` influencia a ação padrão de erros não terminantes, mas não converte todo código de saída nativo em exceção automaticamente.\n\nA política de execução controla condições de carregamento e execução de arquivos de script em plataformas Windows, segundo escopo e precedência; políticas de grupo têm precedência sobre configurações locais. A documentação oficial ressalta que essa política é um recurso de defesa em profundidade, não uma fronteira de segurança: não substitui ACLs, controle de identidade, revisão de código ou proteção contra conteúdo malicioso. `RemoteSigned`, por exemplo, diferencia arquivos locais e arquivos marcados como obtidos da Internet, sujeito às regras do sistema e à assinatura confiável.\n\n### Como cai na prova\n\n- Pipelines PowerShell passam objetos; `$_` designa o objeto atual em contextos de processamento.\n- `$?` e `$LASTEXITCODE` respondem a contextos diferentes: sucesso da operação PowerShell e código do processo nativo.\n- `try/catch` captura erros terminantes; `-ErrorAction Stop` é útil para elevar certos erros não terminantes.\n- A política de execução reduz execução acidental de scripts, mas não constitui limite de segurança.\n- `Format-Table` é apresentação; não deve anteceder processamento que precisa das propriedades originais."
+    },
+    {
+      "title": "4. Python para automação e subprocessos",
+      "markdown": "### O problema que este assunto resolve\n\nQuando a automação requer lógica de negócio, leitura estruturada de arquivos, integração com APIs ou uma sequência de decisões maior, Python permite expressar a rotina sem compor toda a lógica em comandos shell. O interpretador executa arquivos `.py`; módulos da biblioteca padrão atendem tarefas comuns. Para manter resultados reproduzíveis, a equipe precisa organizar dependências, entradas, exceções e efeitos externos.\n\n> **Siglas e termos deste capítulo**\n> - **Interpretador**: programa que executa o código Python.\n> - **Módulo**: arquivo ou componente importável que agrupa código e nomes.\n> - **Exceção**: objeto que representa uma condição de erro ou outra interrupção do fluxo normal.\n> - **Context manager**: objeto usado por `with` para configurar e encerrar um recurso.\n> - **Subprocesso**: processo externo iniciado por um programa Python.\n> - **Ambiente virtual**: instalação isolada para dependências de um projeto Python.\n\n### Dados, controle e organização\n\nPython usa indentação para delimitar blocos. Atribuições associam nomes a objetos; listas guardam sequências mutáveis, tuplas são sequências imutáveis, dicionários associam chaves a valores e strings representam texto. `if` seleciona caminhos, `for` percorre itens de uma sequência ou iterável, e `while` repete enquanto a condição for verdadeira. `def` cria função; argumentos nomeados podem tornar explícito o propósito dos valores recebidos.\n\nSeparar trabalho em funções pequenas e módulos torna validações e manutenção mais fáceis. O ponto de entrada convencional `if __name__ == \"__main__\":` executa a rotina principal quando o arquivo é iniciado diretamente, mas evita dispará-la só porque o módulo foi importado. Entradas externas devem ser analisadas e validadas antes de definir caminhos, destinos de publicação ou opções privilegiadas.\n\n### Arquivos, exceções e limpeza\n\n`pathlib.Path` representa caminhos sem concatenar manualmente separadores de plataforma. O padrão `with open(caminho, encoding=\"utf-8\") as arquivo:` garante que o arquivo seja fechado ao sair do bloco, inclusive se uma exceção ocorrer. `try` delimita a operação sujeita a falhas; `except` trata tipos específicos; `else` roda se não houve exceção; `finally` permite limpeza. Capturar amplamente todas as exceções e ignorá-las oculta falhas e pode fazer a esteira marcar como sucesso um trabalho incompleto.\n\nUse erros com contexto útil, status de saída consistente e logs que não contenham tokens, senhas ou conteúdo privado. Uma exceção não deve ser apresentada como sucesso apenas para manter a execução. Se uma etapa crítica falhar, a chamada de CI/CD precisa receber resultado de falha ou outro sinal explicitamente configurado.\n\n### subprocess: argumentos separados e resultado verificável\n\n`subprocess.run` inicia um programa externo e, por padrão, não invoca implicitamente um shell. Passe o executável e seus argumentos como uma lista, por exemplo `subprocess.run([\"git\", \"status\", \"--short\"], check=True, text=True, capture_output=True)`. `check=True` faz surgir `CalledProcessError` se o processo terminar com código não zero; sem essa opção, examine `returncode`. Definir `shell=True` pede execução por shell e torna responsabilidade do programa escapar corretamente metacaracteres e espaços: concatenar entrada não confiável à linha de comando pode criar injeção de comandos.\n\nO argumento `cwd` controla o diretório de trabalho do filho, `timeout` limita quanto tempo a chamada aguarda e `env` permite fornecer o ambiente do subprocesso. Não registre cegamente `args`, ambiente ou saída: podem carregar credenciais. Em Windows, arquivos `.bat` ou `.cmd` têm particularidades de interpretação pelo sistema; chamadas desses arquivos com entrada não confiável exigem atenção adicional à documentação de segurança de `subprocess`.\n\n### Como cai na prova\n\n- `with` organiza o fechamento de arquivos mesmo em caso de exceção.\n- `subprocess.run` não usa shell por padrão; `shell=True` altera essa propriedade e exige cuidado contra injeção.\n- `check=True` converte código de saída não zero em `CalledProcessError`; sem ele, inspecione `returncode`.\n- `pathlib.Path` lida com caminhos de forma mais portátil que concatenação manual de separadores.\n- Capturar uma exceção e seguir como se a etapa crítica tivesse dado certo quebra a confiabilidade da automação."
+    },
+    {
+      "title": "5. DevSecOps: entradas, credenciais e execução segura",
+      "markdown": "### O problema que este assunto resolve\n\nScripts conectam repositórios, serviços, agentes de build e ambientes de implantação. Eles podem receber nomes de branch, caminhos, parâmetros e credenciais. Se uma entrada é interpretada como código, se um segredo aparece em logs ou se o agente roda com privilégios amplos, um erro pequeno pode comprometer o ambiente inteiro. DevSecOps trata essas condições como parte do desenho do fluxo, desde a revisão até a execução.\n\n> **Siglas e termos deste capítulo**\n> - **Segredo**: credencial ou valor sensível, como token, chave privada ou senha.\n> - **Injeção de comandos**: execução não intencional de comandos causada por dados tratados como sintaxe executável.\n> - **Menor privilégio**: concessão somente das permissões necessárias à tarefa.\n> - **Agente de build**: máquina ou processo que executa etapas de integração ou implantação.\n> - **Validação de entrada**: confirmação de que dados recebidos atendem ao formato e às regras esperados antes de serem usados.\n> - **Redação de log**: remoção ou mascaramento de valores sensíveis antes de registrar mensagens.\n\n### Evite transformar dados em código\n\nValide tipo, formato, tamanho e faixa de valores antes de usar parâmetros em comandos ou caminhos. Prefira APIs que separam executável de argumentos: em Python, uma lista de argumentos com `shell=False`; no PowerShell, parâmetros explícitos do cmdlet ou chamadas sem concatenar texto para `Invoke-Expression`; no Bash, variáveis citadas como `\"$valor\"` e sem `eval`. Citar uma variável ajuda a preservar limites de argumentos, mas não substitui a validação de que o valor faz sentido para a ação.\n\nQuando um script precisa construir um caminho, delimite a raiz permitida, resolva o caminho e rejeite tentativas de escapar dessa área. Para uma publicação ou exclusão, valide o destino e o ambiente e separe a etapa de planejamento da etapa que altera estado quando isso for viável. Não confie em nomes de branch ou caminhos fornecidos externamente como se fossem sempre seguros.\n\n### Segredos, permissões e logs\n\nGuarde credenciais em um gerenciador de segredos ou mecanismo protegido oferecido pelo ambiente de CI/CD; injete-as apenas nas etapas que precisam delas, com escopo e duração limitados. Variáveis de ambiente são uma interface de passagem comum, mas não são automaticamente um cofre: processos filhos podem herdá-las e comandos de depuração podem expô-las. Não grave segredos no repositório, em linha de comando persistente, em artefatos ou em saída de log. Redija valores sensíveis e limite quem consegue ler os logs.\n\nExecute agentes e scripts com conta e permissões mínimas, segmente credenciais por ambiente e evite reutilizar uma credencial de produção em testes. Revise alterações de scripts com o mesmo cuidado que código de aplicação. Fixe dependências e fontes de instalação conforme a política da organização; um pacote malicioso executado durante o build pode agir com os privilégios do agente.\n\n### Falhar de modo explícito e observável\n\nUma rotina segura verifica códigos de saída, trata erros esperados sem escondê-los e interrompe etapas subsequentes quando um requisito necessário falha. Logs devem indicar qual etapa falhou, o contexto técnico necessário para investigação e o status final, sem registrar conteúdo sensível. Repetir uma implantação deve ter comportamento conhecido: a idempotência e as verificações prévias reduzem mudanças duplicadas, mas uma exclusão ou migração irreversível precisa de controle específico.\n\n### Como cai na prova\n\n- A variável de ambiente facilita passar configuração, mas não elimina risco de exposição; use armazenamento protegido e limite escopo.\n- Aspas, listas de argumentos e parâmetros explícitos reduzem interpretação acidental; validação de entrada continua necessária.\n- Nunca use uma string não confiável como código por `eval` ou `Invoke-Expression`.\n- O menor privilégio limita o impacto de falhas e comprometimento da automação.\n- Um script que oculta erro e retorna sucesso cria uma falsa evidência de implantação concluída."
+    }
+  ],
+  "summary": "Bash, Windows PowerShell e Python automatizam tarefas em desenvolvimento, integração e operação, mas têm modelos de execução diferentes. Em Bash, expansão ocorre antes da chamada do comando: aspas simples mantêm literal, aspas duplas preservam agrupamento mas ainda expandem variáveis, e variáveis de argumento normalmente devem ser citadas. Status de saída, pipelines, redirecionamentos e `pipefail` determinam se falhas chegam ao fluxo. PowerShell envia objetos entre cmdlets; `$?` indica sucesso da operação PowerShell, `$LASTEXITCODE` registra o código do programa nativo, e `try/catch/finally` trata erros terminantes. A política de execução não é fronteira de segurança. Python organiza lógica em funções e módulos, `with` fecha recursos, `pathlib` representa caminhos, exceções sinalizam falhas e `subprocess.run` não invoca shell por padrão; `shell=True` requer defesa contra injeção. Em DevSecOps, valide entradas, separe dados de código, proteja e limite credenciais, redija logs, fixe dependências, use menor privilégio e propague falhas reais às esteiras.",
+  "flashcards": [
+    {
+      "front": "Que papel cumpre um script numa esteira DevOps?",
+      "back": "Codifica e automatiza passos reproduzíveis, versionados e revisáveis, como validação, teste, empacotamento ou implantação."
+    },
+    {
+      "front": "O que DevSecOps acrescenta à automação?",
+      "back": "Controles de segurança contínuos no ciclo de desenvolvimento e operação, como validação de entrada, proteção de credenciais e execução com menor privilégio."
+    },
+    {
+      "front": "O que indica o shebang `#!/usr/bin/env bash`?",
+      "back": "Indica que o arquivo deve ser interpretado pelo Bash encontrado no ambiente, quando iniciado como executável nesse sistema."
+    },
+    {
+      "front": "Por que citar `\"$arquivo\"` em Bash?",
+      "back": "Para passar o conteúdo como um único argumento, sem divisão em palavras ou expansão de curingas pelo shell."
+    },
+    {
+      "front": "Qual diferença há entre aspas simples e duplas em Bash?",
+      "back": "Aspas simples preservam o conteúdo literalmente; aspas duplas mantêm agrupamento mas permitem expansões como `$variavel` e `$(comando)`."
+    },
+    {
+      "front": "Que diferença há entre `\"$@\"` e `\"$*\"` em Bash?",
+      "back": "`\"$@\"` preserva cada argumento posicional como palavra separada; `\"$*\"` junta os argumentos em uma só palavra."
+    },
+    {
+      "front": "Que valor costuma representar sucesso no status de saída de um processo?",
+      "back": "Zero; um valor diferente de zero normalmente sinaliza falha, embora o significado preciso dependa do comando."
+    },
+    {
+      "front": "O que `set -o pipefail` muda em Bash?",
+      "back": "Faz a pipeline retornar falha se algum comando nela falhar, em vez de refletir apenas o último comando."
+    },
+    {
+      "front": "O que conecta o operador `|` em Bash?",
+      "back": "A saída padrão do comando à esquerda à entrada padrão do comando à direita."
+    },
+    {
+      "front": "Que risco decorre de `eval` em Bash?",
+      "back": "Ele interpreta uma string como código shell, podendo executar comandos injetados se o texto vier de entrada não confiável."
+    },
+    {
+      "front": "Que tipo de dado costuma circular numa pipeline PowerShell?",
+      "back": "Objetos com propriedades e métodos, processados por cmdlets, e não apenas linhas de texto formatado."
+    },
+    {
+      "front": "O que representa `$_` numa pipeline PowerShell?",
+      "back": "O objeto atual sendo processado no script block, também acessível como `$PSItem`."
+    },
+    {
+      "front": "Qual é a diferença entre `$?` e `$LASTEXITCODE`?",
+      "back": "`$?` reflete sucesso da operação PowerShell mais recente; `$LASTEXITCODE` contém o código do último programa nativo executado."
+    },
+    {
+      "front": "Para que servem `try`, `catch` e `finally` em PowerShell?",
+      "back": "`try` delimita a operação, `catch` trata erros terminantes e `finally` executa limpeza independentemente do resultado."
+    },
+    {
+      "front": "Como fazer certos erros não terminantes chegarem ao `catch` no PowerShell?",
+      "back": "Usando `-ErrorAction Stop` na operação apropriada ou configurando conscientemente a preferência de erros."
+    },
+    {
+      "front": "A política de execução PowerShell é uma fronteira de segurança?",
+      "back": "Não. É uma medida de defesa em profundidade que não substitui permissões, identidade, revisão e controles de segurança."
+    },
+    {
+      "front": "O que `$PSScriptRoot` fornece?",
+      "back": "O diretório do arquivo de script atualmente executado, útil para localizar arquivos auxiliares."
+    },
+    {
+      "front": "Para que serve `with open(...)` em Python?",
+      "back": "Abre um arquivo como gerenciador de contexto e garante o fechamento ao deixar o bloco, inclusive quando ocorre exceção."
+    },
+    {
+      "front": "Que vantagem `pathlib.Path` oferece?",
+      "back": "Representa e combina caminhos de modo mais claro e portátil do que concatenar manualmente separadores de diretório."
+    },
+    {
+      "front": "O que acontece por padrão ao usar `subprocess.run`?",
+      "back": "O programa é iniciado sem invocação implícita de shell; argumentos podem ser passados numa lista."
+    },
+    {
+      "front": "O que `check=True` faz em `subprocess.run`?",
+      "back": "Faz uma saída não zero do processo gerar `CalledProcessError`; sem isso, examine `returncode`."
+    },
+    {
+      "front": "Qual risco está associado a `shell=True` com dados externos?",
+      "back": "Metacaracteres podem ser interpretados pelo shell e permitir injeção de comandos se os argumentos não forem tratados com segurança."
+    },
+    {
+      "front": "Variáveis de ambiente são cofres de segredo?",
+      "back": "Não necessariamente; processos filhos podem herdá-las e depuração pode revelá-las. Use cofre e escopo controlado do provedor de CI/CD."
+    },
+    {
+      "front": "O que significa menor privilégio para um agente de build?",
+      "back": "O agente recebe apenas as permissões necessárias às etapas que executa, reduzindo o impacto de erros ou comprometimento."
+    },
+    {
+      "front": "Por que validar um caminho recebido como parâmetro?",
+      "back": "Para impedir que dados malformados ou manipulados direcionem leitura, gravação ou exclusão para fora do local permitido."
+    }
+  ],
+  "tips": [
+    "Em Bash, pense na ordem: o shell expande, divide e interpreta antes de iniciar o processo; cite variáveis que devam continuar um único argumento.",
+    "Separe falha do comando e falha da pipeline; confira o status e use `pipefail` quando precisar propagar erro de etapas anteriores.",
+    "No PowerShell, processe objetos e suas propriedades antes de aplicar `Format-Table` ou `Format-List` para apresentação.",
+    "Diante de executável nativo no PowerShell, verifique `$LASTEXITCODE`; `$?` tem outro propósito.",
+    "Em Python, use `subprocess.run` com lista de argumentos e `check=True` quando a falha deva interromper o fluxo.",
+    "Antes de publicar, excluir ou migrar, valide parâmetros, confirme o ambiente de destino e limite as credenciais da etapa."
+  ],
+  "traps": [
+    "Aspas duplas em Bash não deixam tudo literal: variáveis e substituições de comando continuam ativas.",
+    "`set -e` não detecta de forma universal toda falha em todo contexto; operações críticas precisam de tratamento explícito.",
+    "PowerShell encaminha objetos entre cmdlets; formatar cedo pode descartar propriedades necessárias às etapas seguintes.",
+    "Política de execução `RemoteSigned` ou `AllSigned` não substitui controle de acesso e não é uma fronteira de segurança.",
+    "`subprocess.run` não usa shell por padrão; habilitar `shell=True` muda a superfície de interpretação e de injeção.",
+    "Variável de ambiente não é cofre; segredo também pode vazar por herança a processos ou por logs de depuração."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como um script versionado melhora uma etapa de CI/CD e que risco permanece?",
+      "answer": "Torna a sequência revisável, repetível e associada ao histórico do código. Ainda pode agir com permissões excessivas, processar entrada maliciosa ou vazar segredos se não for desenhado com segurança."
+    },
+    {
+      "question": "Explique a diferença de interpretação entre `$x`, `\"$x\"` e `' $x '` em Bash.",
+      "answer": "`$x` é expandido e pode sofrer divisão e glob; `\"$x\"` é expandido mas preserva agrupamento; em aspas simples o valor fica literal (os espaços internos também)."
+    },
+    {
+      "question": "Por que `set -o pipefail` importa em uma sequência de filtros?",
+      "answer": "Sem essa opção, uma pipeline pode refletir sucesso do último comando mesmo que um produtor anterior tenha falhado; pipefail propaga falha de um componente."
+    },
+    {
+      "question": "Compare o que PowerShell normalmente transmite por `|` com o que Bash transmite.",
+      "answer": "PowerShell transmite objetos e propriedades no pipeline; Bash conecta fluxos de bytes, em geral texto, entre processos."
+    },
+    {
+      "question": "Em PowerShell, qual variável consultar para o status de um executável nativo?",
+      "answer": "`$LASTEXITCODE`; `$?` representa o sucesso da operação PowerShell mais recente."
+    },
+    {
+      "question": "Por que `-ErrorAction Stop` pode ser necessário num bloco `try` PowerShell?",
+      "answer": "Alguns cmdlets emitem erros não terminantes por padrão; elevar o erro permite que o `catch` os trate como interrupção."
+    },
+    {
+      "question": "O que `with` garante ao ler um arquivo em Python?",
+      "answer": "O protocolo de contexto fecha o arquivo ao sair do bloco, mesmo se o código no bloco causar uma exceção."
+    },
+    {
+      "question": "Como chamar processo externo em Python reduzindo risco de injeção?",
+      "answer": "Passar executável e argumentos em uma lista para `subprocess.run` sem `shell=True`, validar os dados e conferir o `returncode` ou usar `check=True`."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Expansão e quoting no Bash confundidos",
+      "summary": "Aspas simples preservam literal; duplas mantêm agrupamento mas permitem expansão. Variáveis sem aspas podem ser divididas em palavras e expandir curingas; eval reinterpreta dados como código."
+    },
+    {
+      "key": "e2",
+      "title": "Status e pipelines tratados como saída textual",
+      "summary": "Status zero costuma indicar sucesso. Bash conecta fluxos e pode ocultar falha anterior sem pipefail. PowerShell conduz objetos e tem variáveis de status próprias."
+    },
+    {
+      "key": "e3",
+      "title": "Erros e objetos do PowerShell interpretados incorretamente",
+      "summary": "Cmdlets passam objetos; formatação é apresentação. try/catch trata erros terminantes; -ErrorAction Stop pode elevar erros não terminantes. $LASTEXITCODE registra o resultado do executável nativo."
+    },
+    {
+      "key": "e4",
+      "title": "Execução de subprocesso Python sem separar dados de código",
+      "summary": "subprocess.run não invoca shell implicitamente. Lista de argumentos e shell=False reduzem interpretação; shell=True com entrada não confiável exige escaping correto e validação."
+    },
+    {
+      "key": "e5",
+      "title": "Controles de segurança ausentes na automação",
+      "summary": "Segredos não devem ir a código ou logs; variáveis de ambiente têm riscos de herança. Valide entradas e caminhos, use menor privilégio, dependências controladas e reporte falhas reais."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe quer que a validação e a publicação usem a mesma sequência revisada em cada implantação. Qual uso de script atende melhor ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardar uma sequência versionada e chamá-la com parâmetros validados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Deixar cada operador digitar os comandos conforme sua memória pessoal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Copiar arquivos de uma implantação anterior sem registrar as etapas usadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar comandos diferentes em cada ambiente para evitar parâmetros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar logs e verificações para tornar a sequência mais curta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um script versionado permite revisão, histórico e execução consistente, enquanto parâmetros explícitos permitem variar somente o que foi planejado. Digitação manual e cópia sem histórico reduzem reprodutibilidade; divergência por ambiente e supressão de verificações aumentam risco.",
+      "section": "1. Scripts no fluxo DevOps e DevSecOps",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma prática DevSecOps incorpora verificações de segurança ao fluxo automatizado de desenvolvimento e entrega, em vez de deixá-las apenas para o fim do ciclo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. DevSecOps integra segurança às práticas e ferramentas usadas ao longo do desenvolvimento e da operação. Revisar dependências, validar parâmetros e proteger credenciais na esteira são exemplos concretos dessa integração.",
+      "section": "1. Scripts no fluxo DevOps e DevSecOps",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como Bash, PowerShell e Python compartilham capacidade de automatizar tarefas, suas regras de aspas, pipelines e códigos de saída podem ser aplicadas da mesma forma nas três linguagens.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Cada ambiente tem sua própria semântica: Bash expande palavras e conecta fluxos; PowerShell transmite objetos nos pipelines; Python usa sintaxe e APIs próprias. Reutilizar sintaxe sem considerar o interpretador causa erros e vulnerabilidades.",
+      "section": "1. Scripts no fluxo DevOps e DevSecOps",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conduta favorece uma automação repetível e mais fácil de revisar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter as etapas apenas na memória da pessoa que opera o sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Registrar o script no controle de versão e revisar suas alterações.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ocultar a sequência de comandos para impedir que a equipe a copie.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar manualmente cada execução sem preservar um histórico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conceder acesso administrativo permanente a todos os usuários.",
+          "correct": false
+        }
+      ],
+      "explanation": "Controlar versão preserva histórico e permite revisar a mudança antes de executá-la. Conhecimento apenas oral e alterações sem histórico não são repetíveis; ocultar scripts impede auditoria e acesso administrativo amplo contraria o menor privilégio.",
+      "section": "1. Scripts no fluxo DevOps e DevSecOps",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Idempotência significa que repetir uma operação sob as mesmas condições não deve multiplicar seu efeito final.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma operação idempotente preserva o resultado desejado quando repetida, propriedade útil para novas tentativas de automação. Isso não autoriza repetir cegamente qualquer script: exclusões e efeitos irreversíveis precisam de controles próprios.",
+      "section": "1. Scripts no fluxo DevOps e DevSecOps",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script que sempre roda com privilégio máximo é mais confiável porque não falhará por falta de permissão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Privilégio amplo aumenta o dano potencial de bugs ou comprometimento do agente. A prática é conceder apenas permissões necessárias à etapa, mantendo verificações e falhas visíveis.",
+      "section": "1. Scripts no fluxo DevOps e DevSecOps",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual propriedade distingue de forma geral o pipeline PowerShell de uma pipeline tradicional de texto em Bash?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "PowerShell transmite apenas arquivos; Bash transmite somente números inteiros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "PowerShell exige arquivos intermediários; Bash não aceita redirecionamentos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PowerShell transmite objetos; Bash conecta fluxos de bytes entre processos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "PowerShell transmite somente erros; Bash transmite somente caminhos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PowerShell não permite filtros; Bash não permite comandos encadeados.",
+          "correct": false
+        }
+      ],
+      "explanation": "PowerShell encadeia objetos com propriedades, que cmdlets podem filtrar e transformar; Bash conecta fluxos como saída padrão e entrada padrão, frequentemente contendo texto. Nenhum dos dois tem as limitações alegadas nas demais alternativas.",
+      "section": "1. Scripts no fluxo DevOps e DevSecOps",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao escolher interpretador para uma esteira, é suficiente escolher a linguagem de que o autor do script mais gosta, sem verificar dependências do agente de build.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A escolha depende também do sistema-alvo, do interpretador e das bibliotecas disponíveis, das interfaces com ferramentas externas e das necessidades de manutenção. Um agente sem a dependência requerida não executará o script corretamente.",
+      "section": "1. Scripts no fluxo DevOps e DevSecOps",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um repositório contém Bash destinado a ambiente Unix e PowerShell para automação de um host Windows. A equipe deve assumir que o mesmo comando e a mesma expansão terão efeito idêntico nas duas plataformas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Shells e sistemas têm sintaxes, mecanismos de quoting, caminhos, comandos disponíveis e status diferentes. A automação deve declarar seu interpretador e ser validada no ambiente em que realmente será executada.",
+      "section": "1. Scripts no fluxo DevOps e DevSecOps",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve uma aplicação concreta de menor privilégio num fluxo de implantação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dar a todo agente uma credencial administrativa permanente para todos os ambientes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar uma credencial restrita ao ambiente e às operações da etapa atual.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Guardar a senha de produção num arquivo do repositório para compartilhá-la.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar autenticação para que a publicação não dependa de permissões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reutilizar a chave privada de um desenvolvedor em todos os agentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma credencial limitada ao ambiente e às operações necessárias reduz a superfície e o impacto de exposição. Credenciais administrativas permanentes, senha em repositório, ausência de autenticação e chave pessoal compartilhada ampliam acesso e dificultam revogação e auditoria.",
+      "section": "1. Scripts no fluxo DevOps e DevSecOps",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, a variável `ambiente=producao` deve ser escrita sem espaços ao redor do sinal de igualdade numa atribuição simples.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Na sintaxe de atribuição do shell não se colocam espaços em volta do `=`. Com espaços, o shell interpreta palavras de comando e argumentos em vez de uma única atribuição simples.",
+      "section": "2. Bash: expansão, quoting, processos e status",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, aspas simples permitem que `$HOME` seja expandido, enquanto aspas duplas o mantêm como texto literal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Aspas simples preservam literalmente o conteúdo e não expandem `$HOME`. Aspas duplas permitem expansão da variável, mas protegem espaços e curingas de divisão e expansão de nomes.",
+      "section": "2. Bash: expansão, quoting, processos e status",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A escrita `\"$arquivo\"` em Bash ajuda a enviar um caminho com espaços como um só argumento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A expansão permanece ativa, mas as aspas duplas evitam que o valor seja dividido em várias palavras ou que padrões nele virem globs. A ferramenta chamada recebe o caminho agrupado como argumento único.",
+      "section": "2. Bash: expansão, quoting, processos e status",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual construção Bash preserva cada parâmetro recebido pelo script como um argumento separado ao encaminhá-los?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Juntar os parâmetros numa string com `\"$*\"` e repassá-la como um bloco único.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Encaminhar apenas o primeiro parâmetro pela expansão `$1`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar a string reunida por meio do comando `eval`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Encaminhar todos os parâmetros, preservando cada argumento, com `\"$@\"`.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Substituir cada parâmetro pela saída de `echo $@`.",
+          "correct": false
+        }
+      ],
+      "explanation": "`\"$@\"` expande cada parâmetro posicional como palavra separada, preservando inclusive argumentos com espaços. `\"$*\"` junta o conjunto numa palavra; `$1` perde os demais; eval reinterpreta texto como código e echo pode alterar limites e conteúdo.",
+      "section": "2. Bash: expansão, quoting, processos e status",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, aspas duplas também desativam a expansão de parâmetros e a substituição de comando, da mesma forma que aspas simples.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Aspas duplas conservam espaços no mesmo argumento e inibem divisão e glob, mas `$variavel` e `$(comando)` continuam sendo processados. Aspas simples são as que preservam o texto interno literalmente.",
+      "section": "2. Bash: expansão, quoting, processos e status",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num script Bash, `$(comando)` captura a saída padrão do comando e a insere no texto em que a substituição foi usada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A substituição de comando executa o conteúdo entre parênteses e troca a expressão pela saída padrão, removendo quebras de linha finais. A saída de erro não é capturada automaticamente por essa forma.",
+      "section": "2. Bash: expansão, quoting, processos e status",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual efeito tem `set -o pipefail` numa pipeline Bash com falha num comando intermediário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A pipeline sempre ignora falhas que ocorram antes do último comando e considera somente seu resultado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O shell transforma todas as saídas não zero em saída zero.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A saída de erro de cada comando passa a ser descartada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Todos os comandos são repetidos até retornarem sucesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A pipeline pode retornar falha quando algum de seus comandos falha, inclusive um intermediário.",
+          "correct": true
+        }
+      ],
+      "explanation": "Com `pipefail`, o status da pipeline reflete falha de um dos componentes conforme a regra do shell, permitindo que o erro de etapa anterior seja percebido. A opção não descarta fluxos, não repete processos e não converte falhas em sucesso.",
+      "section": "2. Bash: expansão, quoting, processos e status",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sem configuração adicional de Bash, o status de saída da pipeline costuma ser o status do último comando nela.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esse comportamento padrão pode mascarar falha do primeiro comando se o último terminar com sucesso. A opção `pipefail` altera a regra para que uma falha na pipeline seja refletida, razão pela qual é útil em automação.",
+      "section": "2. Bash: expansão, quoting, processos e status",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual redirecionamento Bash envia a saída de erro padrão para um arquivo separado chamado `erros.log`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `>> erros.log` para direcionar a saída padrão, acrescentando-a ao final do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `< erros.log` para direcionar o descritor de erro padrão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `2> erros.log` para gravar a saída de erro padrão no arquivo indicado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar `| erros.log` para direcionar o descritor de erro padrão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `& erros.log` para direcionar o descritor de erro padrão.",
+          "correct": false
+        }
+      ],
+      "explanation": "O descritor 2 é a saída de erro padrão e `2>` redireciona esse fluxo para o arquivo. `>>` acrescenta saída padrão, `<` redireciona entrada, `|` forma pipeline e `&` tem outros usos no shell.",
+      "section": "2. Bash: expansão, quoting, processos e status",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Usar `eval` com uma string que contém entrada recebida de usuário é uma maneira segura de impedir injeção de comandos em Bash.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `eval` interpreta novamente seu texto como código shell. Metacaracteres incluídos por uma entrada externa podem alterar o comando ou executar instruções adicionais; prefira dados separados de código, quoting e validação.",
+      "section": "2. Bash: expansão, quoting, processos e status",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente os operadores `&&` e `||` em Bash?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`&&` executa o próximo comando após falha; `||` após sucesso, conforme o status anterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ambos executam o próximo comando apenas quando o status é diferente de zero.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ambos executam o próximo comando apenas quando o status é zero.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`&&` continua após sucesso; `||` continua após falha do comando anterior.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Nenhum dos operadores examina o resultado do comando anterior.",
+          "correct": false
+        }
+      ],
+      "explanation": "Essas listas condicionais usam o status do comando anterior: `&&` continua em caso de sucesso e `||` em caso de falha. Eles permitem tratamento conciso, mas encadeamentos críticos ainda devem apresentar mensagens e resultado claros.",
+      "section": "2. Bash: expansão, quoting, processos e status",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PowerShell, uma pipeline que recebe objetos pode selecionar propriedades específicas antes de formatar o resultado para apresentação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cmdlets podem passar objetos com propriedades e comandos como `Select-Object` selecionam campos antes de um formatador produzir a visualização. Separar processamento de apresentação preserva os dados para as próximas etapas.",
+      "section": "3. Windows PowerShell: objetos, parâmetros e erros",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No bloco `ForEach-Object` de uma pipeline PowerShell, `$_` normalmente representa o objeto atual recebido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `$_`, também disponível como `$PSItem`, referencia o objeto corrente em script blocks de processamento. Suas propriedades podem ser lidas para filtrar ou transformar cada item da pipeline.",
+      "section": "3. Windows PowerShell: objetos, parâmetros e erros",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para processamento subsequente de dados PowerShell, `Format-Table` deve sempre ser usado antes dos filtros porque preserva os objetos completos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `Format-Table` cria saída voltada à apresentação; depois da formatação, a pipeline não deve ser tratada como se conservasse objetos originais e propriedades. Filtre e selecione dados antes de formatar ao final.",
+      "section": "3. Windows PowerShell: objetos, parâmetros e erros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual variável PowerShell é destinada ao código de saída do último programa nativo executado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`$LASTEXITCODE`, que guarda o código de saída do processo nativo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`$PSScriptRoot`, que guarda o código de saída do processo nativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`$PSItem`, que guarda o código de saída do processo nativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`$ErrorActionPreference`, que guarda o código de saída do processo nativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`$PROFILE`, que guarda o código de saída do processo nativo.",
+          "correct": false
+        }
+      ],
+      "explanation": "`$LASTEXITCODE` contém o código retornado pelo programa nativo mais recentemente executado. `$?` indica se a operação PowerShell mais recente teve sucesso; as demais variáveis têm finalidades distintas, como diretório do script, item atual, ação de erros e perfil.",
+      "section": "3. Windows PowerShell: objetos, parâmetros e erros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PowerShell, `$?` e `$LASTEXITCODE` sempre contêm o mesmo valor e podem ser usados de modo intercambiável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `$?` indica sucesso da última operação ou pipeline PowerShell; `$LASTEXITCODE` contém o código numérico do último programa nativo. Um script que chama executável deve consultar o valor apropriado para decidir se houve falha.",
+      "section": "3. Windows PowerShell: objetos, parâmetros e erros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual construção executa uma limpeza PowerShell mesmo quando ocorre erro dentro do bloco protegido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colocar a limpeza apenas depois de um `return` bem-sucedido, fora de qualquer tratamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Colocar a limpeza numa variável automática `$LASTEXITCODE`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Colocar a limpeza num comentário de linha após o cmdlet.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Colocar a limpeza no bloco `catch` sem criar um `try`.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Colocar a limpeza em `finally`, associado a `try`, para executá-la ao encerrar o fluxo protegido.",
+          "correct": true
+        }
+      ],
+      "explanation": "O bloco `finally` é destinado a código de encerramento e roda após a conclusão do `try` e do `catch`, inclusive quando houve erro. Um retorno antecipado ou um comentário não garante a limpeza; uma variável não é um bloco de execução.",
+      "section": "3. Windows PowerShell: objetos, parâmetros e erros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Erros não terminantes de PowerShell sempre interrompem imediatamente o script e são capturados por `catch` sem configuração adicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Por definição, erros não terminantes podem permitir que a execução prossiga. `try/catch` responde a erros terminantes; `-ErrorAction Stop` ou uma preferência adequada pode elevar certos erros não terminantes para que sejam capturados.",
+      "section": "3. Windows PowerShell: objetos, parâmetros e erros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe usa `Get-ChildItem`, filtra arquivos por uma propriedade e depois seleciona nomes. Qual composição respeita o processamento de objetos antes da apresentação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Passar objetos por `Where-Object` e `Select-Object` antes do formatador final.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Formatar tudo com `Format-Table` e filtrar as colunas de texto depois.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter os arquivos em mensagens de log e usar `catch` como filtro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `$LASTEXITCODE` como propriedade do arquivo para selecioná-lo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Passar os objetos a `Write-Host` e ler propriedades após a impressão.",
+          "correct": false
+        }
+      ],
+      "explanation": "`Where-Object` examina propriedades dos objetos e `Select-Object` pode restringir os campos ainda estruturados; um formatador é usado ao final para exibição. Filtrar texto formatado, usar status de processo como atributo do arquivo ou imprimir antes de processar não preserva os objetos necessários.",
+      "section": "3. Windows PowerShell: objetos, parâmetros e erros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`$PSScriptRoot` permite obter o diretório do arquivo PowerShell em execução e ajuda a localizar arquivos auxiliares sem depender do diretório corrente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A variável automática representa o diretório do script. Construir caminhos a partir dela é mais previsível do que pressupor que quem chamou o script esteja num diretório específico.",
+      "section": "3. Windows PowerShell: objetos, parâmetros e erros",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A política de execução PowerShell pode ser tratada como substituta de ACLs e de controles de identidade, pois bloqueia por completo código malicioso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A documentação da Microsoft define a política de execução como recurso de segurança de defesa em profundidade, não uma fronteira de segurança; há formas de contornar as condições de execução. Permissões, identidade e revisão continuam necessárias.",
+      "section": "3. Windows PowerShell: objetos, parâmetros e erros",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ação PowerShell torna um erro não terminante de um cmdlet em falha que pode ser capturada por `catch`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir `-ErrorAction Stop` na operação relevante dentro de `try`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Definir `-ErrorAction Ignore` na operação relevante dentro de `try`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Formatar o erro com `Format-Table` antes de abrir `try`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Enviar o erro para `Write-Host` depois de fechar `catch`.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Gravar o comando numa variável automática `$PSScriptRoot`.",
+          "correct": false
+        }
+      ],
+      "explanation": "`-ErrorAction Stop` eleva o erro não terminante daquela operação, permitindo o fluxo de tratamento de erro terminante de `try/catch`. `Ignore` suprime, formatação não altera a semântica e impressão posterior não captura o erro.",
+      "section": "3. Windows PowerShell: objetos, parâmetros e erros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No fluxo usual de Python, a indentação delimita os blocos de instruções de uma função ou estrutura de controle.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Python usa indentação para determinar a estrutura de blocos, por exemplo o corpo de `if`, `for`, `while`, `try` ou `def`. Indentação inconsistente pode causar erro de sintaxe ou alterar a estrutura pretendida.",
+      "section": "4. Python para automação e subprocessos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O bloco `with open(...)` garante o fechamento do arquivo quando a execução sai do bloco, mesmo se uma exceção ocorrer ali.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O gerenciador de contexto realiza a finalização do recurso na saída do bloco, inclusive quando há exceção. Isso evita depender de uma linha de fechamento que poderia não ser alcançada.",
+      "section": "4. Python para automação e subprocessos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso Python ajuda a representar caminhos de arquivo sem concatenar manualmente barras de plataforma?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar objetos `pathlib.Path` para compor e inspecionar caminhos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Juntar sempre segmentos de caminho com strings contendo barra invertida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter cada caminho em um comando `eval` antes de abri-lo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `$PSScriptRoot` como função da biblioteca Python.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Enviar nomes de diretório ao shell sem validar seus valores.",
+          "correct": false
+        }
+      ],
+      "explanation": "`pathlib.Path` oferece uma API de caminhos com operações de composição e consulta adequadas à plataforma. Concatenação manual de separadores é frágil; eval e comandos shell não ajudam a representar caminhos com segurança; `$PSScriptRoot` é variável PowerShell.",
+      "section": "4. Python para automação e subprocessos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, uma cláusula `except` sem restrição que captura qualquer exceção e a ignora garante que a esteira detectará falhas com mais precisão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Capturar e ignorar falhas pode fazer um trabalho incompleto parecer bem-sucedido e esconder defeitos inesperados. Trate exceções específicas quando puder recuperar e propague ou registre adequadamente falhas que devem interromper a etapa.",
+      "section": "4. Python para automação e subprocessos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção de `subprocess.run` faz surgir `CalledProcessError` quando o processo termina com código diferente de zero?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar o argumento `check=True` na chamada de `subprocess.run`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar o argumento `cwd=True` na chamada de `subprocess.run`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar o argumento `text=True` na chamada de `subprocess.run`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar o argumento `capture_output=True` na chamada de `subprocess.run`.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar o argumento `env=True` na chamada de `subprocess.run`.",
+          "correct": false
+        }
+      ],
+      "explanation": "`check=True` pede que `subprocess.run` lance `CalledProcessError` quando o código de saída for não zero. `cwd` escolhe diretório de trabalho, `text` trata texto, `capture_output` coleta fluxos e `env` fornece o ambiente do processo.",
+      "section": "4. Python para automação e subprocessos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Python invoca implicitamente um shell por padrão para toda chamada de `subprocess.run`, mesmo que o chamador passe uma lista de argumentos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A biblioteca não escolhe implicitamente um shell por padrão. Passar executável e argumentos em lista permite que caracteres de metassintaxe sejam enviados como argumentos do processo; `shell=True` é que solicita shell explicitamente.",
+      "section": "4. Python para automação e subprocessos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual forma reduz o risco de injeção ao chamar um executável Python com parâmetros externos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concatenar entradas em texto e executar com `shell=True`, confiando nas aspas digitadas pelo usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Passar executável e argumentos numa lista sem `shell=True` e validar cada dado externo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Inserir entradas externas em código Python e avaliá-las com `eval`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar os argumentos e executar a primeira palavra da entrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ocultar o comando nos logs e assumir que isso impede execução indevida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma lista separa os elementos de argumento e, sem invocação de shell, evita que metacaracteres sejam interpretados como sintaxe de shell; ainda é preciso validar que os valores são apropriados. Concatenar com shell, eval e execução parcial transformam dados em instruções; ocultar logs não impede injeção.",
+      "section": "4. Python para automação e subprocessos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se `subprocess.run` não recebe `check=True`, examinar `returncode` permite decidir se o programa externo terminou com sucesso convencional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Sem `check=True`, a chamada pode retornar normalmente mesmo com saída não zero, registrando o código em `returncode`. O script deve inspecioná-lo e propagar falha quando a operação for requisito para as etapas seguintes.",
+      "section": "4. Python para automação e subprocessos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No parâmetro `cwd` de `subprocess.run`, Python recebe o diretório de trabalho do processo filho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `cwd` define o diretório de trabalho usado para iniciar o subprocesso. Isso torna explícito o contexto de execução em vez de depender acidentalmente do diretório corrente da esteira.",
+      "section": "4. Python para automação e subprocessos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo Python quer limitar o tempo de espera por um programa externo que pode travar. Qual opção de `subprocess.run` expressa diretamente esse limite?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar `text=True` para definir em segundos o limite de espera pela conclusão do programa externo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Configurar `timeout` com o limite de espera desejado para a chamada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Configurar `capture_output=True` com o limite de espera desejado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Configurar `check=True` com o limite de espera desejado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Configurar `encoding` com o limite de espera desejado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O parâmetro `timeout` limita quanto tempo a chamada aguarda e permite tratar o caso em que a execução demora além do estabelecido. Os demais argumentos lidam com modo texto, captura de fluxos, validação do código ou codificação de caracteres.",
+      "section": "4. Python para automação e subprocessos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Windows, a documentação de Python alerta que arquivos `.bat` ou `.cmd` podem ter tratamento de shell pelo sistema mesmo quando os argumentos são passados a `subprocess`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação oficial de `subprocess` aponta essa particularidade em Windows e recomenda atenção adicional ao lançar arquivos batch com argumentos não confiáveis, pois podem ser analisados segundo regras de shell.",
+      "section": "4. Python para automação e subprocessos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recomendação é apropriada ao usar credencial numa etapa automatizada de implantação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gravar a credencial no código e restringir o acesso ao repositório apenas à equipe de implantação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Enviar a credencial como argumento visível a qualquer processo iniciado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Imprimir a credencial em cada log para facilitar diagnóstico posterior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar a mesma chave pessoal em todos os agentes de todos os ambientes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Guardar a credencial em mecanismo protegido e limitar seu escopo à etapa que precisa dela.",
+          "correct": true
+        }
+      ],
+      "explanation": "O armazenamento protegido e o escopo mínimo reduzem exposição e permitem controlar o uso. Versionar ou imprimir o segredo o divulga; reutilizar chave pessoal dificulta atribuição e revogação; argumentos e processos também podem expor valores conforme o ambiente.",
+      "section": "5. DevSecOps: entradas, credenciais e execução segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma variável de ambiente usada para passar um token é automaticamente segura contra leitura por processos filhos e contra impressão em logs.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Variáveis de ambiente são convenientes, mas processos filhos podem herdá-las e logs de depuração podem expor seu valor. O segredo deve vir de mecanismo protegido, ter escopo limitado e nunca ser impresso sem mascaramento.",
+      "section": "5. DevSecOps: entradas, credenciais e execução segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual medida melhor reduz exposição de um token usado numa esteira de CI/CD?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar o token em todas as etapas da esteira para evitar configurações adicionais por etapa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Salvá-lo em arquivo versionado junto às instruções de implantação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Injetar o token somente na etapa necessária e impedir sua exposição nos logs.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Imprimi-lo antes de cada uso para conferir que não mudou.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Compartilhá-lo entre ambientes para reduzir a quantidade de credenciais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Injetar o segredo apenas onde é necessário e redigir logs limita oportunidades de exposição. Arquivo versionado, etapas sem necessidade, impressão e compartilhamento entre ambientes ampliam acesso e dificultam contenção.",
+      "section": "5. DevSecOps: entradas, credenciais e execução segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Validar tipo, formato e limites de um parâmetro recebido antes de usá-lo em caminho ou comando reduz o risco de interpretar entrada maliciosa como instrução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Validação rejeita valores fora das regras esperadas antes que influenciem operações. A separação de dados e código, quoting e APIs de argumentos também reduzem interpretação indevida, mas não tornam dispensável validar o que o parâmetro significa.",
+      "section": "5. DevSecOps: entradas, credenciais e execução segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Usar aspas em Bash ou uma lista de argumentos em Python elimina a necessidade de validar caminhos e parâmetros fornecidos externamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Quoting e listas ajudam a preservar limites e a separar dados de metassintaxe, mas não verificam se o valor é permitido nem se aponta para o destino correto. Validação e controle de caminhos continuam necessários, sobretudo em operações de escrita e exclusão.",
+      "section": "5. DevSecOps: entradas, credenciais e execução segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma etapa crítica falha, mas o script captura a exceção, não registra nada e retorna status de sucesso para que a esteira continue. Esse resultado é adequado para DevSecOps.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Ocultar uma falha e sinalizar sucesso cria evidência falsa de validação ou implantação concluída. O script deve registrar contexto útil sem segredos e propagar status de falha quando a etapa for requisito para continuar.",
+      "section": "5. DevSecOps: entradas, credenciais e execução segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script Python concatena um caminho recebido de usuário à pasta de publicação. Qual controle trata diretamente o risco de sair da raiz autorizada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aceitar qualquer texto recebido porque a biblioteca de caminhos normaliza a entrada automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Resolver o destino e rejeitá-lo quando estiver fora da raiz de publicação permitida.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aceitar qualquer texto porque Python usa indentação obrigatória.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter o caminho em mensagem de log antes de gravar o arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `shell=True` para que o sistema normalize o destino escolhido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Resolver o caminho e confirmar que permanece dentro da raiz aprovada impede que segmentos manipulados direcionem a escrita para outro local. Ocultação, indentação e log não controlam o destino; shell=True pode acrescentar risco de interpretação e não é mecanismo de autorização de caminho.",
+      "section": "5. DevSecOps: entradas, credenciais e execução segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dependências de um script de build devem ser controladas, pois código de pacote instalado pode executar com os privilégios do agente que o instala.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O processo de build executa dependências em seu contexto de permissões, por isso fontes e versões precisam seguir controles da organização. Um pacote malicioso pode agir sobre arquivos, credenciais e recursos acessíveis ao agente.",
+      "section": "5. DevSecOps: entradas, credenciais e execução segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação oferece resposta mais segura quando o destino da implantação vem de parâmetro externo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar a publicação com privilégio máximo, dispensar validações e ocultar qualquer falha da etapa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Validar ambiente e caminho, limitar permissões e sinalizar falhas antes de publicar.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Concatenar o parâmetro em código shell e confiar no nome informado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Publicar primeiro e descobrir o destino observando os efeitos no sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar uma credencial pessoal compartilhada e ignorar o status final.",
+          "correct": false
+        }
+      ],
+      "explanation": "Validar ambiente e caminho reduz erro de direcionamento; menor privilégio limita impacto; e verificar o resultado evita declarar sucesso falso. As demais opções removem controles, interpretam entrada como código ou dificultam atribuição e diagnóstico.",
+      "section": "5. DevSecOps: entradas, credenciais e execução segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A captura de saída de um subprocesso pode reter dados sensíveis, portanto o script deve avaliar o que registra em logs.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Saída de ferramenta pode incluir URLs, identificadores, conteúdo privado ou credenciais por erro de configuração. Capturar a saída ajuda a tratar dados, mas antes de registrá-la é preciso filtrar ou mascarar o que for sensível.",
+      "section": "5. DevSecOps: entradas, credenciais e execução segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Numa pipeline Bash, um comando produtor falha, mas o filtro final retorna zero. Sem `pipefail`, a automação pode não perceber a falha ao verificar apenas o status da pipeline.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Por padrão, o status da pipeline normalmente acompanha o último comando; um filtro que termina bem pode mascarar a falha do produtor. `set -o pipefail` torna a falha de qualquer elemento visível no resultado da pipeline.",
+      "section": "2. Bash: expansão, quoting, processos e status",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função PowerShell recebe objetos pela pipeline e define um bloco `process`. Dentro dele, a variável automática `$_` contém o objeto corrente para processamento individual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O bloco `process` de uma função recebe e processa itens da pipeline individualmente; `$_` ou `$PSItem` referencia a entrada atual. Isso permite lógica por objeto sem converter o fluxo em texto primeiro.",
+      "section": "3. Windows PowerShell: objetos, parâmetros e erros",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script PowerShell que chama um executável externo pode concluir que houve sucesso apenas porque `$?` é verdadeiro, sem considerar o código nativo retornado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Para avaliar o código de saída do último programa nativo, deve-se examinar `$LASTEXITCODE`. `$?` informa sucesso da operação PowerShell mais recente e não substitui a checagem do código nativo em fluxos que precisam desse resultado.",
+      "section": "3. Windows PowerShell: objetos, parâmetros e erros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Bash Reference Manual — Shell Expansions",
+      "publisher": "GNU Project",
+      "reference": "Ordem das expansões, divisão em palavras e expansão de nomes de arquivo",
+      "url": "https://www.gnu.org/software/bash/manual/html_node/Shell-Expansions.html",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Bash Reference Manual — Quoting",
+      "publisher": "GNU Project",
+      "reference": "Aspas simples, duplas e escape no Bash",
+      "url": "https://www.gnu.org/software/bash/manual/html_node/Quoting.html",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Bash Reference Manual — Pipelines",
+      "publisher": "GNU Project",
+      "reference": "Pipelines, conexão de fluxos e opção pipefail",
+      "url": "https://www.gnu.org/software/bash/manual/html_node/Pipelines.html",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "about_Pipelines",
+      "publisher": "Microsoft Learn",
+      "reference": "Passagem de objetos em pipelines PowerShell",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_pipelines?view=powershell-7.5",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "about_Automatic_Variables",
+      "publisher": "Microsoft Learn",
+      "reference": "$?, $LASTEXITCODE, $PSScriptRoot e outras variáveis automáticas",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_automatic_variables?view=powershell-7.5",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "about_Error_Handling",
+      "publisher": "Microsoft Learn",
+      "reference": "Erros terminantes, não terminantes, ErrorAction e try/catch/finally",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_error_handling?view=powershell-7.5",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "about_Execution_Policies",
+      "publisher": "Microsoft Learn",
+      "reference": "Escopos e tipos de política; a política de execução não é fronteira de segurança",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-7.5",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Python Tutorial — Errors and Exceptions",
+      "publisher": "Python Software Foundation",
+      "reference": "Exceções, tratamento e propagação de erros",
+      "url": "https://docs.python.org/3/tutorial/errors.html",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "subprocess — Subprocess management",
+      "publisher": "Python Software Foundation",
+      "reference": "subprocess.run, argumentos, shell, código de saída e considerações de segurança",
+      "url": "https://docs.python.org/3/library/subprocess.html",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "pathlib — Object-oriented filesystem paths",
+      "publisher": "Python Software Foundation",
+      "reference": "Representação orientada a objetos de caminhos do sistema de arquivos",
+      "url": "https://docs.python.org/3/library/pathlib.html",
+      "accessedAt": "2026-10-30"
+    }
+  ]
+}

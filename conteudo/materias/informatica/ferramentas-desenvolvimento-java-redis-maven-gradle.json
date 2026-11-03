@@ -1,0 +1,2906 @@
+{
+  "id": "informatica.ferramentas-desenvolvimento-java-redis-maven-gradle",
+  "subject": "Informática",
+  "title": "Ferramentas de desenvolvimento Java: Redis, Maven e Gradle",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Frameworks Java: Redis, Maven, Gradle",
+    "Ferramentas de desenvolvimento Java",
+    "Redis como armazenamento em memória",
+    "Redis e clientes para Java",
+    "Maven e gerenciamento de projetos Java",
+    "Gradle e automação de builds Java",
+    "Maven POM e dependências Java",
+    "Gradle Wrapper e tarefas Java",
+    "Ferramentas Java Redis Maven Gradle",
+    "Build e dependências de aplicações Java",
+    "Redis, Maven e Gradle para desenvolvimento",
+    "Integração Java com Redis e ferramentas de build"
+  ],
+  "scope": {
+    "covers": "Conceitos e uso de Redis em aplicações Java, estruturas de dados e comandos, persistência, expiração, pub/sub, transações e cuidados de cache; clientes Java como Jedis e Lettuce. Fundamentos de Maven: POM, coordenadas, dependências, repositórios, plugins, convenção de diretórios e ciclos/fases de build. Fundamentos de Gradle: arquivos de configuração Groovy ou Kotlin DSL, plugins, dependências, tarefas, grafo de tarefas, configuração e execução, projeto multiprojeto, Wrapper e cache. Comparação das ferramentas e integração num fluxo Java.",
+    "excludes": "Administração aprofundada de clusters Redis, sintaxe completa de Java, algoritmos internos de compiladores, publicação de artefatos em repositórios privados, configuração avançada de pipelines e comparação de versões específicas das ferramentas."
+  },
+  "theoryTitle": "Armazenamento Redis e automação de builds Java",
+  "chapters": [
+    {
+      "title": "1. Redis: estruturas de dados e uso em aplicações Java",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação Java pode precisar guardar sessões, resultados temporários de consultas, contadores, filas simples ou dados que vários processos leem rapidamente. Redis é um servidor de estrutura de dados em memória, acessado por comandos e também utilizado como cache ou armazenamento persistente conforme a configuração. Não é um framework Java: é um serviço com o qual o programa conversa por meio de um cliente, como Jedis ou Lettuce.\n\n> **Siglas e termos deste capítulo**\n> - **Cache**: cópia de dados usada para reduzir custo ou latência de uma leitura.\n> - **TTL**: tempo de vida associado a uma chave, após o qual ela expira.\n> - **Pub/Sub**: mecanismo de publicação de mensagens em canais para assinantes.\n> - **Cliente**: biblioteca que traduz chamadas Java em comandos Redis e administra comunicação.\n\n### Estruturas, comandos e cenários\n\n| Estrutura Redis | Comandos ilustrativos | Uso típico |\n| --- | --- | --- |\n| String | `SET`, `GET`, `INCR` | Valor simples, contador ou token |\n| Hash | `HSET`, `HGET`, `HGETALL` | Campos de um objeto, como perfil resumido |\n| List | `LPUSH`, `RPUSH`, `LPOP`, `RPOP` | Sequência ordenada e fila simples |\n| Set | `SADD`, `SISMEMBER`, `SMEMBERS` | Conjunto sem duplicatas, como participantes |\n| Sorted set | `ZADD`, `ZRANGE` | Elementos ordenados por pontuação, como ranking |\n\nAs chaves são endereços dos valores. Uma chave pode receber expiração; isso é essencial em sessões e caches para evitar que dados temporários permaneçam indefinidamente. Redis também oferece operações atômicas para comandos individuais e scripts Lua executados no servidor. Pub/Sub distribui eventos a assinantes conectados, mas não deve ser confundido com uma fila durável: uma mensagem publicada não fica automaticamente guardada para assinante que estava desconectado.\n\n### Redis a partir de Java\n\nO programa Java inclui a dependência de uma biblioteca cliente e conecta-se a um endpoint Redis. Com Jedis, por exemplo, o código pode abrir um cliente, executar `set(chave, valor)`, consultar com `get(chave)` e encerrar recursos. Jedis oferece API síncrona e também modos de pooling; Lettuce é outro cliente Java conhecido, com suporte a operações síncronas, assíncronas e reativas. O cliente não substitui o servidor Redis: ambos precisam estar disponíveis e compatíveis na rede e na configuração.\n\nEm produção, não se deve tratar cache como fonte infalível: uma expiração ou reinicialização pode retirar uma entrada. Senhas e dados sensíveis precisam de controles de acesso e transporte adequados. Uma política de expiração deve refletir o uso da informação; TTL curto reduz dados obsoletos, mas pode elevar a carga sobre o banco de origem.\n\n### Como cai na prova\n\n- `GET` e `SET` atuam sobre strings; `HGET` consulta um campo de hash; `INCR` é apropriado a contadores.\n- A biblioteca Jedis ou Lettuce é cliente Java; Redis é o serviço de armazenamento.\n- Pub/Sub é comunicação por canais, sem retenção automática de mensagens para consumidores desconectados.\n- Um cache precisa de política de validade e não é, por definição, backup ou banco relacional."
+    },
+    {
+      "title": "2. Maven: POM, dependências e ciclo de build",
+      "markdown": "### O problema que este assunto resolve\n\nCompilar manualmente cada classe, localizar bibliotecas e empacotar um JAR torna a construção difícil de repetir. Apache Maven padroniza a descrição e execução do build Java. Seu arquivo central é o POM (`pom.xml`), um documento XML que registra identidade do projeto, dependências e configuração de plugins. O Maven lê o POM no diretório do projeto e executa os objetivos solicitados.\n\n> **Siglas e termos deste capítulo**\n> - **POM**: Project Object Model, modelo do projeto Maven escrito em XML.\n> - **GAV**: groupId, artifactId e version, coordenadas que identificam um artefato.\n> - **Plugin**: componente Maven que fornece objetivos e pode associá-los a fases.\n> - **Repositório**: local remoto ou local de onde artefatos são obtidos ou publicados.\n\n### Coordenadas, diretórios e dependências\n\nUma dependência é identificada por coordenadas, normalmente `groupId`, `artifactId` e `version`; o Maven resolve o artefato e suas dependências transitivas a partir dos repositórios configurados. O escopo controla em que classpaths ela aparece: `compile` é o padrão e alcança compilação e execução; `test` fica disponível para compilação e execução de testes, sem integrar a aplicação final. Excluir uma dependência transitiva ou alinhar versões são decisões explícitas do projeto.\n\nO layout convencional facilita que plugins reconheçam arquivos sem configuração adicional: `src/main/java` contém código principal, `src/test/java` contém testes, `src/main/resources` guarda recursos da aplicação e `target` recebe resultados do build. É convenção, não proibição: o POM pode configurar outros caminhos.\n\n### Fases e objetivos\n\nMaven define três ciclos embutidos: `default`, `clean` e `site`. No ciclo `default`, fases como `validate`, `compile`, `test`, `package`, `verify`, `install` e `deploy` organizam o trabalho. Executar uma fase executa também as fases anteriores daquele ciclo. Assim, `mvn package` compila, roda testes ligados ao ciclo e empacota o artefato; `mvn clean` pertence ao ciclo separado de limpeza. Plugins executam goals, que podem estar ligados a fases. `install` coloca o artefato no repositório local; `deploy` publica no repositório remoto configurado.\n\n### Como cai na prova\n\n- POM descreve o projeto e sua configuração; não é o artefato JAR.\n- Dependências declaradas são resolvidas por coordenadas e podem trazer dependências transitivas.\n- Fases formam uma sequência: chamar uma fase posterior percorre as anteriores do mesmo ciclo.\n- `clean`, `default` e `site` são ciclos distintos; `clean` não equivale a `package`."
+    },
+    {
+      "title": "3. Gradle: plugins, tarefas, dependências e Wrapper",
+      "markdown": "### Configuração como build executável\n\nGradle automatiza compilação, testes, empacotamento e outras tarefas. A configuração costuma estar em `build.gradle` (Groovy DSL) ou `build.gradle.kts` (Kotlin DSL); num build multiprojeto, `settings.gradle` ou `settings.gradle.kts` identifica a estrutura incluída. O plugin Java adiciona convenções e tarefas como `compileJava`, `processResources`, `classes`, `test`, `jar`, `assemble` e `build`.\n\n> **Siglas e termos deste capítulo**\n> - **DSL**: linguagem específica de domínio usada para expressar a configuração do build.\n> - **Task (tarefa)**: unidade de trabalho executada pelo Gradle.\n> - **Wrapper**: scripts e arquivos do projeto que selecionam e provisionam uma versão definida do Gradle.\n> - **Grafo de tarefas**: dependências entre tarefas que definem a ordem de execução.\n\n### Plugins e dependências\n\nAplicar o plugin Java configura diretórios convencionais, source sets e tarefas Java. Dependências são declaradas em configurações como `implementation`, `api`, `compileOnly`, `runtimeOnly` e `testImplementation`, cada qual representando quando o artefato é necessário. Por exemplo, `testImplementation` inclui uma biblioteca no classpath dos testes, sem declará-la como dependência de execução da aplicação. Repositórios como Maven Central podem ser declarados para resolver artefatos.\n\nUma tarefa pode depender de outra. O Gradle forma o grafo e executa apenas tarefas necessárias ao objetivo pedido, respeitando as dependências. `gradle test` executa as tarefas necessárias para testes; `gradle build` reúne verificações e montagem conforme os plugins aplicados. O cache de build pode reutilizar saídas quando entradas e regras correspondem, reduzindo trabalho repetido; não significa que toda tarefa será sempre ignorada.\n\n### Wrapper e build reproduzível\n\nO Wrapper é invocado por `./gradlew` em Unix ou `gradlew.bat` no Windows. Os arquivos do Wrapper registram a distribuição esperada e permitem que integrantes e CI usem a mesma versão sem depender de uma instalação global previamente escolhida. Atualizar a versão do Wrapper é uma alteração deliberada, registrada no controle de versão. O Wrapper melhora consistência, mas não fixa por si só todas as versões de dependências, do JDK, nem os serviços externos usados no build.\n\n### Como cai na prova\n\n- `build.gradle.kts` usa Kotlin DSL; `build.gradle` normalmente usa Groovy DSL.\n- Plugins adicionam convenções e tarefas; dependências entram em configurações com escopos diferentes.\n- Wrapper executa a versão de Gradle declarada no próprio projeto.\n- Uma tarefa pode depender de outras, e o grafo define a ordem necessária; o cache depende das entradas e da configuração."
+    },
+    {
+      "title": "4. Escolha da ferramenta e integração no projeto Java",
+      "markdown": "### Ferramentas com papéis diferentes\n\nRedis armazena e processa dados acessados pela aplicação. Maven e Gradle descrevem e automatizam a construção do software. Uma aplicação pode usar os três: declarar um cliente Redis como dependência no Maven ou Gradle, compilar o código Java e conectar-se a um servidor Redis em execução. O build não instala automaticamente o Redis nem cria uma conexão por si só.\n\n> **Siglas e termos deste capítulo**\n> - **Build**: conjunto de etapas que transforma fontes e recursos em artefatos testados e empacotados.\n> - **Classpath**: conjunto de classes e bibliotecas disponíveis a uma etapa de compilação ou execução.\n> - **Artefato**: saída identificável do build, como um arquivo JAR.\n> - **CI**: integração contínua, execução automatizada do build e verificações em alterações do código.\n\n### Maven e Gradle lado a lado\n\n| Aspecto | Maven | Gradle |\n| --- | --- | --- |\n| Configuração usual | `pom.xml`, XML declarativo | `build.gradle` ou `.kts`, DSL |\n| Modelo comum | Ciclos, fases e goals de plugins | Grafo de tarefas e plugins |\n| Execução repetível | Maven Wrapper (`mvnw`) | Gradle Wrapper (`gradlew`) |\n| Dependências | Declaradas no POM e resolvidas por repositórios | Declaradas em configurações no script de build |\n\nAmbos resolvem dependências, integram plugins e geram artefatos. Um projeto escolhe com base em convenções, ecossistema existente, necessidades de configuração e familiaridade da equipe. Gradle permite scripts flexíveis, mas flexibilidade sem disciplina pode tornar o build difícil de entender; Maven enfatiza convenções e configuração declarativa, mas também admite plugins e ajustes.\n\n### Fluxo prático e diagnóstico\n\nUma sequência de entrega pode resolver dependências, compilar, executar testes e produzir JAR; a pipeline usa o Wrapper para reproduzir a versão do build. Para Redis, a aplicação recebe endpoint e credenciais de configuração, inicializa o cliente, aplica expiração quando pertinente e fecha conexões/recursos de forma apropriada. Falha de compilação aponta para código, JDK, plugin ou dependência; falha de conexão Redis aponta também para endpoint, rede, credenciais ou disponibilidade do servidor. Não se corrige problema de conexão alterando a fase `package`.\n\n### Como cai na prova\n\n- Redis não é ferramenta de build, e Maven/Gradle não são bancos de dados.\n- A biblioteca cliente Java fala com o serviço Redis; a dependência do cliente é gerenciada pelo build.\n- Maven e Gradle têm conceitos comparáveis, mas termos distintos: fase/goal versus tarefa/grafo.\n- Wrapper e versões explícitas favorecem builds repetíveis; ainda é necessário gerenciar JDK e dependências."
+    }
+  ],
+  "summary": "Redis é um serviço de estruturas de dados em memória usado por aplicações Java através de clientes como Jedis ou Lettuce. Suas strings, hashes, listas, sets e sorted sets atendem a usos diferentes; TTL limita a vida de chaves e Pub/Sub distribui mensagens sem retenção automática para desconectados. Maven e Gradle automatizam builds Java e resolvem dependências. Maven organiza o projeto em torno do POM XML, coordenadas, plugins e fases de ciclos; Gradle usa scripts Groovy/Kotlin DSL, plugins, tarefas conectadas por um grafo e Wrapper. Redis é armazenamento; Maven e Gradle são ferramentas de build, e podem coexistir no mesmo projeto.",
+  "flashcards": [
+    {
+      "front": "Redis é uma biblioteca Java ou um serviço?",
+      "back": "É um servidor de estruturas de dados; o programa Java conversa com ele por um cliente como Jedis ou Lettuce."
+    },
+    {
+      "front": "Quais comandos básicos gravam e leem uma string Redis?",
+      "back": "SET grava e GET lê o valor associado à chave."
+    },
+    {
+      "front": "Qual comando Redis é apropriado a contador?",
+      "back": "INCR incrementa atomicamente o valor inteiro de uma chave."
+    },
+    {
+      "front": "Quando escolher um hash Redis?",
+      "back": "Para guardar campos associados a uma chave, consultando com HGET ou HGETALL."
+    },
+    {
+      "front": "O que evita que uma chave temporária permaneça indefinidamente?",
+      "back": "Uma expiração ou TTL associado à chave."
+    },
+    {
+      "front": "Pub/Sub guarda mensagens para quem estava desconectado?",
+      "back": "Não por padrão; Pub/Sub distribui publicações a assinantes conectados e não é fila durável."
+    },
+    {
+      "front": "Para que serve Jedis?",
+      "back": "É um cliente Java que permite executar operações Redis a partir de uma aplicação."
+    },
+    {
+      "front": "O que é o POM no Maven?",
+      "back": "Arquivo XML Project Object Model que descreve identidade, dependências e configuração do projeto."
+    },
+    {
+      "front": "Quais coordenadas identificam comumente um artefato Maven?",
+      "back": "groupId, artifactId e version."
+    },
+    {
+      "front": "Onde fica o código Java principal no layout Maven convencional?",
+      "back": "Em src/main/java."
+    },
+    {
+      "front": "Onde ficam os testes Java no layout Maven convencional?",
+      "back": "Em src/test/java."
+    },
+    {
+      "front": "O que acontece ao chamar uma fase posterior do ciclo default Maven?",
+      "back": "As fases anteriores daquele ciclo também são executadas até a fase solicitada."
+    },
+    {
+      "front": "Qual a diferença básica entre install e deploy Maven?",
+      "back": "install põe o artefato no repositório local; deploy publica no repositório remoto configurado."
+    },
+    {
+      "front": "O que um plugin Maven fornece?",
+      "back": "Goals que podem realizar operações e ser vinculados a fases do ciclo de build."
+    },
+    {
+      "front": "Quais arquivos costumam configurar um build Gradle?",
+      "back": "build.gradle para Groovy DSL ou build.gradle.kts para Kotlin DSL."
+    },
+    {
+      "front": "O que o plugin Java do Gradle acrescenta?",
+      "back": "Convenções e tarefas Java para compilar, testar, montar e empacotar o projeto."
+    },
+    {
+      "front": "Para que serve testImplementation no Gradle?",
+      "back": "Declara uma dependência disponível no classpath de compilação e execução dos testes."
+    },
+    {
+      "front": "O que define a ordem entre tarefas Gradle?",
+      "back": "As relações de dependência entre tarefas, organizadas no grafo de tarefas."
+    },
+    {
+      "front": "Para que serve o Gradle Wrapper?",
+      "back": "Executa a distribuição de Gradle selecionada pelo projeto, sem exigir escolha global da versão instalada."
+    },
+    {
+      "front": "O Wrapper fixa também o JDK e todas as dependências?",
+      "back": "Não; fixa a distribuição Gradle escolhida, mas JDK e versões de dependências exigem gestão própria."
+    }
+  ],
+  "tips": [
+    "Separe o papel dos nomes: Redis armazena dados; Maven e Gradle automatizam o build.",
+    "Associe SET/GET a string, HSET/HGET a hash, INCR a contador e TTL a expiração.",
+    "Pub/Sub não é uma fila com histórico automático para consumidores ausentes.",
+    "No Maven, leia o POM e diferencie ciclo, fase e goal de plugin.",
+    "No Gradle, diferencie plugin, tarefa, configuração de dependência e Wrapper.",
+    "Em questões de build reproduzível, procure Wrapper e versões controladas no repositório."
+  ],
+  "traps": [
+    "Chamar Redis de framework Java confunde o serviço com o cliente que a aplicação usa para acessá-lo.",
+    "Afirmar que todo dado Redis expira automaticamente é falso: expiração precisa ser definida quando necessária.",
+    "Tratar Pub/Sub como fila durável ignora que mensagens não ficam retidas automaticamente para assinantes ausentes.",
+    "Confundir POM com JAR troca a descrição/configuração do projeto pelo artefato de saída.",
+    "Dizer que mvn package executa só o empacotamento ignora fases anteriores do mesmo ciclo.",
+    "Afirmar que Gradle Wrapper fixa também JDK e dependências atribui ao Wrapper controles que precisam de configuração separada."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique como Redis e uma aplicação Java se relacionam.",
+      "answer": "Redis é o serviço que mantém estruturas de dados e recebe comandos; a aplicação inclui um cliente Java como Jedis ou Lettuce, configura o endpoint e chama operações pelo cliente."
+    },
+    {
+      "question": "Compare Redis string, hash, list, set e sorted set com um uso plausível.",
+      "answer": "String guarda valor simples ou contador; hash agrupa campos; list mantém sequência ordenada; set evita duplicatas; sorted set ordena membros por pontuação, útil para ranking."
+    },
+    {
+      "question": "Por que definir TTL num cache?",
+      "answer": "Para limitar a permanência de dados e reduzir risco de servir valores antigos ou manter chaves temporárias para sempre; a duração também afeta a taxa de consultas à origem."
+    },
+    {
+      "question": "O que distingue Pub/Sub de uma fila durável?",
+      "answer": "Pub/Sub entrega eventos a assinantes conectados por canal e não retém automaticamente mensagens para consumidores desconectados; uma fila durável exige retenção e confirmação apropriadas."
+    },
+    {
+      "question": "O que o POM contém e como Maven o usa?",
+      "answer": "O POM XML identifica o projeto e declara dependências, plugins e configurações. Maven lê o POM no diretório do projeto para resolver informações e executar goals/fases solicitados."
+    },
+    {
+      "question": "Descreva a cadeia típica do ciclo Maven até package.",
+      "answer": "O ciclo default passa por etapas anteriores como validate, compile e test antes de package; ao solicitar uma fase, Maven executa as anteriores daquele ciclo."
+    },
+    {
+      "question": "Compare Maven install com deploy.",
+      "answer": "install disponibiliza o artefato no repositório local do desenvolvedor. deploy envia o artefato a um repositório remoto configurado para compartilhamento."
+    },
+    {
+      "question": "Compare build.gradle com build.gradle.kts.",
+      "answer": "Ambos configuram Gradle; o primeiro usa Groovy DSL e o segundo usa Kotlin DSL. Os conceitos de plugins, tarefas e dependências permanecem."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Serviço Redis confundido com build",
+      "summary": "Redis armazena estruturas e recebe comandos. Jedis/Lettuce são clientes Java; Maven e Gradle resolvem dependências e automatizam tarefas de construção."
+    },
+    {
+      "key": "e2",
+      "title": "Estruturas Redis e entrega de mensagens trocadas",
+      "summary": "Strings, hashes, listas, sets e sorted sets têm semânticas diferentes. TTL é expiração configurada; Pub/Sub não guarda automaticamente mensagens para assinantes desconectados."
+    },
+    {
+      "key": "e3",
+      "title": "POM e fases Maven mal interpretados",
+      "summary": "POM é o modelo XML do projeto. Coordenadas identificam artefatos, plugins oferecem goals e uma fase posterior percorre as fases anteriores do mesmo ciclo."
+    },
+    {
+      "key": "e4",
+      "title": "Tarefas Gradle e Wrapper confundidos",
+      "summary": "Plugins adicionam convenções e tarefas; configurações controlam classpaths de dependências. O Wrapper escolhe a distribuição Gradle do projeto, não fixa sozinho JDK e bibliotecas."
+    },
+    {
+      "key": "e5",
+      "title": "Responsabilidades e reprodutibilidade misturadas",
+      "summary": "Redis requer serviço e conectividade; build tools compilam e empacotam. Wrapper, dependências e JDK devem ser geridos separadamente para builds consistentes."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma aplicação Java precisa guardar um valor temporário acessado por vários servidores e configurá-lo para expirar depois de um intervalo. Qual recurso Redis atende diretamente a esse desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma chave Redis com valor e expiração configurada para o tempo desejado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma fase Maven que mantém o valor compartilhado entre as instâncias.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma tarefa Gradle que replica automaticamente o objeto em memória.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um arquivo POM que armazena o conteúdo da sessão em XML.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma dependência Java local que substitui o servidor de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A chave Redis pode receber um TTL e ser lida pelos servidores que acessam o mesmo serviço. Maven e Gradle constroem a aplicação; POM e dependência cliente não armazenam estado compartilhado por si sós.",
+      "section": "1. Redis: estruturas de dados e uso em aplicações Java",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para usar INCR com segurança, a aplicação deve primeiro ler a chave, somar um no cliente e só então gravar o novo valor no Redis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O próprio INCR realiza o incremento no servidor Redis. Ler, somar no cliente e gravar separadamente pode perder atualizações concorrentes entre processos.",
+      "section": "1. Redis: estruturas de dados e uso em aplicações Java",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer guardar, sob uma chave, campos como nome, e-mail e cidade e consultar o e-mail sem buscar um documento inteiro. Qual estrutura Redis corresponde melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma lista Redis cujos índices representam os nomes dos campos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um hash Redis com campos acessíveis individualmente pela chave.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um sorted set Redis que ordena cada campo pela sua posição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um set Redis que associa valores sem permitir repetições.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma fase Gradle que serializa os atributos durante o build.",
+          "correct": false
+        }
+      ],
+      "explanation": "Hash é a estrutura de campos associados a uma chave, com comandos como HSET e HGET. Listas representam sequências, sets coleções sem duplicatas, e sorted sets membros ordenados por pontuação.",
+      "section": "1. Redis: estruturas de dados e uso em aplicações Java",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Jedis é o processo servidor que mantém chaves e atende conexões; Redis é apenas o nome da biblioteca Java usada pelo cliente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Jedis é uma biblioteca cliente Java; Redis é o serviço que recebe comandos e mantém estruturas. O programa precisa da biblioteca e também de um servidor acessível.",
+      "section": "1. Redis: estruturas de dados e uso em aplicações Java",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Redis, Pub/Sub mantém por padrão cada publicação armazenada até que todo assinante desconectado volte e a consuma.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Pub/Sub encaminha publicações a assinantes conectados; não cria automaticamente histórico durável para assinantes que estavam desconectados. Uma fila com retenção exige mecanismo adequado a esse requisito.",
+      "section": "1. Redis: estruturas de dados e uso em aplicações Java",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção descreve corretamente a relação entre um cache Redis e o banco relacional de origem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cache substitui necessariamente o banco e mantém todas as garantias relacionais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O cache é uma cópia de acesso rápido, cuja validade e coerência precisam ser planejadas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O cache faz backup automático e restaura os dados relacionais após qualquer falha.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O cache depende do Maven para expirar suas chaves em cada implantação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O cache impede que qualquer leitura da aplicação consulte a origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cache reduz custo ou latência, mas entradas podem expirar ou ficar obsoletas e a aplicação precisa definir atualização e fallback. Cache não é necessariamente fonte canônica, backup ou substituto relacional.",
+      "section": "1. Redis: estruturas de dados e uso em aplicações Java",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Redis sorted set guarda membros sem pontuação e não consegue ordená-los para produzir um ranking.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Sorted sets associam membros a pontuações, que permitem ordenação. ZADD atualiza membros e pontuações, e ZRANGE consulta faixas ordenadas.",
+      "section": "1. Redis: estruturas de dados e uso em aplicações Java",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação usa Redis como lista de trabalho e também como conjunto de participantes únicos. Qual correspondência é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "List representa sequência ordenada; set representa membros sem duplicatas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "List elimina duplicatas; set preserva a ordem de inserção como fila.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Hash representa fila; sorted set armazena somente campos textuais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "String representa fila persistente; list representa valor numérico único.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pub/Sub representa lista consultável depois que a conexão termina.",
+          "correct": false
+        }
+      ],
+      "explanation": "List oferece operações nas extremidades e mantém sequência; set modela coleção sem duplicatas. Os outros tipos têm funções diferentes, e Pub/Sub não é uma estrutura de fila consultável posteriormente.",
+      "section": "1. Redis: estruturas de dados e uso em aplicações Java",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar o TTL de uma chave de cache reduz necessariamente a possibilidade de servir dados desatualizados, pois o dado permanece disponível por mais tempo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um TTL maior prolonga a permanência da cópia, podendo manter por mais tempo um valor antigo se a origem mudar. A duração deve equilibrar frescor e carga sobre a origem.",
+      "section": "1. Redis: estruturas de dados e uso em aplicações Java",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe utiliza Jedis em várias threads e precisa evitar criar uma conexão independente a cada comando. Qual recurso pode ajudar no gerenciamento de conexões?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O ciclo clean do Maven, que reutiliza sockets a cada execução do projeto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O POM, que mantém um pool Redis compartilhado entre processos Java.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O Wrapper Gradle, que reserva conexões no serviço durante a compilação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um pool de conexões oferecido pelo cliente, configurado conforme a carga.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um sorted set, que converte comandos concorrentes em conexões reutilizáveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Clientes Redis podem oferecer pooling para reutilizar conexões, o que precisa ser dimensionado e usado conforme a API. Ciclos e Wrapper são ferramentas de build e estruturas Redis não fazem gerenciamento de sockets.",
+      "section": "1. Redis: estruturas de dados e uso em aplicações Java",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Adicionar a biblioteca Jedis ao classpath do programa garante que haverá um servidor Redis instalado e acessível no endpoint configurado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A dependência instala classes cliente no projeto; o serviço Redis precisa estar em execução e alcançável, e endereço, autenticação e rede precisam estar configurados corretamente.",
+      "section": "1. Redis: estruturas de dados e uso em aplicações Java",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Jedis e Lettuce são exclusivamente clientes assíncronos e reativos, sem possibilidade de chamadas síncronas a Redis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os clientes podem oferecer APIs síncronas, assíncronas e reativas, conforme a biblioteca e o modo escolhido. A equipe deve selecionar o modelo compatível com sua aplicação.",
+      "section": "1. Redis: estruturas de dados e uso em aplicações Java",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de comandos atua sobre campos de um hash Redis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "SET, GET e INCR para campos nomeados de uma mesma chave.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "LPUSH, RPOP e LPOP para atributos independentes do objeto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "HSET, HGET e HGETALL para gravar e ler campos do hash.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "SADD, SISMEMBER e SMEMBERS para obter campos ordenados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ZADD, ZRANGE e GET para ler valores sem pontuação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os comandos com prefixo H operam em hashes; HSET grava campo, HGET lê um campo e HGETALL retorna os campos e valores. Os demais grupos correspondem a outros tipos ou operações.",
+      "section": "1. Redis: estruturas de dados e uso em aplicações Java",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O POM Maven é o arquivo JAR final da aplicação, enquanto as dependências e configurações ficam exclusivamente no código Java.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. POM é um documento XML de configuração do projeto, ao passo que um JAR é um possível artefato de saída. O POM pode declarar dependências e plugins.",
+      "section": "2. Maven: POM, dependências e ciclo de build",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quais coordenadas Maven identificam de modo usual um artefato como uma biblioteca Java?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "package, phase e goal são as três partes da identidade do artefato.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "groupId, artifactId e version formam as coordenadas principais.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "src/main, src/test e target formam as coordenadas principais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "plugin, repository e lifecycle substituem a identidade do artefato.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "compile, test e deploy indicam o nome único de qualquer dependência.",
+          "correct": false
+        }
+      ],
+      "explanation": "As coordenadas fundamentais são groupId, artifactId e version, às quais outras informações podem ser acrescentadas. Fases e diretórios são conceitos do build e não identificam a dependência.",
+      "section": "2. Maven: POM, dependências e ciclo de build",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No layout convencional Maven, src/test/java recebe o código principal e src/main/java contém as fontes de teste.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A convenção usa src/main/java para as fontes principais e src/test/java para os testes. O POM pode mudar os caminhos, mas esses são os diretórios usuais.",
+      "section": "2. Maven: POM, dependências e ciclo de build",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao executar mvn package num projeto padrão, Maven pode executar fases anteriores do ciclo default antes de produzir o pacote.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As fases de um ciclo têm ordem; uma fase posterior percorre as anteriores do mesmo ciclo. Portanto compilação e testes ligados às fases anteriores podem ocorrer antes do empacotamento.",
+      "section": "2. Maven: POM, dependências e ciclo de build",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto precisa testar uma biblioteca, mas não deve incluí-la como dependência de execução da aplicação empacotada. Qual escopo Maven se ajusta a esse propósito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "compile, pois limita a biblioteca exclusivamente à compilação dos testes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "runtime, pois remove a dependência de qualquer classpath de execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "provided, pois garante que toda biblioteca desapareça dos testes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "test, pois disponibiliza a dependência no ciclo de testes sem levá-la ao uso normal da aplicação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "system, pois publica a biblioteca automaticamente no repositório central.",
+          "correct": false
+        }
+      ],
+      "explanation": "O escopo test está disponível para compilar e executar testes e não integra a dependência ao classpath de uso normal da aplicação. Outros escopos atendem a condições diferentes.",
+      "section": "2. Maven: POM, dependências e ciclo de build",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Maven possui os ciclos embutidos default, clean e site, cada qual com fases relacionadas a uma finalidade própria.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Default organiza a construção e distribuição, clean trata da limpeza e site gera o site do projeto. Uma fase de um ciclo não é automaticamente uma fase dos outros ciclos.",
+      "section": "2. Maven: POM, dependências e ciclo de build",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a diferença entre as fases install e deploy do ciclo Maven?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "install limpa os fontes e deploy executa somente os testes unitários.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "install publica no repositório local; deploy publica no repositório remoto configurado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "install gera o site e deploy compila fontes sem dependências externas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "install baixa plugins e deploy escolhe o JDK instalado na máquina.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "install e deploy são sinônimos que apenas criam um arquivo POM.",
+          "correct": false
+        }
+      ],
+      "explanation": "install coloca o artefato no repositório local para uso por outros projetos locais. deploy envia o artefato a um repositório remoto de distribuição configurado.",
+      "section": "2. Maven: POM, dependências e ciclo de build",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As dependências transitivas são bibliotecas exigidas pelas dependências declaradas diretamente e podem ser consideradas pelo mecanismo de resolução Maven.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Ao resolver uma dependência, Maven também considera as bibliotecas de que ela depende. Conflitos de versões e exclusões podem exigir configuração explícita do projeto.",
+      "section": "2. Maven: POM, dependências e ciclo de build",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fase Maven e um goal de plugin são conceitos equivalentes: ambos são necessariamente o nome de um ciclo independente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Fase é um estágio de um ciclo de build; goal é uma operação fornecida por plugin. Goals podem ser vinculados a fases, e um goal também pode ser invocado diretamente.",
+      "section": "2. Maven: POM, dependências e ciclo de build",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O layout Maven convencional não permite mudar a localização de fontes; diretórios diferentes tornam o projeto inválido mesmo quando declarados no POM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os diretórios convencionais são padrões úteis, não uma exigência imutável. O projeto pode ajustar caminhos e comportamento por configuração, embora convenções reduzam a necessidade de ajustes.",
+      "section": "2. Maven: POM, dependências e ciclo de build",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto apresenta arquivos de configuração usuais do Gradle e as DSLs correspondentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "pom.xml usa Kotlin DSL e settings.gradle define a versão do Maven.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "build.xml usa Groovy DSL e build.gradle.kts é um arquivo de dependências Redis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "build.gradle usa Groovy DSL e build.gradle.kts usa Kotlin DSL.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "settings.xml usa a DSL Java e gradlew é o arquivo principal de configuração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "pom.gradle usa XML e build.gradle usa exclusivamente Java compilado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gradle aceita scripts de build em Groovy DSL ou Kotlin DSL, com as extensões indicadas. Maven usa POM XML, e Wrapper é composto por arquivos/scripts de execução próprios.",
+      "section": "3. Gradle: plugins, tarefas, dependências e Wrapper",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Gradle, um plugin pode adicionar convenções e tarefas específicas, como tarefas de compilação e teste do plugin Java.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Plugins ampliam o modelo de build; o plugin Java adiciona source sets, convenções e tarefas comuns para compilar, testar e empacotar fontes Java.",
+      "section": "3. Gradle: plugins, tarefas, dependências e Wrapper",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual configuração Gradle é apropriada para uma biblioteca necessária especificamente ao classpath dos testes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "implementation, pois limita a biblioteca a tarefas de documentação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "runtimeOnly, pois inclui a biblioteca apenas na compilação de testes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "api, pois remove a dependência dos consumidores e dos testes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "compileOnly, pois fornece a biblioteca em toda execução dos testes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "testImplementation, pois declara uma dependência para compilar e executar testes.",
+          "correct": true
+        }
+      ],
+      "explanation": "testImplementation associa a dependência ao classpath de teste. As configurações de produção e somente compilação/execução têm escopos diferentes e não expressam esse propósito de forma tão direta.",
+      "section": "3. Gradle: plugins, tarefas, dependências e Wrapper",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Gradle Wrapper permite que o projeto invoque a distribuição Gradle selecionada em sua configuração, usando scripts versionados junto do projeto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os scripts gradlew/gradlew.bat consultam a configuração do Wrapper para executar a distribuição escolhida, favorecendo que desenvolvedores e CI usem a mesma versão do Gradle.",
+      "section": "3. Gradle: plugins, tarefas, dependências e Wrapper",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa Gradle depende de outra e ambas são necessárias para a solicitação. Como o Gradle determina a execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Forma um grafo de tarefas e executa as dependências necessárias na ordem definida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executa sempre todas as tarefas do projeto em ordem alfabética fixa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignora dependências e usa somente a ordem textual do arquivo de build.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converte cada tarefa em fase Maven antes de iniciar o compilador Java.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executa apenas tarefas declaradas no settings, sem considerar plugins.",
+          "correct": false
+        }
+      ],
+      "explanation": "As relações entre tarefas definem um grafo. Para uma solicitação, Gradle determina o conjunto necessário e respeita dependências, sem executar indiscriminadamente todas as tarefas do projeto.",
+      "section": "3. Gradle: plugins, tarefas, dependências e Wrapper",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O cache de build do Gradle pode reutilizar saídas quando as entradas e condições relevantes correspondem, reduzindo trabalho repetido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O reaproveitamento depende das entradas e da configuração reconhecidas pelo build. O cache não implica que toda tarefa seja sempre ignorada, independentemente de alterações.",
+      "section": "3. Gradle: plugins, tarefas, dependências e Wrapper",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe usa ./gradlew no Linux e gradlew.bat no Windows. Qual é a principal finalidade dessa diferença de comandos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Selecionar versões diferentes da aplicação conforme o sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ativar comandos Redis apenas nos sistemas que executam Java.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Compilar fontes por implementações separadas do plugin Java.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Invocar o Wrapper usando o script apropriado ao sistema operacional.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Converter o build Gradle em um POM Maven durante a execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "O projeto inclui scripts de Wrapper para ambientes Unix e Windows. Eles delegam à versão de Gradle configurada pelo projeto, em vez de mudar a identidade da aplicação ou converter o build.",
+      "section": "3. Gradle: plugins, tarefas, dependências e Wrapper",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Wrapper Gradle fixa automaticamente a versão do JDK, as versões de todas as dependências e a disponibilidade de qualquer servidor externo usado no build.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Wrapper seleciona a distribuição do Gradle. JDK, dependências e serviços externos precisam de controles e configurações próprios para tornar o ambiente reproduzível.",
+      "section": "3. Gradle: plugins, tarefas, dependências e Wrapper",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O plugin Java Gradle inclui tarefas como compileJava, test e jar; a aplicação do plugin fornece essas convenções ao build.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O plugin Java integra tarefas para compilar fontes, executar testes e criar JAR, além de organizar convenções para projetos Java.",
+      "section": "3. Gradle: plugins, tarefas, dependências e Wrapper",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma implantação, a compilação Java terminou sem erros, mas a aplicação não alcança Redis. Qual diagnóstico inicial considera responsabilidades corretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mudar a fase package, pois ela abre o socket Redis ao iniciar a aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Verificar endpoint, rede, credenciais e disponibilidade do serviço Redis.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Trocar toda dependência Maven por uma fase Gradle equivalente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar o POM, pois sua presença impede conexões Java externas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar clean, pois a limpeza reinicia o servidor Redis remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "A compilação valida fontes e dependências, mas conectividade depende da configuração de execução e do serviço. Endpoint, rede, autenticação e disponibilidade são verificações coerentes para falha de conexão.",
+      "section": "4. Escolha da ferramenta e integração no projeto Java",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Redis é a ferramenta que compila fontes Java e cria o JAR, enquanto Maven e Gradle são servidores de armazenamento em memória.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Redis é um serviço de estruturas de dados. Maven e Gradle automatizam a resolução de dependências, compilação, testes e empacotamento por meio de seus modelos de build.",
+      "section": "4. Escolha da ferramenta e integração no projeto Java",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção compara corretamente a organização típica de Maven e Gradle?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Maven usa POM e fases; Gradle usa scripts de build e grafo de tarefas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Maven usa exclusivamente tarefas; Gradle usa exclusivamente fases de ciclo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Maven guarda código em Redis; Gradle guarda dependências no JDK.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Maven não aceita plugins; Gradle não permite declarar dependências.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Maven compila Java; Gradle atua somente como repositório remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Maven organiza o build em torno de POM, ciclos e fases; Gradle expressa configuração em scripts e executa tarefas conectadas por dependências. Ambos têm plugins e gerenciamento de dependências.",
+      "section": "4. Escolha da ferramenta e integração no projeto Java",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação pode declarar Jedis como dependência no Maven ou Gradle e, em tempo de execução, usar essa biblioteca para enviar comandos a um servidor Redis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O build disponibiliza o cliente no classpath; o programa usa sua API para conversar com o serviço Redis. Gerenciar a biblioteca não inicia necessariamente o serviço externo.",
+      "section": "4. Escolha da ferramenta e integração no projeto Java",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um build de CI usa o Wrapper e versões controladas das dependências. Qual benefício prático isso oferece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Faz o servidor Redis deixar de exigir autenticação durante os testes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Garante que qualquer JDK e serviço remoto funcionem sem configuração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reduz diferenças na ferramenta de build e nas bibliotecas entre ambientes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Converte todas as tarefas do projeto para fases Maven automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substitui testes por cache e publica cada artefato sem verificações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Wrapper e dependências controladas reduzem variações do build entre máquinas e CI. Ainda é preciso administrar JDK, credenciais e serviços externos e executar as verificações apropriadas.",
+      "section": "4. Escolha da ferramenta e integração no projeto Java",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Maven e Gradle podem resolver dependências e gerar artefatos Java; escolher um deles não implica que o outro seja um banco de dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Ambos são ferramentas de automação de build com suporte a dependências e plugins. Persistência e estruturas de dados são responsabilidades de serviços como Redis ou bancos relacionais.",
+      "section": "4. Escolha da ferramenta e integração no projeto Java",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual fluxo associa corretamente as ferramentas numa aplicação Java que usa cache Redis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Redis resolve dependências, o POM recebe comandos e Jedis gera o JAR.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Gradle armazena sessões, Redis compila fontes e Maven gerencia sockets.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Maven inicia o Redis, Gradle lê valores e Jedis substitui o servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O cliente Redis configura o build e o POM mantém os dados de cache.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Maven ou Gradle gerencia o cliente; a aplicação usa-o para acessar Redis.",
+          "correct": true
+        }
+      ],
+      "explanation": "O build inclui e resolve a biblioteca cliente. Em execução, o código Java usa essa API para falar com Redis, serviço que precisa estar configurado e disponível separadamente.",
+      "section": "4. Escolha da ferramenta e integração no projeto Java",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma tarefa Gradle não muda suas entradas e a configuração permite reaproveitamento, o cache pode evitar refazer seu trabalho; isso não é garantia de que toda tarefa será sempre omitida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O cache depende de entradas e regras que permitam identificar saídas reutilizáveis. Mudanças ou tarefas não cacheáveis podem exigir nova execução.",
+      "section": "4. Escolha da ferramenta e integração no projeto Java",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando mvn clean pertence ao ciclo de limpeza, enquanto package é uma fase do ciclo default; ambos podem ser pedidos em uma execução Maven.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. clean e default são ciclos distintos. Uma linha de comando pode solicitar metas de ambos; clean remove saídas do build, e package percorre fases do ciclo default até o empacotamento.",
+      "section": "4. Escolha da ferramenta e integração no projeto Java",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe busca builds Java repetíveis em computadores diferentes e em CI. Qual decisão é a mais diretamente útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar sempre a instalação global mais recente sem registrar a versão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Versionar o Wrapper do build e controlar versões relevantes de dependências.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Guardar o JDK apenas no POM e omitir todas as bibliotecas externas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar Redis como cache para dispensar compilação e testes em CI.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apagar os arquivos de configuração para usar valores locais automáticos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Wrapper seleciona a versão Gradle prevista no projeto, e o controle de dependências reduz divergências de resolução. Também é necessário gerir JDK e configurações ambientais explicitamente.",
+      "section": "4. Escolha da ferramenta e integração no projeto Java",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O POM Maven e os scripts Gradle têm a mesma sintaxe e usam sempre o mesmo modelo de fase para ordenar todas as tarefas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. POM é XML e Maven organiza o build em ciclos e fases; Gradle usa DSL Groovy ou Kotlin e organiza execução por tarefas e dependências. Ambos resolvem dependências e suportam plugins.",
+      "section": "4. Escolha da ferramenta e integração no projeto Java",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se Redis estiver fora da rede e a aplicação não conseguir conectar, executar a fase Maven test garante que o endpoint remoto volte a responder.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A fase de testes pode detectar uma falha de conectividade caso os testes tentem acessar Redis, mas não restaura rede nem inicia o serviço remoto. O problema deve ser investigado na infraestrutura e configuração.",
+      "section": "4. Escolha da ferramenta e integração no projeto Java",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chave de sessão expira cedo demais e causa consultas frequentes à origem. Qual consequência de aumentar o TTL deve ser considerada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pode reduzir recargas, mas prolongar a exposição a valores possivelmente desatualizados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Elimina a necessidade de autenticação do cliente Redis em todos os ambientes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converte automaticamente a string Redis em transação SQL persistente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Faz o Maven incluir a sessão no artefato JAR da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativa o comando GET e impede a consulta ao valor da chave.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma vida maior pode reduzir misses e acessos à origem, porém deixa a cópia armazenada por mais tempo. A equipe precisa avaliar a frequência de mudanças e a tolerância a informação antiga.",
+      "section": "4. Escolha da ferramenta e integração no projeto Java",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual estrutura Redis serve melhor para manter uma coleção de identificadores únicos de usuários inscritos num evento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma lista, porque rejeita automaticamente qualquer membro repetido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um set, porque representa membros sem duplicatas na coleção.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma string, porque separa e ordena cada usuário individualmente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um hash, porque ordena todos os usuários por pontuação numérica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um sorted set, porque não aceita pontuação nem ordenação dos membros.",
+          "correct": false
+        }
+      ],
+      "explanation": "Set modela uma coleção sem duplicatas e permite verificar membros. List mantém uma sequência que pode conter repetições; sorted set acrescenta pontuações e ordenação, recurso desnecessário no cenário descrito.",
+      "section": "1. Redis: estruturas de dados e uso em aplicações Java",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Redis, uma chave configurada com prazo de expiração pode deixar de estar disponível após esse prazo, sem que a aplicação precise enviar uma exclusão manual naquele momento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A expiração é associada à chave e permite que dados temporários deixem de ser válidos depois do intervalo configurado, como ocorre em sessões ou entradas de cache.",
+      "section": "1. Redis: estruturas de dados e uso em aplicações Java",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma biblioteca cliente Java como Jedis elimina a necessidade de autenticar e controlar acesso ao serviço Redis em produção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O cliente apenas permite a comunicação a partir do código. O serviço ainda precisa de controles de acesso, credenciais e proteção de rede apropriados ao ambiente.",
+      "section": "1. Redis: estruturas de dados e uso em aplicações Java",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao declarar uma biblioteca no POM, Maven pode resolver o artefato a partir de repositórios e disponibilizar suas classes para as etapas adequadas do projeto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O POM declara a dependência por coordenadas e o Maven a resolve usando repositórios configurados, considerando também as dependências transitivas conforme o escopo.",
+      "section": "2. Maven: POM, dependências e ciclo de build",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao publicar uma biblioteca que deve ser reutilizada por outros projetos da equipe, qual etapa Maven envia o artefato a um repositório remoto configurado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "clean, que remove resultados antigos e publica o pacote compilado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "test, que executa casos unitários e registra a biblioteca remotamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "install, que envia o artefato ao repositório remoto da equipe.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "deploy, que publica o artefato no repositório remoto configurado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "validate, que empacota e distribui o artefato a todos os projetos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Deploy é a fase usada para publicar o artefato no repositório remoto configurado. Install o registra no repositório local; clean remove saídas e test executa testes.",
+      "section": "2. Maven: POM, dependências e ciclo de build",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Maven executa somente a fase indicada na linha de comando e ignora todas as fases anteriores do mesmo ciclo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. As fases de um ciclo têm uma ordem; ao pedir uma fase posterior, Maven percorre as fases anteriores daquele ciclo antes de alcançá-la.",
+      "section": "2. Maven: POM, dependências e ciclo de build",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição diferencia corretamente um plugin Maven de uma fase do ciclo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Plugin fornece goals; fase é um estágio do ciclo ao qual goals podem ser ligados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Plugin identifica um artefato; fase é uma coordenada de versão no repositório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Plugin guarda dependências; fase é o diretório que contém todas as fontes Java.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Plugin limpa o repositório; fase determina a linguagem XML do POM.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Plugin representa um ciclo completo; fase é um arquivo JAR publicado no projeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Plugins fornecem goals que executam trabalhos; esses goals podem ser associados a fases. A fase faz parte de um ciclo e indica um estágio da construção, não uma coordenada nem um diretório.",
+      "section": "2. Maven: POM, dependências e ciclo de build",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma dependência com escopo test é adequada para bibliotecas usadas em testes, mas que não devem compor o classpath normal de execução da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O escopo test fornece a dependência para compilar e executar testes, sem tratá-la como dependência normal de execução da aplicação.",
+      "section": "2. Maven: POM, dependências e ciclo de build",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto Gradle pretende usar Kotlin DSL em seu script principal. Qual nome de arquivo segue a convenção correspondente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "pom.gradle, arquivo XML que declara o ciclo de compilação Java.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "settings.gradle, arquivo que sempre contém o script Kotlin de build.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "build.gradle.kts, arquivo de build com sintaxe Kotlin DSL.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "gradlew.kts, arquivo executável que declara todas as dependências.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "build.pom, arquivo Maven que habilita a DSL Kotlin do Gradle.",
+          "correct": false
+        }
+      ],
+      "explanation": "O sufixo .kts indica script Kotlin usado pela DSL do Gradle. build.gradle costuma usar Groovy DSL; Wrapper e settings têm funções próprias.",
+      "section": "3. Gradle: plugins, tarefas, dependências e Wrapper",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Gradle, a configuração runtimeOnly expressa uma dependência destinada apenas à compilação das fontes principais e ausente na execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. runtimeOnly declara dependência necessária em tempo de execução, sem disponibilizá-la para compilar o código principal. Para compilação apenas, há outras configurações, como compileOnly.",
+      "section": "3. Gradle: plugins, tarefas, dependências e Wrapper",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção apresenta um resultado coerente do plugin Java do Gradle?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cria o servidor Redis e publica valores sem que a aplicação conecte.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Define as coordenadas GAV e grava um POM Maven automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substitui o compilador Java por uma tarefa de distribuição de cache.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converte scripts Gradle em arquivos XML usados pelo ciclo Maven.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adiciona tarefas e convenções para compilar, testar e empacotar fontes Java.",
+          "correct": true
+        }
+      ],
+      "explanation": "O plugin Java aplica convenções e tarefas de compilação, testes e empacotamento a um projeto Java. Ele não instancia o serviço Redis nem converte o build para Maven.",
+      "section": "3. Gradle: plugins, tarefas, dependências e Wrapper",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Wrapper versionado melhora a consistência da versão Gradle usada por integrantes e CI, mas o JDK e as dependências ainda precisam ser controlados separadamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O Wrapper seleciona a distribuição Gradle definida pelo projeto. Ele não fixa sozinho a versão do JDK, das bibliotecas nem dos serviços externos necessários ao build.",
+      "section": "3. Gradle: plugins, tarefas, dependências e Wrapper",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Gradle, como uma solicitação de tarefa se relaciona a tarefas das quais ela depende?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O Gradle ignora dependências e executa o arquivo de build como uma lista linear.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A tarefa solicitada é sempre a única executada, ainda que precise de entradas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As tarefas relacionadas formam grafo, e as dependências necessárias são executadas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O Gradle transforma tarefas relacionadas em plugins Maven durante a execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ordem é determinada pelo nome dos arquivos Java, sem regras declaradas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gradle calcula o grafo de tarefas a partir das relações declaradas pelos plugins e pelo build. A execução contempla as dependências requeridas para cumprir o objetivo solicitado.",
+      "section": "3. Gradle: plugins, tarefas, dependências e Wrapper",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Maven e Gradle são mutuamente incompatíveis com projetos Java que acessam Redis; um projeto não pode declarar biblioteca cliente em nenhum deles.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Maven e Gradle podem declarar bibliotecas cliente Redis e construir o projeto. O cliente é incluído no classpath e a aplicação usa-o para acessar o serviço Redis em execução.",
+      "section": "4. Escolha da ferramenta e integração no projeto Java",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um time está adotando um build tool e quer seguir uma configuração declarativa central em XML com ciclos e fases convencionados. Qual ferramenta se alinha mais diretamente a essa abordagem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Redis, por modelar a aplicação em estruturas de dados e fases de build.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Jedis, por declarar plugins XML e executar o ciclo default do projeto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gradle, cujo arquivo central é sempre um POM XML com goals Maven.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Maven, com POM XML, plugins e fases organizadas em ciclos de build.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Lettuce, por gerenciar dependências transitivas e empacotar artefatos JAR.",
+          "correct": false
+        }
+      ],
+      "explanation": "Maven usa POM XML e organiza a construção em ciclos e fases, com trabalho fornecido por plugins. Gradle também constrói projetos, mas emprega scripts DSL e tarefas.",
+      "section": "4. Escolha da ferramenta e integração no projeto Java",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Java pode usar Redis para cache sem dispensar um build tool: Maven ou Gradle ainda podem compilar o código e gerenciar a biblioteca cliente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As responsabilidades coexistem: Redis fornece o serviço de dados, o cliente Java faz a comunicação e Maven ou Gradle gerencia o build e as dependências.",
+      "section": "4. Escolha da ferramenta e integração no projeto Java",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um valor de cache ficou obsoleto porque a origem mudou antes de sua expiração. Que controle deve ser revisto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O ciclo Maven site, pois ele controla quando as chaves Redis expiram.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A coordenada artifactId, pois ela invalida entradas de cache compartilhadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A DSL Kotlin do Gradle, pois ela substitui o conteúdo já armazenado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A tarefa jar, pois reempacotar a aplicação remove chaves Redis remotas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A política de atualização, invalidação ou duração do TTL para aquele dado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Frescor depende da política de invalidação, atualização ou TTL adotada para cada dado. A construção do JAR e a configuração de build não alteram automaticamente entradas que já estão no serviço Redis.",
+      "section": "4. Escolha da ferramenta e integração no projeto Java",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto pode configurar um repositório de dependências para resolver bibliotecas, mas esse repositório não é o servidor Redis usado em execução pela aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Repositórios Maven/Gradle armazenam ou distribuem artefatos do build. Redis atende comandos de dados em tempo de execução; o repositório de bibliotecas não desempenha esse papel.",
+      "section": "4. Escolha da ferramenta e integração no projeto Java",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Redis, SET e GET são operações usuais para gravar e recuperar o valor associado a uma chave de string.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SET grava e GET recupera o valor simples associado à chave.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "HSET grava a lista inteira e HGET ordena os membros pelo valor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ZADD armazena texto sem membro e ZRANGE incrementa o contador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Maven executa SET no banco e Gradle consulta a chave remota.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pub/Sub mantém cada valor como string consultável depois da desconexão.",
+          "correct": false
+        }
+      ],
+      "explanation": "SET e GET são comandos de strings: um grava e o outro recupera o valor da chave. HSET, ZADD e Pub/Sub trabalham em operações diferentes; Maven e Gradle não enviam comandos por conta própria.",
+      "section": "1. Redis: estruturas de dados e uso em aplicações Java",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A expiração configurada numa chave Redis é adequada a dados temporários, mas a aplicação ainda precisa escolher uma duração compatível com o uso da informação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. TTL controla por quanto tempo a chave fica válida; a escolha afeta frescor dos dados e frequência de consultas à origem, então deve refletir o requisito da aplicação.",
+      "section": "1. Redis: estruturas de dados e uso em aplicações Java",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Maven, qual diretório convencional contém os resultados como classes compiladas e o JAR produzido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "src/main/java, onde ficam somente os fontes editáveis do projeto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "src/test/java, onde ficam as classes geradas pelo empacotamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "target, diretório usado normalmente para saídas do build Maven.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "src/main/resources, onde o Maven armazena todos os artefatos finais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "repository, pasta que contém as fontes e a saída padrão local.",
+          "correct": false
+        }
+      ],
+      "explanation": "O diretório target recebe resultados do build Maven por convenção, incluindo classes compiladas e artefatos de pacote. Os diretórios src mantêm fontes e recursos do projeto.",
+      "section": "2. Maven: POM, dependências e ciclo de build",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Super POM fornece configurações padrão herdadas pelos POMs de projetos Maven, salvo ajustes explícitos do próprio projeto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. POMs herdam configurações padrão do Super POM, a menos que sejam substituídas explicitamente. Isso ajuda a fornecer valores usuais sem repetir toda configuração em cada projeto.",
+      "section": "2. Maven: POM, dependências e ciclo de build",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre o escopo compile de uma dependência Maven está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "compile torna a biblioteca disponível apenas ao empacotar o site do projeto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "compile é o escopo padrão e participa da compilação e execução normais.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "compile limita a biblioteca aos testes e a exclui do código principal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "compile publica a biblioteca no repositório remoto sem configuração adicional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "compile substitui groupId, artifactId e version por um nome livre.",
+          "correct": false
+        }
+      ],
+      "explanation": "compile é o escopo padrão e deixa a dependência disponível em etapas normais de compilação e execução. O escopo test restringe a dependência a testes; publicar exige outra etapa e configuração.",
+      "section": "2. Maven: POM, dependências e ciclo de build",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num build Gradle multiprojeto, o arquivo settings pode indicar quais projetos participam da estrutura geral do build.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O arquivo settings.gradle ou settings.gradle.kts descreve a estrutura e pode incluir subprojetos. Os arquivos build definem configuração e tarefas de cada projeto.",
+      "section": "3. Gradle: plugins, tarefas, dependências e Wrapper",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição representa corretamente uma tarefa Gradle?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma coordenada de dependência com grupo, artefato e versão definidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um canal Redis que entrega eventos a assinantes conectados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma fase Maven que só existe dentro do ciclo default XML.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma unidade de trabalho que pode ter entradas, saídas e dependências.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um servidor remoto que hospeda todas as distribuições do Gradle.",
+          "correct": false
+        }
+      ],
+      "explanation": "Task é unidade de trabalho do Gradle. Tarefas podem consumir entradas, produzir saídas e depender de outras, o que permite ao Gradle organizar a execução necessária.",
+      "section": "3. Gradle: plugins, tarefas, dependências e Wrapper",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Gradle Wrapper é executado por um script apropriado ao sistema e usa os arquivos do Wrapper para selecionar a distribuição Gradle do projeto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Scripts de Wrapper para os sistemas comuns carregam ou localizam a distribuição especificada na configuração do projeto, tornando desnecessária a seleção manual de uma instalação global.",
+      "section": "3. Gradle: plugins, tarefas, dependências e Wrapper",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Java usa Lettuce para operar com Redis. Qual papel fica a cargo dessa biblioteca?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gerenciar a publicação de artefatos no repositório remoto Maven.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir as fases do ciclo default usado para compilar o projeto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir o serviço Redis por um arquivo local de configuração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gerar o Wrapper Gradle e fixar a versão do compilador Java.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fornecer uma API cliente Java para comunicar-se com o serviço Redis.",
+          "correct": true
+        }
+      ],
+      "explanation": "Lettuce é cliente Java que oferece API para comunicar-se com Redis. Maven ou Gradle pode resolver a dependência cliente, mas não substitui o serviço nem vira responsável pelo protocolo em execução.",
+      "section": "4. Escolha da ferramenta e integração no projeto Java",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma biblioteca Redis declarada como dependência no POM passa a ser o próprio servidor Redis, compartilhando automaticamente os dados entre processos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Dependência cliente fornece classes ao programa Java; um serviço Redis separado precisa estar executando para guardar dados e atender conexões de múltiplos processos.",
+      "section": "4. Escolha da ferramenta e integração no projeto Java",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação de responsabilidades está correta num sistema Java com cache Redis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Redis compila fontes, Maven armazena sessões e Jedis substitui o build.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Gradle publica mensagens, Lettuce empacota JAR e Redis resolve dependências.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O POM abre o socket de Redis sempre que a aplicação é compilada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "POM executa o servidor e Wrapper mantém chaves temporárias em memória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Maven ou Gradle constrói; cliente Java comunica-se com o serviço Redis.",
+          "correct": true
+        }
+      ],
+      "explanation": "A ferramenta de build resolve dependências e executa etapas de construção; cliente como Jedis ou Lettuce envia operações ao Redis, que mantém dados em execução. As demais alternativas trocam esses papéis.",
+      "section": "4. Escolha da ferramenta e integração no projeto Java",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O ciclo clean do Maven pertence ao mesmo ciclo default e sua fase clean sempre compila, testa e empacota antes de apagar arquivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. clean é um ciclo Maven distinto, voltado à limpeza de saídas do projeto. Não é uma fase que obrigatoriamente percorre compile, test e package do ciclo default.",
+      "section": "2. Maven: POM, dependências e ciclo de build",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja usar Maven para que outro projeto local consuma a biblioteca recém-construída. Qual fase registra o artefato no repositório local?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "site, que instala dependências no classpath dos demais projetos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "package, que envia o artefato para todos os repositórios remotos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "validate, que compila as fontes e registra a biblioteca localmente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "clean, que guarda o JAR na pasta compartilhada da equipe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "install, que coloca o artefato no repositório local Maven.",
+          "correct": true
+        }
+      ],
+      "explanation": "A fase install coloca o artefato no repositório local do Maven. Isso permite que projetos na mesma máquina o resolvam; deploy atende à publicação num repositório remoto configurado.",
+      "section": "2. Maven: POM, dependências e ciclo de build",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "HGETALL consulta os campos e valores de um hash Redis associado a uma chave.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O comando lista canais Pub/Sub e mensagens ainda não entregues.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O comando remove os elementos ordenados de um sorted set.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O comando incrementa o valor de string e aplica um TTL novo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O comando retorna os campos e valores guardados no hash.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O comando converte uma lista Redis numa tabela SQL de registros.",
+          "correct": false
+        }
+      ],
+      "explanation": "HGETALL retorna os campos e valores associados a um hash Redis. Pub/Sub, sorted sets, strings e listas são tipos ou funções distintos.",
+      "section": "1. Redis: estruturas de dados e uso em aplicações Java",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cache Redis pode reduzir leituras repetidas à origem, desde que a aplicação também considere validade e atualização dos valores armazenados.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cache garante que todas as cópias permaneçam sempre iguais à origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O cache impede que a aplicação precise de qualquer estratégia de validade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O cache remove toda necessidade de consultar o banco de origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O cache reduz leituras repetidas, com validade planejada pela aplicação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O cache torna desnecessário controlar conexões, dados sensíveis e acesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cache pode evitar leituras repetidas e diminuir latência, mas cópias podem expirar ou ficar desatualizadas. Atualização, invalidação e fallback precisam seguir os requisitos dos dados.",
+      "section": "1. Redis: estruturas de dados e uso em aplicações Java",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Gradle, declarar uma dependência numa configuração não significa que toda tarefa do projeto necessariamente usará essa biblioteca.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Toda dependência é copiada para cada tarefa, sem distinção de configuração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O grafo de tarefas instala dependências sem consultar os repositórios declarados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O Wrapper escolhe as dependências com base no sistema operacional local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Plugins ignoram configurações e usam todas as bibliotecas do computador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Configurações diferentes definem classpaths e usos distintos no build.",
+          "correct": true
+        }
+      ],
+      "explanation": "Configurações como implementation, runtimeOnly e testImplementation expressam quando a dependência é necessária. A escolha afeta os classpaths que as tarefas usam.",
+      "section": "3. Gradle: plugins, tarefas, dependências e Wrapper",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Pub/Sub, um canal Redis permite que publicadores enviem eventos aos assinantes que acompanham aquele canal.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O canal distribui eventos aos assinantes que acompanham o tópico.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O canal compila cada mensagem e armazena a saída em um arquivo JAR.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O canal garante histórico durável para todo assinante que se conectar depois.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O canal substitui a autenticação e o controle de acesso do serviço Redis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O canal registra dependências transitivas para projetos Maven e Gradle.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pub/Sub usa canais para difundir mensagens a assinantes conectados. Ele não é por si só histórico durável para quem chegar depois nem mecanismo de build ou autenticação.",
+      "section": "1. Redis: estruturas de dados e uso em aplicações Java",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Java pode selecionar Maven ou Gradle para automatizar compilação e testes, mantendo Redis como serviço separado usado em execução.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Redis deve executar as tarefas de compilação e Gradle deve manter sessões.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Maven e Redis são clientes Java equivalentes, mas com nomes diferentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O POM abre o socket de Redis sempre que a aplicação é compilada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O cliente Redis substitui o compilador e também cria o Wrapper.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Maven ou Gradle constrói; cliente Java comunica-se com o serviço Redis.",
+          "correct": true
+        }
+      ],
+      "explanation": "Maven e Gradle automatizam tarefas de construção, enquanto Redis atende operações de dados em execução. A aplicação usa um cliente para falar com o serviço; o build tool não inicia necessariamente esse serviço.",
+      "section": "4. Escolha da ferramenta e integração no projeto Java",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O POM pode declarar plugins Maven, além de dependências, versão e informações de identidade do projeto.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não, o POM admite apenas o caminho das fontes Java principais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Não, plugins precisam ficar em arquivos Gradle carregados pelo Wrapper.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sim, o POM pode incluir plugins e outras configurações do projeto.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Sim, mas somente se também armazenar dados Redis como XML.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não, plugins Maven são definidos somente no repositório remoto central.",
+          "correct": false
+        }
+      ],
+      "explanation": "O POM pode declarar dependências, plugins, goals, perfis e outras configurações, além dos metadados do projeto. O build usa plugins para executar diversas operações.",
+      "section": "2. Maven: POM, dependências e ciclo de build",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Jedis guide (Java)",
+      "publisher": "Redis",
+      "reference": "Cliente Java oficial, conexão, operações de strings e hashes e encerramento de recursos",
+      "url": "https://redis.io/docs/latest/develop/clients/jedis/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Redis data types",
+      "publisher": "Redis",
+      "reference": "Tipos de dados e comandos Redis",
+      "url": "https://redis.io/docs/latest/develop/data-types/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Introduction to the POM",
+      "publisher": "Apache Maven",
+      "reference": "POM, configuração, dependências e diretórios convencionais",
+      "url": "https://maven.apache.org/guides/introduction/introduction-to-the-pom.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Introduction to the Build Lifecycle",
+      "publisher": "Apache Maven",
+      "reference": "Ciclos, fases e execução ordenada do build Maven",
+      "url": "https://maven.apache.org/guides/introduction/introduction-to-the-lifecycle.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Gradle User Manual",
+      "publisher": "Gradle",
+      "reference": "Fundamentos, arquivos de build, dependências, tarefas, plugins e Wrapper",
+      "url": "https://docs.gradle.org/current/userguide/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Java Plugin",
+      "publisher": "Gradle",
+      "reference": "Tarefas e convenções do plugin Java Gradle",
+      "url": "https://docs.gradle.org/current/userguide/java_plugin.html",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

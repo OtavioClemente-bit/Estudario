@@ -1,0 +1,1851 @@
+{
+  "id": "informatica.engenharia-analise-desempenho-sistemas",
+  "subject": "Informática",
+  "title": "Engenharia e análise de desempenho de sistemas",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Engenharia de desempenho de sistemas",
+    "Análise de desempenho de sistemas",
+    "Teste de desempenho de aplicações",
+    "Teste de performance de sistemas",
+    "Teste de carga em aplicações",
+    "Teste de estresse em sistemas",
+    "Teste de esforço de aplicações",
+    "Avaliação de capacidade de sistemas",
+    "Métricas de desempenho de software",
+    "Latência e vazão de aplicações",
+    "Identificação de gargalos de desempenho",
+    "Performance engineering e tuning",
+    "Teste de carga e estresse de sistemas",
+    "Engenharia de performance de software"
+  ],
+  "scope": {
+    "covers": "Engenharia de desempenho e técnicas de análise: requisitos e metas mensuráveis, linha de base, latência, percentis, vazão, concorrência, erros, utilização e saturação de recursos; observabilidade, profiling, rastreamento e localização de gargalos; planejamento, modelagem de carga, cenários, dados, ambiente, geradores e interpretação de resultados; testes de carga, estresse, pico e duração; degradação controlada, ponto de ruptura e recuperação; validação de scripts, limites de aceitação e riscos de execução.",
+    "excludes": "Sintaxe completa de ferramentas específicas, teste funcional, teste de segurança, teste de caos, dimensionamento de uma nuvem ou fabricante específico e metas numéricas universais de latência ou capacidade."
+  },
+  "theoryTitle": "Medir, explicar e melhorar o desempenho",
+  "chapters": [
+    {
+      "title": "1. Desempenho como requisito mensurável",
+      "markdown": "### O problema que este assunto resolve\n\nUm sistema pode funcionar corretamente com poucas pessoas e ficar lento quando muitos acessos chegam juntos. **Engenharia de desempenho** trata desempenho como uma propriedade planejada e verificável: define metas, mede o sistema sob condições conhecidas, explica os resultados e orienta mudanças. O objetivo não é simplesmente tornar tudo mais rápido; é atender às necessidades de usuários e negócio com capacidade, custo e estabilidade aceitáveis.\n\n> **Siglas e termos deste capítulo**\n> - **SLO**: objetivo de nível de serviço, uma meta interna mensurável, como uma fração de requisições atendida dentro de uma latência definida.\n> - **SLA**: compromisso de nível de serviço assumido com consumidores; pode trazer consequências se não cumprido.\n> - **Linha de base (baseline)**: medição de referência feita em condições registradas.\n> - **Latência**: tempo decorrido para uma operação ou requisição.\n> - **Vazão (throughput)**: quantidade de trabalho concluída por unidade de tempo, como requisições por segundo.\n> - **Concorrência**: operações que estão em andamento ao mesmo tempo.\n\n### Transformar expectativa em critério\n\n“Precisa ser rápido” não permite uma decisão de aceite. Uma meta útil identifica **qual fluxo**, **qual carga**, **qual métrica** e **qual limite**. Por exemplo: “no cenário de consulta do catálogo, durante a carga de pico prevista, pelo menos 95% das respostas devem ficar abaixo do limite acordado e a taxa de erros deve permanecer dentro do orçamento definido”. O limite concreto depende do produto; não existe um valor universal que sirva para todo sistema.\n\nUma medida média pode esconder usuários muito prejudicados. Considere tempos de 100, 110, 120, 130 e 900 milissegundos: a média é 272 ms, mas o último usuário esperou muito mais que os demais. Percentis ajudam a enxergar a cauda da distribuição. **P95** é o valor abaixo do qual se encontram 95% das observações; P99 destaca a cauda mais lenta. Percentil não é uma garantia para cada requisição, nem deve ser lido sem período, cenário e tamanho da amostra.\n\n| Indicador | Pergunta respondida | Cuidado de interpretação |\n| --- | --- | --- |\n| Latência média | Qual foi o tempo médio? | Pode ocultar cauda lenta e erros excluídos da amostra. |\n| P95/P99 | Como se comportam as requisições mais lentas? | Informe janela, rota e carga; amostra pequena torna a cauda instável. |\n| Vazão | Quanto trabalho foi concluído por segundo? | Vazão alta com erros ou respostas inválidas não representa sucesso. |\n| Taxa de erros | Que fração falhou? | Separe erros da aplicação, do protocolo e do próprio gerador. |\n| Concorrência | Quantas operações estavam simultâneas? | Não equivale a usuários cadastrados ou a requisições por segundo. |\n\n### A relação entre demanda, tempo e concorrência\n\nQuando a taxa de chegada cresce, o sistema pode aumentar a vazão até certo limite. Depois que um recurso se aproxima da saturação, filas crescem e a latência pode disparar, mesmo que a vazão aumente pouco. Em condições estáveis, a relação aproximada **L = λW** (lei de Little) associa o número médio de itens no sistema (L), a taxa média de chegada/conclusão (λ) e o tempo médio no sistema (W). Ela ajuda a raciocinar sobre fila e concorrência, mas não substitui medição e pressupõe uma janela estável, com definições consistentes.\n\n### Como cai na prova\n\n- Meta de desempenho deve especificar cenário e carga; “rápido” sem medida não é critério objetivo.\n- Média, P95 e vazão respondem perguntas diferentes.\n- Mais usuários simultâneos não são sinônimo de mais requisições por segundo: cada usuário virtual pode pausar, pensar ou executar várias chamadas.\n- Vazão pode estabilizar enquanto fila e latência aumentam, sinalizando saturação."
+    },
+    {
+      "title": "2. Técnicas para localizar e explicar gargalos",
+      "markdown": "### O problema que este assunto resolve\n\nUm resultado lento diz **que** há um problema, mas não necessariamente **onde** ele está. A análise precisa relacionar o sintoma observado pelo usuário aos componentes e recursos que participaram da operação. Um gargalo pode estar no código, banco de dados, rede, disco, fila, serviço remoto ou no próprio gerador de carga.\n\n> **Siglas e termos deste capítulo**\n> - **APM**: monitoramento de desempenho de aplicação, que acompanha transações e dependências.\n> - **Trace distribuído**: sequência correlacionada de etapas de uma solicitação em serviços diferentes.\n> - **Span**: intervalo de trabalho individual dentro de um trace.\n> - **Profiling**: coleta detalhada de tempo de execução e consumo de recursos por partes do programa.\n> - **Saturação**: recurso sem capacidade ociosa suficiente para absorver demanda adicional sem piora.\n> - **Gargalo**: componente que limita o desempenho total no cenário analisado.\n\n### Comece pelo fluxo, siga a evidência\n\nPrimeiro reproduza um fluxo representativo e registre sua latência, vazão e taxa de erro. Em seguida examine métricas por componente e, quando disponível, um trace que mostre quanto tempo cada etapa consumiu. Se uma requisição leva 1,8 s e o trace mostra 1,4 s aguardando uma consulta ao banco, a consulta ou a espera pela conexão é uma hipótese forte; ainda é preciso verificar plano, bloqueios, pool, volume de dados e comportamento sob carga. A duração total não deve ser atribuída automaticamente à etapa mais visível.\n\n| Sinal observado | Hipóteses a investigar | Evidência complementar |\n| --- | --- | --- |\n| CPU sustentada perto do limite e latência crescente | Cálculo caro, serialização, contenção ou configuração insuficiente | Profiling, tempo por função, filas e paralelismo efetivo |\n| Memória cresce ao longo do tempo | Retenção indevida, cache sem limite ou vazamento | Heap ao longo de execuções, coleta de lixo e número de objetos |\n| Banco concentra tempo e conexões aguardam | Consulta custosa, bloqueio, pool esgotado ou falta de índice | Plano de execução, espera, locks, pool e volume |\n| Muitas chamadas aguardam serviço remoto | Dependência lenta, limite externo ou falha de rede | Trace, latência externa, timeouts e política de repetição |\n| Disco ou fila acumula espera | I/O limitado, consumidor lento ou lote inadequado | Profundidade da fila, tempo de espera e taxa de consumo |\n| Gerador no limite e aplicação aparentemente ociosa | O teste não consegue produzir a carga pretendida | CPU, rede, descritores e vazão do gerador |\n\nMétricas de **utilização** mostram quanto de um recurso está ocupado; **saturação** evidencia trabalho esperando por falta de capacidade. CPU em 80% isoladamente não prova gargalo, e CPU baixa não prova que o sistema está saudável: threads podem estar bloqueadas esperando rede, banco ou lock. Compare séries temporais dos recursos com latência, vazão e erros durante a mesma janela.\n\n### Medir com níveis de detalhe diferentes\n\n- **Métricas** agregadas revelam tendências e correlações (por exemplo, P95 cresce quando o pool de conexões fica cheio).\n- **Logs** registram eventos e contexto; são úteis para falhas específicas, mas podem ter custo e volume altos.\n- **Traces** mostram o caminho de uma transação em serviços distribuídos e o tempo atribuído a cada trecho. Amostragem pode deixar transações fora da visão.\n- **Profilers** ajudam a localizar funções que consomem CPU ou memória; uma sessão de profiling também pode alterar o custo observado.\n\nUse primeiro uma visão ampla e depois aprofunde o componente suspeito. Mude uma hipótese por vez, repita o cenário e compare com a linha de base. Se várias mudanças forem feitas simultaneamente, fica mais difícil atribuir a causa da melhoria ou regressão.\n\n### Como cai na prova\n\n- Trace distribui tempo por etapas; profiling detalha custo de execução no código.\n- Alta utilização não basta para localizar o gargalo: combine-a com filas, espera, latência e vazão.\n- O gerador de carga também pode saturar e falsear a conclusão sobre a capacidade da aplicação.\n- Uma correlação entre CPU e latência sugere investigação; não prova sozinha causalidade."
+    },
+    {
+      "title": "3. Planejar e executar teste de carga",
+      "markdown": "### O problema que este assunto resolve\n\nTeste de carga verifica como o sistema se comporta diante de uma demanda definida, geralmente representativa da operação esperada e de seus picos planejados. Ele mede se as metas continuam atendidas, ajuda a estabelecer uma linha de base e pode mostrar limites de capacidade e eficácia de escala. O resultado só é confiável se o cenário e a carga representarem algo que o sistema realmente fará.\n\n> **Siglas e termos deste capítulo**\n> - **SUT**: sistema sob teste.\n> - **VU**: usuário virtual executando um fluxo automatizado.\n> - **RPS**: requisições por segundo.\n> - **Ramp-up**: período de aumento gradual de carga.\n> - **Think time**: pausa modelada entre ações, aproximando o ritmo humano.\n> - **Threshold**: limite automatizado que define aprovação ou falha de uma métrica.\n\n### Desenhar um teste que represente uso real\n\nAntes de executar, defina a pergunta: validar capacidade de pico? Comparar uma versão com a anterior? Encontrar uma regressão em um fluxo? Depois estabeleça a população de operações e sua distribuição, por exemplo leitura, busca, gravação e autenticação, respeitando pré-condições e dados distintos. Um único endpoint repetido pode ser útil para isolar um componente, mas não representa automaticamente o percurso completo do usuário.\n\nEscolha o modelo de carga de acordo com o objetivo. Um **modelo fechado** mantém quantidade fixa de usuários virtuais: se cada ciclo fica mais lento, eles próprios enviam menos operações, o que pode mascarar a fila. Um **modelo aberto** controla taxa de chegada; a demanda continua chegando conforme programado, o que ajuda a investigar o efeito de uma taxa externa sustentada. Esses modelos respondem perguntas diferentes.\n\nUm roteiro útil inclui validação mínima do script, aquecimento se pertinente, aumento gradual, período estável na carga-alvo e encerramento com coleta de recuperação. Registre versão do sistema, configuração, tamanho e origem dos dados, localização dos geradores, cache, ambiente, concorrência ou taxa-alvo, duração e horário. Repita a execução para distinguir comportamento consistente de variação incidental.\n\n| Decisão de planejamento | Por que importa |\n| --- | --- |\n| Usar ambiente semelhante ao de produção | CPU, memória, topologia, dados e rede alteram o resultado. |\n| Preparar dados de teste variados | Repetir sempre o mesmo registro pode superaquecer cache e distorcer consultas. |\n| Incluir pausas e proporções de fluxo coerentes | Tráfego artificialmente uniforme pode criar um padrão que usuários não produzem. |\n| Observar o gerador e o alvo | Confirma que a carga entregue corresponde à planejada. |\n| Definir limiares antes da execução | Evita reinterpretar o critério depois de ver os resultados. |\n| Restringir dependências externas | Não sobrecarrega serviços de terceiros sem controle e evita ruído externo. |\n\nTeste baseado em protocolo envia chamadas diretamente ao backend; é eficiente para gerar volume e medir endpoints, mas não mede renderização do navegador. Teste de navegador percorre interface e oferece visão mais próxima da experiência visual, porém usa mais recursos por usuário virtual. Uma abordagem híbrida pode gerar a maior parte do volume no protocolo e manter uma amostra menor de sessões no navegador.\n\nEm k6, por exemplo, **thresholds** permitem codificar metas sobre métricas como duração de requisição e proporção de falhas; checks validam condições como resposta com estado ou conteúdo esperado. Checks e thresholds têm papéis distintos: a documentação do k6 informa que checks, isoladamente, não mudam o status de saída do teste. O princípio é geral: confirmar que houve resposta rápida não basta se o conteúdo ou a operação falhou.\n\n### Ler o resultado e documentar\n\nCompare métricas por cenário e rota com as metas e a linha de base. Um relatório deve informar carga efetivamente gerada, duração, distribuição de latência, vazão concluída, taxa de erro, recursos e limitações. Se a taxa de requisições do gerador cai enquanto ele está saturado, o alvo pode estar sendo subalimentado. Se a vazão do alvo estagna e filas crescem, há indício de limite no caminho do sistema.\n\n### Como cai na prova\n\n- Carga é orientada à demanda representativa ou esperada; estresse busca ultrapassar limites.\n- O script deve validar a resposta funcional, além de cronometrá-la.\n- Dados, cache, taxa de chegada, pausas e localização do gerador afetam a representatividade.\n- Um teste de protocolo não mede o tempo de renderização real do navegador."
+    },
+    {
+      "title": "4. Teste de estresse, pico e duração",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação aprovada na carga esperada ainda pode reagir mal a uma demanda extraordinária, crescimento gradual ou pressão prolongada. Teste de estresse leva o sistema a condições além da operação normal para descobrir limites, modos de falha, degradação e recuperação. Ele não busca simplesmente uma nota de velocidade: procura caracterizar como o sistema deixa de atender e o que acontece quando a pressão diminui.\n\n> **Siglas e termos deste capítulo**\n> - **Ponto de ruptura**: região em que uma nova elevação de carga faz metas ou disponibilidade deixarem de ser atendidas.\n> - **Degradação graciosa**: redução controlada de funcionalidades ou capacidade para preservar o serviço essencial.\n> - **Backpressure**: mecanismo que limita ou sinaliza produtores quando consumidores não acompanham o fluxo.\n> - **Soak/endurance**: execução prolongada sob carga para encontrar problemas que aparecem com o tempo.\n> - **Spike**: elevação súbita de demanda, seguida ou não de retorno ao nível anterior.\n\n### Carga crescente além do esperado\n\nAumente a carga em etapas controladas e observe latência, vazão, erros, filas, conexões e recursos. O ponto de ruptura não é necessariamente um número único: uma aplicação pode deixar de cumprir a meta de latência antes de ficar indisponível; outro sistema pode preservar endpoints principais e rejeitar tarefas secundárias. Registre o critério utilizado para declarar o limite.\n\nObserve também o caminho de volta: interrompida a sobrecarga, filas diminuem? O serviço retoma a vazão normal? Há conexões presas, reinícios repetidos ou acúmulo que prolonga a falha? Uma recuperação lenta pode ser tão importante quanto a capacidade máxima. Sobrecarga pode causar efeito cascata: um componente lento segura conexões; retentativas ampliam a demanda; filas ocupam memória; outros serviços também falham. Limites de timeout, concorrência, fila e repetição ajudam a conter essa propagação.\n\n### Distinguir os perfis de teste\n\n| Perfil | Forma da carga | Pergunta principal |\n| --- | --- | --- |\n| Carga | Demanda típica ou pico previsto, com perfil realista | As metas são cumpridas na operação que esperamos? |\n| Estresse | Demanda ultrapassa deliberadamente o nível normal | Onde e como o sistema falha, degrada e se recupera? |\n| Pico (spike) | Salto rápido de volume em pouco tempo | A escala, fila e dependências reagem a uma mudança abrupta? |\n| Duração (soak) | Pressão mantida por período longo | Há vazamento, exaustão gradual ou degradação acumulada? |\n\nOs nomes podem variar entre equipes e ferramentas; declare a forma efetiva da carga em vez de presumir que o rótulo resolve a definição. Um estresse gradual e um pico são perfis distintos. Duração prolongada pode ser realizada na carga esperada ou em nível elevado, conforme a hipótese que se quer testar.\n\n### Segurança operacional e relatório\n\nPlaneje limites de interrupção, monitore saúde, use ambiente autorizado e controle alcance de alvos. Em produção, um teste deliberado pode afetar pessoas reais e dependências compartilhadas; execute somente com coordenação e salvaguardas apropriadas. Não dispare tráfego contra serviços de terceiros sem autorização. Separe os resultados do gerador dos resultados do sistema. Registre a rampa, a carga máxima alcançada, os sintomas, os critérios de interrupção e o tempo e as evidências de recuperação.\n\n### Como cai na prova\n\n- Estresse investiga capacidade excedida, modos de falha e recuperação; teste de carga valida demanda representativa.\n- Spike muda rapidamente a demanda; soak observa efeitos de pressão prolongada.\n- Rejeitar trabalho não essencial e preservar o fluxo crítico pode ser degradação graciosa, não necessariamente falha total.\n- A recuperação deve ser medida após retirar a pressão."
+    }
+  ],
+  "summary": "Engenharia de desempenho define metas mensuráveis, cria uma linha de base e mede latência (inclusive percentis), vazão, concorrência, erros e recursos em cenários conhecidos. Analisar requer correlacionar métricas com logs, traces e profiling, investigando filas e saturação; utilização isolada não prova gargalo, e o gerador também pode ser o limitante. Testes de carga simulam demanda típica ou pico previsto para avaliar metas e capacidade. Estresse ultrapassa a operação normal para revelar limites, falhas, degradação e recuperação; spike aumenta a carga abruptamente e soak a mantém por longo período. Bons testes usam cenários e dados representativos, critérios de aceite prévios, ambiente e gerador observados, scripts validados e relatório reprodutível. Teste de protocolo observa backend; teste de navegador observa também a experiência da interface. Em k6, thresholds codificam limites de métricas e checks verificam respostas; checks isolados não fazem o teste falhar. Controle escopo e impacto dos testes, sobretudo em produção ou sobre dependências de terceiros.",
+  "flashcards": [
+    {
+      "front": "O que caracteriza engenharia de desempenho?",
+      "back": "Definir objetivos mensuráveis, medir sob condições conhecidas, analisar causas e orientar melhorias de capacidade, velocidade e estabilidade."
+    },
+    {
+      "front": "O que é uma linha de base de desempenho?",
+      "back": "Medição de referência acompanhada das condições do teste para permitir comparação válida com execuções futuras."
+    },
+    {
+      "front": "Latência e vazão são a mesma medida?",
+      "back": "Não. Latência é tempo por operação; vazão é trabalho concluído por unidade de tempo."
+    },
+    {
+      "front": "O que informa o percentil P95?",
+      "back": "O valor abaixo do qual estão 95% das observações da amostra considerada; não descreve sozinho a janela ou o cenário."
+    },
+    {
+      "front": "Por que a média pode ocultar lentidão?",
+      "back": "Uma pequena cauda de respostas muito lentas pode afetar usuários mesmo quando a média parece aceitável."
+    },
+    {
+      "front": "Concorrência equivale a requisições por segundo?",
+      "back": "Não. Concorrência conta operações simultâneas; vazão conta operações concluídas por tempo."
+    },
+    {
+      "front": "O que é saturação?",
+      "back": "Condição em que um recurso não tem capacidade livre suficiente e trabalho passa a esperar ou falhar."
+    },
+    {
+      "front": "Para que serve profiling?",
+      "back": "Identificar partes do programa que consomem tempo ou recursos como CPU e memória."
+    },
+    {
+      "front": "O que um trace distribuído apresenta?",
+      "back": "O percurso correlacionado de uma transação por serviços e intervalos de trabalho, ajudando a localizar espera."
+    },
+    {
+      "front": "O que distingue carga de estresse?",
+      "back": "Carga avalia demanda representativa ou esperada; estresse ultrapassa a operação normal para investigar limites e recuperação."
+    },
+    {
+      "front": "Qual hipótese um teste de spike investiga?",
+      "back": "Como o sistema reage a uma elevação abrupta de demanda e se escala ou protege suas filas."
+    },
+    {
+      "front": "Que defeitos um teste soak pode revelar?",
+      "back": "Vazamentos, exaustão gradual de recursos e degradação que aparece após pressão prolongada."
+    },
+    {
+      "front": "O que é degradação graciosa?",
+      "back": "Reduzir capacidade ou funções secundárias de forma controlada para preservar o serviço essencial."
+    },
+    {
+      "front": "Por que observar o gerador de carga?",
+      "back": "Ele pode saturar e não produzir a demanda planejada, levando a uma conclusão falsa sobre o alvo."
+    },
+    {
+      "front": "Teste de protocolo mede renderização da página?",
+      "back": "Não. Ele envia requisições ao backend; renderização e interação visual requerem medição no navegador."
+    },
+    {
+      "front": "Por que variar dados de teste?",
+      "back": "Evita que um único registro ou padrão de cache torne a carga artificial e pouco representativa."
+    },
+    {
+      "front": "O que é ramp-up?",
+      "back": "Aumento progressivo da carga durante uma etapa do teste."
+    },
+    {
+      "front": "O que um threshold automatiza?",
+      "back": "Um critério de aprovação ou falha sobre uma métrica observada, como latência ou proporção de erros."
+    },
+    {
+      "front": "Por que checks e thresholds não são idênticos em k6?",
+      "back": "Checks avaliam condições de resposta; thresholds definem limites de métricas e podem determinar falha do teste."
+    },
+    {
+      "front": "Que pergunta orienta a análise de um trace lento?",
+      "back": "Qual etapa ou dependência consumiu o tempo e que evidência adicional confirma a causa?"
+    },
+    {
+      "front": "O que a lei de Little relaciona em um sistema estável?",
+      "back": "Quantidade média de itens no sistema, taxa média de chegada/conclusão e tempo médio no sistema."
+    },
+    {
+      "front": "Por que latência crescente com vazão estável importa?",
+      "back": "Pode indicar fila ou saturação: a demanda adicional eleva espera sem aumentar trabalho concluído."
+    },
+    {
+      "front": "Que cuidado existe ao testar em produção?",
+      "back": "O tráfego pode afetar usuários e dependências compartilhadas; é preciso coordenar, limitar e monitorar o impacto."
+    },
+    {
+      "front": "O que um relatório reprodutível deve registrar?",
+      "back": "Versão, ambiente, dados, perfil e volume de carga, duração, métricas, limiares, gerador e limitações."
+    }
+  ],
+  "tips": [
+    "Converta ‘rápido’ em fluxo, carga, métrica e limite de aceite.",
+    "Olhe P95 ou P99 junto com média, vazão e erros para enxergar a cauda.",
+    "Cruze séries temporais: latência, filas, recursos e taxa de chegada precisam falar da mesma janela.",
+    "Se o resultado parece bom demais, confirme se o gerador realmente sustentou a carga prevista.",
+    "Carga, estresse, pico e duração são perfis diferentes; descreva como a demanda mudou.",
+    "Após a sobrecarga, continue medindo: recuperação também faz parte do resultado."
+  ],
+  "traps": [
+    "Achar que vazão maior sempre significa melhor experiência, mesmo com erros e latência extrema.",
+    "Usar média como único resumo e ignorar percentis da cauda.",
+    "Confundir número de usuários virtuais com requisições por segundo.",
+    "Chamar qualquer teste de carga de estresse sem dizer se ultrapassou a demanda normal.",
+    "Concluir que o sistema suporta a carga quando o próprio gerador ficou saturado.",
+    "Supor que uma chamada HTTP rápida valida renderização e interação no navegador."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como você transformaria uma expectativa vaga de rapidez em requisito testável?",
+      "answer": "Escolheria o fluxo e cenário, descreveria carga, métrica (por exemplo P95), janela e limite de aceite, além da taxa de erros permitida."
+    },
+    {
+      "question": "Por que comparar média e P99 pode mudar a leitura de um teste?",
+      "answer": "A média resume o centro; o P99 evidencia uma cauda lenta que afeta parte dos usuários e pode indicar contenção ou filas."
+    },
+    {
+      "question": "Como você investigaria um aumento de latência sem aumento de vazão?",
+      "answer": "Verificaria filas, espera e saturação no banco, pools, rede, CPU e dependências; usaria métricas e traces da mesma janela e profiling no componente suspeito."
+    },
+    {
+      "question": "Como distingue um gargalo da aplicação de um gargalo do gerador?",
+      "answer": "Compara uso e limites do gerador com a carga realmente emitida e observa recursos do alvo. Gerador saturado pode reduzir a chegada; alvo saturado pode mostrar filas e estagnação de vazão."
+    },
+    {
+      "question": "O que observaria depois de um teste de estresse?",
+      "answer": "Queda de filas e erros, retomada da vazão e latência, conexões e tarefas presas, reinícios e tempo até o serviço retornar ao comportamento esperado."
+    },
+    {
+      "question": "Quando escolher teste de navegador em vez de apenas protocolo?",
+      "answer": "Quando a pergunta inclui renderização, interação e experiência de ponta a ponta; protocolo é eficiente para grande volume de chamadas de backend."
+    },
+    {
+      "question": "Como uma carga pouco realista pode enganar?",
+      "answer": "Repetir sempre os mesmos dados, omitir pausas ou concentrar chamadas em uma rota altera cache, filas e proporções e produz resultados diferentes do uso real."
+    },
+    {
+      "question": "Como documentar uma comparação entre versões?",
+      "answer": "Manter fluxo, carga, ambiente, dados, duração e ferramentas comparáveis; registrar versão, linha de base, métricas, critérios e limitações."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Métrica escolhida sem contexto",
+      "summary": "Média, percentis, vazão e erros medem aspectos diferentes. Associar cada resultado a cenário, janela e carga evita interpretar um número isolado como desempenho global."
+    },
+    {
+      "key": "e2",
+      "title": "Sintoma confundido com causa",
+      "summary": "Latência alta não identifica sozinha o componente culpado. Cruzar métricas, traces, logs, filas e profiling separa hipótese de evidência."
+    },
+    {
+      "key": "e3",
+      "title": "Carga e estresse trocados",
+      "summary": "Carga testa demanda representativa; estresse excede a operação normal para encontrar limites, falhas e recuperação. Spike e soak descrevem perfis próprios."
+    },
+    {
+      "key": "e4",
+      "title": "Carga inválida por gerador ou cenário",
+      "summary": "Gerador saturado, dados repetidos, chamadas irreais ou ausência de medição funcional podem fazer o teste avaliar algo diferente do sistema e do usuário."
+    },
+    {
+      "key": "e5",
+      "title": "Aceite sem recuperação ou segurança operacional",
+      "summary": "O resultado deve incluir degradação e recuperação, critérios prévios e controle de impacto, particularmente quando o teste envolve produção ou dependências externas."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Engenharia de desempenho pode começar antes da implantação, definindo metas e medindo cenários enquanto o sistema ainda está sendo construído.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Metas e medições antecipadas permitem localizar regressões e orientar decisões de projeto antes que o sistema dependa de uma implantação final. Uma linha de base ganha valor quando suas condições são registradas.",
+      "section": "1. Desempenho como requisito mensurável",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A latência representa a quantidade de operações concluídas por segundo, enquanto vazão representa o tempo de resposta de uma operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Latência é tempo decorrido por operação; vazão é trabalho concluído por unidade de tempo. São medidas distintas e podem evoluir de modo diferente sob saturação.",
+      "section": "1. Desempenho como requisito mensurável",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "P95 indica o valor que não é ultrapassado por aproximadamente 95% das observações consideradas na distribuição analisada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O percentil 95 localiza a fronteira abaixo da qual estão 95% das observações da amostra. É necessário informar cenário e janela, e uma amostra pequena pode deixar a cauda instável.",
+      "section": "1. Desempenho como requisito mensurável",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se a média de latência atende ao objetivo, pode-se concluir que todos os usuários tiveram resposta dentro do limite individual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A média não limita cada observação. Uma cauda de respostas muito lentas pode coexistir com uma média aceitável, motivo para examinar percentis e distribuição.",
+      "section": "1. Desempenho como requisito mensurável",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Concorrência conta operações simultâneas; não é, por si só, uma medida de requisições concluídas por segundo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Concorrência descreve operações em andamento ao mesmo tempo. A vazão mede conclusões por tempo; pausas, duração e comportamento do fluxo fazem com que as duas quantidades não sejam equivalentes.",
+      "section": "1. Desempenho como requisito mensurável",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A utilização elevada de CPU, sozinha, comprova que o processador é o gargalo responsável por qualquer lentidão observada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Utilização elevada é um sinal para investigar, mas deve ser relacionada com filas, latência, vazão, paralelismo e perfil do código. A causa pode ser contenção ou trabalho ineficiente e não se prova por uma medida isolada.",
+      "section": "2. Técnicas para localizar e explicar gargalos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um trace distribuído pode mostrar o caminho de uma requisição entre serviços e quanto tempo foi atribuído a cada intervalo dessa jornada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Traces correlacionam etapas de uma transação distribuída e ajudam a localizar espera em dependências. Amostragem e instrumentação incompleta podem deixar partes do caminho sem observação.",
+      "section": "2. Técnicas para localizar e explicar gargalos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Profiling é uma técnica voltada a identificar tempo de execução e consumo de recursos em partes específicas do programa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um profiler aprofunda a análise do código e pode apontar funções que consomem CPU ou memória. A própria instrumentação pode influenciar o resultado, então seu custo também deve ser considerado.",
+      "section": "2. Técnicas para localizar e explicar gargalos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se a taxa de chegada de solicitações sobe e a vazão fica estável enquanto filas crescem, o sistema pode estar se aproximando de saturação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Quando o sistema deixa de concluir trabalho na mesma proporção em que a demanda chega, o excedente espera em filas ou falha. Correlacionar esse padrão com recursos e latência ajuda a localizar o limite.",
+      "section": "2. Técnicas para localizar e explicar gargalos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No teste de carga, repetir indefinidamente o mesmo registro garante realismo porque reduz a variação dos dados e facilita a medição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Repetição pode aquecer cache e criar contenção ou seletividade diferentes do uso real. Dados de teste devem refletir características relevantes da produção sem expor dados pessoais reais.",
+      "section": "3. Planejar e executar teste de carga",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste de protocolo que envia requisições HTTP diretamente ao servidor mede automaticamente o tempo de renderização visual no navegador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Teste de protocolo mede chamadas de backend e não inclui etapas de renderização e interação visual do navegador. Para essa perspectiva, é preciso executar um teste no navegador ou combinar as abordagens.",
+      "section": "3. Planejar e executar teste de carga",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Thresholds podem codificar limites de métricas, enquanto checks avaliam condições como estado ou conteúdo de uma resposta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. No k6, thresholds estabelecem critérios de aprovação sobre métricas e checks verificam afirmações de resposta. A documentação alerta que checks isolados não alteram o status de saída, de modo que as duas verificações podem se complementar.",
+      "section": "3. Planejar e executar teste de carga",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O teste de estresse deve encerrar toda medição assim que a carga cai, pois a recuperação posterior já não faz parte do comportamento de desempenho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A recuperação após a retirada da sobrecarga é parte importante do estresse. Filas, conexões ou tarefas presas podem manter o sistema degradado mesmo quando a pressão original terminou.",
+      "section": "4. Teste de estresse, pico e duração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema que preserva operações essenciais e recusa tarefas secundárias durante sobrecarga pode estar aplicando degradação graciosa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Degradação graciosa reduz de modo deliberado funções menos críticas para preservar o serviço principal. Deve ser avaliada conforme os requisitos do sistema, e não confundida automaticamente com falha total.",
+      "section": "4. Teste de estresse, pico e duração",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Teste de duração é adequado para procurar vazamentos ou exaustão gradual que podem não aparecer numa execução curta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Ao manter pressão por período prolongado, o teste pode revelar degradação acumulada, como crescimento de memória ou esgotamento de conexões, que uma amostra breve não mostra.",
+      "section": "4. Teste de estresse, pico e duração",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste de pico e um teste de estresse gradual são necessariamente o mesmo perfil, pois ambos usam carga acima da média.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O pico caracteriza uma mudança súbita de demanda; estresse gradual aumenta a carga de forma progressiva para observar limites. A forma da carga, e não apenas estar acima da média, diferencia as perguntas investigadas.",
+      "section": "4. Teste de estresse, pico e duração",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema pode cumprir metas na carga esperada e ainda falhar em um teste de estresse que ultrapassa deliberadamente essa demanda.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os testes respondem perguntas diferentes: a carga verifica comportamento na demanda prevista, enquanto o estresse investiga limites e robustez em condições extremas.",
+      "section": "4. Teste de estresse, pico e duração",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa transformar ‘o portal deve ser rápido’ em critério de aceite para uma busca usada no pico diário. Qual formulação é mais útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir que a busca deve parecer rápida para a maioria das pessoas em qualquer situação, sem escolher uma métrica observável, cenário de carga ou limite de aceitação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Medir somente a duração média da página inicial após uma execução em horário tranquilo, sem concorrência representativa nem avaliação da rota de busca.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Contar usuários cadastrados e considerar que todos geram uma chamada ao mesmo tempo, sem observar o perfil de chegada ou as pausas entre ações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Especificar busca, perfil de pico, janela, percentil de latência, limite e taxa aceitável de erro.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Comparar a memória total do servidor com a de outro produto sem medir as solicitações.",
+          "correct": false
+        }
+      ],
+      "explanation": "O critério associa fluxo, condição de carga, indicador, janela e limite, tornando a decisão repetível. Expressões subjetivas, médias isoladas ou inventários de usuários não especificam o comportamento no pico.",
+      "section": "1. Desempenho como requisito mensurável",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório mostra média de 180 ms e P99 de 4 s no mesmo fluxo. Qual interpretação é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A média prova que o fluxo é rápido para todos, e o P99 pode ser descartado como exceção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O P99 demonstra que todas as solicitações demoram quatro segundos ou mais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os dois números são incompatíveis, pois percentil e média precisam ter o mesmo valor em uma amostra válida e na mesma rota.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O valor de P99 é uma medida de vazão e deve ser comparado com requisições por segundo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A cauda contém respostas muito lentas; convém investigar sua frequência e correlacioná-la a carga e recursos.",
+          "correct": true
+        }
+      ],
+      "explanation": "A média resume o centro, enquanto P99 evidencia a região lenta da distribuição. O percentil não significa que todas as requisições tenham aquela duração; janela, amostra e correlação com recursos ajudam a explicar a cauda.",
+      "section": "1. Desempenho como requisito mensurável",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante o aumento da demanda, a vazão fica quase constante e o P95 cresce junto com a profundidade da fila. Qual conclusão inicial é mais consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O sistema certamente tem capacidade infinita, pois ainda conclui a mesma quantidade de trabalho.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A fila prova que a rede externa é a causa, sem necessidade de observar banco, aplicação ou geradores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A latência não é afetada, pois vazão constante elimina qualquer fila de espera.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Há indício de saturação: espera aumenta sem crescimento equivalente de trabalho concluído.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O P95 mede somente a quantidade de operações simultâneas no processador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Vazão estagnada, latência crescente e filas acumuladas são sinais coerentes com um limite de capacidade. Eles orientam a investigação, mas ainda é preciso identificar o recurso ou dependência que limita o fluxo.",
+      "section": "1. Desempenho como requisito mensurável",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois relatórios usam a expressão ‘P95 abaixo de 500 ms’, mas um mede uma busca no pico e outro mede login em horário ocioso. O que falta para compará-los como linha de base?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar ambos os percentis por uma média geral que não identifique o fluxo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar a execução mais rápida como referência, mesmo que o cenário seja diferente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somar os dois percentis e dividir pela quantidade de endpoints monitorados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Comparar apenas o número total de usuários cadastrados nas duas execuções.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registrar e alinhar cenário, perfil de carga, janela, versão e condições do ambiente.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma linha de base só permite comparação útil quando as condições relevantes são conhecidas e equivalentes ou quando suas diferenças são explicitadas. Fluxo, carga, versão, ambiente e janela afetam a interpretação do percentil.",
+      "section": "1. Desempenho como requisito mensurável",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um time tem fluxo médio de 10 requisições por segundo e tempo médio no sistema de 2 segundos em uma janela estável. Usando L = λW como aproximação, qual quantidade média de operações no sistema é sugerida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cinco operações, pois a taxa deve ser dividida pelo tempo médio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Dez operações, pois a vazão equivale sempre à concorrência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Duas operações, pois o tempo médio é o número de solicitações concluídas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Vinte operações, pois taxa média multiplicada pelo tempo resulta em itens médios no sistema.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Duzentas operações, pois a taxa deve ser multiplicada por cem milissegundos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A lei de Little relaciona L, λ e W: 10 operações por segundo multiplicadas por 2 segundos sugerem 20 operações médias no sistema. A interpretação depende de janela estável e unidades consistentes.",
+      "section": "1. Desempenho como requisito mensurável",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação distribuída fica lenta, mas a equipe não sabe se o banco ou o serviço remoto concentra a espera. Qual técnica fornece a visão mais direta do percurso da mesma requisição entre componentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pesquisa de satisfação com usuários sem marcação de tempo das etapas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Contagem semanal de linhas de código em cada repositório do sistema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Profiling local sem contexto de chamadas ou dependências da transação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Inventário de memória máxima configurada para os servidores envolvidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trace distribuído com intervalos correlacionados por identificador de transação.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um trace correlacionado mostra as etapas e durações observadas ao longo da jornada distribuída, oferecendo pistas sobre onde ocorre espera. Profiling pode aprofundar um processo, mas sozinho não descreve o caminho entre serviços.",
+      "section": "2. Técnicas para localizar e explicar gargalos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma requisição demora muito; o trace aponta maior espera na consulta ao banco e o pool registra conexões aguardadas. Qual próximo passo produz investigação mais sólida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar CPU de todos os serviços sem verificar consulta, plano, bloqueios, pool de conexões ou volume de dados no cenário medido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Concluir que todo o banco está lento apenas com base no tempo total da requisição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Examinar consulta, plano, bloqueios, conexões e volume na mesma janela de carga.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Retirar o banco do cenário, embora a operação dependa dele para responder.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar o percentil medido por número de servidores e encerrar a análise.",
+          "correct": false
+        }
+      ],
+      "explanation": "Trace e espera de conexões localizam uma hipótese na etapa de banco, que deve ser detalhada com plano, bloqueios, pool e dados da janela. Alterar capacidade global sem evidência não identifica nem confirma a causa.",
+      "section": "2. Técnicas para localizar e explicar gargalos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A aplicação parece ociosa, mas a vazão gerada ficou abaixo do alvo e o gerador apresenta CPU saturada. Qual interpretação evita culpar indevidamente o sistema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O alvo provou capacidade ilimitada porque o gerador chegou ao limite primeiro, embora nem tenha recebido a taxa que o teste pretendia oferecer.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Basta multiplicar o número de usuários configurados sem confirmar as requisições efetivamente emitidas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A baixa vazão sempre demonstra uma falha de banco de dados no sistema sob teste.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O gerador pode estar limitando a carga; é preciso validar sua capacidade ou distribuir a geração.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O resultado comprova que o serviço atende a meta sob qualquer taxa de chegada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se o gerador não consegue produzir o volume planejado, o alvo não foi submetido à carga pretendida. Deve-se remover ou quantificar a limitação do gerador e confirmar a taxa de chegada efetiva antes de inferir capacidade do serviço.",
+      "section": "2. Técnicas para localizar e explicar gargalos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "CPU permanece baixa, mas solicitações aguardam por muito tempo e threads ficam bloqueadas em chamadas externas. Qual afirmação é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CPU baixa prova que o sistema não possui qualquer gargalo de desempenho.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A latência de chamadas externas não integra o tempo percebido pelo usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Toda espera externa deve ser interpretada como vazamento de memória.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A única medida necessária é aumentar a frequência do processador, sem identificar se threads esperam por rede, banco, fila ou lock.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A espera por rede ou dependências pode limitar o fluxo mesmo sem saturar CPU.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma operação pode aguardar rede, banco, lock ou pool enquanto a CPU fica ociosa. Traces, métricas de dependências, tempos de espera e filas ajudam a investigar esses gargalos de espera.",
+      "section": "2. Técnicas para localizar e explicar gargalos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de uma mudança de código, a equipe quer saber qual função passou a consumir mais CPU durante a mesma carga. Que recurso é o mais apropriado para aprofundar essa pergunta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma enquete com usuários que não registra execução, função chamada, tempo de CPU ou alocação de memória do programa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um profiler comparado sob cenário e condições equivalentes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma lista de rotas sem medição de tempo ou recursos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um teste de compatibilidade de navegadores sem instrumentação do servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um teste de pico sem identificar qual caminho de código foi executado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Profiling mede custo em partes do programa e pode revelar funções que concentram CPU. Comparar a mesma carga e considerar o impacto da instrumentação permite uma análise mais confiável.",
+      "section": "2. Técnicas para localizar e explicar gargalos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um serviço orientado a eventos, a fila cresce continuamente, mas consumidores mantêm uma taxa de processamento estável. Que relação merece ser investigada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma fila só é relevante em sistemas sem dependências externas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A fila crescente garante que consumidores estejam processando mais rápido que produtores, mesmo quando o volume pendente aumenta continuamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A profundidade da fila mede diretamente o percentil P99 de latência HTTP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O aumento da fila elimina a necessidade de controlar concorrência e memória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A taxa de chegada pode exceder a capacidade de consumo, elevando espera e risco de exaustão.",
+          "correct": true
+        }
+      ],
+      "explanation": "Quando produtores enviam trabalho mais rapidamente do que consumidores o concluem, o estoque pendente cresce e pode ampliar latência e uso de memória. Medir chegada, consumo e idade da mensagem esclarece o comportamento.",
+      "section": "2. Técnicas para localizar e explicar gargalos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe executa pela primeira vez um grande cenário de carga e quer reduzir o risco de erro no roteiro antes de escalar. Qual sequência é mais sensata?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Começar pela maior carga possível e verificar conteúdo apenas depois de uma falha, sem validar autenticação, dados ou respostas do roteiro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Validar o script com carga mínima, conferir respostas e depois elevar o perfil gradualmente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar observabilidade e repetir a mesma chamada até alcançar CPU máxima.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar apenas um fluxo sintético e presumir que represente todas as rotas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar dados de teste e usar credenciais e registros de clientes reais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um teste mínimo detecta erros de roteiro, autenticação e dados antes de uma geração mais custosa. Validar respostas e aumentar a carga com observabilidade reduz risco de interpretar um script inválido como resultado do sistema.",
+      "section": "3. Planejar e executar teste de carga",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste deve representar o pico esperado do portal e avaliar latência de busca e taxa de falhas. Qual perfil corresponde melhor a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Profiling local de uma função que não participa da busca do portal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Estresse sem limite, sem carga de referência e sem critério para interromper, embora a pergunta seja validar o pico previsto e cumprir metas acordadas para a operação normal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Teste de duração de uma única sessão sem concorrência nem coleta de métricas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pico que aumenta o tráfego abruptamente, mesmo sem relação com a demanda prevista.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Carga com cenário e taxa representativos do pico previsto, comparada a metas definidas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Teste de carga avalia comportamento sob demanda esperada ou pico planejado. Metas de latência e falha devem estar definidas para esse fluxo; estresse e pico respondem a perguntas diferentes.",
+      "section": "3. Planejar e executar teste de carga",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um roteiro repete uma busca com o mesmo usuário, termo e registro em todas as iterações. Qual risco deve ser considerado antes de tratar o resultado como representativo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A repetição pode alterar cache e distribuição de dados, criando comportamento diferente do uso real.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A repetição garante que o banco processe sempre o pior plano possível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dados repetidos convertem automaticamente um teste de carga em teste de estresse.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O único risco é o aumento do número de arquivos de log do gerador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Termos de pesquisa não influenciam consulta, seletividade ou resposta do sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "Dados e padrões repetidos podem aquecer cache ou alterar seletividade e contenção, distorcendo a carga. Dados variados e controlados devem refletir as características necessárias sem utilizar informação pessoal indevida.",
+      "section": "3. Planejar e executar teste de carga",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um modelo fechado mantém uma quantidade fixa de usuários virtuais. Quando cada ciclo fica mais lento, esses usuários podem gerar menos solicitações por unidade de tempo. Qual consequência analítica isso traz?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A demanda externa fica necessariamente constante, independentemente da lentidão observada, da redução de ciclos concluídos ou do ritmo de pausa dos usuários virtuais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A taxa oferecida pode cair junto com a resposta lenta e mascarar o efeito de fila.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O modelo fechado garante medir renderização de navegador sem executar navegador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O modelo transforma automaticamente concorrência em taxa aberta de chegada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O modelo impede que latência seja medida durante as iterações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com população fixa, usuários mais lentos podem completar menos ciclos e reduzir a taxa oferecida. Um modelo aberto controla chegada de demanda e pode ser mais apropriado para estudar uma taxa externa sustentada; a escolha depende da pergunta.",
+      "section": "3. Planejar e executar teste de carga",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe mede uma API por chamadas HTTP diretas, mas o requisito é saber se o usuário consegue abrir a tela e interagir com ela sem demora. O que complementa a medida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um teste no navegador que percorra a interface e observe renderização e interação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar apenas a taxa de chamadas HTTP até o servidor atingir o limite, sem executar navegador, medir pintura, aguardar recursos ou simular interação de tela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover métricas do backend, porque a experiência depende só da tela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Medir o tamanho dos arquivos fonte sem executar a aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar apenas um trace sem instrumentar as etapas do navegador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Chamadas de protocolo observam o backend, mas não incluem necessariamente renderização e interação. Testes no navegador complementam essa visão; uma combinação híbrida pode usar menos sessões de navegador para gerar carga mais ampla no protocolo.",
+      "section": "3. Planejar e executar teste de carga",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O teste atende ao limite de latência, mas várias respostas contêm erro de negócio. Qual avaliação é tecnicamente correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O teste passou integralmente porque latência é a única medida relevante, ainda que as respostas rápidas contenham erros de negócio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É preciso avaliar sucesso funcional e erros junto com latência e vazão.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Erros de negócio devem ser contados como vazão bem-sucedida se a resposta foi rápida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A aplicação atende a todos os requisitos se o gerador usar pouca CPU.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma resposta com erro não pode ser incluída em qualquer métrica do teste.",
+          "correct": false
+        }
+      ],
+      "explanation": "Velocidade sem resultado correto não atende o fluxo. O teste precisa verificar conteúdo ou comportamento esperado e acompanhar taxa de erros, além das métricas de desempenho.",
+      "section": "3. Planejar e executar teste de carga",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste de carga é realizado de dentro da rede corporativa, mas a maioria dos usuários acessa o serviço de outras regiões. Por que a localização dos geradores pode importar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A rede próxima pode eliminar latências externas e produzir um resultado mais otimista que a experiência real.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A localização do gerador nunca altera latência porque somente o servidor é medido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Geradores remotos impedem que a aplicação registre taxa de erro ou vazão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A distância só afeta testes de estresse, nunca os testes de carga esperada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma rede interna garante que todo usuário real tenha a mesma rota de rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Latência e caminho de rede dependem da origem do tráfego. Um gerador próximo pode omitir parte da latência que usuários remotos enfrentam; localização e perfil geográfico devem refletir o objetivo do teste.",
+      "section": "3. Planejar e executar teste de carga",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um resultado precisa funcionar como porta de qualidade automatizada no pipeline e reprovar quando o P95 exceder a meta ou erros ultrapassarem o orçamento. Qual configuração conceitual é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registrar somente checks visuais no terminal e ignorar seu efeito no status do processo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir thresholds sobre as métricas relevantes e validar respostas com checks separados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar apenas a média geral e ajustar o limite depois de observar cada execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover critérios de aprovação para permitir comparação subjetiva entre versões, sem registrar métricas, limiares ou condições de aceite antes da execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar o número de usuários virtuais como substituto direto de taxa de erro.",
+          "correct": false
+        }
+      ],
+      "explanation": "Thresholds codificam limites mensuráveis e podem atuar como critério automatizado; checks validam condições funcionais. Definir ambos antes da execução torna a comparação menos sujeita a interpretações posteriores.",
+      "section": "3. Planejar e executar teste de carga",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O cenário de pico já foi validado em homologação e o time quer detectar regressões em cada versão. Qual prática melhora a comparação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter cenário, dados, ambiente, carga e critérios suficientemente consistentes e registrar a versão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Alterar cenário, dados e volume a cada execução para que os resultados nunca se repitam, mesmo quando a intenção é atribuir diferença a uma versão do código.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Descartar a linha de base para evitar que ela influencie a leitura da nova versão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Medir somente a configuração de hardware e deixar o fluxo sem execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar testes com tráfego de terceiros sem autorização para aumentar o realismo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Comparações de regressão exigem condições conhecidas e controladas. Registrar versão e manter perfil e ambiente comparáveis ajuda a atribuir diferenças à mudança, sem ignorar mudanças inevitáveis de contexto.",
+      "section": "3. Planejar e executar teste de carga",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O objetivo é localizar em que faixa o serviço deixa de cumprir metas e observar como retorna ao normal. Qual estratégia corresponde melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar estresse gradual controlado, observar o limite e continuar a coleta durante a recuperação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Medir uma carga baixa por poucos segundos e encerrar sem reduzir a demanda, coletar indicadores durante a volta ou observar se as filas escoam.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fazer somente teste de compatibilidade entre navegadores e comparar capturas de tela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar teste de duração com demanda constante sem ultrapassar o nível normal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reiniciar todos os serviços no primeiro aumento de latência e declarar capacidade máxima.",
+          "correct": false
+        }
+      ],
+      "explanation": "Estresse eleva a pressão além da operação normal para encontrar limites e modos de falha. Reduzir a pressão depois e medir filas, latência, erros e vazão revela se e como o sistema se recupera.",
+      "section": "4. Teste de estresse, pico e duração",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma campanha de divulgação pode levar o portal de tráfego baixo a uma demanda muito maior em poucos instantes. Qual perfil investiga mais diretamente essa transição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Teste de pico, com aumento abrupto para observar escala, filas e manutenção de serviço.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Profiling local, sem tráfego, para contar chamadas de função.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Teste de duração, que mantém carga constante sem estudar a transição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Teste de compatibilidade de dispositivos com apenas uma sessão por dispositivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Teste de carga média apenas, sem alterar o nível de demanda.",
+          "correct": false
+        }
+      ],
+      "explanation": "Spike testa uma elevação súbita, útil para investigar resposta de autoscaling, filas e dependências. Um perfil de carga sustentada não representa necessariamente o salto brusco.",
+      "section": "4. Teste de estresse, pico e duração",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço apresenta crescimento lento de memória e conexões ocupadas após horas de atividade, embora um teste curto passe. Que tipo de teste ajuda a expor o padrão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Teste soak prolongado com monitoramento de memória, conexões e estabilidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Teste smoke de carga mínima por uma única iteração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Teste de pico com duração tão breve que não observa a tendência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Comparação estática do tamanho do executável sem iniciar o serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Teste de estresse instantâneo sem observar uso de recursos ao longo do tempo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Soak ou endurance mantém pressão durante período extenso e pode revelar vazamentos ou exaustão gradual que não aparece em execução curta. A coleta precisa acompanhar recursos e comportamento durante o tempo.",
+      "section": "4. Teste de estresse, pico e duração",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante estresse, o serviço mantém consultas essenciais e rejeita novas tarefas de relatório, evitando que a fila secundária esgote todas as conexões. Como interpretar essa resposta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como possível degradação graciosa, se a prioridade e a rejeição forem previstas e observadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Como prova de que o serviço não recebeu carga e o teste é inválido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Como sucesso absoluto que elimina a necessidade de medir latência e erros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como evidência de que tarefas secundárias devem sempre ocupar todas as conexões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como teste funcional, sem qualquer relação com limites de desempenho.",
+          "correct": false
+        }
+      ],
+      "explanation": "Preservar a função crítica e limitar trabalho secundário pode ser uma estratégia deliberada de degradação graciosa. O resultado deve ser confrontado com prioridades, metas, taxa de rejeição e recuperação definidas.",
+      "section": "4. Teste de estresse, pico e duração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A taxa oferecida aumenta em etapas, a vazão para de crescer e a latência salta. Qual uso do resultado é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Caracterizar uma região de limite e correlacionar os sintomas com filas, erros e recursos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Declarar um número universal de capacidade sem registrar rota ou configuração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Descartar latência porque a taxa oferecida foi configurada pelo gerador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Concluir que qualquer erro em carga extrema representa falha na demanda normal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar a carga indefinidamente sem observar impacto ou limite de interrupção.",
+          "correct": false
+        }
+      ],
+      "explanation": "A combinação sugere que a capacidade útil chegou a uma região limitada, mas o ponto depende do cenário e das metas. Correlacionar métricas e registrar a configuração evita transformar o resultado contextual em número universal.",
+      "section": "4. Teste de estresse, pico e duração",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer realizar estresse em produção durante horário de pico e direcionar chamadas também a um provedor externo sem contato prévio. Qual plano é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar imediatamente, pois tráfego automatizado não pode afetar consumidores ou terceiros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Coordenar escopo e autorização, limitar impacto, monitorar e usar ambiente apropriado sempre que possível.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desativar alertas para que o teste não seja interrompido por incidentes aparentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar a taxa até indisponibilidade, sem critério de parada para obter dado completo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar dados pessoais reais para que o comportamento seja idêntico ao de clientes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Estresse pode afetar usuários e serviços compartilhados. O teste precisa ser autorizado, limitado e monitorado, com dependências externas fora do escopo sem permissão e dados de teste adequados.",
+      "section": "4. Teste de estresse, pico e duração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma sobrecarga, a taxa de chegada volta ao normal, mas a fila continua crescendo e a latência permanece elevada. O que esse achado indica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A resposta recuperou completamente porque a demanda externa diminuiu.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Há problema na recuperação ou no escoamento acumulado que exige investigação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A fila é irrelevante assim que a carga configurada retorna ao nível usual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O teste de estresse terminou antes da sobrecarga, então a medição não tem valor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A latência deve ser ignorada, pois a vazão não precisa acompanhar a chegada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Reduzir a chegada não significa que o serviço já recuperou. Fila e latência persistentes podem revelar drenagem lenta, tarefas presas ou dependências ainda degradadas; a observação pós-estresse é parte do diagnóstico.",
+      "section": "4. Teste de estresse, pico e duração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um teste de pico, o sistema escala capacidade com atraso e acumula fila antes de estabilizar. Qual aspecto deve constar na análise?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente a capacidade final, pois latência durante a rampa não afeta a experiência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tempo de reação da escala, fila e metas durante a transição e após a estabilização.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apenas quantidade de instâncias, sem métricas de atendimento ou erro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O resultado de um teste de duração anterior, sem considerar o salto de tráfego.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover a rampa do relatório para que a capacidade pareça constante.",
+          "correct": false
+        }
+      ],
+      "explanation": "O pico investiga a reação à mudança abrupta, não somente o estado final. Atraso de escala e fila podem degradar o serviço no intervalo crítico mesmo quando depois há capacidade suficiente.",
+      "section": "4. Teste de estresse, pico e duração",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois testes de estresse usam ferramentas diferentes e chamam seus perfis pelo mesmo nome, mas um eleva a taxa gradualmente e outro dá um salto instantâneo. Qual comparação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os resultados são diretamente equivalentes porque os nomes dos testes coincidem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É necessário comparar forma, duração e taxa efetiva da carga, além do critério de falha.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Somente o fabricante da ferramenta determina se houve estresse real.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um teste gradual não pode medir capacidade ou comportamento sob sobrecarga.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O perfil instantâneo é sempre mais realista para qualquer sistema de produção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Rótulos variam entre equipes e ferramentas. Para comparar, descreva taxa de chegada, rampas, duração, cenário e critérios; assim é possível distinguir sobrecarga progressiva de pico súbito.",
+      "section": "4. Teste de estresse, pico e duração",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Performance testing recommendation for Power Platform workloads",
+      "publisher": "Microsoft Learn",
+      "reference": "Metas, baseline, métricas e distinção entre carga, estresse, pico e duração; planejamento e análise com APM e profiling",
+      "url": "https://learn.microsoft.com/en-us/power-platform/well-architected/performance-efficiency/performance-test",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ASP.NET Core load/stress testing",
+      "publisher": "Microsoft Learn",
+      "reference": "Objetivos distintos de testes de carga e estresse, recuperação e uso de builds otimizadas",
+      "url": "https://learn.microsoft.com/en-us/aspnet/core/test/load-tests",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Load testing websites",
+      "publisher": "Grafana k6 Documentation",
+      "reference": "Testes de protocolo, navegador e híbridos; realismo do roteiro, dados, geradores, ambiente e localização",
+      "url": "https://grafana.com/docs/k6/latest/testing-guides/load-testing-websites/",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Thresholds",
+      "publisher": "Grafana k6 Documentation",
+      "reference": "Limiares de percentil e falhas; relação entre thresholds, checks e status do teste",
+      "url": "https://grafana.com/docs/k6/latest/using-k6/thresholds/",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Architecture strategies for testing",
+      "publisher": "Microsoft Azure Well-Architected Framework",
+      "reference": "Organização de suites e manutenção de cenários, dados e perfis alinhados ao uso",
+      "url": "https://learn.microsoft.com/en-us/azure/well-architected/operational-excellence/testing",
+      "accessedAt": "2026-10-31"
+    }
+  ]
+}

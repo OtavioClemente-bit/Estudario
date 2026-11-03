@@ -1,0 +1,1924 @@
+{
+  "id": "informatica.elasticsearch-indexacao-busca",
+  "subject": "Informática",
+  "title": "Elasticsearch: indexação e busca",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Sistemas de indexação: ElasticSearch",
+    "Elasticsearch: indexação e busca de documentos",
+    "Indexação de documentos no Elasticsearch",
+    "Busca textual com Elasticsearch",
+    "Índices e documentos do Elasticsearch",
+    "Mappings e analisadores no Elasticsearch",
+    "Elasticsearch Query DSL e busca",
+    "Operações de indexação Elasticsearch",
+    "Shards e réplicas no Elasticsearch"
+  ],
+  "scope": {
+    "covers": "Fundamentos de indexação e busca no Elasticsearch: cluster, nós, índices, documentos JSON, identificadores, APIs de criação, leitura, atualização e exclusão, mappings e tipos de campo, análise de texto, inverted index, shards primários e réplicas, refresh e busca near real-time, Query DSL, match, term, bool, filtros, ordenação, paginação e agregações, Bulk API, aliases, templates, reindexação e boas práticas de desempenho e consistência.",
+    "excludes": "Instalação e administração completa de clusters, segurança e controle de acesso, Elasticsearch SQL e ES|QL, busca vetorial e semântica, Kibana, Elastic Stack além do mecanismo de busca e detalhes dependentes de versão não necessários para os conceitos gerais."
+  },
+  "theoryTitle": "Como o Elasticsearch indexa e encontra documentos",
+  "chapters": [
+    {
+      "title": "1. Índices, documentos e operações de escrita",
+      "markdown": "### O problema que este assunto resolve\n\nO Elasticsearch é um mecanismo distribuído de busca e análise. Em vez de consultar linhas relacionais por varredura, recebe documentos JSON e constrói estruturas próprias para localizar valores e termos com rapidez. Um catálogo pode guardar cada produto como documento, com título, preço, categoria e disponibilidade; a busca combina esses campos e devolve os documentos mais relevantes.\n\n> **Siglas e termos deste capítulo**\n> - **Cluster**: conjunto de nós que cooperam e apresentam uma visão lógica do serviço.\n> - **Nó**: processo/servidor participante do cluster.\n> - **Índice**: coleção lógica de documentos com configuração e mapeamento de campos.\n> - **Documento**: unidade JSON indexada, identificada por `_id` dentro do índice.\n> - **API REST**: interface HTTP usada para criar índices, gravar documentos e pesquisar.\n\n### Índice não é documento\n\nUma requisição como `PUT /livros` cria um índice. Uma gravação como `PUT /livros/_doc/42` envia um documento JSON com identificador 42. O índice organiza documentos que compartilham finalidade e configuração; não é sinônimo de arquivo individual. O `_id` identifica um documento naquele índice. Se o cliente não fornecer ID numa operação de inclusão, o Elasticsearch pode gerar um identificador.\n\nA API de indexação grava o documento inteiro. `PUT indice/_doc/id` cria ou substitui o conteúdo associado àquele ID; a resposta informa índice, `_id`, resultado e metadados de sequência. `POST indice/_doc` normalmente deixa o Elasticsearch gerar o ID. Já `PUT indice/_create/id` só cria se aquele identificador ainda não existir, falhando diante de duplicidade. Portanto, indexar com ID existente pode substituir, enquanto create protege contra sobrescrita acidental.\n\n### CRUD em documentos\n\n| Operação | Exemplo de endpoint | Efeito conceitual |\n| --- | --- | --- |\n| Criar ou substituir | `PUT livros/_doc/42` | Indexa o conteúdo enviado para o ID |\n| Criar sem aceitar duplicidade | `PUT livros/_create/42` | Cria apenas se o ID não existir |\n| Consultar por ID | `GET livros/_doc/42` | Recupera o documento armazenado |\n| Atualizar parcialmente | `POST livros/_update/42` | Aplica uma atualização ao documento identificado |\n| Excluir | `DELETE livros/_doc/42` | Marca/exclui o documento no índice |\n\nElasticsearch documenta documentos como imutáveis no mecanismo subjacente: uma atualização é tratada como remover a versão anterior e indexar uma nova, ainda que a API ofereça uma operação de atualização conveniente. A escrita é encaminhada ao shard primário responsável; depois, quando aplicável, é replicada às cópias.\n\n### Escreva os dados que pretende pesquisar\n\nCampos JSON podem ser texto, número, data, booleano, objeto ou outros tipos suportados. Definir nomes e tipos com intenção evita que um campo pensado como preço seja tratado como texto e que uma data seja analisada de forma inesperada. O documento fica disponível para consultas de leitura por ID segundo o processamento da escrita; sua visibilidade na busca textual segue o ciclo de refresh explicado adiante.\n\n### Como cai na prova\n\n- `index` designa a coleção lógica; documento é o objeto JSON individual.\n- `_id` não é necessariamente escolhido pelo servidor: pode ser definido pelo cliente ou gerado quando omitido.\n- A indexação com ID já existente pode substituir o documento; `_create` recusa a duplicidade.\n- A API de escrita envia a operação ao primário e distribui cópias para réplicas disponíveis."
+    },
+    {
+      "title": "2. Mappings e análise de texto",
+      "markdown": "### O problema que este assunto resolve\n\nPara buscar bem, o mecanismo precisa saber como interpretar cada campo. O **mapping** é o esquema de campos do índice: informa tipos e, em campos textuais, como o conteúdo será analisado. O Elasticsearch pode inferir tipos por mapeamento dinâmico, mas essa conveniência não substitui decisões explícitas em dados importantes.\n\n> **Siglas e termos deste capítulo**\n> - **Mapping**: definição dos campos e de como são indexados.\n> - **Analyzer**: combinação de etapas que transforma texto em termos pesquisáveis.\n> - **Tokenizer**: etapa que divide texto em tokens.\n> - **Token filter**: etapa que modifica, remove ou acrescenta tokens.\n> - **Inverted index**: estrutura que associa termos aos documentos que os contêm.\n> - **Doc values**: estrutura em colunas usada principalmente para ordenação e agregações.\n\n### `text` e `keyword` resolvem tarefas diferentes\n\nUm campo `text` é analisado para busca de texto completo. Por exemplo, “O gato dorme” pode ser convertido em tokens normalizados, conforme o analyzer configurado. O campo `keyword` é tratado como valor integral, adequado a igualdade exata, filtros, agrupamentos e ordenação, como o código de categoria `livros`. É comum mapear um mesmo conteúdo como `text` e oferecer um subcampo `.keyword` para operações exatas.\n\nTipos numéricos e `date` permitem comparação numérica, intervalos e ordenação apropriada. `boolean` representa verdadeiro/falso. Objetos JSON podem conter campos internos. Escolher o tipo correto importa: procurar a frase inteira como valor exato e procurar seus termos são intenções distintas.\n\n### O caminho de análise\n\nUm analyzer normalmente aplica, nesta sequência, zero ou mais character filters, um tokenizer e zero ou mais token filters. Character filters podem alterar a cadeia antes da tokenização; o tokenizer divide o texto; token filters podem converter para minúsculas, remover palavras ou aplicar outras normalizações. A busca também analisa a entrada da consulta de modo compatível com o campo. O endpoint `_analyze` permite inspecionar os tokens produzidos e diagnosticar por que determinado termo não encontra um documento.\n\nO inverted index não é uma cópia simples do texto: mantém correspondências entre termos e documentos, possibilitando localizar documentos que contenham os termos. Nem todo campo precisa ser `text`; desabilitar indexação de busca em campo ou escolher um tipo incorreto pode impedir as operações desejadas. Doc values são outra representação, útil para acessar valores por documento durante sort e aggregations, não um substituto da análise textual.\n\n### Mapeamento dinâmico e controle explícito\n\nSe não houver mapping definido, o Elasticsearch pode criar campos dinamicamente ao receber documentos e inferir tipos a partir dos valores. Isso acelera protótipos, mas uma primeira ocorrência ambígua pode levar a um tipo inadequado; campos não previstos também podem se multiplicar. Um mapping explícito fixa previamente os tipos e opções necessárias. Alterar o tipo de um campo já indexado costuma exigir criar um índice de destino com mapping desejado e copiar/reindexar documentos, pois não se transforma retroativamente a estrutura já gravada.\n\n### Como cai na prova\n\n- Busca por palavras e relevância: `text` com análise; correspondência exata de código/categoria: `keyword`.\n- Analyzer combina filtros de caracteres, tokenizer e filtros de tokens; a análise não é sinônimo de consulta.\n- O mapping orienta a indexação e as operações disponíveis; reindexação é o caminho comum para mudar tipo incompatível.\n- `_analyze` mostra tokens; `_mapping` consulta o mapping do índice."
+    },
+    {
+      "title": "3. Shards, réplicas e visibilidade da escrita",
+      "markdown": "### O problema que este assunto resolve\n\nUm único processo e um único arquivo de índice limitariam armazenamento, processamento e disponibilidade. Elasticsearch distribui um índice em **shards**: cada shard é uma unidade Lucene que contém parte dos documentos. Réplicas mantêm cópias dos shards primários, apoiando disponibilidade e capacidade de consulta.\n\n> **Siglas e termos deste capítulo**\n> - **Shard primário**: shard que recebe a operação de escrita destinada àquela partição.\n> - **Shard réplica**: cópia de um shard primário, alocada em outro nó quando possível.\n> - **Refresh**: abre segmentos recém-criados para que operações recentes apareçam na busca.\n> - **Near real-time (NRT)**: busca quase em tempo real; escrita e visibilidade na busca não são necessariamente simultâneas.\n> - **Segmento**: estrutura Lucene pesquisável que compõe o índice de um shard.\n\n### Roteamento e cópias\n\nUma operação direcionada ao índice é roteada a um shard primário, normalmente com base no ID do documento. O primário processa a escrita e replica a operação para cópias aplicáveis. Shards permitem dividir trabalho e dados entre nós; réplicas acrescentam cópias e podem atender busca. A réplica não é backup independente: exclusões, corrupção lógica ou erros podem ser replicados. Cópia de segurança exige estratégia própria.\n\nO número de shards primários é uma decisão estrutural do índice; réplicas podem ser ajustadas para equilibrar resiliência, capacidade e custo. Muitas partições pequenas acrescentam overhead. Uma réplica não substitui o primário na semântica da escrita: a operação é primeiro executada no primário e depois replicada. Parâmetros como `wait_for_active_shards` controlam quantas cópias ativas devem estar disponíveis antes de prosseguir; não significam que a operação será pesquisável imediatamente.\n\n### Refresh torna a escrita pesquisável\n\nA escrita entra no fluxo de indexação do shard. Um refresh cria/abre segmentos que passam a poder ser pesquisados; por isso uma gravação bem-sucedida pode não aparecer imediatamente em `_search`. No Elasticsearch distribuído, a busca é **near real-time**, não leitura textual instantânea garantida a cada escrita. O intervalo de refresh padrão documentado para Elastic Stack é normalmente de um segundo, condicionado ao comportamento de atividade do shard; o valor de Elastic Cloud Serverless difere. Não trate o valor como uma garantia universal entre implantações.\n\nA API de indexação aceita `refresh=false`, `refresh=true` ou `refresh=wait_for`. `true` força refresh imediato nos shards afetados e pode prejudicar desempenho se usado excessivamente. `wait_for` aguarda o próximo refresh que torne a operação visível, sem obrigar por si só um refresh imediato. A API `_refresh` também força atualização, mas é intensiva em recursos e deve ser usada com critério. Em fluxos que gravam e logo pesquisam, `refresh=wait_for` costuma expressar melhor a necessidade.\n\n### Escrita em lote e capacidade\n\nA Bulk API aceita várias ações e documentos numa requisição, reduzindo overhead de rede e sendo adequada a ingestões. Cada ação ainda pode ter sucesso ou falhar individualmente; a resposta deve ser inspecionada por item. Lotes excessivamente grandes elevam uso de memória e aumentam o custo de repetição em caso de falha. Para carregamento massivo, pode-se espaçar refreshes, aceitando maior atraso de visibilidade; a escolha troca latência de busca por taxa de indexação.\n\n### Como cai na prova\n\n- O primário recebe a escrita; réplicas recebem cópias e podem atender buscas.\n- Refresh, não confirmação HTTP isolada, torna operações recentes visíveis em `_search`.\n- `refresh=true` força visibilidade à custa potencial de desempenho; `wait_for` aguarda refresh periódico.\n- Bulk agrega operações, mas uma resposta parcial pode conter erros em itens específicos."
+    },
+    {
+      "title": "4. Consulta, filtros, paginação e manutenção do índice",
+      "markdown": "### O problema que este assunto resolve\n\nA busca combina condições para encontrar e ordenar documentos relevantes. A API `_search` recebe uma consulta no Query DSL, formato JSON declarativo. O coordenador distribui a consulta pelos shards relevantes, reúne respostas locais e entrega o conjunto global de resultados.\n\n> **Siglas e termos deste capítulo**\n> - **Query DSL**: linguagem JSON de consultas do Elasticsearch.\n> - **`match`**: consulta de texto completo que analisa a entrada.\n> - **`term`**: correspondência exata com o valor indexado, sem análise textual da entrada.\n> - **Query context**: determina se e quão bem um documento corresponde; pode produzir score.\n> - **Filter context**: condição binária usada para incluir/excluir, sem calcular relevância textual.\n> - **Alias**: nome alternativo que pode apontar para um ou mais índices.\n\n### Consultas e contexto\n\n`match` é apropriada para campos analisados como `text`: a consulta passa pelo analyzer e encontra documentos que correspondem aos termos segundo a lógica configurada. `term` é adequada a valores exatos já indexados, como `keyword`, booleanos, números e datas. Usar `term` diretamente contra texto analisado frequentemente falha porque o termo armazenado pode ter sido dividido ou normalizado.\n\nNa consulta `bool`, `must` exige correspondência e contribui para score; `should` representa condições desejáveis ou, conforme a consulta, alternativas; `must_not` exclui; `filter` exige a condição sem calcular score para ela. Um filtro por categoria e intervalo de preço pode restringir resultados enquanto uma consulta textual calcula relevância pelo título. Filtros exatos e reutilizados podem se beneficiar de cache, mas a cache não muda a semântica.\n\nSort ordena por campos compatíveis, em geral `keyword`, número ou data, não por texto analisado sem campo apropriado. Agregações calculam resumos como contagem por categoria e valores estatísticos. Elas não são sinônimas de devolver documentos: uma consulta com `size: 0` pode retornar apenas totais e aggregations.\n\n### Paginação e limites\n\n`from` e `size` são simples para páginas rasas: `from` indica quantos resultados pular e `size` quantos devolver. Saltos muito profundos exigem que shards mantenham e ordenem grandes janelas de resultados, consumindo recursos. A configuração `index.max_result_window` limita a soma `from + size` (padrão usual documentado: 10.000). Para percorrer grandes conjuntos com ordenação estável, use mecanismos como `search_after`, idealmente junto a um ponto no tempo em cenários que exijam visão consistente; scroll é voltado a certos processos em lote.\n\n### Reindexação, aliases e ciclo de vida\n\nA API `_reindex` copia documentos de índice/alias/data stream de origem para destino. Ela não copia automaticamente settings nem mappings: configure o destino antes, com tipos e número de shards desejados. Reindexar é útil para mudar mapping ou reorganizar dados. Um alias pode desacoplar a aplicação do nome físico do índice e ajudar numa troca controlada entre índice antigo e novo, atualizando o alias depois de povoar e conferir o destino. Templates aplicam padrões de settings e mappings a índices criados conforme convenção.\n\n### Como cai na prova\n\n- `match` analisa texto; `term` busca valor exato.\n- `filter` restringe sem score; `must` participa da correspondência e pontuação.\n- Paginação profunda com `from`/`size` custa mais; `search_after` é alternativa para percorrer resultados.\n- `_reindex` copia documentos, não configura o índice de destino. Alias pode isolar clientes do nome concreto do índice."
+    }
+  ],
+  "summary": "Elasticsearch é um mecanismo distribuído que armazena documentos JSON em índices e constrói estruturas de busca a partir deles. O mapping define tipos: `text` é analisado para texto completo e `keyword` mantém valores inteiros para igualdade, ordenação e agregações. Analyzers usam filtros de caracteres, tokenizer e filtros de tokens; inverted indexes associam termos a documentos. A escrita é roteada a shard primário e replicada; refresh publica alterações recentes para `_search`, portanto a busca é near real-time. `refresh=true` força atualização; `wait_for` aguarda o ciclo periódico. Query DSL oferece `match` (texto analisado), `term` (exato), `bool` (`must`, `should`, `must_not`, `filter`), sort e aggregations. Para muitos documentos, Bulk reduz overhead, mas cada item deve ser verificado. Paginação rasa usa `from`/`size`; `search_after` atende percursos profundos. `_reindex` copia documentos, não settings ou mappings; configure o destino antes. Mappings explícitos, aliases, templates e refreshes criteriosos ajudam a manter busca correta e eficiente.",
+  "flashcards": [
+    {
+      "front": "O que é um documento no Elasticsearch?",
+      "back": "Um objeto JSON indexado como unidade de dados, identificado por `_id` dentro de um índice."
+    },
+    {
+      "front": "O que é um índice?",
+      "back": "Uma coleção lógica de documentos e suas configurações de busca e armazenamento."
+    },
+    {
+      "front": "O que distingue `text` de `keyword`?",
+      "back": "`text` é analisado para busca de texto completo; `keyword` preserva o valor integral para correspondência exata, ordenação e agregações."
+    },
+    {
+      "front": "Para que serve um mapping?",
+      "back": "Define os campos do documento, seus tipos e como serão indexados e consultados."
+    },
+    {
+      "front": "Quais etapas compõem usualmente um analyzer?",
+      "back": "Filtros de caracteres, tokenizer e filtros de tokens, nessa ordem quando presentes."
+    },
+    {
+      "front": "O que é um inverted index?",
+      "back": "Estrutura que associa termos indexados aos documentos que os contêm, acelerando busca textual."
+    },
+    {
+      "front": "Quando usar `match`?",
+      "back": "Para busca de texto completo em campo analisado; o texto da consulta também é analisado."
+    },
+    {
+      "front": "Quando usar `term`?",
+      "back": "Para igualdade exata, como em keyword, valores numéricos, booleanos e datas."
+    },
+    {
+      "front": "O que faz `filter` numa consulta bool?",
+      "back": "Exige que a condição seja satisfeita, sem calcular score de relevância para ela."
+    },
+    {
+      "front": "O que é refresh?",
+      "back": "A operação que torna operações recentes pesquisáveis ao abrir segmentos atualizados."
+    },
+    {
+      "front": "O que significa busca near real-time?",
+      "back": "Alterações tornam-se pesquisáveis após refresh, e não necessariamente no instante da confirmação da escrita."
+    },
+    {
+      "front": "Diferença entre `refresh=true` e `refresh=wait_for`?",
+      "back": "`true` força refresh imediato; `wait_for` aguarda um refresh tornar a escrita visível."
+    },
+    {
+      "front": "Qual shard recebe primeiro a escrita?",
+      "back": "O shard primário responsável pelo roteamento do documento."
+    },
+    {
+      "front": "Para que servem réplicas?",
+      "back": "Mantêm cópias de shards primários e podem contribuir para disponibilidade e capacidade de busca."
+    },
+    {
+      "front": "O que é a Bulk API?",
+      "back": "Interface para enviar múltiplas operações de indexação, atualização ou exclusão numa requisição."
+    },
+    {
+      "front": "O que faz a API `_analyze`?",
+      "back": "Mostra os tokens produzidos por um analyzer para diagnosticar a análise textual."
+    },
+    {
+      "front": "O que faz `_reindex`?",
+      "back": "Copia documentos de uma origem para um índice de destino previamente configurado."
+    },
+    {
+      "front": "`_reindex` copia o mapping e settings da origem?",
+      "back": "Não. O destino deve ser criado/configurado com mapping, settings e shards desejados antes da cópia."
+    },
+    {
+      "front": "Para que serve um alias?",
+      "back": "Oferece um nome lógico alternativo para apontar a índices, desacoplando clientes do nome físico."
+    },
+    {
+      "front": "Por que evitar paginação profunda com `from` e `size`?",
+      "back": "Shards precisam manter e ordenar janelas grandes de resultados, elevando custo de memória e processamento."
+    },
+    {
+      "front": "Qual alternativa é comum para percorrer páginas profundas ordenadas?",
+      "back": "`search_after`, normalmente com ordenação estável; em alguns fluxos usa-se também um ponto no tempo."
+    },
+    {
+      "front": "O que é mapeamento dinâmico?",
+      "back": "Inferência automática de novos campos e tipos quando documentos chegam sem mapping explícito para eles."
+    }
+  ],
+  "tips": [
+    "Associe intenção ao tipo: texto pesquisável pede `text`; igualdade por código ou categoria pede `keyword`.",
+    "Se o documento foi gravado mas não aparece em `_search`, verifique o refresh antes de concluir que a escrita falhou.",
+    "Lembre que `match` analisa a consulta e `term` compara um valor exato já indexado.",
+    "Separe relevância de restrição: `must` pode pontuar; `filter` apenas exige uma condição.",
+    "Para mudança incompatível de tipo, crie índice novo com mapping correto e reindexe os documentos.",
+    "Em Bulk, leia o resultado de cada ação; sucesso da requisição HTTP não significa que todos os itens deram certo."
+  ],
+  "traps": [
+    "Afirmar que confirmação da escrita torna o documento imediatamente visível em busca é falso: refresh controla a visibilidade near real-time.",
+    "Usar `term` como sinônimo de texto completo é erro: ele compara valores sem análise da entrada.",
+    "Dizer que réplicas são backup é incorreto: exclusões e alterações também podem ser replicadas.",
+    "Afirmar que `_reindex` copia mapping e settings da origem é incorreto; configure o destino previamente.",
+    "Confundir filtros com score: `filter` restringe sem calcular relevância para a condição.",
+    "Tratar a Bulk API como transação atômica é erro: itens individuais podem falhar e precisam ser inspecionados."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva a relação entre cluster, nó, índice e documento.",
+      "answer": "Cluster reúne nós cooperantes; um nó participa do cluster; um índice é uma coleção lógica de documentos; cada documento é um objeto JSON com `_id` no índice."
+    },
+    {
+      "question": "Explique por que uma escrita pode não aparecer logo em `_search`.",
+      "answer": "A escrita foi aceita pelo shard, mas a busca só enxerga operações recentes depois do refresh que abre segmentos pesquisáveis."
+    },
+    {
+      "question": "Dê um exemplo de campo que deveria ser `text` e outro `keyword`.",
+      "answer": "Título de artigo, pesquisado por palavras, como `text`; código de produto ou categoria usada em filtro exato, como `keyword`."
+    },
+    {
+      "question": "Quais componentes podem formar um analyzer e em que ordem?",
+      "answer": "Zero ou mais character filters, um tokenizer e zero ou mais token filters."
+    },
+    {
+      "question": "Compare `match` e `term`.",
+      "answer": "`match` analisa a entrada para busca textual; `term` procura correspondência exata, sem analisar a entrada."
+    },
+    {
+      "question": "Explique `must` versus `filter` numa consulta bool.",
+      "answer": "Ambos podem exigir correspondência; `must` participa do score de relevância, enquanto `filter` não calcula score para sua condição."
+    },
+    {
+      "question": "Como aumentar a visibilidade após uma escrita que será pesquisada imediatamente?",
+      "answer": "Pode-se usar `refresh=wait_for` para aguardar a atualização periódica; `refresh=true` força refresh imediato e deve ser reservado a necessidades justificadas."
+    },
+    {
+      "question": "Como migrar documentos para um mapping corrigido?",
+      "answer": "Criar e configurar índice de destino com mapping/settings adequados, executar `_reindex`, conferir os dados e então direcionar um alias ao destino quando apropriado."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Tipos de campo e análise confundidos",
+      "summary": "`text` é analisado; `keyword` é exato. Analyzer transforma texto por filtros de caracteres, tokenizer e filtros de tokens. `match` analisa a busca e `term` compara o valor exato."
+    },
+    {
+      "key": "e2",
+      "title": "Escrita confundida com visibilidade na busca",
+      "summary": "A escrita no primário e a replicação não equivalem a refresh. A busca é near real-time; `wait_for` aguarda e `true` força refresh."
+    },
+    {
+      "key": "e3",
+      "title": "Responsabilidade de shards e réplicas trocada",
+      "summary": "A escrita chega ao shard primário e é replicada. Réplicas ajudam disponibilidade e consultas, mas não são cópias de backup independentes."
+    },
+    {
+      "key": "e4",
+      "title": "Consultas e paginação usadas sem considerar custo",
+      "summary": "`filter` não pontua; `must` participa da relevância. `from`/`size` é simples para páginas rasas; percursos profundos usam alternativas como `search_after`."
+    },
+    {
+      "key": "e5",
+      "title": "Reindexação e Bulk tratadas como operações sem falhas",
+      "summary": "`_reindex` copia documentos, não configura o destino. A Bulk API pode retornar falhas por item, que devem ser examinadas."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No Elasticsearch, um índice é uma coleção lógica de documentos, enquanto cada documento é normalmente representado como um objeto JSON.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O índice agrupa documentos relacionados e oferece configurações e mappings; cada documento é uma unidade JSON identificável no índice. Confundir índice com documento troca o contêiner lógico pela unidade de dados.",
+      "section": "1. Índices, documentos e operações de escrita",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação `PUT catalogo/_doc/15` que envia novo conteúdo para um ID já existente sempre falha por duplicidade, da mesma forma que `_create`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Indexar por ID existente pode substituir o documento associado ao ID. A rota `_create` tem semântica de criação exclusiva e falha se o ID já existir.",
+      "section": "1. Índices, documentos e operações de escrita",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o cliente omitir o identificador numa operação comum de inclusão em `_doc`, o Elasticsearch pode gerar um `_id` para o novo documento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O cliente pode fornecer um ID, mas nas operações de inclusão sem ID o Elasticsearch pode atribuir um identificador. Esse ID identifica o documento dentro do índice.",
+      "section": "1. Índices, documentos e operações de escrita",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma atualização parcial por `_update` transforma o armazenamento Lucene em edição in-place dos bytes do documento, sem reindexar a versão atualizada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Embora a API permita expressar uma atualização parcial, documentos do mecanismo subjacente são imutáveis: a operação é efetivamente realizada removendo a versão anterior e indexando uma nova versão do documento.",
+      "section": "1. Índices, documentos e operações de escrita",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O mapping informa os campos e tipos esperados, além de orientar como os campos serão indexados e consultados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O mapping descreve a estrutura dos documentos para o mecanismo, incluindo tipos como `text`, `keyword`, datas e números e opções de indexação. Ele influencia as consultas possíveis e seu comportamento.",
+      "section": "2. Mappings e análise de texto",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O campo `keyword` é normalmente tokenizado em palavras para localizar qualquer termo de uma frase, enquanto `text` preserva o valor completo para igualdade exata.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. É o campo `text` que costuma ser analisado e dividido em tokens para busca textual. `keyword` mantém o valor integral, sendo adequado a igualdade exata, ordenação e agregações.",
+      "section": "2. Mappings e análise de texto",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analyzer pode aplicar character filters antes do tokenizer e token filters depois da tokenização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A ordem conceitual é filtros de caracteres, tokenizer e filtros de tokens. Nem toda configuração precisa conter filtros em cada etapa, mas o tokenizer realiza a divisão do texto em tokens.",
+      "section": "2. Mappings e análise de texto",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A consulta `term` analisa o texto informado pelo mesmo analyzer do campo e, por isso, é a escolha geral para busca textual por palavras em campo `text`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `term` procura um valor exato sem analisar a entrada da consulta. Para texto completo em campo `text`, `match` é a consulta que analisa os termos de busca.",
+      "section": "4. Consulta, filtros, paginação e manutenção do índice",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O mapeamento dinâmico pode inferir automaticamente tipos quando chegam campos sem definição explícita, mas um mapping explícito dá controle prévio sobre esses tipos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O Elasticsearch pode inferir novos campos a partir dos valores recebidos. A definição explícita é útil para evitar inferências inadequadas e fixar tipos coerentes com as consultas pretendidas.",
+      "section": "2. Mappings e análise de texto",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A operação de escrita de um documento roteado ao índice é processada primeiro no shard primário responsável pelo documento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O roteamento determina o shard responsável e a gravação é executada no primário. Depois, quando aplicável, a operação é distribuída às réplicas correspondentes.",
+      "section": "3. Shards, réplicas e visibilidade da escrita",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta de sucesso da escrita garante que a alteração já esteja visível para qualquer consulta `_search`, mesmo antes de refresh.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A confirmação da escrita não equivale necessariamente à visibilidade em busca textual. O refresh abre segmentos atualizados e torna as operações recentes pesquisáveis, característica descrita como near real-time.",
+      "section": "3. Shards, réplicas e visibilidade da escrita",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Definir `refresh=wait_for` numa operação de indexação aguarda um refresh que torne a operação pesquisável, sem necessariamente forçar um refresh imediato.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `wait_for` segura a resposta até que um refresh periódico torne a alteração visível. `refresh=true` é a opção que força refresh imediato nos shards afetados e pode custar desempenho.",
+      "section": "3. Shards, réplicas e visibilidade da escrita",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os shards réplica funcionam como backup independente, pois uma exclusão do primário não é propagada a essas cópias.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Réplicas acompanham as operações do primário e podem inclusive refletir exclusões; por isso não substituem cópia de segurança independente. Elas apoiam disponibilidade e capacidade de consulta.",
+      "section": "3. Shards, réplicas e visibilidade da escrita",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A Bulk API permite enviar várias operações numa requisição, mas cada ação deve ser verificada porque alguns itens podem falhar mesmo quando outros têm sucesso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Bulk reduz o overhead de chamadas separadas, mas não transforma o lote em uma única transação indivisível. A resposta informa o resultado por item e falhas precisam ser tratadas individualmente.",
+      "section": "3. Shards, réplicas e visibilidade da escrita",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na consulta bool, `filter` pode restringir os documentos sem calcular score de relevância para sua condição, enquanto `must` participa da correspondência pontuada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Ambos podem ser requisitos para inclusão do documento, mas `must` participa do query context e da pontuação, enquanto `filter` é uma condição binária sem score próprio.",
+      "section": "4. Consulta, filtros, paginação e manutenção do índice",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma loja quer pesquisar palavras do título de produtos e filtrar pelo código integral da categoria. Qual desenho de campos atende melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mapear título como `keyword` e categoria como `text`, pois ambos devem ser divididos em palavras.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mapear título como `text` e categoria como `keyword`, alinhando análise textual e igualdade exata.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Mapear ambos como `boolean`, pois consultas filtram os dois campos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mapear título como `date` e categoria como número para acelerar qualquer consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Deixar ambos sem mapping, já que o Elasticsearch não aceita tipos definidos pelo cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O título pesquisado por palavras deve ser analisado como `text`; o código de categoria usado por igualdade integral é apropriado como `keyword`. Os demais tipos não representam esses dados e o mapping explícito é permitido e útil.",
+      "section": "2. Mappings e análise de texto",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual endpoint permite inspecionar os tokens que um analyzer produz para uma cadeia de texto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`POST /_refresh`, que devolve os termos normalizados do documento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`GET /_mapping`, que simula a análise de cada frase consultada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`POST /_analyze`, que aplica um analyzer e apresenta os tokens resultantes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`POST /_reindex`, que lista os filtros de tokens usados no índice.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`GET /_bulk`, que retorna o tokenizer aplicado a cada ação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A API `_analyze` executa a análise de uma cadeia e mostra os tokens produzidos. `_mapping` inspeciona definições de campo, `_refresh` publica operações recentes e `_reindex` copia documentos.",
+      "section": "2. Mappings e análise de texto",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um campo armazena o código literal `RJ-07`; a aplicação precisa filtrar exatamente por esse código e também agrupá-lo em agregações. Qual tipo é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`text`, para que o código seja dividido em tokens e agrupado pela frequência das palavras.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`keyword`, para manter o valor integral em consultas exatas e agregações.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`object`, para que cada caractere fique disponível como campo independente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`boolean`, pois códigos têm apenas dois resultados possíveis por documento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`date`, pois um código com hífen é interpretado como data pelo mapping.",
+          "correct": false
+        }
+      ],
+      "explanation": "`keyword` preserva a cadeia inteira e é adequado à igualdade exata, agregações e ordenação. `text` passa por análise e atende busca textual, não a representação mais direta do identificador literal informado.",
+      "section": "2. Mappings e análise de texto",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta textual deve localizar documentos cujo campo `descricao` contém palavras relacionadas à frase informada. Qual consulta Query DSL é a escolha usual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`term` no campo `descricao`, para sempre analisar e expandir a frase em sinônimos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`match` no campo `descricao`, para analisar a entrada de busca conforme o campo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`exists` no campo `descricao`, para ordenar resultados por relevância textual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`range` no campo `descricao`, para comparar alfabeticamente intervalos de palavras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`delete_by_query` no campo `descricao`, para retornar documentos que contenham termos.",
+          "correct": false
+        }
+      ],
+      "explanation": "`match` é a consulta usual de texto completo: analisa a entrada e compara seus termos com o campo analisado. `term` busca valor exato e não é sinônimo de análise textual; as demais consultas têm outros propósitos.",
+      "section": "4. Consulta, filtros, paginação e manutenção do índice",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta deve encontrar a expressão exata `status=publicado` em um campo de categoria já mapeado como `keyword`. Qual cláusula é mais indicada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`match`, que converte o valor keyword em tokens antes de comparar aproximações.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`term`, que busca o valor indexado sem analisar o texto de entrada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`fuzzy`, que é obrigatória para qualquer campo com igualdade exata.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`highlight`, que filtra documentos pela igualdade do conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`nested`, que transforma automaticamente o campo em uma estrutura hierárquica.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para uma igualdade exata em `keyword`, `term` procura o valor integral. `match` é destinado a texto analisado; highlight apenas destaca trechos e as demais opções não definem essa igualdade direta.",
+      "section": "4. Consulta, filtros, paginação e manutenção do índice",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma página de catálogo deve exigir `disponivel=true` e limitar resultados a uma faixa de preço sem influenciar o score textual. Onde colocar essas condições?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Em `should`, pois cada condição deve ser opcional para elevar a relevância.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Em `must_not`, para exigir que cada documento satisfaça ambas as condições.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Em `filter`, que restringe por booleano e faixa sem score de relevância.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Em `highlight`, que aplica limites numéricos sem participar da busca.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Em `sort`, que remove os documentos que não estão disponíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Condições obrigatórias que apenas restringem, como booleano e intervalo de preço, cabem em `filter`. `must_not` exclui, `should` expressa condições desejáveis, highlight formata trechos e sort ordena resultados.",
+      "section": "4. Consulta, filtros, paginação e manutenção do índice",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma busca bool, a equipe quer que a correspondência do título determine a relevância e que uma categoria específica seja obrigatória sem alterar o score. Qual composição expressa isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colocar título em `filter` e categoria em `must`, invertendo o efeito de pontuação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Colocar título em `must` e categoria em `filter`, separando relevância de restrição.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Colocar ambos em `must_not`, para ordenar os documentos compatíveis primeiro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Colocar ambos em `should`, pois isso torna todas as condições obrigatórias.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Colocar título em `sort` e categoria em `highlight`, pois esses blocos formam a consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "A consulta textual em `must` contribui para o score e exige correspondência. O filtro de categoria em `filter` também restringe, mas não calcula relevância para essa condição.",
+      "section": "4. Consulta, filtros, paginação e manutenção do índice",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema recebe uma confirmação de indexação e precisa fazer uma pesquisa imediatamente depois, sem forçar refresh em todos os pedidos. Qual estratégia é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `refresh=wait_for` na escrita que precisa aguardar visibilidade de busca.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar `from` da consulta, pois pular resultados inicia a atualização do shard.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `refresh=false`, que bloqueia a resposta até o ciclo periódico terminar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aguardar o retorno de `_mapping`, que realiza refresh de todos os índices consultados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Consultar a réplica diretamente, pois ela sempre recebe a escrita antes do primário.",
+          "correct": false
+        }
+      ],
+      "explanation": "`refresh=wait_for` aguarda o refresh que torna a operação visível sem forçar uma atualização imediata a cada escrita. `refresh=false` não espera, mapping não atualiza segmentos e réplicas não antecedem o primário.",
+      "section": "3. Shards, réplicas e visibilidade da escrita",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer forçar que um documento apareça na próxima busca logo após a gravação, aceitando o custo de atualização imediata dos shards afetados. Qual opção faz isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`refresh=wait_for`, que sempre força refresh imediato antes de aguardar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`refresh=false`, que executa refresh local sem esperar o intervalo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`refresh=true`, que força refresh imediato nos shards relevantes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`wait_for_active_shards=all`, que substitui o mecanismo de refresh.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`index.number_of_replicas=0`, que torna toda escrita visível em busca.",
+          "correct": false
+        }
+      ],
+      "explanation": "`refresh=true` solicita refresh imediato nos shards afetados, tornando a operação pesquisável após a conclusão. Isso pode reduzir desempenho se usado amplamente; `wait_for` espera o ciclo periódico e a disponibilidade de shards é uma questão diferente.",
+      "section": "3. Shards, réplicas e visibilidade da escrita",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição apresenta corretamente o caminho normal de uma operação de escrita em um índice distribuído?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A réplica recebe a escrita, escolhe um primário depois e descarta a operação original.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O coordenador grava em todos os nós sem determinar um shard responsável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A escrita é roteada ao shard primário responsável e depois distribuída às réplicas aplicáveis.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O nó que recebe HTTP torna-se primário permanente de todos os documentos do índice.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O refresh acontece primeiro e a gravação é enviada ao shard somente depois da busca.",
+          "correct": false
+        }
+      ],
+      "explanation": "O roteamento leva a operação ao primário responsável pelo documento. O primário processa a escrita e as cópias aplicáveis são atualizadas em seguida; o nó coordenador HTTP não é necessariamente o shard primário.",
+      "section": "3. Shards, réplicas e visibilidade da escrita",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ingestão em lote usa a Bulk API e a resposta global é HTTP bem-sucedida, mas alguns itens indicam erro de mapping. Qual conduta técnica é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Considerar o lote integralmente concluído, porque Bulk garante atomicidade entre todos os documentos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar `_reindex` na origem, pois ele corrige erros de parsing sem índice de destino.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reenviar todo o lote sem análise, pois o Elasticsearch elimina automaticamente todas as duplicatas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar `_refresh`, que transforma valores inválidos em tipos aceitos pelo mapping.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Inspecionar os resultados por item, corrigir os documentos incompatíveis e repetir só o necessário.",
+          "correct": true
+        }
+      ],
+      "explanation": "A resposta Bulk contém resultado de cada ação, e falhas parciais devem ser identificadas antes de repetir. Refresh controla visibilidade, não corrige mapping, e a API não fornece atomicidade do lote inteiro.",
+      "section": "3. Shards, réplicas e visibilidade da escrita",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista precisa calcular a quantidade de produtos por categoria, sem retornar a lista de documentos correspondentes. Qual recurso de busca atende a necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma chamada `_refresh`, que retorna contagens por valor do mapping.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma operação `_create` por categoria, que conta os documentos duplicados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma consulta `must_not`, que agrupa os documentos excluídos por campo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma agregação sobre o campo de categoria, podendo usar `size: 0` para não buscar hits.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma ordenação por `_id`, que reúne automaticamente valores repetidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Aggregations resumem valores, como contagens por categoria, e `size: 0` permite solicitar esses resultados sem hits de documentos. Refresh, escrita e ordenação não calculam agrupamentos por si mesmos.",
+      "section": "4. Consulta, filtros, paginação e manutenção do índice",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente quer ordenar produtos pelo nome em ordem alfabética e o nome foi mapeado apenas como `text`. Qual ajuste é geralmente apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ordenar pelo campo `text` tokenizado, que sempre mantém a cadeia original como valor de sort.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mapear ou usar um subcampo `keyword` do nome para ordenação pelo valor integral.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Converter o nome para `boolean` durante a consulta e ordenar por verdadeiro/falso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar `match` no bloco `sort`, pois match analisa e define a ordem lexical.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `refresh=true` em cada busca, pois refresh cria a ordenação alfabética.",
+          "correct": false
+        }
+      ],
+      "explanation": "Campos `text` destinam-se à análise e busca textual, enquanto ordenação costuma usar `keyword` ou subcampo equivalente com valores integrais. Refresh afeta visibilidade, não cria a estrutura de ordenação pretendida.",
+      "section": "2. Mappings e análise de texto",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um campo de preço foi mapeado como texto e a aplicação quer fazer comparação numérica e ordenação por preço. Qual abordagem é mais correta para o novo desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter `text` e confiar que o analyzer converta automaticamente todos os valores em números.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar somente `_refresh`, que recalcula o tipo e reescreve o inverted index.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `term` no texto, que compara numericamente qualquer cadeia de dígitos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o nome do campo no cliente, sem alterar mapping ou documentos indexados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir campo numérico e, no índice existente, criar destino adequado e reindexar.",
+          "correct": true
+        }
+      ],
+      "explanation": "Preço deve ser representado por tipo numérico para comparações e ordenação numéricas. Tipos de campos indexados não são convertidos retroativamente por refresh; a solução comum é criar índice corretamente mapeado e copiar documentos com `_reindex`.",
+      "section": "2. Mappings e análise de texto",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta usa `must` para a frase no título e `must_not` para excluir registros arquivados. Qual interpretação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambas as cláusulas são positivas e exigem que o documento tenha título e status arquivado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`must` exige e pontua a correspondência; `must_not` exclui documentos que satisfaçam sua condição.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`must_not` inclui documentos arquivados com score negativo e os apresenta no final.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`must` ordena resultados sem exigir correspondência de texto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`must_not` altera o mapping para remover definitivamente o campo arquivado.",
+          "correct": false
+        }
+      ],
+      "explanation": "`must` é cláusula obrigatória que participa da relevância. `must_not` exclui documentos que correspondem à condição negativa; não é apenas um score negativo nem uma mudança permanente no índice.",
+      "section": "4. Consulta, filtros, paginação e manutenção do índice",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao percorrer milhares de resultados ordenados, por que `search_after` pode ser preferível a um `from` muito alto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele retorna documentos eliminados antes do limite de `max_result_window`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele desativa a análise e converte os hits em agregações numéricas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele faz todas as buscas diretamente na réplica sem coordenador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele permite continuar a partir dos valores de ordenação anteriores, evitando saltos profundos caros.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Ele copia automaticamente os resultados para outro índice ao final de cada página.",
+          "correct": false
+        }
+      ],
+      "explanation": "`search_after` usa valores de ordenação como posição de continuação e evita pedir janelas profundas por `from + size`, cujo custo cresce com o salto. A estratégia requer ordenação coerente e não altera análise, cópias ou armazenamento.",
+      "section": "4. Consulta, filtros, paginação e manutenção do índice",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A aplicação recebe erro ao pedir página muito profunda porque `from + size` excede `index.max_result_window`. Qual medida corresponde ao problema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar indiscriminadamente o número de shards primários, pois isso remove qualquer limite de janela.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Preferir `search_after` para navegação profunda ou rever justificadamente o limite e o custo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar `term` no lugar de `match`, pois a consulta exata ignora paginação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar `_reindex`, que amplia a janela do índice original sem copiar documentos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Forçar refresh em cada página, pois segmentos novos eliminam o limite de resultados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A janela limita o custo de manter e ordenar resultados até `from + size`; para percursos profundos, `search_after` é alternativa mais eficiente. Aumentar o limite sem considerar recursos não remove o custo subjacente.",
+      "section": "4. Consulta, filtros, paginação e manutenção do índice",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "É preciso mudar o tipo de um campo já indexado. A equipe criará índice novo e usará `_reindex`. O que deve fazer antes da cópia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar `_refresh` na origem, pois ele converte os tipos de campo durante a leitura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Deixar o destino inexistente, pois `_reindex` sempre duplica automaticamente todo o mapping.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar o índice de origem, para que o destino receba os shards sem documentos antigos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Configurar mapping e settings do destino com os tipos e características desejados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Criar apenas uma consulta `match`, que altera o tipo no mapping da origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "`_reindex` copia documentos, mas não copia settings e mappings da origem. O destino precisa estar configurado antes para receber os documentos conforme os tipos e as opções pretendidos.",
+      "section": "4. Consulta, filtros, paginação e manutenção do índice",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação usa `produtos-v1` e a equipe deseja trocar para `produtos-v2` após reindexar sem alterar o nome usado pelos clientes. Qual recurso auxilia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um analyzer, pois ele redireciona requisições HTTP entre nomes de índice.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um `term` query, que transforma `produtos-v1` em novo nome físico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um token filter, que replica o índice e altera o endereço do cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um alias, atualizado para apontar ao índice novo após conferência.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma réplica, que cria automaticamente um índice versionado com mapping diferente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um alias oferece um nome lógico que pode apontar para índices concretos. Após criar e conferir o destino, atualizar o alias permite desacoplar clientes do nome físico e realizar a troca de referência.",
+      "section": "4. Consulta, filtros, paginação e manutenção do índice",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe envia arquivos de catálogo em alto volume e o limite principal é overhead de requisições individuais. Qual API é projetada para agrupar ações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`_mapping`, que agrupa atualizações de documentos numa requisição de consulta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`_bulk`, que recebe várias ações de escrita em uma requisição.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`_analyze`, que indexa vários documentos enquanto retorna tokens.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`_refresh`, que repete automaticamente chamadas POST ainda não enviadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`_search`, que cria documentos como efeito colateral de cada cláusula.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bulk foi feita para enviar várias ações de indexação, atualização ou exclusão em uma requisição e reduzir overhead. As demais APIs consultam mapping, analisam texto, publicam segmentos ou pesquisam documentos.",
+      "section": "3. Shards, réplicas e visibilidade da escrita",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante uma carga inicial grande, os responsáveis podem aumentar o intervalo de refresh para melhorar taxa de indexação, desde que aceitem atraso maior antes de as novas gravações aparecerem na busca.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não, porque refresh controla somente backups e não afeta taxa nem visibilidade de busca.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim, pois refreshes frequentes têm custo; espaçá-los troca menor frescor por mais eficiência de indexação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Não, porque um índice não pode alterar `index.refresh_interval` após sua criação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sim, pois intervalo maior garante que toda escrita seja pesquisável antes do refresh.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não, porque cada documento precisa ser pesquisado imediatamente para ser armazenado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Refreshes abrem segmentos pesquisáveis e consomem recursos. Aumentar o intervalo pode ajudar a velocidade de indexação quando o atraso de visibilidade é aceitável; não se deve confundir frescor da busca com confirmação da gravação.",
+      "section": "3. Shards, réplicas e visibilidade da escrita",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um índice com várias réplicas ainda exige estratégia independente de backup, pois cópias sincronizadas não protegem contra toda perda lógica ou exclusão replicada.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Correto, réplicas são cópias operacionais e alterações como exclusões também podem se propagar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Incorreto, cada réplica é um backup histórico imutável da versão anterior do documento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Incorreto, réplicas recebem apenas consultas e nunca recebem mudanças do primário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Correto somente quando o índice tem um shard primário; em índices maiores as réplicas viram backup.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Incorreto, porque o Elasticsearch não oferece shards réplica para dados de documentos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Réplica é cópia operacional do shard primário, não uma retenção histórica independente. Como operações do primário são replicadas, exclusões ou alterações indesejadas podem alcançar as cópias; backup requer mecanismo próprio.",
+      "section": "3. Shards, réplicas e visibilidade da escrita",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente quer criar um registro com ID conhecido e garantir que uma repetição da mesma requisição não sobrescreva registro anterior. Qual operação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`PUT indice/_doc/id`, cuja semântica sempre rejeita um ID já existente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`GET indice/_doc/id`, que reserva o identificador para gravação futura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`POST indice/_update/id`, que sempre elimina o documento antes de verificar duplicidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`DELETE indice/_doc/id`, que cria o ID somente quando está ausente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`PUT indice/_create/id`, que cria apenas se o ID ainda não existir.",
+          "correct": true
+        }
+      ],
+      "explanation": "O endpoint `_create` falha se o ID já estiver presente, protegendo contra sobrescrita em uma criação repetida. A indexação comum em `_doc/id` pode substituir o conteúdo associado ao mesmo ID.",
+      "section": "1. Índices, documentos e operações de escrita",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O sistema precisa excluir todos os documentos que atendem a uma condição de consulta. Qual descrição de API é a mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar uma operação de exclusão por consulta, selecionando os documentos por Query DSL.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar `_mapping`, pois alterar o mapping apaga todos os documentos correspondentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `_analyze`, pois tokens correspondentes são removidos do armazenamento automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `_refresh`, pois cada refresh exclui documentos que não foram pesquisados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `_reindex` sem destino, que remove documentos da origem ao copiá-los.",
+          "correct": false
+        }
+      ],
+      "explanation": "A operação `_delete_by_query` aplica uma consulta para selecionar e excluir documentos correspondentes. Mapping e análise não removem registros; refresh publica alterações; reindex exige destino e copia em vez de apagar a origem.",
+      "section": "1. Índices, documentos e operações de escrita",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta deve retornar resultados compatíveis com um termo e dar maior pontuação quando o título também corresponde a uma expressão complementar. Qual uso de bool é plausível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colocar termo obrigatório em `must` e correspondência adicional em `should` para influenciar a relevância.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Colocar tudo em `must_not`, que premia documentos com condições negativas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Colocar as duas condições em `filter`, que soma score por cada correspondência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Colocar termo em `sort` e expressão em `must_not`, que executa busca textual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Colocar ambas em `highlight`, que exige e pontua os trechos encontrados.",
+          "correct": false
+        }
+      ],
+      "explanation": "`must` pode impor uma correspondência obrigatória e participar do score; `should` pode acrescentar preferência/pontuação conforme as demais cláusulas e configuração. `filter` não pontua e `must_not` exclui, não premia.",
+      "section": "4. Consulta, filtros, paginação e manutenção do índice",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O time quer validar a sintaxe de uma consulta sem executar a pesquisa completa. Qual endpoint é destinado a essa validação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`_validate/query`, que verifica a validade da consulta sem executá-la como busca completa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`_refresh`, que valida DSL e força visibilidade dos documentos retornados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`_create`, que interpreta uma consulta e retorna erros de sintaxe sem gravar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`_mapping`, que executa a consulta em todos os shards para validar resultados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`_bulk`, que compila qualquer DSL e descarta as ações geradas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A API `_validate/query` verifica se uma consulta é válida sem executar a busca completa. As outras APIs têm funções de refresh, escrita, consulta do mapping ou gravação em lote.",
+      "section": "4. Consulta, filtros, paginação e manutenção do índice",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa saber por que um documento específico correspondeu a uma busca e como sua pontuação foi calculada. Qual API auxilia essa análise?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`_explain`, que detalha a correspondência e a pontuação de um documento para uma consulta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`_analyze`, que explica a distribuição de shards e réplicas por nó.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`_refresh`, que informa qual token elevou a relevância no documento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`_reindex`, que mostra a causa de cada correspondência de busca original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`_bulk`, que calcula o score dos documentos sem executar consultas.",
+          "correct": false
+        }
+      ],
+      "explanation": "`_explain` fornece uma análise de como um documento corresponde à consulta e apresenta decomposição da pontuação. `_analyze` mostra tokens de texto, não o raciocínio de relevância do documento.",
+      "section": "4. Consulta, filtros, paginação e manutenção do índice",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O mapping dinâmico criou um campo com tipo inadequado após inferir o primeiro valor recebido. A equipe ainda precisa preservar os dados e corrigir o desenho. Qual plano é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Editar retroativamente o tipo no mesmo mapping e supor que segmentos antigos se reescrevam sem reindexação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar índice de destino com mapping explícito, reindexar e então migrar consumidores para o novo índice.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar `_analyze` no campo, que altera mapping e converte os valores persistidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Forçar refresh várias vezes, que desfaz a inferência e reavalia o tipo com todos os documentos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar uma réplica, que herda mapping diferente do primário sem copiar os documentos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tipos de campos já indexados não são corrigidos por refresh nem por análise de texto. Criar um índice novo com mapping explícito e copiar os documentos possibilita reconstruir a indexação com a semântica pretendida.",
+      "section": "2. Mappings e análise de texto",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja aplicar settings e mappings padrão a índices futuros cujos nomes seguem uma convenção. Que recurso atende a esse padrão de criação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um index template, que aplica configurações e mappings a índices correspondentes ao padrão definido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um `term` query, que altera o mapping de qualquer índice com nome compatível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um refresh template, que força toda escrita a se tornar imediatamente visível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma réplica, que aplica settings a todos os índices futuros do cluster.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um analyzer de consulta, que cria índices ao encontrar nomes semelhantes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Templates de índice aplicam settings e mappings a novos índices que correspondem aos padrões configurados. Consultas, réplicas e analyzers não cumprem o papel de modelo de criação de índice.",
+      "section": "4. Consulta, filtros, paginação e manutenção do índice",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma agregação por categoria, o campo `categoria` precisa de um valor utilizável como chave de bucket e deve estar mapeado de forma apropriada para esse uso. Qual opção é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um campo `keyword`, que mantém cada categoria integral para buckets e filtros exatos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um campo `text` sem doc values, que sempre cria um bucket por palavra sem configuração adicional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um campo `boolean`, que armazena a categoria textual completa em dois valores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um campo `object`, que transforma automaticamente cada string em uma métrica numérica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um campo `date`, que converte categorias em intervalos temporais ao agregar.",
+          "correct": false
+        }
+      ],
+      "explanation": "`keyword` é apropriado para valores categóricos inteiros usados em agregações e filtros. Campos `text` são analisados em tokens e não são o tipo usual para buckets de valor completo; os demais tipos não correspondem ao dado categórico.",
+      "section": "2. Mappings e análise de texto",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma busca consulta diversos shards: cada shard calcula resultados locais e o nó coordenador reúne esses resultados para formar a resposta global.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim; a busca distribuída combina resultados dos shards envolvidos no nó coordenador.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Não; cada shard retorna a resposta completa do índice e o coordenador escolhe uma ao acaso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não; a busca é sempre executada apenas no shard primário que recebe a escrita.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sim, mas somente réplicas calculam resultados e os primários são excluídos das consultas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não; documentos são transferidos para um único nó antes de toda consulta `_search`.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em uma busca distribuída, shards envolvidos executam etapas localmente e retornam resultados parciais; o coordenador combina essas respostas numa lista global. A distribuição não implica que apenas o primário processe buscas.",
+      "section": "3. Shards, réplicas e visibilidade da escrita",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pipeline de ingestão precisa normalizar um campo antes da indexação. Qual descrição de pipeline é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um conjunto configurado de processadores que transforma ou enriquece documentos durante a ingestão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma consulta `_search` que modifica documentos encontrados apenas na resposta, sem ingestão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma réplica especial que reescreve mappings depois de cada refresh.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma lista de aliases que traduz nomes de índices para nomes de campos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um analyzer de consulta que substitui todas as operações de indexação e armazenamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ingest pipelines executam processadores para transformar ou enriquecer documentos antes de armazená-los/indexá-los. Isso difere de consulta, alias, réplica e análise textual usada para tokenizar campos.",
+      "section": "1. Índices, documentos e operações de escrita",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Quickstart: Indexing and search in Elasticsearch",
+      "publisher": "Elastic",
+      "reference": "Criação de índices, documentos JSON, mappings e primeiras buscas",
+      "url": "https://www.elastic.co/docs/solutions/search/get-started/index-basics",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Near real-time search",
+      "publisher": "Elastic",
+      "reference": "Segmentos Lucene, refresh e momento em que alterações ficam visíveis à busca",
+      "url": "https://www.elastic.co/docs/manage-data/data-store/near-real-time-search",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Create a new document in the index",
+      "publisher": "Elastic",
+      "reference": "Indexação, criação por ID, roteamento ao primário, réplicas e parâmetro refresh",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-index_.html/",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The refresh parameter",
+      "publisher": "Elastic",
+      "reference": "Diferenças entre refresh=true, false e wait_for",
+      "url": "https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Reindex documents",
+      "publisher": "Elastic",
+      "reference": "Cópia de documentos e necessidade de configurar mapping e settings do destino",
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "APIs and tools",
+      "publisher": "Elastic",
+      "reference": "Funções dos endpoints _search, _analyze, _mapping, _reindex, _bulk e _refresh",
+      "url": "https://www.elastic.co/docs/solutions/search/apis-and-tools",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "General index settings",
+      "publisher": "Elastic",
+      "reference": "Refresh interval, max_result_window e configurações de índice",
+      "url": "https://www.elastic.co/docs/reference/elasticsearch/index-settings/index-modules",
+      "accessedAt": "2026-10-31"
+    }
+  ]
+}

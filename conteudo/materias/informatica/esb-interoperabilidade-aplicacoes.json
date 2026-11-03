@@ -1,0 +1,1768 @@
+{
+  "id": "informatica.esb-interoperabilidade-aplicacoes",
+  "subject": "Informática",
+  "title": "Barramento de serviços corporativos (ESB) e interoperabilidade entre aplicações",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Barramento de serviços corporativos (ESB)",
+    "Enterprise Service Bus e integração",
+    "Interoperabilidade entre aplicações corporativas",
+    "Integração de aplicações por mensagens",
+    "Mediação de serviços corporativos",
+    "Roteamento de mensagens em ESB",
+    "Transformação de mensagens entre sistemas",
+    "Arquitetura de barramento de serviços",
+    "Conectividade entre sistemas heterogêneos",
+    "Serviços proxy e serviços de negócio",
+    "Padrões de integração empresarial",
+    "Mensageria síncrona e assíncrona"
+  ],
+  "scope": {
+    "covers": "Conceito e finalidade de Enterprise Service Bus (ESB); interoperabilidade entre aplicações heterogêneas; endpoints, adaptadores e protocolos; mediação, transformação e validação de mensagens; roteamento por conteúdo e por cabeçalho; comunicação síncrona e assíncrona; proxy service e business service; filas, publicação/assinatura, correlação, tratamento de falhas, segurança, monitoramento, acoplamento e padrões de integração.",
+    "excludes": "Configuração de produto ou versão específica, implementação de APIs ou serviços, sintaxe detalhada de SOAP, WSDL, JMS, XSLT e protocolos, desenho completo de SOA, administração de brokers e garantia absoluta de entrega exatamente uma vez."
+  },
+  "theoryTitle": "ESB: conectando aplicações por mensagens mediadas",
+  "chapters": [
+    {
+      "title": "1. O papel do barramento na integração",
+      "markdown": "### O problema que este assunto resolve\n\nUma organização costuma ter aplicações feitas em épocas diferentes: um sistema de faturamento pode expor SOAP sobre HTTP, um legado pode receber arquivos, e um serviço novo pode consumir JSON por REST. Integrar cada par diretamente cria muitas conexões ponto a ponto: uma mudança de endereço, formato ou protocolo exige alterações em vários consumidores. O **Enterprise Service Bus (ESB)** funciona como uma infraestrutura intermediária que recebe mensagens, aplica regras de mediação e as encaminha a serviços ou sistemas de destino.\n\n> **Siglas e termos deste capítulo**\n> - **ESB**: Enterprise Service Bus, barramento de serviços corporativos.\n> - **Endpoint**: ponto de comunicação pelo qual um sistema envia ou recebe mensagens.\n> - **Mediação**: processamento intermediário, como validar, transformar, filtrar ou encaminhar.\n> - **Acoplamento**: dependência direta entre componentes; menor acoplamento permite mudar um lado com menos impacto no outro.\n> - **SOA**: arquitetura orientada a serviços; organiza capacidades de negócio como serviços acessíveis por contratos.\n\nO ESB pode oferecer conectividade por adaptadores e transportes, transformação entre formatos, roteamento, monitoramento e tratamento de erros. A aplicação de origem conversa com uma interface conhecida do barramento; o ESB conhece o destino e as regras necessárias. Essa mediação reduz dependências diretas, mas introduz um componente central cuja disponibilidade, capacidade e governança precisam ser planejadas.\n\nInteroperabilidade tem mais de uma dimensão. Sistemas precisam conseguir **transportar** a mensagem, interpretar sua **estrutura** e concordar com o **significado** dos dados. Converter XML em JSON resolve uma diferença de sintaxe, mas não resolve sozinho se `data` significa data de emissão ou vencimento. O contrato e o mapeamento semântico precisam ser explícitos.\n\n| Dimensão | Pergunta prática | Exemplo de mediação |\n| --- | --- | --- |\n| Transporte | Como a mensagem chega? | HTTP para fila JMS |\n| Formato | Como os campos são representados? | XML para JSON |\n| Semântica | O que cada campo quer dizer? | Mapear `cod_cliente` para identificador corporativo |\n| Operação | Como e quando se espera resposta? | Chamada síncrona ou mensagem assíncrona |\n\n### Exemplo de ponta a ponta\n\nUm portal envia uma solicitação de consulta ao ESB. O barramento recebe pelo endpoint HTTP, autentica a chamada conforme sua política, valida os campos obrigatórios, transforma o contrato público no formato esperado pelo serviço legado e encaminha a mensagem. Ele pode converter também o transporte, por exemplo publicando a solicitação em uma fila. A resposta percorre o fluxo de retorno, podendo ser transformada novamente para o formato do portal. Cada uma dessas etapas é configurada para aquela integração; ESB não significa que toda mensagem tenha de passar por todas elas.\n\n### Como cai na prova\n\n- ESB é uma camada de integração que medeia mensagens entre sistemas heterogêneos; não é sinônimo de banco de dados compartilhado.\n- Transformação trata formato e mapeamento; conectividade trata acesso/transporte; roteamento escolhe destino.\n- O barramento diminui integrações ponto a ponto, mas pode virar gargalo ou ponto de falha se for mal dimensionado.\n- Compatibilidade técnica não garante que dois sistemas atribuam o mesmo significado a um campo."
+    },
+    {
+      "title": "2. Endpoints, contratos e mediação de mensagens",
+      "markdown": "### O problema que este assunto resolve\n\nPara mediar uma troca, é preciso distinguir a interface oferecida ao consumidor do serviço real que executa a operação. Em muitas implementações, um **proxy service** é o endpoint intermediário exposto aos clientes; um **business service** representa o serviço ou sistema de destino. O fluxo entre eles pode conter etapas de validação, transformação, decisão e encaminhamento. Os nomes variam entre produtos, mas a separação entre interface mediada e destino é recorrente.\n\n> **Siglas e termos deste capítulo**\n> - **WSDL**: descrição de interface de serviços web, incluindo operações e mensagens em implementações SOAP.\n> - **SOAP**: protocolo de mensagens estruturadas, geralmente em XML.\n> - **REST**: estilo de interação com recursos, comumente sobre HTTP.\n> - **Payload**: conteúdo principal da mensagem, distinto de metadados e cabeçalhos.\n> - **Adaptador**: componente que conecta o barramento a uma tecnologia ou sistema específico.\n> - **Contrato**: definição acordada de operações, dados, erros e regras da interação.\n\nUma mensagem costuma ser examinada em camadas. O **transporte** entrega bytes e metadados de conexão. A **vinculação (binding)** pode empacotar ou desempacotar a mensagem e aplicar aspectos de segurança do protocolo. O **fluxo/pipeline** executa a lógica: validação, transformação, log, publicação, roteamento e tratamento de exceções. No retorno, a resposta pode seguir caminho inverso com operações próprias. O transporte carrega a mensagem; não deve ser confundido com a regra de negócio que a interpreta.\n\nA transformação pode ser necessária quando o sistema de origem envia, por exemplo, `{\"clienteId\":42,\"valor\":100}` e o destino exige uma estrutura XML com identificador e moeda. Além de renomear ou reorganizar campos, o mapeamento pode converter tipos e unidades. Campos sem correspondência precisam de regra explícita: valor ausente pode ser rejeitado, preenchido por regra válida ou encaminhado a tratamento; inventar um valor silenciosamente corrompe a integração.\n\nA validação verifica se a mensagem cumpre um contrato, como presença de campos, tipo, domínio ou estrutura. A validação estrutural não prova que a operação é autorizada nem que o dado é verdadeiro. A autorização, a validação de negócio e a integridade semântica são controles distintos.\n\n### Como cai na prova\n\n- Proxy/intermediário recebe chamadas de consumidores; serviço de negócio aponta ao produtor/destino, conforme a nomenclatura do produto.\n- O pipeline implementa o fluxo e suas ações; o endpoint identifica o ponto de comunicação.\n- WSDL descreve contratos de serviços web, não executa por si só a operação.\n- Conversão de XML para JSON pode manter o conteúdo sintático interoperável, mas exige mapear campos e semântica."
+    },
+    {
+      "title": "3. Roteamento, padrões e modos de comunicação",
+      "markdown": "### O problema que este assunto resolve\n\nDepois que uma mensagem chega, o barramento precisa decidir se ela seguirá a um ou a vários destinos, se será filtrada e se quem enviou aguardará uma resposta. Regras podem encaminhar por operação, cabeçalho ou conteúdo do payload. No **roteamento baseado em conteúdo**, o ESB avalia dados da mensagem antes de selecionar o destino. No roteamento por cabeçalho, a decisão usa metadados como tipo de operação ou informação de contexto.\n\n> **Siglas e termos deste capítulo**\n> - **JMS**: API Java para mensageria; pode ser usada com filas e tópicos.\n> - **Fila (queue)**: canal em que mensagens são normalmente consumidas por um consumidor de cada vez, segundo a configuração do broker.\n> - **Tópico (topic)**: canal de publicação/assinatura em que múltiplos assinantes podem receber eventos.\n> - **Request-response**: padrão em que uma solicitação tem resposta correlacionada.\n> - **Fire-and-forget**: envio sem aguardar resposta de negócio na mesma interação.\n> - **Fan-out**: distribuição de uma mensagem a vários destinos; **fan-in** agrega resultados.\n\nNa interação **síncrona**, o chamador espera a conclusão ou resposta da chamada e fica sujeito à latência e disponibilidade do caminho até o serviço. Na **assíncrona**, o produtor envia e o processamento pode ocorrer depois, com fila ou mecanismo equivalente; o produtor pode receber apenas confirmação de recebimento, e a resposta de negócio, se houver, chega por outra mensagem ou callback. Assincronia desacopla tempo e disponibilidade, mas exige correlação, monitoramento da fila e tratamento de mensagens atrasadas.\n\nPadrões comuns incluem **Message Filter** (descartar ou desviar mensagens que não atendem condição), **Content-Based Router** (escolher rota conforme dados), **Recipient List** (selecionar lista de destinatários), **Splitter** (dividir uma mensagem composta) e **Aggregator** (reunir partes ou respostas). Um filtro que elimina mensagem sem trilha de auditoria pode tornar o diagnóstico difícil; a política de descarte deve ser observável.\n\nEm filas, confirmação de consumo, persistência, repetição e fila de mensagens não processáveis dependem do broker e da configuração. Uma repetição pode duplicar efeitos se a operação não for idempotente. Por isso, para pagamentos ou ordens, é comum usar identificador de mensagem e deduplicação no consumidor. A rede e o broker podem entregar mais de uma vez; não se deve presumir execução exatamente uma vez sem mecanismo que a garanta no escopo definido.\n\n### Como cai na prova\n\n- Síncrono: o solicitante espera a resposta; assíncrono: envio e processamento são desacoplados no tempo.\n- A rota baseada em conteúdo toma decisão examinando o payload; não é mero balanceamento aleatório.\n- Publicação/assinatura permite distribuir um evento a vários assinantes; fila ponto a ponto distribui trabalho entre consumidores.\n- Reentrega aumenta resiliência, mas pode duplicar efeito; idempotência e deduplicação são importantes."
+    },
+    {
+      "title": "4. Confiabilidade, segurança e operação do ESB",
+      "markdown": "### O problema que este assunto resolve\n\nUma integração não termina quando o barramento encaminha uma mensagem. É preciso observar o resultado, proteger dados e decidir o que fazer quando um endpoint está indisponível, uma mensagem é inválida ou uma resposta não chega. Um fluxo operável registra contexto suficiente para rastrear a mensagem e separa falhas transitórias (que podem permitir nova tentativa) de falhas permanentes (como contrato inválido).\n\n> **Siglas e termos deste capítulo**\n> - **ID de correlação**: identificador que permite relacionar solicitação, resposta e etapas distribuídas.\n> - **DLQ**: dead-letter queue, destino de mensagens que não puderam ser processadas conforme a política.\n> - **Idempotência**: propriedade de repetir uma operação sem produzir efeitos adicionais indesejados.\n> - **TLS**: proteção do canal de comunicação, com confidencialidade e integridade em trânsito.\n> - **Observabilidade**: capacidade de entender o comportamento por métricas, registros e rastreamento.\n\nFalhas de transporte, timeout e indisponibilidade podem justificar retentativas limitadas, com intervalo crescente e limite definido. Repetir indefinidamente pode sobrecarregar o destino. Uma mensagem permanentemente inválida deve ser rejeitada ou enviada a tratamento apropriado, preservando diagnóstico e evitando retentativas inúteis. DLQ não corrige a causa: é uma área para inspeção, correção e eventual reprocessamento controlado.\n\nA segurança precisa cobrir identidade e autorização, proteção do canal, proteção de credenciais, controle de acesso administrativo e tratamento de dados sensíveis nos registros. TLS protege o canal, mas não substitui autorização; uma mensagem assinada ou criptografada no nível de mensagem pode conservar propriedades ao atravessar intermediários, segundo a tecnologia adotada. Logs não devem registrar segredos ou dados pessoais sem necessidade. O barramento centraliza controles, mas também concentra risco e precisa de segmentação e monitoramento.\n\nMétricas úteis incluem taxa de mensagens, latência, erros por destino, profundidade e idade da fila, retentativas e mensagens em DLQ. Um ID de correlação ajuda a localizar uma solicitação e suas respostas nos vários sistemas. Logs com esse ID facilitam diagnóstico sem depender de busca pelo conteúdo confidencial do payload.\n\n### Como cai na prova\n\n- Timeout significa que não houve resposta a tempo; não prova que o destino não executou a operação. Retentar uma cobrança sem idempotência pode cobrar duas vezes.\n- DLQ preserva mensagens que falharam para diagnóstico; não é mecanismo automático de correção.\n- TLS protege a comunicação em trânsito, enquanto autenticação identifica e autorização define o que a identidade pode fazer.\n- Monitorar fila, latência, erros e correlação ajuda a detectar atraso e localizar falhas ponta a ponta."
+    }
+  ],
+  "summary": "Um ESB é uma camada intermediária de integração que conecta aplicações heterogêneas por mensagens e pode mediar transporte, validar e transformar dados, aplicar filtros e regras de roteamento, encaminhar a um ou vários destinos e tratar respostas. O consumidor pode chamar uma interface proxy; o fluxo do barramento encaminha a um serviço de destino, usando adaptadores e protocolos compatíveis. Interoperabilidade exige compatibilidade técnica e acordo semântico: trocar XML por JSON não define o significado dos campos. Interações síncronas aguardam resposta; as assíncronas desacoplam o processamento e normalmente usam filas ou eventos, exigindo correlação e monitoramento. Reentrega pode duplicar efeitos, então operações relevantes devem tratar idempotência. Segurança, limites de repetição, tratamento de mensagens inválidas, DLQ, métricas, logs seguros e rastreamento fazem parte da operação. O ESB reduz conexões ponto a ponto, mas pode concentrar tráfego, dependências e falhas; deve ser dimensionado e governado.",
+  "flashcards": [
+    {
+      "front": "O que significa ESB?",
+      "back": "Enterprise Service Bus, ou barramento de serviços corporativos: infraestrutura intermediária que conecta e medeia mensagens entre aplicações e serviços."
+    },
+    {
+      "front": "Qual problema de integração ponto a ponto o ESB reduz?",
+      "back": "A multiplicação de conexões diretas, que faz mudanças de protocolo, formato ou endereço exigirem alterações em vários sistemas consumidores."
+    },
+    {
+      "front": "O que é um endpoint?",
+      "back": "Ponto pelo qual um sistema envia ou recebe mensagens, como uma URL HTTP ou uma fila de mensageria."
+    },
+    {
+      "front": "O que caracteriza mediação?",
+      "back": "Processamento intermediário da mensagem, por exemplo validação, transformação, filtragem, roteamento ou tratamento de erro."
+    },
+    {
+      "front": "Interoperabilidade é apenas converter XML em JSON?",
+      "back": "Não. Também depende de transporte, contrato, tipos e significado acordado para os campos e operações."
+    },
+    {
+      "front": "Qual é o papel típico de um proxy service?",
+      "back": "Oferecer uma interface intermediária para os consumidores e encaminhar suas mensagens conforme o fluxo configurado."
+    },
+    {
+      "front": "Qual é o papel típico de um business service?",
+      "back": "Representar a interface e o endpoint do serviço ou sistema de destino que produz a resposta ou executa a operação."
+    },
+    {
+      "front": "O que WSDL descreve?",
+      "back": "Interface de serviço web, como operações, mensagens e tipos, em especial no ecossistema SOAP."
+    },
+    {
+      "front": "O que é payload?",
+      "back": "O conteúdo principal da mensagem; cabeçalhos e metadados podem carregar informações auxiliares de transporte ou contexto."
+    },
+    {
+      "front": "Para que serve um adaptador?",
+      "back": "Conectar o ESB a uma tecnologia, protocolo ou sistema específico, traduzindo aspectos da comunicação necessários à integração."
+    },
+    {
+      "front": "O que é roteamento baseado em conteúdo?",
+      "back": "Escolher destino ou caminho avaliando dados do payload segundo regras configuradas."
+    },
+    {
+      "front": "Como difere o roteamento por cabeçalho?",
+      "back": "A decisão usa cabeçalhos ou metadados da mensagem, como operação ou contexto, em vez do conteúdo principal."
+    },
+    {
+      "front": "O que diferencia comunicação síncrona de assíncrona?",
+      "back": "Na síncrona, o solicitante aguarda a resposta; na assíncrona, envio e processamento podem ocorrer em momentos separados."
+    },
+    {
+      "front": "Para que serve uma fila?",
+      "back": "Armazenar mensagens para consumo desacoplado no tempo; consumidores podem processá-las quando estiverem disponíveis."
+    },
+    {
+      "front": "Qual é a ideia de publicação/assinatura?",
+      "back": "Um produtor publica um evento em um tópico e múltiplos assinantes interessados podem recebê-lo."
+    },
+    {
+      "front": "O que é um Message Filter?",
+      "back": "Padrão que permite encaminhar, descartar ou desviar mensagens conforme uma condição, evitando que certos destinos recebam mensagens não pertinentes."
+    },
+    {
+      "front": "O que um Splitter faz?",
+      "back": "Divide uma mensagem composta em mensagens menores para processamento separado."
+    },
+    {
+      "front": "O que um Aggregator faz?",
+      "back": "Reúne mensagens ou respostas relacionadas em um resultado agregado, normalmente usando critérios de correlação e conclusão."
+    },
+    {
+      "front": "Por que usar ID de correlação?",
+      "back": "Para relacionar a solicitação com resposta e etapas registradas em diferentes componentes do fluxo."
+    },
+    {
+      "front": "O que é uma DLQ?",
+      "back": "Dead-letter queue: destino para mensagens que falharam segundo a política e precisam de diagnóstico ou reprocessamento controlado."
+    },
+    {
+      "front": "O que significa idempotência em uma operação?",
+      "back": "Repetir a mesma solicitação não causa efeitos adicionais indesejados após a primeira execução."
+    },
+    {
+      "front": "TLS substitui autorização?",
+      "back": "Não. TLS protege o canal; autenticação identifica a parte e autorização define as ações permitidas."
+    },
+    {
+      "front": "Por que uma conversão de formato pode ser insuficiente?",
+      "back": "Porque campos com nomes ou tipos compatíveis podem ter significados, unidades ou regras de negócio diferentes."
+    },
+    {
+      "front": "Cite uma métrica útil para operação de um fluxo assíncrono.",
+      "back": "Profundidade ou idade da fila, latência, taxa de erro, quantidade de retentativas ou mensagens em DLQ."
+    }
+  ],
+  "tips": [
+    "Separe as três funções mais cobradas: conectividade leva a mensagem, transformação adapta dados e roteamento escolhe destino.",
+    "Para identificar roteamento por conteúdo, procure condição que examine o payload antes de selecionar o serviço.",
+    "Síncrono significa aguardar a resposta da interação; assíncrono permite processar depois e comunicar a conclusão separadamente.",
+    "Se a questão mencionar duplicidade em reentrega, associe o risco a idempotência e deduplicação no consumidor.",
+    "Lembre que interoperabilidade envolve significado dos dados, não apenas sintaxe ou protocolo.",
+    "Ao ler um fluxo ESB, siga entrada, processamento, destino e caminho da resposta; distinga endpoint de regra do pipeline."
+  ],
+  "traps": [
+    "Dizer que o ESB elimina toda dependência é exagero: ele reduz conexões diretas, mas consumidores ainda dependem de contratos e disponibilidade do barramento.",
+    "Confundir conversão de formato com equivalência semântica: XML e JSON podem conter campos com significados incompatíveis.",
+    "Afirmar que comunicação assíncrona sempre fornece resposta imediata: a resposta pode ser posterior ou não existir como resposta de negócio.",
+    "Afirmar que retentativa garante execução exatamente uma vez: a mensagem pode ser processada e a confirmação se perder, causando duplicidade.",
+    "Tratar DLQ como correção automática: ela preserva falhas para análise e tratamento, mas não corrige o payload nem o destino.",
+    "Confundir TLS com controle de acesso: canal protegido não significa que todo usuário autenticado esteja autorizado a invocar qualquer operação."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva um fluxo simples de uma solicitação que entra por HTTP, passa por ESB e chega a uma fila JMS.",
+      "answer": "O endpoint de entrada recebe a chamada; o fluxo pode validar e transformar a mensagem; a regra publica no destino JMS; a política registra correlação e trata confirmação, erro e eventual resposta."
+    },
+    {
+      "question": "Quais são as três dimensões de interoperabilidade destacadas nesta matéria?",
+      "answer": "Compatibilidade de transporte, de estrutura/formato e de significado semântico dos dados e operações."
+    },
+    {
+      "question": "Compare proxy service e serviço de destino em uma arquitetura mediada.",
+      "answer": "O proxy é a interface intermediária chamada pelo consumidor; o serviço de destino representa o produtor ou sistema para o qual o fluxo encaminha a mensagem."
+    },
+    {
+      "question": "Quando um roteador baseado em conteúdo é apropriado?",
+      "answer": "Quando uma regra deve escolher o destino examinando dados do payload, por exemplo encaminhar pedidos conforme categoria ou região."
+    },
+    {
+      "question": "Que informação ajuda a associar uma resposta assíncrona à solicitação original?",
+      "answer": "Um identificador de correlação transportado e registrado nas mensagens e etapas do fluxo."
+    },
+    {
+      "question": "Por que repetir uma chamada após timeout pode ser perigoso?",
+      "answer": "O serviço pode ter executado a operação sem que a resposta chegasse; a repetição pode duplicar efeitos se não houver idempotência ou deduplicação."
+    },
+    {
+      "question": "O que deve ocorrer com uma mensagem estruturalmente inválida?",
+      "answer": "Deve ser rejeitada ou encaminhada a tratamento apropriado com diagnóstico; retentativas indefinidas não corrigem uma falha permanente de contrato."
+    },
+    {
+      "question": "Cite controles e sinais operacionais úteis para um ESB.",
+      "answer": "Autenticação e autorização, proteção de canal, logs sem exposição indevida de dados, métricas de latência/erro/fila, correlação e tratamento controlado de falhas."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Interoperabilidade reduzida a protocolo",
+      "summary": "Conectar endpoints ou converter XML/JSON não garante que aplicações concordem com o significado, a unidade, a obrigatoriedade e a regra de cada campo."
+    },
+    {
+      "key": "e2",
+      "title": "Confusão entre roteamento e transformação",
+      "summary": "Transformação adapta estrutura ou representação; roteamento escolhe um ou mais destinos. Uma regra pode combinar as duas ações, mas elas resolvem problemas diferentes."
+    },
+    {
+      "key": "e3",
+      "title": "Assincronia e duplicidade",
+      "summary": "Fila desacopla tempo, mas reentrega pode repetir processamento. Correlação, limites de retentativa, idempotência e deduplicação são necessários para controlar efeitos."
+    },
+    {
+      "key": "e4",
+      "title": "Falha tratada como sucesso",
+      "summary": "DLQ, logs e alarmes ajudam a diagnosticar falhas, mas não confirmam sucesso de negócio nem corrigem automaticamente mensagem inválida ou destino indisponível."
+    },
+    {
+      "key": "e5",
+      "title": "Segurança concentrada no transporte",
+      "summary": "TLS protege a comunicação em trânsito, mas não substitui autenticação, autorização, gestão de credenciais, proteção de dados nos logs e controles administrativos."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma organização mantém sistemas que usam protocolos e formatos diferentes. Qual função descreve melhor o papel de um ESB nesse cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir todos os sistemas existentes por uma única aplicação corporativa, migrando todas as funções para uma plataforma.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mediar mensagens e permitir conectividade, transformação e encaminhamento entre sistemas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Armazenar permanentemente todos os dados operacionais em um repositório único.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eliminar a necessidade de contratos entre consumidores e serviços integrados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar apenas cópias de segurança dos bancos usados pelas aplicações.",
+          "correct": false
+        }
+      ],
+      "explanation": "O ESB atua como intermediário de integração: pode conectar endpoints, adaptar mensagens e encaminhá-las conforme regras. Ele não substitui automaticamente os sistemas, não é necessariamente um repositório central de dados, não elimina contratos e não tem como função principal backup.",
+      "section": "1. O papel do barramento na integração",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O ESB pode diminuir a quantidade de conexões ponto a ponto, embora passe a ser uma dependência compartilhada que precisa de capacidade e disponibilidade adequadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Ao mediar diversas integrações, o barramento reduz a necessidade de cada consumidor conhecer diretamente cada produtor. Como o tráfego passa por uma infraestrutura comum, sua indisponibilidade ou saturação pode afetar vários fluxos.",
+      "section": "1. O papel do barramento na integração",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois sistemas conseguem trocar mensagens HTTP, mas um interpreta o campo `data` como emissão e o outro como vencimento. Qual aspecto ainda impede a interoperabilidade correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A compatibilidade de transporte, pois ambos precisam usar uma fila.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A compatibilidade semântica, pois o campo não tem significado acordado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A compatibilidade física, pois mensagens HTTP não podem conter datas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A compatibilidade de disponibilidade, pois ambos devem responder no mesmo instante.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A compatibilidade de serialização, pois HTTP não permite estruturas distintas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O transporte HTTP funciona, mas as aplicações atribuem sentidos diferentes ao mesmo campo. A integração precisa de contrato e mapeamento semântico; trocar o canal ou a serialização, isoladamente, não resolve essa divergência.",
+      "section": "1. O papel do barramento na integração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ESB serve principalmente para manter uma cópia sincronizada dos dados de produção em todos os sistemas participantes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. ESB integra sistemas mediando mensagens e fluxos. Replicação e sincronização de dados podem fazer parte de arquiteturas específicas, mas não definem a finalidade principal de um barramento de serviços.",
+      "section": "1. O papel do barramento na integração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma interface é exposta aos consumidores enquanto o ESB encaminha as solicitações aos sistemas de destino. Em uma implementação que usa os termos proxy service e business service, qual associação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Proxy service é a interface intermediária; business service representa o serviço de destino.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Proxy service é a tabela de auditoria; business service é o broker de mensagens.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Proxy service armazena contratos; business service transforma todo payload em XML.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Proxy service é o cliente final; business service é o identificador de correlação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Proxy service é o protocolo de entrada; business service é a política de segurança.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em produtos que usam essa nomenclatura, o proxy é o endpoint intermediário chamado pelos consumidores e o business service configura a conexão com o produtor ou destino. Os termos exatos podem variar, mas a separação de papéis é útil para entender a mediação.",
+      "section": "2. Endpoints, contratos e mediação de mensagens",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O transporte de entrada é responsável por carregar a comunicação até o ESB; a lógica do pipeline pode validar, transformar e encaminhar a mensagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A camada de transporte trata a comunicação com o endpoint e seus metadados. O fluxo ou pipeline define ações de processamento como validação, transformação, registro e roteamento.",
+      "section": "2. Endpoints, contratos e mediação de mensagens",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação envia JSON, mas o legado exige XML com nomes e estrutura diferentes. Que etapa do ESB pode adaptar a mensagem ao contrato de destino?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A transformação, com mapeamento dos campos para a estrutura esperada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O balanceamento, que replica os campos em todos os destinos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A autenticação, que converte automaticamente JSON em XML.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A correlação, que escolhe um nome XML para cada endpoint.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A confirmação, que valida e altera o formato do payload.",
+          "correct": false
+        }
+      ],
+      "explanation": "A transformação adapta representação e estrutura, por exemplo convertendo JSON em XML e mapeando campos para o contrato do legado. Roteamento escolhe destino; autenticação identifica a parte e não converte o conteúdo.",
+      "section": "2. Endpoints, contratos e mediação de mensagens",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo WSDL executa a lógica de negócio do serviço assim que é lido pelo consumidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. WSDL descreve uma interface de serviço web, incluindo operações e mensagens. A execução ocorre quando uma chamada é enviada a um endpoint que implementa a operação.",
+      "section": "2. Endpoints, contratos e mediação de mensagens",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra examina o valor de `tipoPedido` no payload e envia pedidos urgentes a um serviço prioritário. Como se classifica essa decisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Roteamento baseado em conteúdo, pois a decisão consulta dados da mensagem.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Transformação de transporte, pois altera o protocolo da chamada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Publicação/assinatura, pois todos os serviços recebem a mensagem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Agregação, pois combina vários pedidos em uma resposta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Validação estrutural, pois verifica se o endpoint está ativo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A condição avalia um campo do payload para escolher o destino, característica do roteamento baseado em conteúdo. Transformação adapta a mensagem e agregação reúne mensagens ou respostas.",
+      "section": "3. Roteamento, padrões e modos de comunicação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra de roteamento pode selecionar o serviço de destino com base em uma condição aplicada ao conteúdo do payload.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O roteamento baseado em conteúdo avalia dados da mensagem e decide o destino segundo regras. O fluxo também pode usar cabeçalhos, operação ou contexto para decidir.",
+      "section": "3. Roteamento, padrões e modos de comunicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comportamento caracteriza uma chamada síncrona de serviço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O solicitante aguarda a resposta da interação antes de prosseguir.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O solicitante publica um evento e nunca recebe retorno possível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O serviço de destino processa apenas durante uma janela noturna.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A mensagem é copiada para todos os assinantes de um tópico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O barramento confirma que o efeito de negócio ocorreu exatamente uma vez.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na chamada síncrona o consumidor espera uma resposta no contexto da interação, ficando sujeito à latência e disponibilidade dos serviços envolvidos. A modalidade não garante por si só execução exatamente uma vez.",
+      "section": "3. Roteamento, padrões e modos de comunicação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma interação assíncrona, o envio e o processamento podem ocorrer em momentos diferentes, e uma resposta de negócio pode chegar por outra mensagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O produtor pode enviar a mensagem e liberar a interação antes do processamento final. Se houver resposta posterior, uma mensagem de retorno ou callback pode comunicá-la, normalmente associada por correlação.",
+      "section": "3. Roteamento, padrões e modos de comunicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço de pedidos precisa notificar faturamento, estoque e análise quando um pedido é criado. Qual padrão de mensageria combina melhor com a distribuição do evento a vários interessados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publicação/assinatura em tópico, com os interessados inscritos no evento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Fila ponto a ponto com um consumidor exclusivo para todo o evento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Chamada síncrona em cadeia, aguardando cada aplicação em série.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conexão direta do produtor a cada banco dos consumidores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Filtro que descarta todos os eventos depois do primeiro consumidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Publicação/assinatura permite que múltiplos assinantes interessados recebam o evento. Uma fila ponto a ponto normalmente distribui o trabalho entre consumidores, sem a semântica de uma cópia destinada a cada assinante.",
+      "section": "3. Roteamento, padrões e modos de comunicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila ponto a ponto normalmente distribui cada mensagem a todos os consumidores conectados, como se cada um fosse assinante independente de um tópico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Em uma fila de trabalho, consumidores concorrentes normalmente competem para processar mensagens, e uma mensagem é entregue a um consumidor conforme o broker. Em publicação/assinatura, cada assinante pode receber sua própria cópia lógica do evento.",
+      "section": "3. Roteamento, padrões e modos de comunicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem contém centenas de itens que devem ser processados individualmente. Qual padrão divide o conteúdo em unidades menores?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Splitter, que divide a mensagem composta para processamento separado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aggregator, que separa mensagens sem guardar relação entre elas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Message Filter, que converte cada item em uma credencial e seleciona o protocolo de transporte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Recipient List, que reúne respostas em um único documento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Proxy service, que transforma um endpoint em um tópico.",
+          "correct": false
+        }
+      ],
+      "explanation": "O padrão Splitter divide uma mensagem composta em partes processáveis individualmente. Aggregator faz o movimento complementar em certos fluxos, reunindo partes ou respostas relacionadas.",
+      "section": "3. Roteamento, padrões e modos de comunicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Aggregator pode reunir respostas relacionadas, usando critérios de correlação e uma condição para saber quando o conjunto está completo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Agregação combina mensagens relacionadas; o fluxo precisa identificar o grupo, por exemplo por ID de correlação, e determinar quando há dados suficientes para produzir o resultado. A regra de conclusão depende da integração.",
+      "section": "3. Roteamento, padrões e modos de comunicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após timeout, o sistema cliente não sabe se o serviço de destino executou uma operação de cobrança. O que reduz o risco de cobrança duplicada em uma retentativa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar indefinidamente o número de tentativas do cliente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar chave idempotente ou deduplicação para reconhecer a mesma solicitação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Remover o ID de correlação antes de enviar novamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter a resposta esperada de JSON para XML.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar a chamada síncrona por outra chamada síncrona imediata.",
+          "correct": false
+        }
+      ],
+      "explanation": "O timeout não prova que a operação falhou; pode ter ocorrido execução sem retorno. Uma chave idempotente ou mecanismo de deduplicação permite reconhecer a repetição e evitar novo efeito. Aumentar tentativas sem limite pode agravar carga e duplicidade.",
+      "section": "3. Roteamento, padrões e modos de comunicação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma retentativa após falha de rede garante que uma operação de negócio será executada exatamente uma vez, mesmo se o consumidor não for idempotente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A falha pode ocorrer depois da execução no destino e antes da confirmação chegar. A reentrega pode repetir o efeito; idempotência, deduplicação ou protocolo transacional adequado são necessários para controlar esse risco.",
+      "section": "3. Roteamento, padrões e modos de comunicação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a finalidade principal de um ID de correlação em uma integração assíncrona?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Associar mensagens de solicitação, resposta e etapas do mesmo fluxo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criptografar o payload e impedir qualquer acesso do barramento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escolher automaticamente o protocolo físico de transporte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir a validação do contrato por uma chave aleatória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Garantir que uma mensagem não seja entregue novamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A correlação liga mensagens e registros pertencentes à mesma interação distribuída, facilitando resposta e diagnóstico. Ela não criptografa o conteúdo nem, sozinha, evita reentrega.",
+      "section": "4. Confiabilidade, segurança e operação do ESB",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem inválida segundo o contrato deve ser reenviada indefinidamente, pois o ESB poderá corrigir automaticamente qualquer campo ausente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma falha permanente de contrato não costuma ser resolvida por repetição. A mensagem deve ser rejeitada ou direcionada a tratamento com diagnóstico, conforme a política, para correção controlada.",
+      "section": "4. Confiabilidade, segurança e operação do ESB",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Mensagens que excedem a política de processamento podem ser encaminhadas a uma dead-letter queue para diagnóstico e tratamento controlado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A DLQ separa mensagens que não puderam ser processadas normalmente para investigação e eventual reprocessamento. Ela não corrige sozinha a causa da falha nem atesta que a operação de negócio teve sucesso.",
+      "section": "4. Confiabilidade, segurança e operação do ESB",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O destino está fora do ar por uma interrupção temporária. Qual estratégia pode limitar sobrecarga enquanto tenta recuperar o fluxo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retentativas limitadas com intervalo crescente e limite definido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Reenvio contínuo sem espera até o destino responder.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativação de todas as métricas até o serviço retornar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Duplicação imediata da mensagem em todos os destinos corporativos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transformação do payload para uma estrutura sem contrato.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma política de retentativas limitada, com espera crescente e limite, dá oportunidade de recuperação sem pressionar continuamente o serviço indisponível. Após esgotar a política, a mensagem pode seguir para tratamento de falha, como uma DLQ.",
+      "section": "4. Confiabilidade, segurança e operação do ESB",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "TLS pode proteger a confidencialidade e a integridade do canal de comunicação, mas não decide por si só quais operações uma identidade está autorizada a executar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. TLS protege a comunicação em trânsito. Autenticação identifica a parte e autorização define os acessos permitidos; são controles relacionados, mas distintos.",
+      "section": "4. Confiabilidade, segurança e operação do ESB",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A empresa habilitou TLS em todas as conexões do ESB. Qual controle ainda precisa ser definido para limitar operações por identidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Transformação, convertendo cada operação em um certificado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Autorização, associando identidades às operações permitidas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Agregação, reunindo certificados em um único payload.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Roteamento, escolhendo o nome de usuário pelo conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Retentativa, reenviando chamadas até a identidade ser aceita.",
+          "correct": false
+        }
+      ],
+      "explanation": "TLS protege o canal, mas o controle de acesso por identidade é papel da autorização. Deve-se definir quais usuários ou serviços podem invocar cada operação e aplicar autenticação apropriada.",
+      "section": "4. Confiabilidade, segurança e operação do ESB",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Registrar o payload completo, incluindo credenciais e dados pessoais, em todos os logs é uma prática segura porque melhora a rastreabilidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Rastreabilidade deve ser equilibrada com proteção de dados e segredos. É preferível registrar metadados e IDs de correlação suficientes, mascarando ou omitindo conteúdo sensível conforme a necessidade e a política de segurança.",
+      "section": "4. Confiabilidade, segurança e operação do ESB",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer localizar em qual destino mensagens assíncronas estão acumulando atraso. Qual conjunto de sinais é mais útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente a quantidade de linhas do código-fonte do consumidor, sem métricas de execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Profundidade e idade da fila, latência, erros e retentativas por destino.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apenas o nome comercial do sistema que publicou a mensagem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número de formatos de serialização instalados no servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somente a contagem total de usuários autenticados no domínio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Profundidade e idade mostram acúmulo e atraso; latência, erros e retentativas ajudam a localizar a etapa ou o destino problemático. O ID de correlação complementa as métricas para investigar mensagens específicas.",
+      "section": "4. Confiabilidade, segurança e operação do ESB",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila que cresce e envelhece pode indicar que o ritmo de chegada de mensagens supera o processamento disponível ou que o destino está falhando.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Profundidade e idade da fila são sinais de acúmulo. A causa pode envolver capacidade, lentidão ou indisponibilidade do consumidor, por isso devem ser analisadas junto a latência e erros.",
+      "section": "4. Confiabilidade, segurança e operação do ESB",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint de destino demora a responder. Qual informação ajuda a relacionar os registros do consumidor, ESB e serviço de destino à mesma solicitação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A remoção dos cabeçalhos antes do envio ao destino.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma transformação independente para cada linha de log, sem identificador comum propagado nos registros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um identificador de correlação propagado e registrado nas etapas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A desativação de logs no consumidor e no barramento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A gravação obrigatória de todo o payload sem mascaramento.",
+          "correct": false
+        }
+      ],
+      "explanation": "O ID de correlação pode acompanhar a solicitação e aparecer nos registros de cada etapa, permitindo rastrear um fluxo sem depender de registrar indiscriminadamente o conteúdo sensível da mensagem.",
+      "section": "4. Confiabilidade, segurança e operação do ESB",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se todos os sistemas usam o mesmo protocolo de transporte, não há necessidade de definir contrato ou validar o significado dos campos trocados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um protocolo comum resolve apenas parte da conectividade. Sistemas ainda precisam concordar sobre estrutura, tipos, campos obrigatórios, significado e regras das operações para que os dados sejam interpretados corretamente.",
+      "section": "1. O papel do barramento na integração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma integração recebe mensagens pelo mesmo transporte HTTP e as envia por JMS a um serviço legado. Essa troca ilustra que o ESB pode mediar transportes diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um barramento pode receber por um transporte e enviar por outro, desde que os conectores e o fluxo estejam configurados. Essa mediação de transporte permite conectar aplicações com capacidades distintas.",
+      "section": "1. O papel do barramento na integração",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual exemplo representa melhor uma validação de contrato no fluxo do barramento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter o protocolo e encaminhar sem conferir campos obrigatórios, tipos ou estrutura do payload recebido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Selecionar o servidor com menor carga sem examinar a mensagem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Replicar o evento para todos os consumidores inscritos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificar campos obrigatórios, tipos e estrutura conforme o contrato acordado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Guardar indefinidamente a mensagem em uma fila de saída.",
+          "correct": false
+        }
+      ],
+      "explanation": "Validação de contrato verifica propriedades esperadas da mensagem, como presença e tipo de campos ou estrutura. Balanceamento, publicação e transformação de transporte são funções diferentes.",
+      "section": "2. Endpoints, contratos e mediação de mensagens",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma validação estrutural bem-sucedida prova que o dado recebido é verdadeiro e que o usuário está autorizado a executar a operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A validação estrutural verifica conformidade com formato e regras definidas, mas não prova veracidade do dado nem autorização da identidade. Validação de negócio, autenticação e autorização são controles distintos.",
+      "section": "2. Endpoints, contratos e mediação de mensagens",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma decisão usa o cabeçalho `operacao` para escolher entre dois serviços, sem consultar o conteúdo principal. Qual critério de roteamento está sendo aplicado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publicação/assinatura em que todos os serviços recebem a chamada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Roteamento por conteúdo do payload exclusivamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Agregação de mensagens conforme seu resultado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformação semântica obrigatória entre os contratos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Roteamento pelo cabeçalho ou por outro metadado da mensagem.",
+          "correct": true
+        }
+      ],
+      "explanation": "A regra consulta o cabeçalho, portanto baseia a seleção em metadado da mensagem. Roteamento por conteúdo examina o payload; transformar dados e distribuir a todos os assinantes são operações diferentes.",
+      "section": "3. Roteamento, padrões e modos de comunicação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na comunicação assíncrona, o produtor sempre precisa permanecer conectado até o consumidor concluir a operação e devolver a resposta final.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O desacoplamento temporal permite que o produtor envie a mensagem e encerre a interação inicial. Uma confirmação ou resposta posterior pode ser comunicada separadamente, sem manter a chamada original aberta.",
+      "section": "3. Roteamento, padrões e modos de comunicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que condição distingue melhor uma confirmação de recebimento de uma resposta de negócio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Recebimento confirma conclusão; resposta de negócio apenas valida transporte.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O recebimento confirma aceitação; a resposta informa o resultado de negócio.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Recebimento e resposta são sempre o mesmo evento e têm semântica idêntica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Recebimento é exclusivo de chamadas HTTP; resposta é exclusiva de filas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Recebimento substitui correlação e dispensa tratamento de falhas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma confirmação de transporte ou enfileiramento pode indicar apenas que a mensagem foi aceita. A resposta de negócio comunica o resultado do processamento, que pode ocorrer depois e exigir correlação com a solicitação original.",
+      "section": "3. Roteamento, padrões e modos de comunicação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um filtro de mensagem pode impedir que mensagens que não atendam a uma condição sejam encaminhadas a determinado serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O padrão Message Filter usa uma condição para deixar passar, descartar ou desviar mensagens. A política deve permitir diagnóstico adequado dos casos descartados ou rejeitados.",
+      "section": "3. Roteamento, padrões e modos de comunicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática ajuda a evitar que retentativas ilimitadas agravem uma indisponibilidade do serviço de destino?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar correlação para reduzir a quantidade de metadados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Repetir imediatamente todas as mensagens sem registrar tentativas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir limite, intervalo entre tentativas e destino de falha para análise.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Duplicar cada chamada em todos os endpoints cadastrados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover autenticação durante toda a indisponibilidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "Políticas limitadas e espaçadas controlam carga durante falhas; ao esgotá-las, a mensagem pode seguir para DLQ ou outro tratamento. Reenvio imediato e sem limite pode piorar a saturação e produzir duplicidades.",
+      "section": "4. Confiabilidade, segurança e operação do ESB",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O encaminhamento de uma mensagem à DLQ, por si só, significa que o efeito solicitado foi concluído com sucesso no sistema de destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A DLQ registra ou preserva mensagens que não foram processadas conforme a política. Ela sinaliza uma situação a investigar e não comprova sucesso de negócio no destino.",
+      "section": "4. Confiabilidade, segurança e operação do ESB",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve adequadamente a relação entre autenticação, autorização e TLS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autorização e TLS são sinônimos e podem ser configurados como uma única regra.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Autenticação protege o canal, TLS define permissões e autorização converte formatos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "TLS identifica a regra de negócio e dispensa credenciais do serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Autenticação identifica; autorização define permissões; TLS protege o canal.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Transformação substitui os três controles ao remover campos sensíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Autenticação verifica a identidade; autorização controla operações permitidas; TLS oferece proteção da comunicação em trânsito. Esses controles se complementam e não são intercambiáveis.",
+      "section": "4. Confiabilidade, segurança e operação do ESB",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como o ESB centraliza mediações, ele não precisa de monitoramento próprio: basta monitorar os sistemas de origem e destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O próprio barramento pode apresentar saturação, erros de transformação, filas acumuladas ou falhas de configuração. Métricas e rastreamento do ESB são necessários para distinguir problemas do barramento dos problemas nos endpoints.",
+      "section": "4. Confiabilidade, segurança e operação do ESB",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização migra gradualmente um sistema legado sem alterar o contrato público usado pelos consumidores. Qual capacidade do ESB favorece essa substituição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Expor o novo banco diretamente e exigir que cada consumidor descubra seu endereço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Replicação obrigatória do banco legado para o banco novo em toda chamada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remoção do contrato, permitindo que cada consumidor adivinhe o endpoint.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Execução síncrona obrigatória e serial de todas as operações da organização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Preservar a interface pública e mediar o encaminhamento ao novo destino.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma interface intermediária pode preservar o contrato conhecido pelos consumidores enquanto o fluxo direciona chamadas ao novo destino ou adapta interfaces. Isso reduz o impacto da substituição, desde que contratos e semântica sejam mantidos.",
+      "section": "1. O papel do barramento na integração",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ESB é sempre uma única máquina física centralizada; a arquitetura não admite implantação distribuída ou escalável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. ESB descreve uma função ou infraestrutura de integração, não uma topologia física obrigatória. Implementações podem distribuir instâncias, brokers ou componentes para atender disponibilidade e escala, conforme produto e arquitetura.",
+      "section": "1. O papel do barramento na integração",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O contrato do consumidor usa `valor` em reais, enquanto o destino espera centavos inteiros. Qual tarefa é necessária além de renomear o campo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alterar apenas o protocolo HTTP para TLS sem modificar os dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mapear o significado e converter a unidade com validação explícita.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar o ID de correlação como valor monetário de destino.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Encaminhar a mensagem a qualquer endpoint disponível sem transformação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Publicar a mensagem em um tópico para dispensar o contrato.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os campos têm unidades diferentes; o mapeamento precisa refletir explicitamente a semântica e converter a unidade com validação para evitar erro de escala. Uma simples troca de nome ou protocolo não resolve a diferença.",
+      "section": "2. Endpoints, contratos e mediação de mensagens",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transformação XML-para-JSON garante que campos homônimos tenham a mesma unidade, significado e regra de negócio nos dois sistemas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A conversão pode adaptar sintaxe e estrutura, mas não determina sozinha significado, unidade ou regra de negócio. Esses aspectos precisam estar definidos no contrato e no mapeamento semântico.",
+      "section": "2. Endpoints, contratos e mediação de mensagens",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando uma mensagem produzida por um serviço precisa ser entregue aos interessados sem que o produtor conheça cada consumidor, que abordagem é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Roteamento para um único consumidor fixo sem contrato de evento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Chamada direta do produtor a todos os bancos dos consumidores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Publicar o evento em tópico para assinantes desacoplados do produtor.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Agregação dos consumidores em uma única identidade autenticada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Validação de esquema usada como mecanismo de transporte.",
+          "correct": false
+        }
+      ],
+      "explanation": "Publicação/assinatura separa o produtor dos consumidores: ele publica o evento e os interessados assinam o tópico. O contrato do evento continua necessário, mas o produtor não precisa invocar cada consumidor diretamente.",
+      "section": "3. Roteamento, padrões e modos de comunicação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar sem limite o tempo de espera de uma chamada síncrona elimina o risco de timeout e os efeitos de indisponibilidade do destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Espera ilimitada pode prender recursos e degradar o chamador sem tornar o destino disponível. Limites de timeout, retentativa controlada e circuit breaker ou estratégias equivalentes são decisões de resiliência específicas da implementação.",
+      "section": "4. Confiabilidade, segurança e operação do ESB",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre o uso de um ESB é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele garante entrega única de toda mensagem independentemente do broker.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele elimina toda necessidade de monitoramento porque absorve qualquer falha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele torna contratos dispensáveis ao converter automaticamente qualquer semântica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Centraliza mediações úteis e exige governança contra gargalos e dependências.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Ele deve ser usado como banco central para todos os dados empresariais.",
+          "correct": false
+        }
+      ],
+      "explanation": "A mediação compartilhada pode reduzir conexões diretas e concentrar capacidades comuns, mas também cria dependência operacional e exige governança, escala, observabilidade e desenho cuidadoso dos contratos. Não garante correção automática nem entrega exatamente uma vez em qualquer cenário.",
+      "section": "4. Confiabilidade, segurança e operação do ESB",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Red Hat Fuse 6.2 — Red Hat JBoss Fuse Overview",
+      "publisher": "Red Hat",
+      "reference": "Definição descritiva de ESB, mediação, transformação, roteamento, rotas e endpoints; documentação de produto consultada como referência de conceitos e componentes.",
+      "url": "https://docs.redhat.com/en/documentation/red_hat_fuse/6.2/html/getting_started/product_overview",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Oracle Service Bus — Learning About Oracle Service Bus",
+      "publisher": "Oracle",
+      "reference": "Camadas de transporte, binding e pipeline; etapas de processamento; serviços proxy e de negócio; roteamento, validação, transformação, segurança e operação.",
+      "url": "https://docs.oracle.com/middleware/12212/osb/develop/GUID-2CFA406F-66DF-44F1-894B-CFD7EC66CEB1.htm",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Oracle Enterprise Service Bus — Introduction to Oracle Enterprise Service Bus",
+      "publisher": "Oracle",
+      "reference": "Conectividade, transformação de documentos, roteamento, filtros, execução síncrona ou assíncrona e regras de prioridade.",
+      "url": "https://docs.oracle.com/cd/B31017_01/core.1013/b28764/esb001.htm",
+      "accessedAt": "2026-10-31"
+    }
+  ]
+}

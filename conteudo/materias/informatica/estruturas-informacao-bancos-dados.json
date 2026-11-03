@@ -1,0 +1,1988 @@
+{
+  "id": "informatica.estruturas-informacao-bancos-dados",
+  "subject": "Informática",
+  "title": "Estruturas de informação",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Estruturas de informação",
+    "Estruturas de dados em informática",
+    "Estruturas de dados lineares e não lineares",
+    "Organização de dados em memória",
+    "Vetores, listas e estruturas encadeadas",
+    "Pilhas, filas e filas de prioridade",
+    "Árvores, heaps e árvores de busca",
+    "Tabelas hash e resolução de colisões",
+    "Grafos e formas de representação",
+    "Tipos abstratos de dados e estruturas",
+    "Complexidade das operações em estruturas",
+    "Estruturas de informação em programação"
+  ],
+  "scope": {
+    "covers": "Tipos abstratos de dados e representação; vetores, listas sequenciais e encadeadas; pilhas, filas, filas circulares, deques e filas de prioridade; árvores gerais e binárias, percursos, árvores de busca e heaps; tabelas hash, funções hash e colisões; grafos, matrizes e listas de adjacência; escolha de estrutura e custos assintóticos típicos.",
+    "excludes": "Projeto lógico e normalização de bancos relacionais, índices específicos de SGBDs, algoritmos avançados de grafos, implementação de estruturas em linguagem específica e análise formal aprofundada de algoritmos."
+  },
+  "theoryTitle": "Como organizar informação para acessá-la e alterá-la",
+  "chapters": [
+    {
+      "title": "1. O que é uma estrutura de informação",
+      "markdown": "### O problema que este assunto resolve\n\nUm programa que recebe nomes de candidatos, endereços de páginas ou tarefas precisa decidir como guardar esses elementos para encontrá-los, percorrê-los, inserir novos e remover antigos. **Estrutura de dados** é a organização concreta desses dados e das relações entre eles, adequada às operações que o programa precisa fazer. A mesma coleção pode ser representada de maneiras diferentes; cada escolha favorece algumas operações e torna outras mais caras.\n\n> **Siglas e termos deste capítulo**\n> - **Tipo abstrato de dado (TAD)**: descrição do que se pode fazer com uma coleção, sem determinar sua representação interna.\n> - **Estrutura de dados**: representação concreta que implementa as operações do TAD.\n> - **Elemento**: unidade armazenada, como um registro de pessoa.\n> - **Índice**: posição numérica usada para acessar um elemento de um vetor.\n> - **Complexidade**: modo de expressar como o trabalho cresce com o tamanho da coleção.\n\n### TAD e implementação são coisas diferentes\n\nUma lista como TAD oferece operações como consultar a posição, inserir e remover. Ela pode ser implementada em um **vetor** (posições contíguas e acesso por índice) ou em **nós encadeados** (cada nó guarda o dado e uma referência ao seguinte). Uma pilha como TAD oferece inserir e retirar pelo topo; pode usar vetor ou nós. O comportamento definido pelo TAD não obriga uma representação específica.\n\n### Vetor e lista sequencial\n\nUm vetor armazena elementos em posições consecutivas. Como o endereço de um elemento pode ser calculado a partir do início e do índice, acessar `v[i]` costuma ter custo constante, O(1). Para inserir no meio de um vetor ordenado com n elementos, é preciso abrir espaço deslocando elementos; no pior caso, o trabalho é O(n). Um vetor dinâmico pode reservar capacidade extra e crescer quando enche; aumentar a capacidade exige realocação e cópia, embora inserções no fim sejam O(1) amortizado em implementações usuais.\n\n### Lista encadeada\n\nNa lista simplesmente encadeada, cada nó contém o valor e uma referência ao próximo nó. A lista mantém uma referência para o primeiro nó; para chegar ao elemento de índice i, percorrem-se os nós anteriores, portanto a consulta posicional custa O(n). Se já se tem a referência ao ponto de inserção, ligar ou retirar um nó pode custar O(1), sem deslocar os demais. Numa lista duplamente encadeada, cada nó também referencia o anterior, facilitando percorrer nos dois sentidos e remover um nó conhecido, ao custo de referências e espaço adicionais.\n\n| Operação típica | Vetor/lista sequencial | Lista encadeada |\n| --- | --- | --- |\n| Acesso por posição | O(1) | O(n) para localizar |\n| Inserir no início | O(n), deslocando elementos | O(1), ajustando referências |\n| Inserir após nó já localizado | O(n) no vetor por deslocamento | O(1) |\n| Percorrer todos os elementos | O(n) | O(n) |\n\nOs custos supõem operações usuais e, na lista encadeada, que o nó de referência já é conhecido. Se for necessário procurá-lo, essa busca custa O(n). A documentação Java da Oracle registra a mesma diferença: ArrayList tem acesso posicional constante, enquanto LinkedList tem acesso posicional linear; a lista encadeada é vantajosa em inserções e remoções locais frequentes, mas costuma ter maior custo constante.\n\n### Como cai na prova\n\n- Acesso direto pelo índice favorece vetor; encadeamento não torna a busca por posição constante.\n- Inserção em lista encadeada só é O(1) quando a posição ou nó já foi localizado.\n- TAD descreve operações observáveis; estrutura descreve como elas são implementadas.\n- Mais flexível para inserir não significa automaticamente mais rápida em toda operação."
+    },
+    {
+      "title": "2. Pilhas, filas e filas de prioridade",
+      "markdown": "### O problema que este assunto resolve\n\nHá situações em que a regra de atendimento importa mais que a posição arbitrária. O histórico de voltar páginas precisa desfazer a ação mais recente; uma fila de impressão normalmente atende solicitações na ordem de chegada; tarefas urgentes podem ser escolhidas pela prioridade. Pilhas e filas codificam regras de acesso explícitas.\n\n> **Siglas e termos deste capítulo**\n> - **LIFO**: last in, first out; o último elemento inserido sai primeiro.\n> - **FIFO**: first in, first out; o primeiro elemento inserido sai primeiro.\n> - **Topo**: extremidade da pilha em que ocorrem inserção e retirada.\n> - **Frente e traseira**: extremidades de remoção e inserção de uma fila FIFO.\n> - **Deque**: fila de duas extremidades, com operações nas duas pontas.\n> - **Overflow/underflow**: tentativa de inserir além da capacidade ou retirar de estrutura vazia, em implementações que reportam esses estados.\n\n### Pilha: último a entrar, primeiro a sair\n\nUma pilha aceita `push` no topo e `pop` no topo; `peek` consulta o topo sem removê-lo. Se forem empilhados A, B e C, a primeira retirada devolve C. Uma pilha serve para chamadas de funções, desfazer operações, avaliar expressões e verificar parênteses balanceados. Vetor com índice de topo ou lista encadeada no topo podem implementar o mesmo TAD; push e pop são O(1) quando a implementação não precisa crescer ou realocar naquele instante.\n\n### Fila: primeiro a entrar, primeiro a sair\n\nUma fila FIFO insere na traseira e remove na frente. Após inserir A, B e C nessa ordem, a remoção devolve A. Uma implementação ingênua em vetor que desloca tudo após cada remoção pode custar O(n). Uma fila circular trata o vetor como um anel: após a última posição, o índice avança para a primeira, normalmente usando o resto da divisão pelo tamanho do vetor. Guardando frente e quantidade de elementos (ou outra convenção consistente para distinguir vazia e cheia), inserir e remover podem ser O(1). Fila encadeada com referências à frente e ao fim também permite ambas em O(1).\n\n### Deque e prioridade\n\nO deque (double-ended queue) permite inserir e remover tanto pela frente quanto pela traseira. Não é sinônimo de fila FIFO, embora possa ser usado como tal. Já uma fila de prioridade remove o elemento de maior prioridade (ou menor chave, conforme a convenção), não necessariamente o que chegou primeiro. Uma implementação comum é o **heap binário**, em que a consulta ao elemento prioritário está na raiz; inserir e retirar a raiz custam O(log n), e consultar a raiz O(1).\n\n| Estrutura | Regra de saída | Exemplo concreto |\n| --- | --- | --- |\n| Pilha | LIFO | desfazer a última edição |\n| Fila | FIFO | processar pedidos por chegada |\n| Fila de prioridade | maior prioridade primeiro | selecionar evento mais urgente |\n| Deque | operações nas duas pontas | janela de itens recentes |\n\n### Como cai na prova\n\n- Pilha é LIFO; fila comum é FIFO. Inverter os nomes muda a resposta.\n- Fila circular não descarta o espaço antes da frente: reutiliza as posições do vetor.\n- Fila de prioridade não garante atendimento por ordem de chegada quando as prioridades diferem.\n- Heap é uma implementação de fila de prioridade, não outra regra abstrata de FIFO."
+    },
+    {
+      "title": "3. Árvores e heaps",
+      "markdown": "### O problema que este assunto resolve\n\nDados com relações hierárquicas — diretórios e subdiretórios, categorias, árvore genealógica — não formam naturalmente uma sequência única. Árvores representam essa hierarquia por nós ligados por arestas, com um nó de origem e relações entre pais e filhos. Árvores de busca acrescentam uma regra de ordenação que ajuda a procurar chaves.\n\n> **Siglas e termos deste capítulo**\n> - **Raiz**: nó sem pai, no topo da hierarquia.\n> - **Folha**: nó sem filhos.\n> - **Subárvore**: nó considerado junto com seus descendentes.\n> - **Altura**: comprimento do caminho mais longo da raiz a uma folha, conforme a convenção de contagem adotada.\n> - **BST**: binary search tree, árvore binária de busca.\n> - **Heap**: árvore quase completa que respeita uma relação de prioridade entre pai e filhos.\n\n### Árvores gerais e binárias\n\nEm uma árvore geral, um nó pode ter qualquer quantidade de filhos. Em árvore binária, cada nó tem no máximo dois, convencionalmente chamados esquerdo e direito. Um percurso **pré-ordem** visita nó, subárvore esquerda e direita; **em ordem** visita esquerda, nó, direita; **pós-ordem** visita esquerda, direita, nó. Em uma árvore binária de busca sem chaves duplicadas, o percurso em ordem lista as chaves em ordem crescente.\n\n### Árvore binária de busca\n\nA propriedade de busca é: chaves menores que a chave de um nó ficam na subárvore esquerda; maiores, na direita (a política para duplicatas deve ser definida). A busca compara a chave e segue apenas um dos ramos. Em uma árvore balanceada, busca, inserção e remoção são O(log n), pois a altura cresce proporcionalmente ao logaritmo de n. Se os dados forem inseridos já ordenados numa BST sem balanceamento, ela pode degenerar numa cadeia; sua altura vira O(n), e essas operações podem também custar O(n).\n\n### Heap binário\n\nHeap mínimo satisfaz que a chave de cada pai é menor ou igual às chaves dos filhos; heap máximo inverte a relação. A raiz guarda o mínimo ou máximo, mas os demais elementos não ficam totalmente ordenados. Por ser uma árvore binária completa (todos os níveis completos, salvo talvez o último, preenchido da esquerda para a direita), pode ser representado eficientemente em vetor. Numa indexação iniciada em zero, os filhos de i ficam em `2i+1` e `2i+2`, e o pai de um índice j>0 fica em `floor((j-1)/2)`.\n\n| Estrutura | Propriedade principal | Operação favorecida |\n| --- | --- | --- |\n| Árvore geral | hierarquia sem limite binário de filhos | representar relações hierárquicas |\n| BST | chaves menores à esquerda e maiores à direita | busca ordenada, se altura controlada |\n| Heap mínimo | pai não é maior que seus filhos | consultar e remover o mínimo |\n\n### Como cai na prova\n\n- Árvore binária limita cada nó a dois filhos; não exige que tenha exatamente dois.\n- Em BST, percurso em ordem produz chaves crescentes se a propriedade e a política de duplicatas forem respeitadas.\n- Heap mantém prioridade entre pai e filhos, mas não mantém todos os elementos ordenados.\n- A complexidade da BST depende da altura; sem balanceamento pode ser linear."
+    },
+    {
+      "title": "4. Hashing e grafos",
+      "markdown": "### O problema que este assunto resolve\n\nPara localizar um cadastro pela chave exata, pode-se calcular uma posição provável diretamente em vez de percorrer todos os registros. Para representar relações entre cidades, computadores ou pessoas, interessa guardar vértices e ligações, inclusive quando a rede não forma uma hierarquia. Tabelas hash e grafos atendem a esses problemas distintos.\n\n> **Siglas e termos deste capítulo**\n> - **Chave**: valor usado para identificar ou localizar um registro.\n> - **Função hash**: transforma uma chave em um valor usado para escolher uma posição/balde.\n> - **Colisão**: chaves diferentes produzem a mesma posição.\n> - **Vértice (nó)**: entidade representada num grafo.\n> - **Aresta**: relação entre dois vértices.\n> - **Grafo dirigido**: arestas possuem sentido; no não dirigido, a ligação é recíproca.\n\n### Tabela hash\n\nUma tabela hash usa uma função h(chave) para calcular o balde onde procurar o registro. Por exemplo, numa tabela de tamanho 10, h(k)=k mod 10 leva a chave 42 ao balde 2. Se outra chave também produzir 2, ocorre colisão; isso é normal e exige tratamento. **Encadeamento** guarda vários elementos do mesmo balde numa coleção, como uma lista. **Endereçamento aberto** procura outra posição na própria tabela, por sondagem linear, quadrática ou hash duplo. Apagar em endereçamento aberto requer cuidado: simplesmente marcar a posição como vazia pode interromper uma cadeia de sondagem e fazer uma chave posterior parecer inexistente; usa-se estado de removido ou estratégia equivalente.\n\nCom função razoavelmente distribuída e fator de carga controlado, busca, inserção e remoção têm custo médio próximo de O(1). No pior caso, muitas colisões podem levar a O(n). Hashing é adequado a correspondência exata; não mantém as chaves ordenadas e não é a escolha natural para consultas por intervalo, como “todas as chaves entre 30 e 50”.\n\n### Grafos e representações\n\nUm grafo G=(V,E) reúne vértices V e arestas E. Em grafo dirigido, A→B não implica B→A; em grafo não dirigido, uma aresta {A,B} expressa ligação nos dois sentidos. Arestas podem ter pesos, como distância ou custo. Uma **matriz de adjacência** usa uma matriz |V| por |V|: consulta se dois vértices estão ligados é O(1), mas o espaço é O(|V|²), mesmo em redes esparsas. Uma **lista de adjacência** registra os vizinhos de cada vértice e usa O(|V|+|E|) espaço; percorrer vizinhos de um vértice custa proporcional ao seu grau.\n\n| Representação | Espaço típico | Consulta se há aresta (u,v) |\n| --- | --- | --- |\n| Matriz de adjacência | O(V²) | O(1) |\n| Lista de adjacência | O(V+E) | pode exigir percorrer vizinhos de u |\n\nGrafos modelam, por exemplo, ruas e interseções, conexões de rede ou amizades. Uma árvore é um caso particular de grafo conectado e sem ciclos; nem todo grafo é árvore. Para redes esparsas, a lista de adjacência evita reservar espaço para a maioria das arestas ausentes.\n\n### Como cai na prova\n\n- Colisão é inevitável em princípio quando muitas chaves competem por menos posições; não significa necessariamente erro.\n- Hashing favorece busca exata, não consultas ordenadas por intervalo.\n- Matriz ocupa espaço quadrático em V; lista de adjacência é econômica quando E é pequeno em relação a V².\n- Grafo pode ter ciclos e várias conexões; árvore não tem ciclos e tem estrutura hierárquica."
+    }
+  ],
+  "summary": "Estruturas de informação organizam elementos e relações de acordo com as operações necessárias. Vetores permitem acesso por índice; listas encadeadas facilitam alterações locais quando o nó já é conhecido. Pilhas seguem LIFO, filas FIFO e filas de prioridade atendem pela prioridade. Árvores representam hierarquias; BSTs ordenam chaves conforme a altura e heaps preservam prioridade na raiz. Hashing calcula posições para buscas exatas e precisa tratar colisões. Grafos representam redes e podem usar matriz ou lista de adjacência. Complexidades dependem da representação e das condições da operação.",
+  "flashcards": [
+    {
+      "front": "O que diferencia um TAD de uma estrutura de dados?",
+      "back": "O TAD define operações e comportamento; a estrutura é a representação concreta que implementa essas operações."
+    },
+    {
+      "front": "Qual é a vantagem de acesso de um vetor?",
+      "back": "Acesso por índice em tempo O(1), pois a posição pode ser calculada diretamente."
+    },
+    {
+      "front": "Quanto custa localizar a posição i numa lista encadeada?",
+      "back": "O(n) no pior caso, pois é necessário seguir as referências desde o início."
+    },
+    {
+      "front": "Quando inserir num nó encadeado custa O(1)?",
+      "back": "Quando a posição de inserção ou o nó anterior já está localizado; a busca inicial pode custar O(n)."
+    },
+    {
+      "front": "Que sequência de saída caracteriza uma pilha?",
+      "back": "LIFO: o último elemento inserido é o primeiro retirado."
+    },
+    {
+      "front": "Que sequência de saída caracteriza uma fila comum?",
+      "back": "FIFO: o primeiro elemento inserido é o primeiro retirado."
+    },
+    {
+      "front": "Para que serve peek numa pilha?",
+      "back": "Consultar o elemento do topo sem removê-lo."
+    },
+    {
+      "front": "Como uma fila circular reutiliza o vetor?",
+      "back": "Faz os índices avançarem em anel, voltando ao início após a última posição."
+    },
+    {
+      "front": "Como difere uma fila de prioridade de uma FIFO?",
+      "back": "Retira conforme prioridade da chave, que pode contrariar a ordem de chegada."
+    },
+    {
+      "front": "O que permite um deque?",
+      "back": "Inserir e remover elementos em ambas as extremidades."
+    },
+    {
+      "front": "O que caracteriza uma árvore binária?",
+      "back": "Cada nó tem no máximo dois filhos, chamados usualmente esquerdo e direito."
+    },
+    {
+      "front": "Qual percurso de BST lista as chaves em ordem crescente?",
+      "back": "Percurso em ordem: esquerda, nó, direita, sob a propriedade de busca."
+    },
+    {
+      "front": "Qual risco de uma BST inserir chaves já ordenadas sem balanceamento?",
+      "back": "Pode degenerar numa cadeia, ficar com altura O(n) e tornar operações lineares."
+    },
+    {
+      "front": "O que fica na raiz de um heap mínimo?",
+      "back": "Uma chave mínima; cada pai é menor ou igual a seus filhos, mas o restante não está totalmente ordenado."
+    },
+    {
+      "front": "O que é uma colisão em tabela hash?",
+      "back": "Duas chaves distintas são mapeadas para o mesmo balde ou posição inicial."
+    },
+    {
+      "front": "Cite dois métodos para resolver colisões. ",
+      "back": "Encadeamento e endereçamento aberto, como sondagem linear, quadrática ou hash duplo."
+    },
+    {
+      "front": "Que consulta uma tabela hash favorece?",
+      "back": "Busca por correspondência exata; não preserva ordenação para consultas por intervalo."
+    },
+    {
+      "front": "O que é um grafo dirigido?",
+      "back": "Um grafo em que cada aresta tem sentido; A→B não implica B→A."
+    },
+    {
+      "front": "Qual custo de espaço de uma matriz de adjacência?",
+      "back": "O(V²), pois registra uma posição para cada par de vértices."
+    },
+    {
+      "front": "Por que lista de adjacência funciona bem em grafo esparso?",
+      "back": "Armazena vértices e arestas existentes em O(V+E), sem matriz quase toda vazia."
+    },
+    {
+      "front": "Uma árvore pode ser vista como grafo?",
+      "back": "Sim; é um grafo conectado sem ciclos, com organização hierárquica."
+    },
+    {
+      "front": "Qual é o custo médio esperado de operação hash com distribuição adequada?",
+      "back": "Próximo de O(1), com fator de carga controlado; o pior caso pode ser O(n)."
+    }
+  ],
+  "tips": [
+    "Antes de responder complexidade de lista encadeada, verifique se a posição já foi localizada.",
+    "Associe LIFO à pilha e FIFO à fila pela ordem real de retirada, não pela sigla isolada.",
+    "Para BST, procure no enunciado a condição de balanceamento; ela muda a altura e o custo.",
+    "Heap organiza a prioridade entre pai e filhos; não leia a representação como vetor totalmente ordenado.",
+    "Em hashing, procure qual tratamento de colisão foi especificado e se a consulta é exata ou por faixa.",
+    "Em grafos, compare V e E: poucos arcos favorecem lista de adjacência; consulta constante de aresta favorece matriz."
+  ],
+  "traps": [
+    "A prova diz que toda inserção em lista encadeada é O(1). Isso ignora o custo de percorrer a lista para achar o lugar.",
+    "A prova chama pilha de FIFO. Pilha é LIFO; a fila comum é FIFO.",
+    "A prova conclui que BST sempre busca em O(log n). Isso só é garantido quando a altura é logarítmica, como em árvore balanceada.",
+    "A prova afirma que heap mantém todos os valores ordenados. Heap só impõe a relação de prioridade entre pais e filhos.",
+    "A prova chama colisão de falha da função hash. Colisões são esperadas e tratadas por encadeamento ou sondagem.",
+    "A prova sugere hashing para localizar intervalo ordenado. Hashing serve melhor para igualdade; árvore ordenada atende faixas."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique a diferença entre TAD e implementação usando uma pilha.",
+      "answer": "O TAD define push, pop e consulta ao topo, sempre seguindo LIFO; vetor ou lista encadeada são representações concretas possíveis."
+    },
+    {
+      "question": "Compare acesso por posição em vetor e lista encadeada.",
+      "answer": "Vetor permite calcular posição em O(1); lista encadeada precisa percorrer nós e pode gastar O(n)."
+    },
+    {
+      "question": "Por que inserir numa lista encadeada pode não ser O(1) no total?",
+      "answer": "Alterar referências após localizar o nó é O(1), mas encontrar a posição por percurso pode exigir O(n)."
+    },
+    {
+      "question": "Descreva o comportamento de uma fila circular baseada em vetor.",
+      "answer": "Mantém índices de frente e inserção; ao alcançar o fim físico do vetor, os índices retornam ao começo, reutilizando posições liberadas."
+    },
+    {
+      "question": "Como a altura afeta uma árvore binária de busca?",
+      "answer": "Busca, inserção e remoção seguem um caminho cuja extensão depende da altura: O(log n) balanceada, até O(n) degenerada."
+    },
+    {
+      "question": "O que a raiz de um heap garante e o que não garante?",
+      "answer": "Garante acesso ao mínimo ou máximo, conforme o heap; não coloca todos os demais elementos em ordem global."
+    },
+    {
+      "question": "Por que uma tabela hash precisa de método de colisão?",
+      "answer": "Chaves diferentes podem produzir a mesma posição. Encadeamento ou endereçamento aberto mantêm ambas localizáveis."
+    },
+    {
+      "question": "Compare matriz e lista de adjacência para uma rede esparsa.",
+      "answer": "A matriz usa O(V²) e consulta aresta em O(1); a lista usa O(V+E) e percorre os vizinhos registrados."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre TAD e representação",
+      "summary": "TAD descreve operações e regras observáveis; vetor, lista encadeada e outras representações implementam essas regras com custos diferentes."
+    },
+    {
+      "key": "e2",
+      "title": "Custos de listas tratados como absolutos",
+      "summary": "Acesso posicional é O(1) no vetor e O(n) na lista encadeada; inserção local em nó conhecido é O(1), sem incluir busca prévia."
+    },
+    {
+      "key": "e3",
+      "title": "LIFO e FIFO invertidos",
+      "summary": "Pilha retira o mais recente; fila comum retira o mais antigo. Fila de prioridade segue prioridade, deque opera nas duas pontas."
+    },
+    {
+      "key": "e4",
+      "title": "Árvores presumidas sempre balanceadas",
+      "summary": "BST balanceada oferece altura logarítmica; uma BST simples pode virar cadeia. Heap preserva prioridade entre pais e filhos, não ordenação total."
+    },
+    {
+      "key": "e5",
+      "title": "Hash e grafo sem considerar representação",
+      "summary": "Hash precisa tratar colisões e favorece igualdade; matriz de adjacência usa O(V²), lista usa O(V+E), e grafos não precisam ser árvores."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um programa precisa consultar rapidamente o elemento da posição 500 de uma sequência. Qual representação favorece essa operação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma lista simplesmente encadeada percorrida desde a cabeça.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um vetor com acesso direto pelo índice da posição.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma pilha que só expõe o elemento do topo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma fila FIFO sem operação de acesso posicional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um grafo representado por uma lista de adjacência.",
+          "correct": false
+        }
+      ],
+      "explanation": "O vetor calcula diretamente o endereço do índice 500 e oferece acesso posicional O(1). Na lista encadeada seria preciso percorrer os nós; pilha e fila restringem o acesso pelas extremidades, e grafo representa relações entre vértices.",
+      "section": "1. O que é uma estrutura de informação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um algoritmo deve inserir um valor logo depois de um nó que já foi encontrado numa lista simplesmente encadeada. Qual afirmação descreve o custo da alteração local?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É O(n), pois todos os nós posteriores precisam ser deslocados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É O(log n), pois a lista divide os nós em níveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É O(1), pois basta ajustar as referências envolvidas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "É O(n²), pois cada nó exige busca binária.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É sempre O(1), inclusive quando ainda se procura a posição.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com a referência ao nó já localizado, a inserção exige ajustar poucas ligações e custa O(1). A busca para localizar uma posição arbitrária continua podendo custar O(n), e lista encadeada não desloca todos os elementos como um vetor.",
+      "section": "1. O que é uma estrutura de informação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma lista encadeada permite acesso por índice em tempo constante, pois seus nós guardam referência ao próximo elemento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A referência ao próximo nó permite avançar sequencialmente, mas para alcançar um índice distante é necessário visitar os nós anteriores, podendo custar O(n).",
+      "section": "1. O que é uma estrutura de informação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe define que uma coleção deve aceitar push e pop pelo topo, mas deixa a escolha entre vetor e nós para a implementação. A definição das operações e da regra de saída é um TAD.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O tipo abstrato de dado estabelece as operações e seu comportamento sem exigir uma estrutura física. Um vetor ou uma lista encadeada pode implementar a mesma pilha.",
+      "section": "1. O que é uma estrutura de informação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao inserir um elemento no começo de um vetor que já contém n elementos, uma implementação sequencial pode precisar deslocar os valores existentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Para liberar a primeira posição, os elementos podem ser movidos uma posição, levando a trabalho linear no tamanho n. A lista encadeada pode inserir no começo ajustando sua referência inicial.",
+      "section": "1. O que é uma estrutura de informação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual estrutura é mais adequada para registrar o caminho de páginas visitadas quando a ação de voltar deve desfazer a visita mais recente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma fila circular que remove sempre a visita mais antiga.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma árvore de busca que mantém páginas em ordem alfabética.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma matriz de adjacência para todas as páginas acessadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma pilha, que devolve primeiro a visita mais recente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma tabela hash, que ordena visitas pela data de acesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "A operação de voltar desfaz a ação mais recente, comportamento LIFO de pilha. Uma fila FIFO remove a mais antiga; árvore e hash organizam chaves por outras propriedades e matriz representa arestas.",
+      "section": "2. Pilhas, filas e filas de prioridade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila recebe os pedidos P, Q e R nessa ordem. Sem prioridades especiais, qual pedido sai primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "P, pois a fila comum atende primeiro quem chegou antes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "R, pois o último pedido inserido fica na frente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Q, pois a fila escolhe sempre o elemento central.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O pedido com maior código, independentemente da chegada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Nenhum, pois a fila só permite consultar sem remover.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma fila FIFO remove primeiro o elemento que entrou primeiro; portanto P sai antes de Q e R. A ordem LIFO pertence à pilha e escolha por chave caracteriza prioridade, não fila comum.",
+      "section": "2. Pilhas, filas e filas de prioridade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A operação peek de uma pilha consulta o elemento do topo e o remove imediatamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Peek observa o elemento do topo sem modificar a estrutura. A retirada é feita por pop. Essa distinção é importante quando um algoritmo precisa examinar o próximo elemento, mas deve preservá-lo para uma operação posterior.",
+      "section": "2. Pilhas, filas e filas de prioridade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após enfileirar A, depois B, e retirar uma vez de uma fila FIFO, o elemento removido é A.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A fila comum segue FIFO: o primeiro elemento inserido, A, fica na frente e sai antes de B. A fila preserva a ordem de chegada quando não há política de prioridade adicional.",
+      "section": "2. Pilhas, filas e filas de prioridade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual mecanismo permite a uma fila baseada em vetor reutilizar posições liberadas na frente sem deslocar todos os itens?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma busca binária aplicada ao vetor a cada remoção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma fila circular com índices que retornam ao início.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um heap que ordena os itens pela chave numérica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma pilha auxiliar que mantém a fila em ordem decrescente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma árvore binária que muda a capacidade do vetor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na fila circular, os índices avançam em anel e voltam ao começo do vetor ao alcançar o fim físico. Assim, os espaços vagos antes da frente podem ser reutilizados sem deslocar todos os elementos.",
+      "section": "2. Pilhas, filas e filas de prioridade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um deque permite inserir e remover elementos tanto pela frente quanto pela traseira.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Deque é uma fila de duas extremidades e admite operações nas duas pontas. Uma fila FIFO simples restringe a inserção à traseira e a remoção à frente.",
+      "section": "2. Pilhas, filas e filas de prioridade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila de prioridade deve remover sempre o elemento que chegou primeiro, mesmo quando outro possui prioridade maior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A fila de prioridade seleciona pelo valor de prioridade definido; a chegada só desempata se a política do sistema assim determinar. Ordem estrita de chegada é a regra da fila FIFO.",
+      "section": "2. Pilhas, filas e filas de prioridade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para inserir e remover no topo de uma pilha implementada em vetor com espaço disponível, essas operações podem ser realizadas em tempo constante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A pilha mantém o índice do topo e altera esse índice e uma posição do vetor. Uma expansão dinâmica pode exigir cópia ocasional, mas não muda o custo típico constante das operações no espaço já alocado.",
+      "section": "2. Pilhas, filas e filas de prioridade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila encadeada que mantém referências à frente e à traseira pode inserir no fim e retirar do início sem percorrer todos os nós.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As referências mantidas à frente e ao último nó permitem ligar um novo nó na traseira e remover o nó da frente em O(1), atualizando os extremos quando necessário.",
+      "section": "2. Pilhas, filas e filas de prioridade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma árvore binária, todo nó precisa ter exatamente dois filhos; nós com um filho ou sem filhos violam a definição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Árvore binária permite no máximo dois filhos. Um nó pode ter somente um filho ou ser folha e não ter nenhum. A definição limita o número de descendentes diretos, mas não exige que os dois lugares possíveis estejam preenchidos.",
+      "section": "3. Árvores e heaps",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente o percurso em ordem de uma árvore binária de busca válida, sem duplicatas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Visita a raiz antes de qualquer subárvore e produz ordem aleatória.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Visita a direita, depois a raiz e por fim a esquerda.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Visita esquerda, nó e direita, produzindo chaves crescentes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Visita folhas primeiro e não considera a chave dos nós.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Visita os nós por ordem de inserção original, sem depender da árvore.",
+          "correct": false
+        }
+      ],
+      "explanation": "No percurso em ordem, visita-se a subárvore esquerda, o nó e a direita. A propriedade da BST coloca chaves menores à esquerda e maiores à direita, resultando em ordem crescente.",
+      "section": "3. Árvores e heaps",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma árvore binária de busca simples receber chaves já ordenadas, sua altura pode crescer até ser proporcional ao número de nós.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Sem balanceamento, chaves crescentes podem ser inseridas sempre em um mesmo ramo, formando estrutura semelhante a uma lista. A altura chega a O(n), e busca e atualização podem ser lineares.",
+      "section": "3. Árvores e heaps",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma BST balanceada com n chaves mantém altura da ordem de log n; operações que percorrem um caminho da raiz têm custo O(log n).",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Em árvore balanceada, a altura cresce logaritmicamente com a quantidade de nós. Busca, inserção e remoção seguem um caminho limitado por essa altura, ressalvados custos adicionais de manutenção do balanceamento.",
+      "section": "3. Árvores e heaps",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num heap mínimo, retirar a raiz entrega o elemento mínimo, mas não implica que o vetor inteiro esteja em ordem crescente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A regra do heap mínimo compara cada pai com seus filhos e garante o menor valor na raiz. Ela não determina a ordem entre nós de subárvores diferentes; por isso a representação em vetor não equivale a um vetor ordenado.",
+      "section": "3. Árvores e heaps",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma árvore binária completa armazenada em vetor começando no índice zero tem filhos do nó i nos índices 2i+1 e 2i+2.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essa indexação representa os filhos esquerdo e direito em 2i+1 e 2i+2; para j maior que zero, o pai fica em floor((j-1)/2). A representação compacta se ajusta à forma completa do heap.",
+      "section": "3. Árvores e heaps",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila de prioridade é frequentemente implementada por heap binário. Qual complexidade caracteriza inserir e retirar a raiz nesse heap?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O(1) para ambas, pois qualquer nó está na raiz.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O(log n) para ambas, restaurando a propriedade ao subir ou descer níveis.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O(n²) para ambas, pois é necessário comparar todos os pares.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O(n) para ambas, pois heap é sempre uma lista encadeada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O(log n) somente para consultar, enquanto inserir exige ordenar tudo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Inserção pode subir pela altura do heap e remoção da raiz pode descer pela altura. Como heap binário completo tem altura O(log n), ambas as atualizações custam O(log n); consultar a raiz custa O(1).",
+      "section": "3. Árvores e heaps",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma árvore geral limita cada nó a exatamente dois filhos, enquanto uma árvore binária permite quantidade ilimitada de descendentes diretos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A árvore geral pode admitir qualquer quantidade de filhos. A árvore binária limita cada nó a no máximo dois filhos.",
+      "section": "3. Árvores e heaps",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila de prioridade pode ser implementada com heap porque a raiz expõe o elemento prioritário e o heap permite atualizar a estrutura em função de sua altura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A propriedade de heap mantém o mínimo ou máximo na raiz. Inserir e remover ajusta o caminho de altura logarítmica, sem ordenar globalmente todos os elementos.",
+      "section": "3. Árvores e heaps",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Considere uma tabela de tamanho 10 com h(k)=k mod 10. Em qual posição a chave 42 é inicialmente localizada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Na posição 0, pois 42 é múltiplo de dez arredondado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Na posição 2, pois o resto de 42 dividido por 10 é 2.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Na posição 4, pois se usa o primeiro algarismo da chave.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Na posição 10, fora dos índices da tabela definida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Na posição 42, pois o hash preserva sempre a chave inteira.",
+          "correct": false
+        }
+      ],
+      "explanation": "A função calcula o resto da divisão por 10. Como 42 = 4×10 + 2, a posição inicial é 2, dentro dos índices possíveis de 0 a 9.",
+      "section": "4. Hashing e grafos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se duas chaves distintas forem mapeadas pela função hash para o mesmo balde, ocorreu uma colisão que precisa de tratamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Colisão é justamente a ocorrência de chaves diferentes associadas à mesma posição inicial. Encadeamento e endereçamento aberto são formas de manter ambas armazenadas e localizáveis.",
+      "section": "4. Hashing e grafos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A tabela hash mantém as chaves automaticamente em ordem crescente e é por isso a estrutura ideal para consultas por intervalo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A função hash mapeia chaves a posições e não mantém ordenação. A estrutura favorece buscas por igualdade; consulta por intervalo requer percorrer elementos ou estrutura ordenada apropriada.",
+      "section": "4. Hashing e grafos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma estrutura hash com função bem distribuída e fator de carga controlado tende a oferecer busca média próxima de O(1), embora possa chegar a O(n) no pior caso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Com distribuição adequada, poucos elementos competem por cada posição em média. Muitas colisões, porém, podem concentrar a busca num balde ou sequência de sondagem e elevar o custo ao linear.",
+      "section": "4. Hashing e grafos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual escolha representa com menos espaço uma rede esparsa com muitos vértices e poucas arestas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Matriz de adjacência com uma célula para cada par de vértices.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Lista de adjacência que registra os vizinhos de cada vértice.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Vetor ordenado que descarta as arestas ausentes da rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pilha de prioridade que armazena apenas o vértice inicial.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "BST que armazena toda conexão como filho esquerdo da raiz.",
+          "correct": false
+        }
+      ],
+      "explanation": "Lista de adjacência registra os vértices e as arestas presentes, ocupando O(V+E). Numa rede esparsa, uma matriz O(V²) reserva muitas células para pares sem aresta.",
+      "section": "4. Hashing e grafos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma matriz de adjacência, verificar se existe uma aresta entre u e v pode ser feito consultando a célula correspondente ao par.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A célula (u,v) registra diretamente a relação entre os dois vértices, permitindo consulta O(1). O custo espacial da matriz é O(V²), mesmo que o grafo tenha poucas arestas.",
+      "section": "4. Hashing e grafos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num grafo dirigido, a aresta A→B implica necessariamente que B→A também existe.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A direção faz parte da relação; A→B não implica a aresta inversa. Essa reciprocidade caracteriza uma ligação não dirigida ou depende da presença explícita da outra aresta.",
+      "section": "4. Hashing e grafos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função hash e uma busca em BST balanceada são equivalentes para consultas de intervalo, pois ambas mantêm as chaves ordenadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Hashing não mantém ordem; é adequado para igualdade. BST balanceada organiza chaves e permite buscas ordenadas e por faixas seguindo a ordem da árvore.",
+      "section": "4. Hashing e grafos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual estratégia resolve colisões guardando os elementos que compartilham o mesmo índice numa coleção associada à posição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Encadeamento, que associa um balde a uma lista ou coleção de entradas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Percurso em ordem, que move a chave para a raiz da BST.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fila circular, que apaga todas as chaves do mesmo balde.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Balanceamento AVL, que divide o tamanho do vetor por dois.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Matriz de adjacência, que converte as colisões em arestas dirigidas.",
+          "correct": false
+        }
+      ],
+      "explanation": "No encadeamento, cada posição aponta para uma coleção de entradas que foram mapeadas ao mesmo balde. Endereçamento aberto é outra abordagem, procurando posição alternativa dentro da própria tabela.",
+      "section": "4. Hashing e grafos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao apagar uma chave em tabela hash com sondagem linear, marcar sua posição como vazia sem cuidado pode fazer uma busca posterior parar antes de encontrar outra chave que colidiu.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A busca por sondagem pode depender de atravessar posições ocupadas desde o índice inicial. Uma posição simplesmente vazia pode encerrar essa busca; marca de remoção ou reestruturação preserva a cadeia de sondagem.",
+      "section": "4. Hashing e grafos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual estrutura representa naturalmente interseções viárias e ligações entre elas, permitindo modelar ruas de mão única?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma pilha, pois cada interseção é removida na ordem inversa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um grafo dirigido, com cruzamentos como vértices e ruas como arcos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma fila FIFO, pois ruas sempre atendem por ordem de chegada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma lista sequencial sem qualquer relação entre os elementos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma hash table, que garante percurso por menor distância.",
+          "correct": false
+        }
+      ],
+      "explanation": "Interseções são vértices e ruas são arestas; mão única exige direção no arco. Uma lista isolada não representa explicitamente a rede, e hashing não calcula rotas nem preserva distância.",
+      "section": "4. Hashing e grafos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Toda estrutura de grafo precisa ser uma árvore conectada e sem ciclos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Grafos podem ser desconectados, conter ciclos e ter várias ligações. Uma árvore é um caso particular conectado e sem ciclos, não a definição de todo grafo.",
+      "section": "4. Hashing e grafos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma lista de adjacência armazena, para cada vértice, os vértices ligados a ele; percorrer vizinhos custa proporcional ao grau daquele vértice.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A lista de cada vértice contém seus vizinhos, logo sua varredura visita tantos elementos quanto o grau. O espaço agregado é proporcional aos vértices e às arestas representadas.",
+      "section": "4. Hashing e grafos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Considere um grafo esparso de V vértices e E arestas, com E muito menor que V². O espaço O(V+E) da lista de adjacência tende a ser menor que O(V²) da matriz.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A lista registra os vértices e as poucas arestas presentes. A matriz mantém uma célula para cada par possível, independentemente da baixa quantidade de conexões reais.",
+      "section": "4. Hashing e grafos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma árvore com ligações entre um pai e vários descendentes pode representar diretórios; o acesso hierárquico distingue esse uso de uma sequência simples.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma pasta pode conter subpastas, e cada uma pode conter novas pastas ou arquivos, formando ramificações hierárquicas. Uma lista simples registra uma sequência, enquanto a árvore conserva as relações entre pais e descendentes.",
+      "section": "3. Árvores e heaps",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se a operação dominante for buscar um registro pela chave exata, uma tabela hash pode ser escolhida esperando custo médio próximo de O(1), desde que colisões sejam administradas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Tabelas hash calculam uma posição a partir da chave, oferecendo busca média próxima de constante sob distribuição adequada e fator de carga controlado. Colisões ainda precisam de tratamento e podem afetar o pior caso.",
+      "section": "4. Hashing e grafos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa manter registros ordenados por chave e responder consultas para listar as chaves entre 100 e 150. Qual estrutura atende melhor a esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma árvore de busca balanceada que mantém as chaves em relação ordenada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma tabela hash que distribui chaves em posições sem ordenação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma pilha LIFO que expõe somente o item mais recentemente inserido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma fila FIFO de pedidos, com inserção traseira e remoção pela frente em ordem de chegada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um heap binário que não ordena globalmente todas as suas chaves.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma árvore de busca balanceada preserva relação de ordem entre chaves e permite percorrer os valores do intervalo. Hash favorece igualdade; pilhas e filas restringem a ordem de acesso, e heap mantém apenas a prioridade entre pais e filhos.",
+      "section": "1. O que é uma estrutura de informação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um buffer precisa atender requisições exatamente na ordem em que chegaram. Que estrutura expressa diretamente essa política?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma árvore binária ordenada pelo conteúdo de cada requisição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma fila FIFO, inserindo no fim e removendo pela frente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma pilha LIFO que remove o pedido mais recente primeiro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma tabela hash que retorna a chave numericamente menor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um heap que sempre seleciona a requisição mais urgente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Fila FIFO mantém a ordem de chegada ao inserir na traseira e retirar pela frente. Pilha inverte a ordem de saída; árvore, hash e heap organizam por chave ou prioridade, que pode divergir da chegada.",
+      "section": "2. Pilhas, filas e filas de prioridade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema precisa inserir e retirar itens nas duas pontas de uma sequência. Qual TAD corresponde a essa necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma pilha simples, com acesso permitido somente no topo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma fila FIFO que insere numa ponta e remove na outra.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um deque, com operações nas duas extremidades.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma tabela hash, com acesso por função da chave.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma árvore de busca, com acesso por comparação de chaves.",
+          "correct": false
+        }
+      ],
+      "explanation": "Deque é uma fila de duas extremidades: operações podem ocorrer tanto na frente quanto na traseira. Pilha e fila comum têm regras mais restritas, enquanto hash e árvore não definem esse padrão de acesso.",
+      "section": "2. Pilhas, filas e filas de prioridade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num vetor dinâmico, uma inserção no final pode exigir realocação e cópia quando a capacidade acaba. Qual descrição é correta para estratégias usuais de crescimento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Toda inserção custa O(log n), pois o vetor se comporta como uma árvore.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Todas as inserções custam O(n), sem considerar a capacidade disponível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada inserção custa O(1) no pior caso, mesmo ao copiar todos os itens.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A cópia ocasional pode ser O(n), mas inserir no fim é O(1) amortizado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A inserção não pode ocorrer porque vetores nunca aumentam de tamanho.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando a capacidade acaba, a implementação pode reservar espaço maior e copiar os n elementos, operação linear. Como essa cópia ocorre de modo espaçado em estratégias usuais de crescimento, o custo amortizado por inserção final é constante; não é pior caso constante a cada chamada.",
+      "section": "1. O que é uma estrutura de informação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comparação descreve corretamente a busca do elemento de posição i em vetor e lista simplesmente encadeada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambos oferecem O(1), pois qualquer elemento tem endereço conhecido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Vetor acessa por índice em O(1); lista pode percorrer O(n).",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Vetor exige O(n); lista encadeada oferece acesso aleatório O(1).",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Vetor custa O(log n); lista custa O(log log n) em qualquer caso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ambos custam O(n²), pois é necessário ordenar os dados primeiro.",
+          "correct": false
+        }
+      ],
+      "explanation": "No vetor, o índice participa do cálculo da posição, portanto o acesso é constante. Na lista encadeada não há salto direto ao nó i: percorrem-se os elos desde a cabeça, com custo linear no pior caso.",
+      "section": "1. O que é uma estrutura de informação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um algoritmo percorre uma árvore em pré-ordem. Qual sequência define esse percurso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Visitar a raiz, depois a subárvore esquerda e por fim a direita.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Visitar a esquerda, depois a direita e por último a raiz.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Visitar a direita, depois a raiz e por fim a esquerda.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Visitar somente as folhas e ignorar os nós internos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Visitar as chaves em ordem crescente sem percorrer a árvore.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pré-ordem visita o nó atual antes de seus descendentes, percorrendo em seguida esquerda e direita. Pós-ordem deixa o nó para o fim; em ordem visita o nó entre as duas subárvores.",
+      "section": "3. Árvores e heaps",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila de prioridade deve sempre remover a menor chave numérica, qualquer que seja a convenção definida pelo programa.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim, porque toda fila de prioridade é necessariamente um heap mínimo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim, pois o valor numérico substitui obrigatoriamente a política do sistema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não; a convenção pode selecionar maior ou menor prioridade conforme a definição.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Não; fila de prioridade só remove o item que chegou por último.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não; a estrutura proíbe retirar elementos e só permite consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "O TAD exige remoção conforme a prioridade definida, mas essa prioridade pode ser maior chave ou menor chave. Heaps máximo e mínimo implementam convenções diferentes; não se deve presumir o sentido sem especificação.",
+      "section": "2. Pilhas, filas e filas de prioridade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cadastro busca frequentemente por CPF exato e não precisa listar CPFs por intervalo. Qual propriedade favorece uma tabela hash?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A função pode direcionar a busca média ao balde calculado pela chave.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A tabela mantém CPFs sempre ordenados para consultas por faixa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A estrutura elimina colisões por definição e dispensa tratamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cada consulta examina necessariamente todos os registros cadastrados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A função hash cria arestas entre CPFs para representar relações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Hashing é útil para correspondência exata: calcula-se uma posição associada à chave e, sob boa distribuição e fator de carga controlado, a busca média tende a ser constante. A estrutura não ordena chaves e ainda precisa resolver colisões.",
+      "section": "4. Hashing e grafos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Numa tabela com endereçamento aberto e sondagem linear, a posição inicial está ocupada por colisão. O que a busca pode fazer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Abandonar a tabela, pois colisão prova que a chave não existe.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Procurar posições subsequentes segundo a sequência de sondagem definida.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Mover todas as chaves a uma árvore sem registrar seus índices.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ordenar toda a tabela e reiniciar com outro alfabeto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter automaticamente a colisão em aresta dirigida.",
+          "correct": false
+        }
+      ],
+      "explanation": "No endereçamento aberto as entradas permanecem na própria tabela. Sondagem linear verifica posições seguintes até encontrar a chave, uma posição disponível válida ou concluir que a busca falhou conforme o estado da tabela.",
+      "section": "4. Hashing e grafos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma rede densa, em que se verifica frequentemente se um par de vértices está conectado, que característica pode favorecer matriz de adjacência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usa O(V+E) e consulta a aresta só após percorrer uma lista global.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Evita representar vértices e guarda somente nomes em hash.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garante que o grafo fique acíclico ao ocupar todas as células.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Consulta a célula do par em O(1), embora reserve espaço O(V²).",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Ocupa espaço constante, pois cada aresta usa uma célula única.",
+          "correct": false
+        }
+      ],
+      "explanation": "A matriz representa cada par de vértices e permite verificar diretamente a célula (u,v), com consulta O(1). Seu custo espacial O(V²) pode ser aceitável para grafos densos, mas desperdiça espaço em redes muito esparsas.",
+      "section": "4. Hashing e grafos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma BST não balanceada tem necessariamente operações O(log n), mesmo quando sua altura é linear.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim; ter até dois filhos por nó garante altura logarítmica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim; a ordenação elimina qualquer percurso por ramo longo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não; as operações podem custar O(n) quando o caminho cresce com n.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Não; uma BST só permite percorrer nós em O(n²).",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não; a árvore converte automaticamente a busca em hash O(1).",
+          "correct": false
+        }
+      ],
+      "explanation": "Operações de BST seguem um caminho da raiz e seu custo depende da altura. Uma árvore degenerada com altura proporcional a n pode exigir visitar quase todos os nós, portanto não se atribui O(log n) sem hipótese de balanceamento.",
+      "section": "3. Árvores e heaps",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um heap de tarefas urgentes, que elemento a raiz permite consultar rapidamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um elemento de prioridade extrema conforme a convenção do heap.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todas as folhas em ordem alfabética entre si.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O primeiro item inserido, obrigatoriamente, até o fim.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O item que preserva a ordem FIFO sem comparar prioridades.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O elemento central da sequência original de inserção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Heap mínimo mantém o menor valor na raiz; heap máximo mantém o maior. Assim a consulta prioritária ocorre diretamente na raiz, mas a estrutura não ordena todas as folhas nem garante atendimento FIFO.",
+      "section": "3. Árvores e heaps",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um grafo não dirigido, o que expressa uma aresta entre A e B?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma ligação sem orientação, conectando A a B e B a A.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma ligação que só existe se tiver peso numérico zero.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma ligação dirigida que necessariamente exclui o retorno.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma hierarquia que transforma A em pai exclusivo de B.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma ordem LIFO entre os nomes A e B.",
+          "correct": false
+        }
+      ],
+      "explanation": "No grafo não dirigido, a aresta não tem orientação e expressa conexão nos dois sentidos. Em grafo dirigido, A→B pode existir sem B→A; peso é opcional e não define a direção.",
+      "section": "4. Hashing e grafos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual custo espacial representa a matriz de adjacência de um grafo com V vértices?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O(log V), pois cada vértice guarda somente seu pai.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O(V+E), pois registra apenas arestas existentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O(1), pois mantém um indicador global de conexão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O(V²), pois reserva uma célula para cada par de vértices.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O(E²), independentemente da quantidade de vértices.",
+          "correct": false
+        }
+      ],
+      "explanation": "A matriz tem uma linha e uma coluna por vértice, logo ocupa espaço proporcional a V². Esse espaço é reservado mesmo quando muitos pares de vértices não têm aresta.",
+      "section": "4. Hashing e grafos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma lista simplesmente encadeada guarda em cada nó uma referência ao próximo nó, mas não necessariamente ao anterior.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verdadeiro; o elo seguinte permite avançar, mas voltar exige outra informação ou percurso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Falso; toda lista encadeada possui obrigatoriamente dois elos por nó.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Falso; listas encadeadas não podem armazenar valores nos nós.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verdadeiro somente quando os valores estão em ordem decrescente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Falso; cada nó referencia diretamente todos os demais nós.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na lista simplesmente encadeada cada nó aponta ao próximo para formar a sequência. A referência ao anterior é característica de lista duplamente encadeada e consome espaço adicional por nó.",
+      "section": "1. O que é uma estrutura de informação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "OpenDSA — Chapter Introduction: Lists",
+      "publisher": "OpenDSA Project / Virginia Tech",
+      "reference": "TAD, listas baseadas em vetor e encadeadas, pilhas, filas e análise de operações",
+      "url": "https://opendsa-server.cs.vt.edu/ODSA/Books/Catalog/html/ListIntro.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenDSA — Data Structures and Algorithms",
+      "publisher": "OpenDSA Project / Virginia Tech",
+      "reference": "Conteúdo didático sobre estruturas lineares, hashing, árvores binárias, BST, heaps, grafos e representações",
+      "url": "https://opendsa-server.cs.vt.edu/ODSA/Books/eu/dsa/spring-2025/EU/html/",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Java Tutorials — List Implementations",
+      "publisher": "Oracle",
+      "reference": "Diferenças de custo entre ArrayList e LinkedList, acesso posicional e inserções/remoções",
+      "url": "https://docs.oracle.com/javase/tutorial/collections/implementations/list.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenDSA — Choosing the best indexing method",
+      "publisher": "OpenDSA Project / Virginia Tech",
+      "reference": "Usos de hashing em busca exata, árvores de busca e B+ trees em consultas e armazenamento",
+      "url": "https://opendsa-server.cs.vt.edu/OpenDSA/Exercises/Indexing/IndexChoice.html",
+      "accessedAt": "2026-10-31"
+    }
+  ]
+}

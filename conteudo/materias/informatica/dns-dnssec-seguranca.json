@@ -1,0 +1,1994 @@
+{
+  "id": "informatica.dns-dnssec-seguranca",
+  "subject": "Informática",
+  "title": "DNSSEC: segurança e validação do DNS",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "DNSSEC: segurança e validação do DNS",
+    "Extensões de segurança do DNS",
+    "Segurança criptográfica no DNS",
+    "DNS Security Extensions",
+    "Assinatura digital de zonas DNS",
+    "Validação DNS com cadeia de confiança",
+    "Registros DNSKEY DS RRSIG e NSEC",
+    "Autenticidade de respostas DNS",
+    "Proteção contra falsificação no DNS",
+    "DNSSEC e prova de inexistência",
+    "Configuração segura de zonas DNS",
+    "Validação de registros de domínio"
+  ],
+  "scope": {
+    "covers": "Objetivos e limites do DNSSEC; assinatura de conjuntos de registros DNS; papéis de DNSKEY, RRSIG, DS, NSEC e NSEC3; cadeia de confiança entre zonas e âncoras de confiança; validação por resolvedores, estados seguro, inseguro e inválido; bits DO, AD e CD; negação autenticada de existência; implantação, publicação de DS, rotação de chaves e falhas operacionais; diferenças entre autenticação DNSSEC, criptografia de transporte e proteção de conteúdo.",
+    "excludes": "Administração completa de servidores DNS, configuração específica de fornecedor, algoritmos criptográficos em profundidade, DANE/TLSA, DNS sobre HTTPS e DNS sobre TLS, e procedimentos particulares de registradores ou operadores de zona."
+  },
+  "theoryTitle": "Como o DNSSEC autentica respostas DNS",
+  "chapters": [
+    {
+      "title": "1. O que o DNSSEC protege",
+      "markdown": "### O problema que este assunto resolve\n\nO DNS traduz nomes como `portal.exemplo` em dados como endereços IP. Sem validação criptográfica, um resolvedor pode aceitar uma resposta forjada ou alterada no caminho e guardar temporariamente o dado falso em cache. O DNSSEC acrescenta assinaturas digitais e provas verificáveis para que um resolvedor consiga avaliar se os dados publicados vieram da zona autorizada e não foram modificados.\n\n> **Siglas e termos deste capítulo**\n> - **DNS**: sistema distribuído de nomes e registros usado para localizar serviços.\n> - **DNSSEC**: extensões de segurança do DNS que autenticam dados por assinaturas digitais e cadeia de confiança.\n> - **RR**: registro de recurso DNS, como A, AAAA, MX ou TXT.\n> - **RRset**: conjunto de registros com mesmo nome, classe e tipo; a assinatura protege o conjunto.\n> - **Resolvedor validador**: componente que confere assinaturas e encadeia a confiança até uma âncora configurada.\n\n### Autenticidade e integridade, não sigilo\n\nDNSSEC permite verificar **origem e integridade** dos dados DNS assinados e confirmar respostas negativas autenticadas. Ele não cifra consultas nem respostas: quem observa o tráfego ainda pode ver os nomes consultados e os dados transmitidos. Também não esconde a existência de uma zona ou de seus nomes; ao contrário, algumas formas de prova de inexistência podem revelar nomes da zona.\n\nDNSSEC não substitui TLS/HTTPS. A assinatura DNS pode ajudar a impedir que um resolvedor aceite um endereço adulterado, mas o certificado TLS e a negociação HTTPS continuam responsáveis por autenticar e proteger a conexão com o serviço. DNSSEC também não impede indisponibilidade, comprometimento do servidor autoritativo, roubo de chave privada ou conteúdo malicioso servido legitimamente pelo domínio.\n\n| Propriedade | DNSSEC oferece? | Exemplo |\n| --- | --- | --- |\n| Autenticidade de dados DNS | Sim, para dados validados | Detectar resposta forjada sem assinatura válida |\n| Integridade de RRsets | Sim | Detectar alteração de um endereço assinado |\n| Confidencialidade da consulta | Não | O nome consultado não é cifrado por DNSSEC |\n| Disponibilidade do serviço | Não | Um ataque de negação de serviço continua possível |\n| Segurança do conteúdo web | Não, por si só | HTTPS ainda precisa proteger a sessão |\n\n### Como cai na prova\n\n- Se a questão disser que DNSSEC “criptografa o DNS”, está confundindo autenticação com confidencialidade.\n- A assinatura cobre RRsets, não cada resposta isolada como uma conexão TLS.\n- “Domínio assinado” não basta: a cadeia deve ser validada pelo resolvedor, e a aplicação precisa confiar no resultado de validação.\n- Uma resposta autenticada pode conter um dado verdadeiro, mas isso não demonstra que o servidor ou o conteúdo final sejam benignos."
+    },
+    {
+      "title": "2. Registros DNSSEC e assinaturas",
+      "markdown": "### O problema que este assunto resolve\n\nO resolvedor precisa receber os dados necessários para conferir uma assinatura e para descobrir como uma zona filha se liga à zona pai. DNSSEC usa tipos de registro próprios, cada um com função distinta. A assinatura é calculada sobre um conjunto de registros e verificada com uma chave pública publicada no DNS.\n\n> **Siglas e termos deste capítulo**\n> - **DNSKEY**: registro que publica uma chave pública de uma zona.\n> - **RRSIG**: registro que carrega a assinatura digital de um RRset, com algoritmo, chave indicada e período de validade.\n> - **DS**: registro de delegação assinado pela zona pai; contém um resumo criptográfico que aponta para uma DNSKEY da filha.\n> - **KSK**: chave usada no esquema comum para assinar o RRset DNSKEY.\n> - **ZSK**: chave usada no esquema comum para assinar os demais RRsets da zona.\n> - **TTL**: tempo de cache do registro DNS; não é a validade criptográfica da assinatura.\n\n### Relação entre os registros\n\nA zona publica sua chave pública em DNSKEY. Com a chave privada correspondente, a zona assina conjuntos de dados e publica RRSIGs. Um validador obtém o RRset e sua RRSIG, seleciona uma DNSKEY compatível e verifica a assinatura, incluindo algoritmo, identidade do signatário e intervalo de validade. A chave privada deve permanecer protegida; publicar a chave pública é necessário e não revela a chave privada.\n\n| Registro | Função | Quem normalmente o autentica |\n| --- | --- | --- |\n| DNSKEY | Publica chave pública da zona | A própria zona, por assinatura do RRset DNSKEY |\n| RRSIG | Carrega assinatura de um RRset | Chave pública DNSKEY correspondente |\n| DS | Faz a ligação criptográfica da delegação | Zona pai |\n| NSEC | Prova nome ou tipo inexistente e aponta para o próximo nome | Assinatura da zona |\n| NSEC3 | Prova inexistência com nomes transformados por hash | Assinatura da zona |\n\nKSK e ZSK são uma convenção operacional, não dois tipos de RR distintos: ambas são publicadas como DNSKEY. Em uma arquitetura de chave única, uma chave pode cumprir as funções combinadas. O campo de sinalização Secure Entry Point na DNSKEY é uma indicação de uso; a validação não deve tratar essa bandeira como prova criptográfica.\n\n### Como cai na prova\n\n- DNSKEY contém a chave **pública**; a assinatura é verificada, nunca recriada pelo resolvedor com uma chave secreta.\n- RRSIG cobre um RRset e informa quando a assinatura deixa de ser válida. Uma RRSIG expirada pode tornar os dados inválidos mesmo que o conteúdo não tenha mudado.\n- DS fica no pai e resume uma chave da filha; ele não é a assinatura dos registros da filha.\n- TTL controla cache; validade de RRSIG controla a janela em que a assinatura pode ser aceita. São relógios diferentes."
+    },
+    {
+      "title": "3. Cadeia de confiança e validação",
+      "markdown": "### O problema que este assunto resolve\n\nUma chave publicada pelo próprio domínio não prova, sozinha, que o domínio é quem diz ser: um atacante poderia publicar outra chave junto com dados falsos. O validador precisa partir de um ponto que já considere confiável e verificar uma sequência de ligações assinadas até a zona consultada.\n\n> **Siglas e termos deste capítulo**\n> - **Âncora de confiança**: chave ou DS configurado por meio confiável como ponto inicial da validação.\n> - **Zona raiz**: topo da hierarquia DNS, usada como origem da cadeia pública global.\n> - **Delegação**: encaminhamento de autoridade de uma zona pai para servidores da zona filha.\n> - **Estado seguro**: dados cuja cadeia e assinatura foram validadas.\n> - **Estado inseguro**: nome sob uma delegação que não está protegida por DNSSEC; ausência de assinatura não equivale automaticamente a falsificação.\n> - **Estado inválido (bogus)**: resposta que deveria validar, mas falha em assinatura, cadeia, tempo ou prova exigida.\n\n### Caminho de validação\n\nUm resolvedor validador começa por uma âncora, comumente associada à raiz. A chave da raiz valida o RRset DNSKEY da raiz. A zona pai publica um DS para a filha; esse DS é validado com as chaves do pai e comparado com uma DNSKEY da filha. A DNSKEY validada da filha então verifica as RRSIGs dos RRsets da própria zona. Repetindo essa operação, o resolvedor acompanha as delegações até o nome procurado.\n\nSe uma zona não foi delegada com DS, a cadeia indica uma delegação insegura e o resolvedor não pode afirmar autenticidade DNSSEC sobre os dados daquela parte. Se há DS, mas a chave não corresponde, a assinatura falha ou o dado necessário está corrompido, o resultado esperado é inválido; um validador não deve simplesmente aceitar o dado como seguro. A aplicação pode receber erro de validação em vez do endereço.\n\n### Sinalização e resultados\n\nO bit **DO** (“DNSSEC OK”) em EDNS sinaliza capacidade/interesse em receber registros DNSSEC na resposta. Ele não diz que os dados já foram validados. O bit **AD** (“Authenticated Data”), na resposta, indica que o servidor que respondeu afirma ter autenticado os dados segundo sua validação; clientes precisam confiar no resolvedor e no caminho até ele para usar essa indicação. O bit **CD** (“Checking Disabled”) permite solicitar que um resolvedor recursivo não bloqueie uma resposta por sua validação, por exemplo para diagnóstico; não transforma uma resposta inválida em autêntica.\n\n### Como cai na prova\n\n- A confiança nasce de uma âncora configurada por meio confiável e segue por DS e DNSKEY; não nasce da mera presença de uma chave no DNS.\n- DO pede material DNSSEC; não é sinônimo de AD. AD sinaliza dados autenticados pelo servidor.\n- CD altera o tratamento da checagem na consulta; não corrige assinatura nem torna os dados confiáveis.\n- Resposta inválida não é o mesmo que zona insegura: a primeira falha numa cadeia que deveria funcionar; a segunda não tem cadeia DNSSEC estabelecida."
+    },
+    {
+      "title": "4. Inexistência autenticada, implantação e operação",
+      "markdown": "### O problema que este assunto resolve\n\nUma resposta negativa também pode ser falsificada: um atacante pode alegar que não existe um nome ou um tipo de registro. Para autenticar a negativa, a zona assinada fornece provas de que o nome ou o tipo está ausente. Implantar DNSSEC, portanto, exige assinar dados positivos e manter corretas as provas negativas e a delegação.\n\n> **Siglas e termos deste capítulo**\n> - **NSEC**: aponta para o próximo nome existente na ordem canônica e lista os tipos existentes no nome coberto.\n> - **NSEC3**: mecanismo de prova que usa nomes transformados por hash, reduzindo a exposição direta de uma enumeração simples.\n> - **NODATA**: resposta negativa que indica que o nome existe, mas não possui o tipo consultado.\n> - **NXDOMAIN**: resposta que afirma que o nome consultado não existe.\n> - **Roll-over**: substituição planejada de chaves ou algoritmos, mantendo a continuidade da validação.\n> - **DS publicado**: elo no pai que deve corresponder à chave efetivamente servida pela filha.\n\n### Provas negativas e seus limites\n\nNSEC permite demonstrar que um nome não está presente entre dois nomes existentes e pode demonstrar que um tipo específico não consta do conjunto. Sua cadeia de nomes pode facilitar a enumeração dos nomes da zona. NSEC3 aplica hash aos nomes para dificultar essa enumeração casual, mas não oferece confidencialidade: nomes previsíveis ainda podem ser testados, e a existência dos registros necessários à validação é pública.\n\n### Implantar e manter\n\nA operação segura começa com chaves geradas e guardadas com controle de acesso, assinatura consistente dos RRsets e publicação de chaves e assinaturas. Para ativar a delegação, o pai precisa publicar um DS calculado para uma DNSKEY correta da filha; publicar um DS incompatível pode fazer validadores rejeitarem toda a zona como inválida. Antes de trocar uma chave, o operador coordena a publicação das chaves novas, assinaturas e alteração do DS, respeitando caches e tempos de propagação. Remover cedo demais a chave antiga ou deixar RRSIG expirar interrompe a validação.\n\nÉ necessário acompanhar expiração de assinaturas, sincronização de relógio, publicação de DNSKEY/DS, respostas dos servidores autoritativos e comportamento de resolvedores validadores. Em diagnóstico, comparar resposta com e sem validação pode ajudar a localizar erro, mas desativar validação como correção permanente elimina a proteção contra dados falsos.\n\n### Como cai na prova\n\n- NSEC/NSEC3 provam ausência; não são registros que ocultam ou criptografam a zona.\n- DS incorreto ou RRSIG vencida pode causar falha de validação para clientes que validam, embora a consulta sem validação aparente funcionar.\n- Roll-over é uma transição coordenada, não simplesmente apagar uma chave e inserir outra de uma vez.\n- DNSSEC depende da sincronização temporal, das chaves privadas protegidas e da coerência entre pai e filha."
+    }
+  ],
+  "summary": "DNSSEC acrescenta autenticação e integridade criptográficas ao DNS por assinaturas de RRsets e provas autenticadas de inexistência. DNSKEY publica chave pública; RRSIG carrega a assinatura de um RRset; DS no pai liga a delegação à chave da filha; NSEC e NSEC3 sustentam respostas negativas autenticadas. Um resolvedor validador parte de uma âncora de confiança e percorre a cadeia por DS e DNSKEY. DO sinaliza suporte/interesse em receber registros DNSSEC, AD indica dados autenticados segundo o servidor respondente e CD pede que a checagem seja desativada para aquela consulta. Dados seguros validam; zona insegura não tem elo DNSSEC; dados inválidos falham numa cadeia que deveria validar. DNSSEC não cifra tráfego, não garante disponibilidade e não substitui TLS. Operação depende de proteção das chaves privadas, assinaturas dentro da validade, DS correto no pai e rotação planejada.",
+  "flashcards": [
+    {
+      "front": "Qual é o objetivo principal do DNSSEC?",
+      "back": "Permitir verificar autenticidade e integridade dos dados DNS e autenticar provas de inexistência."
+    },
+    {
+      "front": "DNSSEC cifra nomes consultados?",
+      "back": "Não. DNSSEC autentica dados, mas não fornece confidencialidade às consultas."
+    },
+    {
+      "front": "O que uma DNSKEY publica?",
+      "back": "Uma chave pública usada na validação de assinaturas DNSSEC."
+    },
+    {
+      "front": "O que contém uma RRSIG?",
+      "back": "A assinatura digital de um RRset e metadados como algoritmo, chave e validade temporal."
+    },
+    {
+      "front": "Para que serve DS?",
+      "back": "Liga a zona pai à DNSKEY da zona filha por meio de um resumo criptográfico."
+    },
+    {
+      "front": "Onde fica publicado o DS de uma filha?",
+      "back": "Na zona pai, junto à delegação da filha."
+    },
+    {
+      "front": "O que NSEC prova?",
+      "back": "A inexistência de um nome ou de um tipo de registro por meio de intervalos e tipos existentes."
+    },
+    {
+      "front": "O que distingue NSEC3 de NSEC?",
+      "back": "NSEC3 usa nomes transformados por hash nas provas negativas, dificultando enumeração direta."
+    },
+    {
+      "front": "O que é uma âncora de confiança?",
+      "back": "Um ponto criptográfico inicial aceito como confiável pelo validador."
+    },
+    {
+      "front": "Como o validador percorre uma delegação assinada?",
+      "back": "Valida o DS do pai, relaciona-o à DNSKEY da filha e usa essa chave para validar os dados da filha."
+    },
+    {
+      "front": "O que representa uma zona insegura?",
+      "back": "Uma parte sem cadeia DNSSEC estabelecida; os dados não são autenticados por DNSSEC."
+    },
+    {
+      "front": "O que representa uma resposta bogus?",
+      "back": "Uma resposta que deveria validar, mas falha na assinatura ou na cadeia de confiança."
+    },
+    {
+      "front": "O que sinaliza o bit DO?",
+      "back": "O interesse/capacidade de receber registros DNSSEC usando EDNS; não afirma validação concluída."
+    },
+    {
+      "front": "O que indica o bit AD?",
+      "back": "Que o servidor respondente sinaliza dados autenticados pela validação que realizou."
+    },
+    {
+      "front": "Para que é usado CD?",
+      "back": "Para pedir que a checagem DNSSEC não bloqueie a resposta naquela consulta, geralmente em diagnóstico."
+    },
+    {
+      "front": "TTL e validade de RRSIG são a mesma coisa?",
+      "back": "Não. TTL rege cache; a RRSIG tem seu próprio intervalo de validade criptográfica."
+    },
+    {
+      "front": "KSK e ZSK são tipos diferentes de registro?",
+      "back": "Não. São funções operacionais de chaves públicas publicadas como DNSKEY."
+    },
+    {
+      "front": "O que ocorre se o DS do pai não corresponder à DNSKEY da filha?",
+      "back": "A cadeia falha; validadores podem classificar a resposta como inválida."
+    },
+    {
+      "front": "O que uma assinatura DNSSEC não garante sobre um site?",
+      "back": "Não garante que o conteúdo seja seguro, nem protege a sessão web como TLS/HTTPS."
+    },
+    {
+      "front": "Por que planejar o roll-over de chaves?",
+      "back": "Para manter sobreposição coerente de chaves, assinaturas e DS durante atualização e propagação em cache."
+    }
+  ],
+  "tips": [
+    "Memorize o encadeamento: âncora, DNSKEY da zona, DS no pai, DNSKEY da filha e RRSIG dos dados.",
+    "Associe DNSKEY à chave pública; chave privada fica sob controle do operador e não é publicada.",
+    "Quando aparecer DO, pense em receber registros DNSSEC; AD é a indicação de autenticação na resposta.",
+    "Separe inválido de inseguro: inválido é uma validação esperada que falhou; inseguro é uma delegação sem elo assinado.",
+    "Leia cuidadosamente a pergunta: integridade DNS não significa criptografia nem proteção contra indisponibilidade.",
+    "Em falha após ativação, confira DS no pai, DNSKEY servida, RRSIG e relógio antes de supor erro no endereço."
+  ],
+  "traps": [
+    "Confundir DNSSEC com DNS sobre TLS ou HTTPS: DNSSEC não cifra o transporte.",
+    "Achar que a existência de DNSKEY basta: ela precisa estar ligada a uma âncora e a cadeia precisa validar.",
+    "Trocar o local do DS: o DS da filha é publicado na zona pai.",
+    "Tratar DO como confirmação de autenticidade; é sinalização para receber material DNSSEC.",
+    "Interpretar NSEC3 como ocultação total: hashes não tornam os nomes confidenciais.",
+    "Ignorar que relógio errado e assinatura expirada quebram validação mesmo com dados intactos."
+  ],
+  "activeRecall": [
+    "Explique por que uma chave publicada pela própria zona não é suficiente para confiar nela.",
+    "Descreva o caminho de uma âncora de confiança até um RRset assinado de uma zona filha.",
+    "Diferencie as funções de DNSKEY, RRSIG e DS.",
+    "Explique como uma resposta negativa pode ser autenticada.",
+    "Compare NSEC e NSEC3 quanto à prova de ausência e enumeração de nomes.",
+    "Compare dados seguros, zona insegura e resposta inválida.",
+    "Diferencie DO, AD e CD em uma consulta DNSSEC.",
+    "Dê dois limites do DNSSEC e explique por que HTTPS continua necessário."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confundir autenticação com sigilo",
+      "summary": "DNSSEC verifica autenticidade e integridade dos dados DNS; não cifra consultas nem garante disponibilidade ou segurança do conteúdo web."
+    },
+    {
+      "key": "e2",
+      "title": "Trocar a função dos registros",
+      "summary": "DNSKEY publica chave pública, RRSIG assina RRsets, DS liga pai e filha, NSEC/NSEC3 sustentam prova de inexistência."
+    },
+    {
+      "key": "e3",
+      "title": "Ignorar a cadeia de confiança",
+      "summary": "A validação exige âncora confiável e elos coerentes entre DS do pai e DNSKEY da filha; chave auto publicada não basta."
+    },
+    {
+      "key": "e4",
+      "title": "Misturar estados e bits DNSSEC",
+      "summary": "Seguro, inseguro e inválido têm sentidos distintos; DO pede material DNSSEC, AD sinaliza autenticação e CD altera a checagem da consulta."
+    },
+    {
+      "key": "e5",
+      "title": "Falhas de operação e prova negativa",
+      "summary": "DS incompatível, chave removida cedo, relógio incorreto ou RRSIG expirada prejudicam validação; NSEC3 não fornece confidencialidade."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Qual propriedade o DNSSEC acrescenta diretamente ao tratamento de dados DNS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autenticação e integridade dos dados DNS assinados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criptografia do caminho entre o usuário e o servidor autoritativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garantia de que o serviço web consultado permanecerá disponível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remoção automática de conteúdo malicioso hospedado no domínio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Confidencialidade dos nomes enviados em consultas DNS recursivas.",
+          "correct": false
+        }
+      ],
+      "explanation": "As extensões acrescentam assinaturas digitais e mecanismos de validação dos dados DNS. Elas não cifram o tráfego, não mantêm serviços disponíveis e não examinam o conteúdo publicado no site.",
+      "section": "1. O que o DNSSEC protege",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente o escopo de uma assinatura DNSSEC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela protege somente o endereço IP, sem considerar outros tipos DNS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela autentica o servidor web e cifra os dados da sessão HTTP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela é calculada para um RRset com mesmo nome, classe e tipo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ela substitui todos os registros originais por uma resposta cifrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela atesta que qualquer informação do domínio é verdadeira e benigna.",
+          "correct": false
+        }
+      ],
+      "explanation": "A assinatura RRSIG cobre um RRset identificado por nome, classe e tipo. Ela não autentica uma sessão HTTP nem avalia se o conteúdo verdadeiro publicado é benigno.",
+      "section": "1. O que o DNSSEC protege",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer impedir que observadores da rede descubram os nomes consultados. Qual conclusão sobre DNSSEC é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A assinatura DNSSEC oculta os nomes, mas deixa visíveis os endereços IP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A validação DNSSEC protege o conteúdo da consulta por criptografia assimétrica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A chave DNSKEY cifra cada pergunta antes de enviá-la ao resolvedor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DNSSEC autentica dados; confidencialidade exige proteção de transporte separada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O bit AD ativa uma sessão cifrada entre cliente e servidor DNS.",
+          "correct": false
+        }
+      ],
+      "explanation": "DNSSEC fornece autenticação e integridade, não sigilo. A confidencialidade do transporte depende de mecanismos próprios, que não fazem parte da validação de assinaturas DNSSEC.",
+      "section": "1. O que o DNSSEC protege",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que a validação DNSSEC não substitui a autenticação TLS usada por um site HTTPS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque DNSSEC assina apenas pacotes UDP, enquanto HTTPS usa TCP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque DNSSEC protege dados DNS e TLS protege a sessão web.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Porque DNSSEC funciona somente em zonas internas sem acesso à Internet.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque a assinatura de zona é removida assim que o navegador recebe o IP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque TLS valida o DS do pai sem usar certificados ou chaves próprias.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma resposta DNS validada informa que os dados DNS passaram pela cadeia de confiança. TLS fornece controles próprios para autenticar o servidor e proteger a conexão da aplicação; um não substitui o outro.",
+      "section": "1. O que o DNSSEC protege",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que pode ser concluído quando uma resposta DNSSEC é autenticada corretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Que o domínio não contém malware e pode ser acessado com segurança.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Que o servidor autoritativo não sofrerá indisponibilidade durante a consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que a consulta e a resposta foram mantidas secretas no trajeto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que o site usa necessariamente HTTPS e apresenta certificado válido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Que os dados recebidos correspondem aos dados autenticados da zona.",
+          "correct": true
+        }
+      ],
+      "explanation": "A validação dá confiança criptográfica aos dados DNS conforme a cadeia configurada. Não certifica a segurança do conteúdo, a disponibilidade do host nem a proteção da conexão web.",
+      "section": "1. O que o DNSSEC protege",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual registro publica a chave pública usada pelo validador para conferir assinaturas da zona?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DNSKEY, que contém a chave pública associada à zona.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "RRSIG, que contém a chave privada e o dado de assinatura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DS, que transporta o conjunto completo de registros da filha.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "NSEC, que guarda a chave usada para assinar a zona.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SOA, que substitui as chaves públicas em zonas validadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "DNSKEY publica uma chave pública. A chave privada correspondente permanece protegida pelo operador e é usada para gerar assinaturas; não é publicada nos registros DNS.",
+      "section": "2. Registros DNSSEC e assinaturas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a função do registro RRSIG em uma zona assinada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Indicar o próximo nome existente na ordem canônica da zona.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apontar para uma chave pública na zona pai por meio de resumo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Publicar uma chave pública para validar respostas recursivas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Carregar assinatura digital e metadados de validade de um RRset.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Definir quanto tempo uma consulta poderá permanecer no cache.",
+          "correct": false
+        }
+      ],
+      "explanation": "RRSIG contém a assinatura digital de um RRset, além de parâmetros como algoritmo, identificador de chave e datas de validade. O TTL é um campo de cache, não a função da RRSIG.",
+      "section": "2. Registros DNSSEC e assinaturas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Onde deve estar o registro DS que liga criptograficamente uma zona filha à sua zona pai?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Na filha, ao lado de cada assinatura de seus registros A e AAAA.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "No servidor recursivo, como substituto da âncora de confiança.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Na zona pai, dentro dos dados assinados da delegação para a filha.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "No navegador do usuário, como cópia da chave privada do domínio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Na raiz, mesmo quando a zona delegada não é descendente direta dela.",
+          "correct": false
+        }
+      ],
+      "explanation": "A zona pai publica e assina o DS da filha. O validador usa esse elo para relacionar a chave autenticada do pai a uma DNSKEY da filha.",
+      "section": "2. Registros DNSSEC e assinaturas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um esquema operacional com KSK e ZSK, qual descrição é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "KSK cifra as consultas externas e ZSK cifra as respostas autoritativas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "KSK e ZSK são tipos RR independentes de DNSKEY e RRSIG.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "KSK valida o TLS, enquanto ZSK assina certificados do domínio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "KSK publica DS no pai; ZSK armazena os nomes ocultos da zona.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "KSK costuma assinar o RRset DNSKEY; ZSK assina outros RRsets.",
+          "correct": true
+        }
+      ],
+      "explanation": "KSK e ZSK nomeiam papéis comuns na operação: a KSK assina o conjunto DNSKEY e a ZSK assina os demais dados. Ambas aparecem como DNSKEY, e a separação é uma escolha operacional.",
+      "section": "2. Registros DNSSEC e assinaturas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual consequência pode decorrer de uma RRSIG expirada, embora o RRset não tenha sido alterado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O conteúdo será aceito porque o TTL ainda determina a assinatura válida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A validade temporal falha, e o validador pode rejeitar os dados como inválidos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O resolvedor converte automaticamente a assinatura antiga em registro DS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A zona passa ao estado seguro até o próximo reinício do resolvedor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A expiração apenas impede atualizações, sem alterar a validação da resposta.",
+          "correct": false
+        }
+      ],
+      "explanation": "A assinatura só pode ser aceita dentro do período de validade indicado na RRSIG. TTL e validade da assinatura são controles diferentes; dados intactos podem falhar se a assinatura não for renovada.",
+      "section": "2. Registros DNSSEC e assinaturas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em que sentido o TTL de um RRset difere da validade da assinatura RRSIG?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "TTL protege a chave privada; a RRSIG limita o tamanho do pacote DNS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "TTL identifica a zona pai; a RRSIG identifica servidores secundários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "TTL define a validade criptográfica; a RRSIG define a duração no cache.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "TTL governa o cache; a RRSIG traz uma janela temporal de validade.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Os dois campos são equivalentes e sempre usam o mesmo período.",
+          "correct": false
+        }
+      ],
+      "explanation": "TTL informa por quanto tempo dados podem ser mantidos em cache. A RRSIG inclui o início e o fim da validade da assinatura; a aceitação depende desses tempos, independentemente do TTL.",
+      "section": "2. Registros DNSSEC e assinaturas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador publica a chave privada da zona no registro DNSKEY para facilitar a validação. O que está errado nessa decisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DNSKEY deve conter a chave pública; expor a privada compromete a capacidade de assinar com confiança.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "DNSKEY deve conter somente o DS, porque chaves públicas são guardadas pelo registrador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A chave privada pode ser divulgada quando as assinaturas possuem TTL reduzido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A chave privada é necessária ao validador, mas fica publicada somente na zona pai.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A chave privada não afeta DNSSEC, pois apenas a assinatura é conferida pelo cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "DNSKEY publica o componente público. A chave privada deve permanecer sob controle do operador para produzir assinaturas válidas; se for exposta, um invasor poderá gerar dados assinados como se fosse a zona.",
+      "section": "2. Registros DNSSEC e assinaturas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual elemento estabelece o ponto inicial a partir do qual um resolvedor pode construir a validação DNSSEC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma resposta AD recebida de qualquer servidor na Internet.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um RRset NSEC encontrado na zona consultada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma âncora de confiança configurada por meio confiável.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O primeiro endereço IP retornado por um servidor autoritativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um valor TTL longo, aceito como prova de autenticidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "O validador precisa de um ponto inicial confiável, por exemplo uma chave da raiz configurada por mecanismo seguro. Os próprios dados recebidos não podem criar sua confiança inicial sem uma referência externa.",
+      "section": "3. Cadeia de confiança e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como o DS publicado pela zona pai participa da validação da zona filha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele substitui todos os registros da filha e fornece as respostas A e MX.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele compara seu resumo autenticado com uma DNSKEY da filha.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ele contém a assinatura privada usada pela filha para assinar seus registros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele informa ao navegador que a conexão HTTPS usa TLS válido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele desativa a validação no pai e transfere confiança sem verificação.",
+          "correct": false
+        }
+      ],
+      "explanation": "O DS é validado na zona pai e contém um resumo da DNSKEY da filha. A correspondência permite ao validador autenticar a chave da filha e usá-la para verificar seus dados assinados.",
+      "section": "3. Cadeia de confiança e validação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um resolvedor valida a raiz, mas a delegação para uma zona filha não contém DS. Qual interpretação é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A filha é inválida, pois toda delegação sem DS contém assinatura falsificada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A chave da filha passa a ser confiável pelo simples fato de estar publicada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A filha é segura, desde que seu TTL seja menor que o da zona pai.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ausência do DS prova que os dados da filha não existem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A delegação é insegura para DNSSEC; seus dados não ganham autenticação pela cadeia.",
+          "correct": true
+        }
+      ],
+      "explanation": "Sem DS, não há elo autenticado do pai para a chave da filha. Isso caracteriza uma delegação insegura, e não por si só uma resposta inválida ou prova de inexistência.",
+      "section": "3. Cadeia de confiança e validação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma zona tem DS válido no pai, mas a DNSKEY servida pela filha não corresponde ao resumo. Como o validador deve tratar a cadeia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como insegura, ignorando o DS incompatível e aceitando qualquer chave da filha.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Como segura, desde que a assinatura dos registros A pareça bem formada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Como inválida, pois o elo publicado não autentica a chave apresentada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Como confidencial, porque o resumo não revela a chave privada da filha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como validada, após converter o DS em uma RRSIG local no resolvedor.",
+          "correct": false
+        }
+      ],
+      "explanation": "A existência de DS cria a expectativa de uma cadeia assinada. Se a chave publicada não corresponde, a validação falha; aceitar a resposta como segura permitiria contornar a proteção pretendida.",
+      "section": "3. Cadeia de confiança e validação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual bit em EDNS sinaliza que o solicitante deseja receber registros DNSSEC, quando disponíveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DO, usado como sinalização de suporte ou interesse em dados DNSSEC.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "AD, usado para pedir ao servidor que omita as respostas negativas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "CD, usado para solicitar a publicação de uma nova chave da zona.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DS, usado como bit de cabeçalho para bloquear respostas sem assinatura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SEP, usado para cifrar a consulta e autenticar o cliente DNS.",
+          "correct": false
+        }
+      ],
+      "explanation": "DO (“DNSSEC OK”) é um bit no OPT de EDNS que indica interesse/capacidade para receber registros DNSSEC. Sua presença não significa que o solicitante já verificou as assinaturas.",
+      "section": "3. Cadeia de confiança e validação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O bit AD aparece em uma resposta recebida pelo cliente. O que ele indica no contexto DNSSEC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Que o cliente pediu ao servidor para desativar a validação daquela consulta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Que o transporte DNS foi criptografado entre todos os saltos percorridos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que o cliente deverá publicar um DS para aceitar o próximo domínio consultado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que o servidor respondente sinaliza dados autenticados por sua validação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Que o nome consultado não consta da zona autoritativa atual.",
+          "correct": false
+        }
+      ],
+      "explanation": "AD é o indicador de “Authenticated Data” na resposta: o servidor que respondeu afirma que os dados foram autenticados. Isso não cifra o transporte e requer confiança no resolvedor que colocou o bit.",
+      "section": "3. Cadeia de confiança e validação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para que situação o bit CD pode ser usado por um cliente que investiga uma resposta DNSSEC problemática?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para transformar uma assinatura inválida em uma assinatura emitida pela zona.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Para pedir que a checagem não bloqueie a resposta nessa consulta.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Para indicar que o registro DNSKEY contém somente uma chave secreta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para ativar criptografia de ponta a ponta no protocolo DNS tradicional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para confirmar ao cliente que a zona consultada está assinada corretamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "CD (“Checking Disabled”) é uma sinalização relacionada à checagem de validação na consulta. Pode ser útil em diagnóstico, mas não corrige a cadeia nem autentica a resposta liberada.",
+      "section": "3. Cadeia de confiança e validação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um domínio apresenta uma cadeia DNSSEC esperada, mas suas assinaturas falham. Qual estado representa melhor o caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Seguro, porque a falha indica que os dados foram assinados antes da consulta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Inseguro, pois toda falha de assinatura equivale à ausência de DNSSEC.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Indeterminado, e por isso o validador deve sempre assumir que a resposta é verdadeira.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Confidencial, pois uma assinatura que falha impede observação dos registros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Inválido: a cadeia esperada falhou na verificação criptográfica.",
+          "correct": true
+        }
+      ],
+      "explanation": "Quando existe uma cadeia que deveria autenticar a zona, mas a assinatura ou a prova falha, os dados são inválidos (bogus). Isso se distingue de uma delegação insegura, sem elo DS.",
+      "section": "3. Cadeia de confiança e validação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual registro é associado à prova negativa de que um nome ou tipo de dado não existe na zona?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DNSKEY, pois lista nomes sem publicar as chaves correspondentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RRSIG, pois cada assinatura representa um nome ausente do domínio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "NSEC, que descreve intervalo de nomes e tipos presentes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "DS, que substitui a resposta NXDOMAIN no servidor pai.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A, que registra endereços ausentes dentro da zona assinada.",
+          "correct": false
+        }
+      ],
+      "explanation": "NSEC permite provar ausência por meio do próximo nome em ordem canônica e da lista de tipos existentes no nome. A prova também precisa estar autenticada por assinatura da zona.",
+      "section": "4. Inexistência autenticada, implantação e operação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que efeito operacional NSEC3 busca alcançar em comparação com a enumeração direta por NSEC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criptografar integralmente os registros da zona para que só clientes autorizados os leiam.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover a necessidade de assinaturas e de uma âncora para respostas negativas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Impedir que um resolvedor descubra o endereço IP de qualquer nome consultado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar nomes transformados por hash nas provas, dificultando enumeração casual.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Publicar chaves privadas para validar respostas sem consultar a zona pai.",
+          "correct": false
+        }
+      ],
+      "explanation": "NSEC3 representa nomes por transformações hash em suas provas, o que reduz a enumeração direta dos nomes. Isso não cifra a zona nem elimina assinaturas ou confiança, e nomes previsíveis ainda podem ser testados.",
+      "section": "4. Inexistência autenticada, implantação e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta NXDOMAIN vem acompanhada de prova DNSSEC válida. O que essa prova sustenta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Que o nome consultado não existe segundo os dados assinados da zona.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Que o servidor consultado não possui endereço IP na rede atual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que a zona foi removida do registro de domínios e não pode retornar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que o endereço foi ocultado para proteger a confidencialidade do usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Que nenhum outro tipo de registro pode existir em qualquer subdomínio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma prova negativa autenticada permite confiar que a zona assinada afirma a inexistência do nome consultado. Ela não permite inferir indisponibilidade de rede nem ausência de todos os nomes descendentes.",
+      "section": "4. Inexistência autenticada, implantação e operação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a interpretação de uma resposta NODATA autenticada para um nome existente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O servidor não recebeu a consulta porque o pacote continha uma assinatura vencida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O nome existe, mas não possui o tipo de registro solicitado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O nome foi provado inexistente em todos os subdomínios da zona.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A zona filha perdeu toda a cadeia de confiança com sua zona pai.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A chave pública foi removida da resposta para esconder o conjunto DNSKEY.",
+          "correct": false
+        }
+      ],
+      "explanation": "NODATA indica que o nome existe, mas o tipo perguntado não está associado a ele. A prova autenticada permite distinguir essa situação de NXDOMAIN, que afirma que o nome não existe.",
+      "section": "4. Inexistência autenticada, implantação e operação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um operador ativou DNSSEC, mas carregou no pai um DS calculado para uma chave diferente da DNSKEY servida pela filha. Qual efeito é provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Clientes validadores podem classificar as respostas da filha como inválidas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O pai passa a assinar automaticamente as respostas A e MX da filha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A incompatibilidade afeta somente a confidencialidade da consulta DNS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A filha permanece segura, pois o DS é apenas um campo informativo opcional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Resolvedores verificam a chave pelo TTL e ignoram o resumo criptográfico.",
+          "correct": false
+        }
+      ],
+      "explanation": "O DS é o elo autenticado do pai para uma DNSKEY da filha. Uma divergência quebra a cadeia e pode fazer validadores recusarem respostas, embora um cliente sem validação aparente resolver o nome.",
+      "section": "4. Inexistência autenticada, implantação e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante uma rotação de chave, qual prática reduz o risco de interromper a validação por caches ainda ativos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar a chave antiga antes de publicar qualquer assinatura feita com a nova.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar permanentemente a validação dos resolvedores durante a troca.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Coordenar publicação de chaves, assinaturas e DS, respeitando propagação e cache.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Trocar somente o TTL do registro A e manter o DS incompatível no pai.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover o registro DNSKEY e confiar em RRSIGs sem chave pública disponível.",
+          "correct": false
+        }
+      ],
+      "explanation": "A rotação requer transição planejada: publicar chaves e assinaturas compatíveis, atualizar o DS conforme necessário e aguardar efeitos de cache antes de retirar material antigo. Remoções abruptas podem quebrar a cadeia.",
+      "section": "4. Inexistência autenticada, implantação e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma zona funciona em um resolvedor sem validação, mas validadores retornam erro após uma mudança. Qual verificação é diretamente pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A presença de certificados TLS em todos os endereços IP retornados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O tamanho do texto do nome de domínio em relação ao seu TTL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A cor do painel de administração do servidor autoritativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A validade das assinaturas, a chave DNSKEY e a correspondência do DS no pai.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A remoção de todos os registros NSEC para que a resposta seja positiva.",
+          "correct": false
+        }
+      ],
+      "explanation": "O contraste é compatível com erro de validação. Verificar assinaturas e seu período, DNSKEY publicada, DS pai-filho e sincronização temporal ajuda a localizar causas que um resolvedor sem validação não detectaria.",
+      "section": "4. Inexistência autenticada, implantação e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o relógio do validador estiver muito adiantado, qual componente DNSSEC pode ser afetado diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A comparação entre nomes NSEC e o nome consultado deixa de usar DNS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A avaliação do intervalo temporal de validade das RRSIGs pode falhar.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O conteúdo do campo DS passa a ser uma chave privada da zona filha.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O resolvedor troca automaticamente todas as consultas para HTTPS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A assinatura passa a autenticar consultas que não foram assinadas pela zona.",
+          "correct": false
+        }
+      ],
+      "explanation": "RRSIG possui limites temporais de início e expiração. Um relógio incorreto pode levar o validador a considerar prematuramente uma assinatura futura ou expirada, mesmo que a chave e o conteúdo estejam corretos.",
+      "section": "4. Inexistência autenticada, implantação e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual informação auxilia o validador a selecionar uma DNSKEY candidata para verificar uma RRSIG?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O identificador da chave e o algoritmo indicados na RRSIG.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O TTL do registro A, que nomeia diretamente a chave privada usada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O bit DO da resposta, que contém a chave pública codificada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O nome do registrador, que substitui a busca do RRset DNSKEY.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A classe da consulta, que por si só identifica a DNSKEY correta.",
+          "correct": false
+        }
+      ],
+      "explanation": "A RRSIG traz algoritmo, nome do signatário e identificador de chave para ajudar a localizar a DNSKEY candidata. O validador ainda precisa conferir criptograficamente a assinatura; o identificador não prova sozinho que a chave é confiável.",
+      "section": "2. Registros DNSSEC e assinaturas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como a sinalização Secure Entry Point (SEP) da DNSKEY deve ser interpretada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como uma prova criptográfica suficiente para confiar na chave sem DS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Como indicação de uso da chave, não como substituto da validação criptográfica.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Como campo que contém a assinatura de todos os RRsets da zona.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como ordem para o resolvedor desativar a conferência da RRSIG.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como sinal de que a zona não usa chaves públicas DNSSEC.",
+          "correct": false
+        }
+      ],
+      "explanation": "A sinalização SEP serve como indicação sobre o uso pretendido da chave para ferramentas de operação e depuração. Ela não altera o processo de validação nem torna confiável uma chave sem cadeia autenticada.",
+      "section": "2. Registros DNSSEC e assinaturas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual efeito o DNSSEC tem sobre o protocolo de transferência de zona DNS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele exige que toda transferência use um túnel TLS criado pela DNSKEY.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele substitui a transferência de zona por consultas individuais de RRSIG.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DNSSEC não redefine a transferência de zona; os registros DNSSEC publicados também são transferidos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ele impede transferências entre servidores autoritativos secundários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele usa o registro DS para transportar a zona completa ao servidor secundário.",
+          "correct": false
+        }
+      ],
+      "explanation": "DNSSEC acrescenta registros e regras de validação, mas não redefine o protocolo de transferência de zona. Mecanismos de controle de acesso e proteção do canal de transferência continuam sendo tratados separadamente.",
+      "section": "4. Inexistência autenticada, implantação e operação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como um validador pode tratar uma resposta cujo RRset contém nome curinga (wildcard) em uma zona assinada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aceitando-a sem assinatura, pois curingas são exceções à validação DNSSEC.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Rejeitando-a sempre, pois o DNSSEC proíbe nomes curinga em zonas assinadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Validando somente o TTL e ignorando a prova da expansão do curinga.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Validando assinatura e provas necessárias para a expansão curinga.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Convertendo a resposta em DS e delegando a checagem ao navegador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Resolvedores validadores DNSSEC precisam dar suporte à verificação de respostas que envolvem nomes curinga. O uso de wildcard não dispensa assinatura nem as provas necessárias para autenticar a resposta sintetizada.",
+      "section": "3. Cadeia de confiança e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma zona filha deixa de ser assinada e seu operador quer remover a delegação DNSSEC antiga. Qual item precisa ser tratado no pai?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover os registros A e MX de todos os nomes da zona pai.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar o DO por AD em cada consulta enviada pelos clientes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar a âncora de confiança global de todos os resolvedores públicos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir a DNSKEY da filha pelo endereço IP do servidor secundário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Retirar no pai o DS da filha, coordenando a transição e os caches.",
+          "correct": true
+        }
+      ],
+      "explanation": "A zona pai publica o DS que autentica a DNSKEY da filha. Ao encerrar DNSSEC na filha, o DS precisa ser removido no pai de forma coordenada, considerando caches; deixar um DS sem uma chave correspondente causa falha de validação.",
+      "section": "4. Inexistência autenticada, implantação e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "DNSSEC autentica a resposta DNS, mas não cifra o nome consultado durante o transporte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. DNSSEC fornece assinatura e validação de dados. A confidencialidade do transporte exige mecanismos separados; uma consulta DNS tradicional pode continuar observável.",
+      "section": "1. O que o DNSSEC protege",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta validada por DNSSEC garante que o site associado não contém código malicioso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. DNSSEC permite confiar que os dados DNS correspondem aos dados assinados da zona. Não inspeciona nem certifica a segurança do conteúdo servido pelo endereço indicado.",
+      "section": "1. O que o DNSSEC protege",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um registro DNSKEY publicado contém a chave pública da zona, não a chave privada usada para produzir assinaturas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os validadores precisam da chave pública para conferir assinaturas. A chave privada correspondente é material secreto que deve permanecer protegido pelo operador da zona.",
+      "section": "2. Registros DNSSEC e assinaturas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O DS de uma zona filha é normalmente publicado na própria filha, porque só ela conhece sua chave DNSKEY.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O registro DS é publicado no pai e assinado por ele, ligando a cadeia da zona pai a uma DNSKEY da filha. A filha publica a DNSKEY correspondente.",
+      "section": "2. Registros DNSSEC e assinaturas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "TTL e validade de RRSIG são valores equivalentes e sempre definem juntos o tempo de aceitação do dado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. TTL define duração do cache; a RRSIG especifica uma janela temporal criptográfica própria. Dados podem continuar iguais e ainda assim não validar quando a assinatura expira.",
+      "section": "2. Registros DNSSEC e assinaturas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A validação de uma zona filha assinada depende de uma relação verificável entre o DS no pai e a DNSKEY na filha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O DS autenticado pelo pai contém um resumo que deve corresponder à DNSKEY da filha. A chave validada pode então verificar assinaturas dos dados dessa zona.",
+      "section": "3. Cadeia de confiança e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A mera publicação de uma DNSKEY pela filha prova por si só que aquela chave pertence ao domínio consultado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma chave auto publicada não cria confiança. O resolvedor precisa autenticá-la a partir de uma âncora e da ligação feita pelo DS da zona pai, ou por mecanismo confiável equivalente.",
+      "section": "3. Cadeia de confiança e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na sinalização DNSSEC, DO e AD são bits equivalentes na consulta e ambos apenas pedem o envio de registros DNSSEC.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. DO está no OPT de EDNS e sinaliza interesse em receber registros DNSSEC. AD é um indicador na resposta de que o servidor afirma ter autenticado os dados; os bits têm locais e funções diferentes.",
+      "section": "3. Cadeia de confiança e validação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O bit CD, quando solicitado, corrige criptograficamente uma assinatura quebrada antes de o servidor responder.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. CD pede que a checagem não seja aplicada da forma habitual naquela consulta. Ele pode permitir obter dados para diagnóstico, mas não corrige uma assinatura nem transforma dados inválidos em autênticos.",
+      "section": "3. Cadeia de confiança e validação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma delegação sem DS pode ser insegura para DNSSEC sem que isso signifique, por si só, uma resposta inválida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Sem DS não há elo autenticado para a zona filha, que fica insegura quanto a DNSSEC. Uma resposta inválida é diferente: existe expectativa de cadeia segura, mas alguma validação falha.",
+      "section": "3. Cadeia de confiança e validação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "NSEC pode provar ausência de um nome ou tipo, mas sua sequência pode tornar mais simples enumerar nomes da zona.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. NSEC aponta para o próximo nome existente na ordem canônica e lista os tipos presentes. Essa estrutura prova ausência, mas também permite percorrer nomes publicados da zona.",
+      "section": "4. Inexistência autenticada, implantação e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "NSEC3 oferece confidencialidade completa para os nomes e registros de uma zona assinada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. NSEC3 usa nomes transformados por hash para dificultar enumeração direta, mas não cifra os dados nem oculta completamente nomes previsíveis. DNSSEC não é mecanismo de confidencialidade.",
+      "section": "4. Inexistência autenticada, implantação e operação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um DS incorreto no pai pode causar falha de validação mesmo que a zona filha responda normalmente a clientes sem validação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Clientes que validam verificam a ligação DS-DNSKEY; se ela falha, podem rejeitar os dados. Um resolvedor sem validação não verifica esse elo e pode aparentar funcionamento normal.",
+      "section": "4. Inexistência autenticada, implantação e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma RRSIG expirada deve ser aceita enquanto o endereço IP coberto por ela continuar sem alterações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A validade temporal é parte da verificação. Um RRset não alterado continua sem assinatura aceitável após o fim do período indicado, até que uma assinatura válida seja publicada.",
+      "section": "4. Inexistência autenticada, implantação e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotação segura pode exigir manter chaves e assinaturas antigas disponíveis por um período de transição ligado a caches e propagação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Resolvedores podem manter dados e delegações em cache. Coordenar a introdução da chave nova, as assinaturas e o DS antes de remover a antiga preserva a cadeia durante a transição.",
+      "section": "4. Inexistência autenticada, implantação e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O objetivo de DNSSEC é garantir disponibilidade contra ataques volumétricos ao servidor autoritativo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. DNSSEC autentica dados e provas de inexistência. Ele não impede ataques de negação de serviço nem garante que servidores autoritativos estejam acessíveis.",
+      "section": "1. O que o DNSSEC protege",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "KSK e ZSK descrevem papéis operacionais comuns de chaves que são publicadas como registros DNSKEY.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. DNSKEY é o tipo de registro. KSK e ZSK distinguem usos frequentes das chaves, como assinar o RRset DNSKEY ou os demais RRsets da zona.",
+      "section": "2. Registros DNSSEC e assinaturas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma RRSIG deve ter a mesma classe DNS do RRset que autentica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A especificação do registro RRSIG exige que sua classe corresponda à classe do RRset coberto. A assinatura não pode ser aplicada indistintamente a dados de outra classe.",
+      "section": "2. Registros DNSSEC e assinaturas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 9364: DNS Security Extensions (DNSSEC)",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Documento consolidado sobre DNSSEC e referências às especificações do protocolo.",
+      "url": "https://www.rfc-editor.org/rfc/rfc9364.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 4033: DNS Security Introduction and Requirements",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Objetivos, conceitos, ameaças, resolvedores e requisitos de segurança DNSSEC.",
+      "url": "https://www.rfc-editor.org/rfc/rfc4033.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 4034: Resource Records for the DNS Security Extensions",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Formato e finalidade de DNSKEY, DS, RRSIG e NSEC.",
+      "url": "https://www.rfc-editor.org/rfc/rfc4034.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 4035: Protocol Modifications for the DNS Security Extensions",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Comportamento de resolvedores, validação de assinaturas, cadeia de autenticação e respostas negativas.",
+      "url": "https://www.rfc-editor.org/rfc/rfc4035.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 6781: DNSSEC Operational Practices, Version 2",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Práticas operacionais de geração, proteção e rotação de chaves e assinaturas.",
+      "url": "https://www.rfc-editor.org/rfc/rfc6781.html",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

@@ -1,0 +1,1750 @@
+{
+  "id": "informatica.ferramenta-sas-analise-dados",
+  "subject": "Informática",
+  "title": "Ferramenta SAS para análise de dados",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Ferramenta SAS para análise de dados",
+    "SAS para análise de dados",
+    "Sistema SAS de análise estatística",
+    "Software SAS para tratamento de dados",
+    "Linguagem de programação SAS",
+    "Base SAS e procedimentos de análise",
+    "SAS DATA step e procedimentos PROC",
+    "SAS Studio e programação analítica",
+    "Análise estatística com SAS",
+    "Acesso e transformação de dados no SAS"
+  ],
+  "scope": {
+    "covers": "Ferramenta SAS aplicada à análise de dados: finalidades do ambiente, interface gráfica e programação, estrutura de programa, bibliotecas e conjuntos de dados SAS, DATA step, variáveis e observações, filtros e transformações, procedimentos PROC, sumarização e estatística descritiva, PROC SQL, formatos, missing values, logs, resultados e boas práticas de interpretação e reprodutibilidade.",
+    "excludes": "Detalhes de licenciamento e versões comerciais; instalação e administração de servidores SAS; sintaxe completa de procedimentos estatísticos especializados; modelagem matemática avançada; certificação e configuração de produtos específicos."
+  },
+  "theoryTitle": "SAS: preparar, analisar e comunicar dados",
+  "chapters": [
+    {
+      "title": "1. O que é o SAS e como se organiza um programa",
+      "markdown": "### O problema que este assunto resolve\n\nO SAS é um ambiente integrado para acessar, preparar, analisar e apresentar dados. Em vez de repetir operações manualmente em planilhas, a pessoa pode registrar as etapas em código SAS ou usar interfaces gráficas. O programa pode ser executado novamente sobre os dados de entrada, facilitando a rastreabilidade. A documentação oficial da SAS descreve acesso a tabelas SAS, planilhas e bancos, manipulação como selecionar e combinar dados, análise estatística e produção de relatórios.\n\n> **Siglas e termos deste capítulo**\n> - **SAS**: nome da plataforma e também da linguagem usada para gerenciar e analisar dados.\n> - **Base SAS**: conjunto fundamental de recursos para acesso, transformação e relatórios.\n> - **DATA step**: etapa de linguagem SAS voltada à leitura, criação e transformação de observações.\n> - **PROC**: procedimento pronto para uma tarefa, como ordenar, resumir ou analisar dados.\n> - **Log**: registro de execução, incluindo notas, avisos, erros e contagens.\n\n### Duas formas de trabalhar\n\nO SAS pode ser usado por interface gráfica, por exemplo um ambiente de desenvolvimento SAS, ou por programas escritos na linguagem SAS. A interface pode ajudar a explorar dados e compor fluxos; o código explicita as operações e pode ser guardado, revisado e executado novamente. São formas de acesso ao ambiente, não ferramentas com objetivos opostos. A plataforma pode combinar código SAS com recursos visuais e, em alguns ambientes, outros idiomas.\n\nUm programa clássico intercala etapas `DATA` e procedimentos `PROC`. Um bloco normalmente termina com `RUN;`; `QUIT;` encerra procedimentos que permanecem ativos, como `PROC SQL`. Instruções SAS são delimitadas por ponto e vírgula. Comentários podem ser escritos entre `/*` e `*/`, ou em linhas iniciadas por `*` e terminadas por ponto e vírgula.\n\n```sas\n/* cria uma tabela de trabalho e calcula uma variável */\ndata work.vendas_limpa;\n  set work.vendas;\n  total = quantidade * preco;\nrun;\n\nproc means data=work.vendas_limpa mean sum;\n  var total;\nrun;\n```\n\nO primeiro bloco lê observações da tabela `work.vendas`, calcula `total` e grava uma nova tabela. O segundo chama um procedimento de estatística descritiva para calcular média e soma daquela variável. A sequência mostra o padrão de preparar os dados e então pedir uma tarefa analítica a um procedimento.\n\n### Tabela SAS: observações e variáveis\n\nUm conjunto de dados SAS se comporta como uma tabela: cada linha é uma **observação** e cada coluna é uma **variável**. Na terminologia SQL, correspondem aproximadamente a linha e coluna. Um conjunto pode ser permanente ou temporário. Se o nome tiver apenas um nível, como `vendas`, o SAS normalmente o procura na biblioteca `WORK`; um nome de dois níveis, como `projeto.vendas`, indica biblioteca e membro. `WORK` é a área temporária da sessão e seus dados não se destinam a armazenamento permanente após o encerramento da sessão.\n\n### Como cai na prova\n\n- O SAS não é apenas uma planilha nem apenas um pacote estatístico: inclui recursos para acesso, transformação, análise e apresentação.\n- Linhas são observações; colunas são variáveis.\n- `DATA` costuma criar ou transformar conjuntos de dados; `PROC` executa procedimentos prontos.\n- O ponto e vírgula encerra instruções; `RUN;` submete etapas comuns e `QUIT;` encerra procedimentos interativos como SQL."
+    },
+    {
+      "title": "2. Acesso, bibliotecas e preparação com DATA step",
+      "markdown": "### O problema que este assunto resolve\n\nAntes de calcular estatísticas, é preciso localizar os dados, entender suas colunas e prepará-los. No SAS, uma biblioteca é uma referência lógica a um local de armazenamento ou a uma fonte de dados. `LIBNAME` associa um libref (apelido curto) a essa fonte. O libref passa a fazer parte do nome qualificado do conjunto: `libref.membro`. O acesso a formatos externos, inclusive planilhas e bancos, pode depender dos mecanismos disponíveis e da configuração do ambiente.\n\n> **Siglas e termos deste capítulo**\n> - **LIBNAME**: instrução que atribui um libref a uma biblioteca de dados.\n> - **Libref**: apelido usado como primeiro nível do nome de um conjunto SAS.\n> - **Membro**: conjunto de dados ou outro objeto dentro da biblioteca.\n> - **SET**: instrução do DATA step que lê observações de um ou mais conjuntos.\n> - **IF**: pode filtrar observações ou controlar execução condicional no DATA step.\n> - **Missing**: valor ausente, representado de modo próprio conforme tipo da variável.\n\n### Referenciar os dados\n\n`LIBNAME estudo '/dados/projeto';` atribui o libref `estudo` a uma biblioteca naquele caminho. Depois, `estudo.pacientes` referencia o membro `pacientes`. A instrução não copia por si só a tabela nem realiza análise: estabelece a associação usada por outras etapas. Para arquivos externos, a sintaxe exata e o mecanismo de acesso variam conforme formato, sistema e produto SAS disponível.\n\nA biblioteca `WORK` é criada para uso temporário e pode ser usada sem declaração explícita. Por isso, `data resultado;` normalmente grava `WORK.RESULTADO`. Para manter o conjunto em biblioteca persistente atribuída, informe os dois níveis: `data estudo.resultado;`. Essa diferença de escopo e duração importa quando outro programa ou sessão precisará reutilizar o resultado.\n\n### Ler e transformar observações\n\nUm DATA step típico usa `SET` para ler dados e uma lista de instruções para criar variáveis, aplicar condições ou alterar valores. Exemplo: `data work.maiores; set estudo.vendas; if quantidade > 0; valor = quantidade * preco; run;`. O filtro mantém observações cuja quantidade é positiva; o cálculo acrescenta `valor`. `KEEP` e `DROP` podem limitar as variáveis mantidas; `RENAME` muda nomes; `WHERE=` pode restringir as observações lidas. A posição e a forma desses recursos têm efeitos próprios, então convém revisar o log e a saída.\n\n`SET` com mais de uma tabela lê observações em sequência; isso é diferente de uma junção que combina colunas por uma chave. Para combinar linhas correspondentes por chave, podem ser usados `MERGE` com ordenação e instruções `BY`, ou junções em `PROC SQL`. Uma junção exige atenção a duplicidades e valores sem correspondência, pois podem alterar quantidade e conteúdo das linhas.\n\n### Tipos, formatos e valores ausentes\n\nO SAS distingue variáveis numéricas e de caracteres. Formatos controlam a apresentação de valores; informats orientam a leitura de representações textuais para valores SAS. Um formato de data, por exemplo, mostra uma data armazenada numericamente como calendário legível. Formatar não equivale a mudar o valor subjacente. Valores ausentes também não devem ser confundidos com zero ou texto vazio: a interpretação depende do tipo e da operação. Em dados reais, ausência pode indicar que a informação não foi registrada, e não que o fenômeno tenha valor zero.\n\n### Como cai na prova\n\n- `LIBNAME` associa um apelido à biblioteca; não calcula estatística nem, por si só, importa todas as tabelas.\n- Nome de um nível costuma apontar para `WORK`; dois níveis indicam libref e membro.\n- `SET` lê observações; a junção por chave tem outra semântica.\n- Formato muda exibição, não necessariamente o valor armazenado. Verifique missing values antes de interpretar médias, totais ou percentuais."
+    },
+    {
+      "title": "3. Procedimentos PROC e análise descritiva",
+      "markdown": "### O problema que este assunto resolve\n\nO SAS oferece procedimentos prontos para tarefas comuns. A instrução `PROC` seleciona o procedimento e opções, e instruções seguintes indicam os dados e variáveis. A SAS caracteriza os procedimentos do Base SAS como recursos para manipulação, armazenamento e recuperação, estatística descritiva e elaboração de relatórios. Isso permite executar operações recorrentes sem escrever do zero todo algoritmo de ordenação, resumo ou análise.\n\n> **Siglas e termos deste capítulo**\n> - **PROC**: comando que inicia um procedimento SAS.\n> - **PROC SORT**: ordena observações segundo variáveis indicadas.\n> - **PROC PRINT**: apresenta observações em saída tabular.\n> - **PROC FREQ**: produz frequências e tabelas de contingência para variáveis categóricas.\n> - **PROC MEANS**: calcula estatísticas descritivas de variáveis numéricas.\n> - **VAR**: lista variáveis numéricas a serem analisadas em vários procedimentos.\n\n### Escolher o procedimento pela pergunta\n\nSe a pergunta for “quantas ocorrências de cada categoria?”, `PROC FREQ` é uma escolha natural. Se for “qual a média, soma, mínimo ou máximo de uma medida numérica?”, `PROC MEANS` é adequado. Para listar observações, use `PROC PRINT`; para ordená-las, `PROC SORT`. O procedimento não substitui a definição correta da população, das variáveis e do tratamento de ausências.\n\n```sas\nproc freq data=estudo.atendimentos;\n  tables situacao;\nrun;\n\nproc means data=estudo.atendimentos mean median min max;\n  var duracao;\nrun;\n```\n\nEm `PROC FREQ`, `TABLES` pede a distribuição da variável categórica `situacao`. Em `PROC MEANS`, as estatísticas listadas são calculadas para `duracao`. Pode-se acrescentar uma instrução `CLASS` para resumir por grupos; em `PROC MEANS`, isso produz resultados estratificados segundo os níveis da variável de classificação. Um valor missing em uma variável de classe pode ser omitido por padrão em determinados resumos, então confira opções e saída antes de concluir que o grupo não existe.\n\n### Ler o resultado, não apenas executar o código\n\nA saída deve ser interpretada no contexto: média pode ser influenciada por valores extremos; frequência depende do denominador escolhido; percentuais podem ser por linha, coluna ou tabela; uma correlação não demonstra causalidade. É necessário verificar quantidade de observações, valores ausentes, unidade de medida, filtros, grupos e período. O log informa problemas de execução e deve ser examinado mesmo quando a interface mostra uma tabela de resultados.\n\nO Output Delivery System (ODS) organiza a entrega de resultados SAS em formatos de saída, como HTML, PDF ou RTF, conforme destino e configuração. Produzir um relatório não transforma automaticamente uma análise em conclusão válida: títulos, rótulos, unidades e explicação dos métodos continuam importantes.\n\n### Como cai na prova\n\n- Frequências categóricas apontam para `PROC FREQ`; resumos de variáveis numéricas, para `PROC MEANS`.\n- `CLASS` permite resumir por categorias; `VAR` identifica variáveis numéricas em procedimentos compatíveis.\n- ODS trata a apresentação/entrega da saída, não corrige inconsistências dos dados.\n- Uma execução sem erro de sintaxe não garante interpretação estatística correta."
+    },
+    {
+      "title": "4. PROC SQL, reprodutibilidade e verificação",
+      "markdown": "### O problema que este assunto resolve\n\n`PROC SQL` disponibiliza SQL no Base SAS para consultar e modificar tabelas SAS e, conforme acesso configurado, interagir com fontes de bancos de dados. A documentação oficial informa que PROC SQL pode ser alternativa a procedimentos ou ao DATA step, trabalha com conjuntos SAS e também cria tabelas e views. Em consultas, uma linha corresponde a uma observação SAS e uma coluna a uma variável.\n\n> **Siglas e termos deste capítulo**\n> - **SQL**: linguagem de consulta estruturada para selecionar e combinar dados.\n> - **SELECT**: escolhe colunas ou expressões a retornar.\n> - **FROM**: indica as tabelas ou views consultadas.\n> - **WHERE**: filtra linhas; **GROUP BY** agrupa linhas para agregações.\n> - **View**: definição armazenada de uma consulta, que deriva dados das fontes quando usada.\n> - **ODS**: sistema SAS de entrega e formatação de resultados.\n\n### Consultar e combinar\n\n```sas\nproc sql;\n  select setor, count(*) as quantidade, mean(salario) as media\n  from estudo.servidores\n  where ativo = 'S'\n  group by setor;\nquit;\n```\n\nA consulta seleciona setor, conta linhas e calcula a média para cada setor entre os registros ativos. `WHERE` filtra antes do agrupamento. `GROUP BY` define grupos; sem ele, agregações têm outro escopo. `QUIT;` encerra PROC SQL. A sintaxe deve respeitar o tipo das variáveis e o tratamento de ausências. Para consultas com junção, declarar corretamente a condição de relacionamento evita multiplicar linhas ou combinar registros indevidos.\n\nUma tabela criada por PROC SQL é um conjunto de dados SAS que pode ser usado em DATA step e outros procedimentos. Uma view PROC SQL guarda a expressão de consulta, não uma cópia dos valores resultantes. Quando utilizada, a consulta busca valores nas fontes subjacentes. Assim, alterações nas fontes podem afetar o resultado visto posteriormente.\n\n### Rastreabilidade e diagnóstico\n\nProgramas SAS são mais reprodutíveis quando preservam código, identificam entradas, registram filtros e documentam as transformações. Compare contagem de entrada e saída, examine duplicidades após junções, confira unidades e missing values. Leia o log para mensagens `ERROR`, `WARNING` e notas sobre número de observações. Uma saída vazia ou inesperada pode resultar de filtro, libref não atribuído, nome incorreto, tipo incompatível ou dados ausentes.\n\nMantenha a distinção entre transformação e análise: primeiro estabeleça qual população e quais regras produzem o conjunto analítico; depois escolha procedimento e estatística coerentes com a pergunta. Registre decisões que mudam inclusão de linhas, tratamento de ausências ou definição de categorias. Isso permite que outra pessoa revise o fluxo e chegue a resultados comparáveis.\n\n### Como cai na prova\n\n- `PROC SQL` é a implementação SAS de SQL no Base SAS e pode consultar tabelas SAS.\n- View armazena uma consulta, enquanto tabela armazena observações.\n- Uma junção mal especificada pode duplicar linhas; compare contagens e chaves.\n- Log e saída são evidências de execução distintas: examine mensagens e valide o significado dos resultados."
+    }
+  ],
+  "summary": "SAS é um ambiente integrado para acessar, transformar, analisar e relatar dados, por interface gráfica ou linguagem SAS. Programas frequentemente combinam DATA steps, que leem e transformam observações, com procedimentos PROC, que executam tarefas prontas como frequência, estatística descritiva e SQL. Bibliotecas e nomes de dois níveis identificam onde os conjuntos são encontrados; WORK é temporária. Formatos afetam apresentação, e valores ausentes requerem interpretação explícita. Para resultados confiáveis, confira filtros, tipos, chaves, log, quantidades e contexto estatístico.",
+  "flashcards": [
+    {
+      "front": "Quais são as quatro atividades centrais para as quais SAS pode ser usado?",
+      "back": "Acessar e gerenciar dados, transformá-los, analisá-los e apresentar resultados em relatórios."
+    },
+    {
+      "front": "Quais são duas formas de trabalhar com SAS?",
+      "back": "Por interface gráfica e pela linguagem de programação SAS; também podem ser combinadas."
+    },
+    {
+      "front": "O que é um DATA step?",
+      "back": "Etapa que lê, cria ou transforma observações de conjuntos SAS."
+    },
+    {
+      "front": "Para que serve PROC em um programa SAS?",
+      "back": "Iniciar um procedimento pronto para uma tarefa de processamento, análise ou apresentação."
+    },
+    {
+      "front": "Como se chama uma linha de um conjunto de dados SAS?",
+      "back": "Observação (observation)."
+    },
+    {
+      "front": "Como se chama uma coluna de um conjunto de dados SAS?",
+      "back": "Variável (variable)."
+    },
+    {
+      "front": "Para que serve LIBNAME?",
+      "back": "Associar um libref a uma biblioteca de dados ou fonte acessível ao SAS."
+    },
+    {
+      "front": "O que indica o nome estudo.vendas?",
+      "back": "O primeiro nível é o libref da biblioteca; o segundo é o membro chamado vendas."
+    },
+    {
+      "front": "Qual é a finalidade usual da biblioteca WORK?",
+      "back": "Guardar conjuntos temporários da sessão SAS."
+    },
+    {
+      "front": "O que SET faz em DATA step?",
+      "back": "Lê observações de um ou mais conjuntos de dados para processamento."
+    },
+    {
+      "front": "Qual diferença básica há entre SET de dois conjuntos e uma junção por chave?",
+      "back": "SET normalmente lê observações em sequência; a junção relaciona linhas por valores-chave e combina colunas."
+    },
+    {
+      "front": "Para que é usado PROC FREQ?",
+      "back": "Examinar frequências de categorias e tabelas de contingência."
+    },
+    {
+      "front": "Para que é usado PROC MEANS?",
+      "back": "Calcular estatísticas descritivas de variáveis numéricas, como média e soma."
+    },
+    {
+      "front": "Para que serve PROC SORT?",
+      "back": "Ordenar observações segundo uma ou mais variáveis."
+    },
+    {
+      "front": "O que especifica VAR em PROC MEANS?",
+      "back": "As variáveis numéricas para as quais serão calculadas estatísticas."
+    },
+    {
+      "front": "Que papel tem CLASS em PROC MEANS?",
+      "back": "Solicita resumos separados por níveis das variáveis categóricas informadas."
+    },
+    {
+      "front": "O que faz WHERE numa consulta PROC SQL?",
+      "back": "Restringe as linhas que participam da consulta conforme uma condição."
+    },
+    {
+      "front": "O que faz GROUP BY em PROC SQL?",
+      "back": "Forma grupos de linhas para que agregações sejam calculadas por grupo."
+    },
+    {
+      "front": "Uma view PROC SQL armazena os resultados completos da consulta?",
+      "back": "Não necessariamente: armazena a definição da consulta e deriva dados das fontes quando é usada."
+    },
+    {
+      "front": "Qual é a diferença entre format e valor armazenado?",
+      "back": "Formato controla a apresentação; não implica que o valor subjacente tenha sido alterado."
+    },
+    {
+      "front": "Por que conferir o log SAS?",
+      "back": "Para identificar erros, avisos, notas e contagens que ajudam a diagnosticar a execução."
+    },
+    {
+      "front": "O que significa um valor missing?",
+      "back": "Um valor ausente; não deve ser automaticamente interpretado como zero ou texto vazio."
+    },
+    {
+      "front": "O que faz ODS?",
+      "back": "Organiza a entrega e apresentação da saída SAS em destinos e formatos configurados."
+    },
+    {
+      "front": "Qual instrução encerra tipicamente PROC SQL?",
+      "back": "QUIT;"
+    },
+    {
+      "front": "Uma correlação observada prova que uma variável causou outra?",
+      "back": "Não. Correlação descreve associação e, por si só, não demonstra causalidade."
+    }
+  ],
+  "tips": [
+    "Leia a pergunta analítica antes de escolher o PROC: categoria costuma pedir FREQ; variável numérica resumida costuma pedir MEANS.",
+    "Confira se o nome do conjunto é de um nível (normalmente WORK) ou qualificado por biblioteca e membro.",
+    "Ao criar uma tabela derivada, compare quantidades de entrada e saída para perceber filtros inesperados.",
+    "Depois de uma junção, confira duplicidades e cardinalidade das chaves; linhas repetidas podem inflar totais.",
+    "Use formatos e rótulos para comunicar unidades, mas verifique o valor e o tipo subjacentes.",
+    "Leia o log e valide missing values, filtros e denominadores antes de interpretar os resultados."
+  ],
+  "traps": [
+    "Confundir DATA step, que processa observações, com PROC, que chama procedimentos especializados.",
+    "Afirmar que LIBNAME importa ou copia dados automaticamente; sua função principal é atribuir referência lógica à biblioteca.",
+    "Supor que SET de várias tabelas faz automaticamente uma junção por chave.",
+    "Tratar valores ausentes como zero sem verificar tipo e significado dos dados.",
+    "Confundir uma view armazenada como consulta com uma tabela que contém os valores resultantes.",
+    "Achar que ausência de erro de sintaxe garante análise válida ou causalidade."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o fluxo básico de um programa SAS de preparação e análise.",
+      "answer": "Atribuir ou identificar fontes, ler dados com DATA step, filtrar ou criar variáveis, então executar PROC apropriado e verificar log e resultados."
+    },
+    {
+      "question": "Explique a diferença entre observação e variável.",
+      "answer": "Observação é uma linha de dados; variável é uma coluna ou atributo registrado para cada observação."
+    },
+    {
+      "question": "Quando você usaria PROC FREQ e quando PROC MEANS?",
+      "answer": "FREQ para contagens e distribuições categóricas; MEANS para estatísticas descritivas de variáveis numéricas."
+    },
+    {
+      "question": "Como se referencia uma tabela chamada clientes em uma biblioteca chamada cadastro?",
+      "answer": "Como cadastro.clientes, usando o libref e o membro."
+    },
+    {
+      "question": "Explique por que formatar uma data não é necessariamente transformar seu valor.",
+      "answer": "O formato muda a representação mostrada ao usuário; o valor armazenado pode continuar igual."
+    },
+    {
+      "question": "Como a interpretação de uma média pode ser prejudicada por valores ausentes?",
+      "answer": "A ausência pode alterar o conjunto efetivamente incluído e o denominador; deve-se conferir como o procedimento tratou os missing values."
+    },
+    {
+      "question": "Que risco existe em uma junção cuja chave não é única?",
+      "answer": "Uma linha de uma fonte pode combinar com várias da outra, duplicando registros e alterando totais ou médias."
+    },
+    {
+      "question": "O que verificar se um PROC produz saída vazia inesperada?",
+      "answer": "Conferir libref e nome do conjunto, filtros, tipos, valores ausentes e mensagens do log."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "DATA step e PROC confundidos",
+      "summary": "DATA step costuma ler e transformar observações; PROC inicia tarefas especializadas. Os blocos podem ser encadeados em um programa."
+    },
+    {
+      "key": "e2",
+      "title": "Biblioteca tratada como cópia de dados",
+      "summary": "LIBNAME associa libref a biblioteca. Atribuir a referência não significa que todos os dados foram copiados ou analisados."
+    },
+    {
+      "key": "e3",
+      "title": "Empilhamento confundido com junção",
+      "summary": "SET lê observações em sequência; MERGE ou PROC SQL podem combinar colunas por chaves, com cuidados sobre ordenação e duplicidades."
+    },
+    {
+      "key": "e4",
+      "title": "Apresentação confundida com conteúdo",
+      "summary": "FORMAT controla exibição. Views guardam consulta; missing values têm significado distinto de zero e devem ser tratados com critério."
+    },
+    {
+      "key": "e5",
+      "title": "Saída confundida com conclusão válida",
+      "summary": "Procedimento executado não assegura interpretação correta. Confira população, filtros, denominadores, unidades, log e limitações estatísticas."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "O SAS pode ser usado para acessar dados, transformá-los, analisá-los e produzir relatórios.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esses usos integram as capacidades do ambiente SAS, que reúne recursos de acesso e manipulação de dados, análise estatística e apresentação de resultados.",
+      "section": "1. O que é o SAS e como se organiza um programa",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa SAS só pode ser executado por interface gráfica, pois SAS não possui linguagem de programação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. SAS pode ser usado por interface gráfica e pela linguagem SAS; o usuário pode escrever e executar código para tornar as operações explícitas e repetíveis.",
+      "section": "1. O que é o SAS e como se organiza um programa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um conjunto SAS, cada observação corresponde a uma linha e cada variável corresponde a uma coluna.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A terminologia SAS chama as linhas de observações e as colunas de variáveis, equivalentes em termos gerais a linhas e colunas de uma tabela.",
+      "section": "1. O que é o SAS e como se organiza um programa",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A instrução DATA é usada com frequência para criar ou transformar conjuntos de dados SAS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um DATA step pode ler observações, aplicar filtros e calcular variáveis para produzir um conjunto SAS novo ou atualizado.",
+      "section": "1. O que é o SAS e como se organiza um programa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando PROC inicia um procedimento SAS, como um recurso pronto para ordenar, resumir ou analisar dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. PROC chama um procedimento cuja função é executar uma tarefa específica; depois dele, instruções podem indicar os dados e opções da análise.",
+      "section": "1. O que é o SAS e como se organiza um programa",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um nome de conjunto SAS com um único nível, como vendas, costuma ser procurado na biblioteca temporária WORK.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Sem um libref explícito, o SAS normalmente usa WORK para nomes de um nível. O nome projeto.vendas indica, por sua vez, biblioteca e membro.",
+      "section": "1. O que é o SAS e como se organiza um programa",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "WORK é a escolha usual para armazenar resultados que precisam permanecer disponíveis permanentemente depois do encerramento da sessão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. WORK é voltada a conjuntos temporários da sessão. Para persistir dados, use uma biblioteca atribuída a armazenamento durável e referencie o membro nessa biblioteca.",
+      "section": "1. O que é o SAS e como se organiza um programa",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "LIBNAME atribui um libref a uma biblioteca e, sozinho, não executa uma análise estatística sobre os dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A instrução estabelece uma referência lógica para localizar membros da biblioteca. A análise deve ser solicitada por DATA step, PROC ou outro recurso SAS.",
+      "section": "2. Acesso, bibliotecas e preparação com DATA step",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A instrução SET em um DATA step pode ler observações de um conjunto SAS para processamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. SET disponibiliza observações de um ou mais conjuntos ao DATA step, no qual podem ser aplicadas transformações e condições.",
+      "section": "2. Acesso, bibliotecas e preparação com DATA step",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "SET com dois conjuntos de dados faz necessariamente uma junção de suas colunas por uma chave comum.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. SET normalmente concatena a leitura das observações em sequência. Uma junção que combina colunas por chave exige outra lógica, como MERGE com BY ou uma junção em PROC SQL.",
+      "section": "2. Acesso, bibliotecas e preparação com DATA step",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um formato SAS pode alterar a forma exibida de um valor sem necessariamente alterar o valor subjacente armazenado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Formatos são usados para apresentação, por exemplo exibir uma data numérica como data legível. A representação impressa não deve ser confundida com transformação do dado.",
+      "section": "2. Acesso, bibliotecas e preparação com DATA step",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um valor ausente deve ser interpretado automaticamente como zero em qualquer cálculo e conjunto SAS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Missing indica ausência e tem representação própria. Zero é um valor numérico observado; convertê-los sem justificativa muda o significado e pode distorcer estatísticas.",
+      "section": "2. Acesso, bibliotecas e preparação com DATA step",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "PROC FREQ é apropriado para examinar contagens ou distribuições de categorias de uma variável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. PROC FREQ produz frequências e pode formar tabelas de contingência, sendo útil para variáveis categóricas como situação ou tipo.",
+      "section": "3. Procedimentos PROC e análise descritiva",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "PROC MEANS pode calcular medidas descritivas, como média, soma, mínimo e máximo, para variáveis numéricas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. PROC MEANS resume variáveis numéricas, e suas opções permitem especificar estatísticas a calcular para as observações incluídas.",
+      "section": "3. Procedimentos PROC e análise descritiva",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma correlação calculada por procedimento SAS demonstra, por si só, que uma variável causou a outra.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Correlação resume associação entre variáveis. Inferência causal exige desenho e pressupostos adequados, e não decorre apenas da execução de um procedimento ou do valor de uma correlação.",
+      "section": "3. Procedimentos PROC e análise descritiva",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Output Delivery System pode organizar a entrega de resultados SAS em formatos de relatório, mas não valida a qualidade estatística dos dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. ODS trata da apresentação e do destino da saída, como relatórios HTML ou PDF. A adequação dos dados, dos métodos e da interpretação precisa ser avaliada separadamente.",
+      "section": "3. Procedimentos PROC e análise descritiva",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "PROC SQL no Base SAS permite consultar conjuntos de dados SAS usando instruções da linguagem SQL.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação SAS define PROC SQL como a implementação de SQL no Base SAS e indica seu uso com tabelas SAS e outras fontes conforme configuração.",
+      "section": "4. PROC SQL, reprodutibilidade e verificação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma view PROC SQL armazena necessariamente uma cópia física e atualizada de todas as linhas retornadas pela consulta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma view PROC SQL armazena uma expressão de consulta. Quando usada, os dados são derivados das fontes subjacentes; isso não equivale a guardar uma cópia permanente dos resultados.",
+      "section": "4. PROC SQL, reprodutibilidade e verificação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A junção de tabelas com chaves duplicadas pode multiplicar linhas, por isso as contagens após o relacionamento devem ser verificadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Quando uma chave encontra várias linhas do outro lado, cada combinação pode aparecer no resultado. Isso pode aumentar totais e alterar médias, mesmo sem erro de execução.",
+      "section": "4. PROC SQL, reprodutibilidade e verificação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa que termina sem mensagem ERROR sempre produz uma interpretação estatística correta e livre de limitações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Execução sem erro não prova que filtros, população, unidade, missing values e método estejam adequados. O log e os resultados precisam ser confrontados com a pergunta analítica.",
+      "section": "4. PROC SQL, reprodutibilidade e verificação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição identifica melhor a ferramenta SAS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma planilha que apenas formata células e não permite programar cálculos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um ambiente integrado para acessar, preparar, analisar e apresentar dados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um sistema operacional dedicado à administração de redes locais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um programa de backup que apenas replica arquivos entre computadores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um banco relacional que substitui ferramentas estatísticas e relatórios.",
+          "correct": false
+        }
+      ],
+      "explanation": "SAS reúne recursos de acesso, transformação, análise e apresentação de dados, incluindo linguagem de programação e procedimentos estatísticos. Não é somente planilha, sistema operacional, ferramenta de backup ou banco relacional.",
+      "section": "1. O que é o SAS e como se organiza um programa",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma analista quer criar uma variável calculada a partir de quantidade e preço em cada linha de vendas. Qual recurso é mais diretamente indicado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar PROC FREQ para que o SAS crie automaticamente todos os valores monetários.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar LIBNAME ao conjunto, pois a biblioteca calcula campos derivados ao ser atribuída.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar um DATA step e calcular quantidade * preço em uma variável nova.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Gerar um relatório ODS, pois seu formato de saída modifica os dados de origem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ordenar por preço com PROC SORT, pois a ordenação multiplica as duas colunas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O DATA step permite ler cada observação e calcular uma variável usando seus valores, como quantidade multiplicada por preço. FREQ e SORT têm outros objetivos; LIBNAME atribui uma biblioteca e ODS organiza a apresentação da saída.",
+      "section": "1. O que é o SAS e como se organiza um programa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um programa SAS, qual característica diferencia mais tipicamente DATA step de PROC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DATA step configura usuários; PROC cria as pastas físicas de armazenamento do sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DATA step exibe apenas gráficos; PROC é usado exclusivamente para importar planilhas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DATA step administra conexões de rede; PROC serve para compilar o sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DATA step transforma observações; PROC executa procedimentos especializados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "DATA step e PROC são sinônimos e sempre executam as mesmas instruções.",
+          "correct": false
+        }
+      ],
+      "explanation": "DATA step é voltado à leitura e transformação de observações. PROC invoca procedimentos prontos, como FREQ ou MEANS. Ambos aparecem em programas SAS, mas cumprem papéis diferentes.",
+      "section": "1. O que é o SAS e como se organiza um programa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um código usa DATA vendas; SET cadastro.vendas; RUN;. Em que biblioteca o resultado vendas normalmente será gravado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Na biblioteca SASUSER, pois todo DATA step grava ali por padrão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Na biblioteca CADASTRO, pois a tabela de entrada usa esse libref.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Na biblioteca WORK, pois o nome de saída tem um único nível.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Na tabela de entrada, substituindo-a sempre que o código termina.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Em uma biblioteca permanente escolhida pelo sistema sem depender do nome.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um nome de saída com um único nível normalmente é resolvido em WORK. O fato de a entrada ser cadastro.vendas não transfere automaticamente a saída para CADASTRO; para isso, o nome de saída deve qualificar a biblioteca desejada.",
+      "section": "1. O que é o SAS e como se organiza um programa",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a função principal da instrução LIBNAME?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Calcular a média de todas as variáveis numéricas de uma tabela existente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter automaticamente cada conjunto SAS em um relatório PDF final.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ordenar as observações de todos os membros pelo primeiro campo encontrado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar uma junção entre tabelas distintas usando nomes de coluna idênticos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Associar um libref à biblioteca para acessar seus membros.",
+          "correct": true
+        }
+      ],
+      "explanation": "LIBNAME define a associação entre um libref e uma biblioteca de dados. Depois, o programa pode usar nomes como estudo.tabela. A instrução não calcula estatísticas, não ordena tabelas e não cria junções por si só.",
+      "section": "2. Acesso, bibliotecas e preparação com DATA step",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um DATA step deve ler a tabela estudo.pedidos e conservar somente linhas com quantidade positiva. Qual alternativa expressa esse fluxo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar LIBNAME estudo.pedidos e deixar que a biblioteca filtre as linhas automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar PROC SORT com quantidade positiva, pois SORT elimina valores não positivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar ODS PDF e definir a quantidade no título para remover registros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar PROC PRINT sem nenhuma opção, que filtra valores positivos por padrão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ler com SET e filtrar por IF quantidade > 0.",
+          "correct": true
+        }
+      ],
+      "explanation": "SET lê as observações de entrada e a condição no DATA step controla quais são mantidas no conjunto produzido. LIBNAME não filtra dados, SORT apenas ordena, ODS trata saída e PRINT não seleciona apenas valores positivos por padrão.",
+      "section": "2. Acesso, bibliotecas e preparação com DATA step",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas tabelas possuem uma linha por cliente e devem ter colunas combinadas pelo identificador do cliente. Qual cuidado descreve corretamente essa tarefa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar FORMAT ao identificador, pois a apresentação idêntica cria uma relação entre tabelas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar SET sem condição, pois essa instrução sempre relaciona linhas com identificadores iguais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ordenar alfabeticamente uma das tabelas, pois linhas na mesma posição passam a ser clientes iguais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Relacionar pela chave e conferir a cardinalidade do resultado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Somar as tabelas com PROC MEANS, pois o procedimento identifica chaves automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A junção precisa declarar o relacionamento pelo identificador e verificar unicidade e correspondências. Chaves repetidas podem multiplicar combinações. SET não relaciona automaticamente linhas por chave, e ordenação ou formato não cria uma relação lógica.",
+      "section": "2. Acesso, bibliotecas e preparação com DATA step",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma data aparece como número em uma tabela SAS, mas deve ser mostrada em formato de calendário. O que se deve fazer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar PROC SORT, pois toda ordenação numérica atribui um formato de data.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar PROC FREQ, que converte todas as variáveis numéricas em datas válidas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar LIBNAME, pois associar biblioteca converte números em calendários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar SET duas vezes, pois a segunda leitura sempre troca tipo numérico por texto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar um formato de data apropriado, reconhecendo que isso muda a exibição do valor.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um formato de data instrui o SAS sobre como apresentar o valor. É preciso também confirmar que o número realmente representa uma data segundo a convenção dos dados; mudar a apresentação não corrige um valor de origem incorreto.",
+      "section": "2. Acesso, bibliotecas e preparação com DATA step",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe identifica códigos sem preenchimento e considera substituí-los por zero antes de calcular uma média. Qual abordagem é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Investigar o significado da ausência e definir explicitamente se a substituição é válida para o domínio.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Converter todo missing em zero, pois ambos sempre significam ausência de ocorrência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Excluir a variável do conjunto, porque SAS não permite analisar dados com valores ausentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar formato monetário, que transforma missing em zero para todos os cálculos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar PROC SORT, que substitui valores ausentes pelo valor numérico mínimo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Missing pode representar falta de registro, não aplicabilidade ou outra condição. Substituir por zero só é defensável quando a definição do dado justifica essa regra; caso contrário, altera distribuições e estatísticas. A decisão deve ser documentada.",
+      "section": "2. Acesso, bibliotecas e preparação com DATA step",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para obter a quantidade de registros por situação, qual procedimento SAS é o mais diretamente apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "PROC MEANS com a variável situacao tratada como medida numérica contínua.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "PROC FREQ com a variável situacao indicada em TABLES.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "PROC SORT com a opção de somar as categorias depois da ordenação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "LIBNAME com situação como nome de biblioteca e cada categoria como arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ODS com situação como destino para que conte as linhas por conta própria.",
+          "correct": false
+        }
+      ],
+      "explanation": "PROC FREQ é voltado a frequências e distribuições categóricas. MEANS resume variáveis numéricas; SORT ordena, LIBNAME referencia bibliotecas e ODS organiza a saída dos procedimentos.",
+      "section": "3. Procedimentos PROC e análise descritiva",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma variável duração é numérica, e a equipe quer média, mediana, mínimo e máximo. Qual alternativa é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar PROC FREQ para calcular média e mediana automaticamente para qualquer texto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar LIBNAME para que o SAS determine a distribuição da duração ao abrir a biblioteca.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Solicitar as estatísticas em PROC MEANS.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar PROC SORT, pois a primeira e a última linha sempre substituem todas as estatísticas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar ODS sozinho, pois o sistema de saída calcula estatísticas sobre dados não analisados.",
+          "correct": false
+        }
+      ],
+      "explanation": "PROC MEANS calcula medidas descritivas de variáveis numéricas e permite solicitar estatísticas específicas. ODS formata resultados já produzidos; FREQ, SORT e LIBNAME não cumprem esse papel analítico.",
+      "section": "3. Procedimentos PROC e análise descritiva",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PROC MEANS, para que serve uma instrução CLASS como CLASS setor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Produzir resumos separados pelos níveis de setor, conforme as opções do procedimento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Converter setor em biblioteca permanente e arquivar cada grupo em um local distinto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Excluir todas as observações cujo setor tenha valor ausente em qualquer procedimento SAS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ordenar a tabela de origem sem calcular estatísticas para as variáveis numéricas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir setor como variável dependente de regressão sem necessidade de outro procedimento.",
+          "correct": false
+        }
+      ],
+      "explanation": "CLASS agrupa os resultados de procedimentos compatíveis por níveis categóricos. Não cria bibliotecas nem substitui uma análise de regressão; o tratamento de categorias ausentes depende das opções e da saída verificada.",
+      "section": "3. Procedimentos PROC e análise descritiva",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O log informa que o conjunto de entrada tem mais observações que a tabela de saída após um DATA step com filtro. Qual interpretação inicial é razoável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar a condição de filtro, pois ela pode ter removido observações que não a satisfizeram.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Concluir imediatamente que o SAS perdeu dados por falha de armazenamento permanente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar a contagem, pois o log não registra informações sobre execução de etapas SAS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar para ODS PDF, pois o formato de relatório repõe linhas filtradas no conjunto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter todos os missing em zero, pois essa operação sempre restaura as observações excluídas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Filtros podem reduzir legitimamente a quantidade de observações. Compare a condição escrita com a regra de negócio e examine as contagens no log; só depois investigue outras causas, sem presumir perda de dados.",
+      "section": "3. Procedimentos PROC e análise descritiva",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório mostra médias de atendimentos por unidade, e a distribuição tem valores extremos. Que afirmação é metodologicamente correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A média pode ser influenciada por extremos, então convém examinar distribuição, unidades e medidas complementares.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A média é sempre representativa e não depende de observações extremas do conjunto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um formato ODS elimina automaticamente extremos antes de calcular qualquer média.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PROC FREQ prova que a média representa a mediana mesmo sem analisar valores numéricos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma média por unidade demonstra que a unidade causou diferenças em todos os atendimentos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A média é sensível a valores extremos e pode não representar bem uma distribuição assimétrica. Examine a distribuição, a unidade, a população e medidas complementares; um resumo descritivo isolado não sustenta conclusão causal.",
+      "section": "3. Procedimentos PROC e análise descritiva",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a correspondência correta entre procedimento e tarefa comum?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "PROC SORT ordena observações; PROC FREQ resume frequências categóricas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "PROC SORT calcula regressão; PROC FREQ atribui bibliotecas de dados permanentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PROC SORT importa automaticamente bancos; PROC FREQ formata relatórios em HTML.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PROC SORT substitui missing por média; PROC FREQ calcula médias de variáveis contínuas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PROC SORT cria views SQL; PROC FREQ administra usuários de rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "PROC SORT realiza ordenação e PROC FREQ produz frequências. As outras alternativas atribuem a esses procedimentos tarefas de regressão, importação, formatação, administração ou tratamento automático de ausências que não definem seus usos básicos.",
+      "section": "3. Procedimentos PROC e análise descritiva",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta deve retornar apenas registros ativos de servidores. Qual cláusula PROC SQL filtra as linhas por condição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "GROUP BY, usada para ordenar todas as colunas e remover registros inativos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "WHERE, usada com uma condição que seleciona os registros ativos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "LIBNAME, usada dentro de SELECT para eliminar linhas por estado funcional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "FORMAT, que define quais observações podem participar da consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "QUIT, que seleciona somente linhas cuja situação tem valor ativo.",
+          "correct": false
+        }
+      ],
+      "explanation": "WHERE restringe as linhas que participam da consulta segundo uma condição. GROUP BY organiza grupos para agregações; LIBNAME referencia bibliotecas; FORMAT afeta apresentação e QUIT encerra PROC SQL.",
+      "section": "4. PROC SQL, reprodutibilidade e verificação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta SQL deve calcular o número de registros por setor. Qual recurso define os grupos da agregação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "LIBNAME setor, que reúne linhas com o mesmo nome de biblioteca.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "FORMAT setor, que transforma automaticamente categorias em grupos estatísticos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "GROUP BY setor, combinado com a função de contagem solicitada no SELECT.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "QUIT setor, que inicia a contagem antes de encerrar o procedimento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SET setor, que é cláusula SQL para somar os registros do conjunto.",
+          "correct": false
+        }
+      ],
+      "explanation": "GROUP BY setor define grupos por valor de setor, e uma agregação como COUNT calcula uma medida para cada grupo. FORMAT não agrupa linhas logicamente e LIBNAME, QUIT e SET têm funções distintas.",
+      "section": "4. PROC SQL, reprodutibilidade e verificação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PROC SQL, qual é a diferença usual entre tabela e view?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tabela contém observações; view PROC SQL armazena uma consulta que deriva dados das fontes quando usada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Tabela armazena somente uma consulta; view sempre contém uma cópia física independente dos dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tabela é apenas temporária; view é sempre permanente e contém valores congelados na criação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tabela é uma biblioteca; view é um arquivo de log que mostra erros de execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tabela guarda apenas variáveis; view guarda apenas nomes de observações sem acesso às fontes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma tabela SAS contém observações e variáveis. Uma view PROC SQL guarda a expressão de consulta, e seus valores são derivados dos dados subjacentes quando ela é usada; não é necessariamente uma cópia congelada.",
+      "section": "4. PROC SQL, reprodutibilidade e verificação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como PROC SQL é encerrado explicitamente após uma sequência de consultas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Com TABLES;, que encerra todo procedimento SAS sem considerar contexto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Com LIBNAME;, que fecha a biblioteca e submete as consultas pendentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Com FORMAT;, que converte a consulta em uma tabela permanente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Com QUIT;, que encerra o procedimento SQL ativo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Com WHERE;, que termina a sessão SQL assim que filtra uma linha.",
+          "correct": false
+        }
+      ],
+      "explanation": "QUIT; é usado para encerrar PROC SQL. LIBNAME atribui bibliotecas; FORMAT trata apresentação; TABLES é usado em outros contextos, como PROC FREQ; WHERE filtra linhas.",
+      "section": "4. PROC SQL, reprodutibilidade e verificação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma junção em PROC SQL elevou inesperadamente a soma total, embora nenhum dado tenha sido alterado na origem. Qual diagnóstico deve ser priorizado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atribuir um novo formato monetário, pois exibir mais casas decimais reduz a soma calculada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Verificar multiplicidade das chaves e se cada linha encontra várias correspondências na outra tabela.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Trocar todos os missing por zero, pois isso sempre reduz combinações duplicadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar PROC PRINT, que remove duplicidades da tabela sem especificar opções.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reiniciar ODS, pois a apresentação de saída é a causa necessária de qualquer total maior.",
+          "correct": false
+        }
+      ],
+      "explanation": "Chaves não únicas podem gerar várias combinações na junção e multiplicar linhas, inflando agregações. Confira cardinalidade, duplicidades e condição de relacionamento; formatação da saída não corrige o conjunto resultante.",
+      "section": "4. PROC SQL, reprodutibilidade e verificação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela de relatório é criada pela seleção de colunas em PROC SQL e será usada por outro PROC. Qual afirmação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma tabela PROC SQL é um conjunto SAS e pode servir de entrada a DATA steps e outros procedimentos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma tabela PROC SQL só pode ser lida por SQL e é incompatível com procedimentos SAS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Toda tabela PROC SQL é uma view que não contém dados e desaparece ao terminar a consulta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A saída não pode ser reutilizada, porque SELECT produz apenas texto sem estrutura tabular.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A tabela requer conversão para biblioteca WORK antes de qualquer leitura por SAS.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tabelas criadas por PROC SQL são conjuntos de dados SAS e podem ser usadas por DATA steps e outros procedimentos. O que não contém dados materializados é a view PROC SQL, que armazena uma consulta.",
+      "section": "4. PROC SQL, reprodutibilidade e verificação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O programa executa, mas a consulta de servidores retorna zero linhas. Qual procedimento de investigação é mais útil primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter toda variável em texto, pois consultas SAS só funcionam com colunas textuais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Assumir que não há servidores e apagar a tabela de origem antes de revisar o código.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar ODS para PDF, pois o formato do relatório determina quais linhas a consulta encontra.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Rodar PROC SORT sem dados, porque ordenar cria as observações ausentes no resultado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conferir libref, nome da tabela, tipos, condição WHERE e mensagens no log.",
+          "correct": true
+        }
+      ],
+      "explanation": "Saída vazia pode decorrer de tabela ou biblioteca incorreta, filtro incompatível, tipo ou valor inesperado. Confira a origem e o WHERE, além do log, antes de concluir algo sobre a população.",
+      "section": "4. PROC SQL, reprodutibilidade e verificação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de práticas melhora a reprodutibilidade de uma análise SAS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardar o código, identificar entradas e filtros, documentar transformações e verificar log e contagens.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar cada transformação manualmente, sem registrar filtros para manter o projeto flexível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar somente o PDF final e excluir o programa e as definições de variáveis usadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar dados originais sem cópia e evitar comparar a quantidade antes e depois do filtro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desconsiderar avisos e ausências sempre que o procedimento apresentar alguma tabela de resultados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Código preservado, fontes identificadas, filtros documentados e conferência do log e das contagens permitem revisão e execução comparável. Guardar apenas a saída ou omitir decisões impede rastrear como ela foi produzida.",
+      "section": "4. PROC SQL, reprodutibilidade e verificação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A documentação SAS descreve PROC SQL como uma implementação de SQL no Base SAS e admite seu uso como alternativa a DATA step ou outros procedimentos em determinadas tarefas. Qual conclusão decorre disso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "PROC SQL é uma opção de consulta e manipulação integrada ao ambiente SAS, sem tornar DATA step e PROC obsoletos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "PROC SQL substitui toda linguagem SAS e torna impossível usar conjuntos SAS fora de consultas SQL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PROC SQL só opera em bancos externos e não pode consultar uma tabela SAS nativa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PROC SQL é apenas um formato visual para imprimir relatórios e não executa consultas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PROC SQL transforma todo resultado em view temporária e impede que outras etapas o reutilizem.",
+          "correct": false
+        }
+      ],
+      "explanation": "PROC SQL é parte do Base SAS e pode operar sobre conjuntos SAS. Ele pode ser alternativa em certas tarefas, enquanto DATA step e outros procedimentos continuam disponíveis e apropriados para outros fluxos.",
+      "section": "4. PROC SQL, reprodutibilidade e verificação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente o papel do log em uma análise SAS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registrar mensagens de execução, incluindo erros, avisos, notas e informações úteis para diagnóstico.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Guardar exclusivamente os dados permanentes e substituir todas as bibliotecas atribuídas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Determinar automaticamente a hipótese estatística correta para cada procedimento executado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter qualquer aviso em erro fatal e bloquear a leitura das tabelas de entrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenar apenas relatórios formatados, sem informar sobre etapas de programa.",
+          "correct": false
+        }
+      ],
+      "explanation": "O log documenta como o programa foi executado e registra mensagens úteis para identificar problemas e verificar contagens. Ele não escolhe hipóteses analíticas nem substitui os dados ou relatórios de saída.",
+      "section": "4. PROC SQL, reprodutibilidade e verificação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "What can I do with SAS?",
+      "publisher": "SAS Support",
+      "reference": "Capacidades SAS: acesso e manipulação de dados, análise estatística e relatórios; interface gráfica e linguagem SAS.",
+      "url": "https://support.sas.com/software/products/sas-studio/faq/SAS_whatis.htm",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Base SAS",
+      "publisher": "SAS Support",
+      "reference": "Ambiente integrado, linguagem SAS, procedimentos, acesso, transformação e relatórios; recursos de Base SAS.",
+      "url": "https://support.sas.com/en/software/base-sas-support.html",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SAS SQL Procedure User's Guide",
+      "publisher": "SAS Documentation",
+      "reference": "PROC SQL no Base SAS; conjuntos e views, bibliotecas, tabelas SAS, consultas e relação com DATA step.",
+      "url": "https://documentation.sas.com/api/collections/pgmsascdc/v_064/docsets/sqlproc/content/sqlproc.pdf?locale=en",
+      "accessedAt": "2026-10-30"
+    }
+  ]
+}
