@@ -155,12 +155,18 @@ fun FlashcardDeckDialog(
     onDismiss: () -> Unit,
     isCardSaved: (Flashcard) -> Boolean = { false },
     onToggleCard: ((Flashcard) -> Unit)? = null,
+    deckKey: String? = null,
 ) {
     // Durante o baralho as comemorações (sequência, emblema, nível) esperam: aparecem ao fechar.
     br.com.estudario.ui.HoldCelebrations()
     val pager = rememberPagerState { cards.size }
     val flipped = remember { mutableStateMapOf<Int, Boolean>() }
     val scope = rememberCoroutineScope()
+    // Chegou ao último cartão: o baralho conta para o emblema de flashcards.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(pager.currentPage) {
+        if (deckKey != null && cards.isNotEmpty() && pager.currentPage == cards.lastIndex) br.com.estudario.data.FlashDeckLog.record(context, "deck-$deckKey-${br.com.estudario.data.FlashDeckLog.today()}")
+    }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
@@ -324,5 +330,6 @@ fun SummaryFlashcardDeck(viewModel: AppViewModel, summary: SummaryEntity, title:
             val existing = savedById[SavedFlashcards.externalId(current.id, card)]
             if (existing != null) viewModel.deleteSnippet(existing) else viewModel.saveSnippet(SavedFlashcards.snippet(current, card))
         },
+        deckKey = current.id.toString(),
     )
 }

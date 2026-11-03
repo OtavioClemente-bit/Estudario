@@ -142,6 +142,7 @@ object Progress {
                         errorsFixed = data.errors.count { it.retryCorrectCount > 0 },
                         streakSaves = streak.protectedDays.size,
                         earlyDays = early, lateDays = late,
+                        flashDecks = (Prefs.synced(data)["flashDecks"] as? kotlinx.serialization.json.JsonArray)?.size ?: 0,
                     )
                 },
             ),

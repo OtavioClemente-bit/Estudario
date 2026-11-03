@@ -340,10 +340,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** As contagens dos emblemas de foco, caderno, erros e horário (Madrugador e Coruja). */
     private val badgeExtras: StateFlow<br.com.estudario.domain.BadgeExtras> = combine(
         combine(app.database.dao().theoryMarks(), app.database.dao().notes(), app.database.dao().errors()) { marks, notes, errors -> Triple(marks.size + notes.size, errors.count { it.entry.retryCorrectCount > 0 }, 0) },
-        focusSessions, attempts, studySessions, reviewHistory,
-    ) { counts, focus, answers, sessions, history ->
+        focusSessions, attempts, studySessions, combine(reviewHistory, br.com.estudario.data.FlashDeckLog.count(application)) { h, d -> h to d },
+    ) { counts, focus, answers, sessions, (history, decks) ->
         val (early, late) = br.com.estudario.domain.BadgeExtras.hourDays(answers.map { it.answeredAt } + focus.map { it.startedAt } + sessions.map { it.startedAt } + history.map { it.reviewedAt })
-        br.com.estudario.domain.BadgeExtras(focusSessions = focus.size, marks = counts.first, errorsFixed = counts.second, earlyDays = early, lateDays = late)
+        br.com.estudario.domain.BadgeExtras(focusSessions = focus.size, marks = counts.first, errorsFixed = counts.second, earlyDays = early, lateDays = late, flashDecks = decks.coerceAtLeast(0))
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, br.com.estudario.domain.BadgeExtras())
 
     /** XP, nível e emblemas. Tudo recalculado do histórico, nada guardado, backup devolve o nível. */
