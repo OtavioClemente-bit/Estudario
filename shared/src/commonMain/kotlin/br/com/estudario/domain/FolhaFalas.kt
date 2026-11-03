@@ -60,6 +60,36 @@ object FolhaFalas {
         "Hoje a gente transforma dúvida em ponto.",
         "Pequeno, constante e bem feito. Esse é o segredo.",
         "Uma sessão de cada vez. Eu conto as vitórias.",
+        "Olhei seu plano agora: o próximo passo é bem possível. Vamos?",
+        "Pensei aqui: se a gente fizer só esse tópico, hoje já valeu.",
+        "Sabe o que eu reparei? Você sempre rende mais depois que começa.",
+        "Tô com a página aberta te esperando. Sem pressa, mas sem enrolar, tá?",
+        "Escolhi esse próximo passo com carinho. Acho que você vai gostar.",
+        "Se eu pudesse fazer a prova por você, fazia. Como não posso, te ajudo a chegar lá.",
+        "Hoje eu queria ver você fechando pelo menos um tópico. Topa o desafio?",
+        "Fiz as contas: no seu ritmo, o edital fica cada vez menor. Bora manter?",
+        "Me conta depois como foi esse tópico. Eu fico curioso.",
+        "Não precisa estar no clima. O clima aparece no meio do estudo, prometo.",
+        "Eu estava aqui organizando suas revisões. Agora é sua vez de brilhar.",
+        "Se der vontade de parar no meio, me chama que eu te animo.",
+        "Tem um pedaço do edital com o seu nome aqui. Vamos buscar?",
+        "Pequena missão de hoje: abrir o próximo passo e ler o primeiro capítulo.",
+        "Acho que hoje vai ser um daqueles dias bons. Tô sentindo.",
+        "Fiquei pensando em você: quanto mais cedo começar, mais leve fica o dia.",
+        "Esse tópico tem cara de questão de prova. Bora conhecer ele antes da banca?",
+        "Já deixei tudo arrumadinho. Só falta você sentar e começar.",
+        "Você estudando é a minha parte favorita do dia, sabia?",
+        "Se precisar de pausa, tudo bem. Mas antes, que tal só começar?",
+        "Eu confio no plano, e confio mais ainda em você.",
+        "Vou ficar aqui do lado torcendo. Pode ir.",
+        "Hoje a gente não precisa vencer o edital. Só o próximo passo.",
+        "Combinado entre a gente: um tópico agora e depois você decide se segue.",
+        "Seus últimos dias me deixaram animado. Bora repetir a dose?",
+        "Tô pronto, a teoria tá pronta. Falta só o seu \"bora\".",
+        "Respira, senta direitinho e vem comigo. Vai ser rápido.",
+        "Lembra daquela matéria que parecia impossível? Hoje ela já não assusta. Essa também não vai.",
+        "O que você aprender agora ninguém tira de você. Nem a banca.",
+        "Prometo explicar do jeito mais simples que eu conseguir.",
     )
     private val homeContinue = listOf(
         "Bora terminar o que começamos?",
@@ -76,6 +106,14 @@ object FolhaFalas {
         "Volta comigo? O fim desse tópico está logo ali.",
         "Missão pela metade não conta ponto. Bora fechar.",
         "Retomando de onde parou: sem perder nada.",
+        "Guardei direitinho onde você parou. Tô curioso pra ver você terminar.",
+        "Faltou um pedacinho ontem, né? Hoje a gente fecha.",
+        "Você já fez a parte chata. Agora é só o final, que é o mais legal.",
+        "Eu deixei o marcador na página certa. É só abrir.",
+        "Tá quase! Mais um pouco e eu já comemoro com você.",
+        "Sabia que terminar o que começou fixa melhor o conteúdo? Bora?",
+        "Não deixa esse tópico pela metade, ele já tá quase seu.",
+        "Volta aqui comigo rapidinho? Falta pouco mesmo.",
     )
     private val homeGenerate = listOf(
         "Vamos preparar o material deste tópico?",
@@ -86,6 +124,10 @@ object FolhaFalas {
         "Esse aqui ainda não tem material. Em um minuto eu resolvo.",
         "Me dá esse tópico que eu devolvo pronto pra estudar.",
         "Teoria mastigada e questões no estilo da banca. Gero agora?",
+        "Esse tópico ainda não tem material. Quer que eu prepare agora?",
+        "Eu monto a teoria e as questões, você só aparece pra estudar. Fechado?",
+        "Ainda tá vazio aqui. Me dá um minutinho que eu deixo tudo pronto.",
+        "Preparo esse pra você? Fica do jeito que a banca costuma cobrar.",
     )
     private val morning = listOf(
         "Bom dia! Cabeça descansada aprende mais rápido.",
@@ -98,6 +140,10 @@ object FolhaFalas {
         "Manhã silenciosa é o melhor lugar pra aprender.",
         "Bom dia! Hoje eu estou animado. E você?",
         "O sol nem esquentou e você já está aqui. Gosto disso.",
+        "Bom dia! Dormiu bem? Cabeça descansada é meio caminho andado.",
+        "Bom dia! Eu já tô acordado faz tempo, esperando você.",
+        "Manhã é quando eu mais gosto de estudar com você. Vamos?",
+        "Bom dia! Um tópico agora e o resto do dia fica mais leve.",
     )
     private val afternoon = listOf(
         "Boa tarde! Bora aproveitar esse pedaço do dia?",
@@ -107,6 +153,10 @@ object FolhaFalas {
         "Um intervalo bem usado vale ouro. Bora?",
         "Boa tarde! Que tal umas questões pra animar?",
         "A tarde é longa. Meia hora dela é nossa?",
+        "Boa tarde! Como tá sendo o dia? Bora encaixar um estudo?",
+        "Boa tarde! Se bater o sono, eu te acordo com umas questões.",
+        "Essa hora da tarde é perfeita pra um tópico curtinho.",
+        "Boa tarde! Eu guardei um passo leve pra esse horário.",
     )
     private val evening = listOf(
         "Boa noite! Ainda dá pra fechar o dia com estudo.",
@@ -116,6 +166,10 @@ object FolhaFalas {
         "Boa noite! Uma sessão curta e o dia está ganho.",
         "Depois de um dia cheio, estudar é quase heroísmo.",
         "Quem estuda à noite está construindo outra vida.",
+        "Boa noite! Como foi seu dia? Vamos fechar ele com chave de ouro?",
+        "Sei que cansa estudar depois de tudo. Por isso mesmo eu admiro.",
+        "Boa noite! Que tal uma sessão leve, só pra não perder o ritmo?",
+        "Noite tranquila, cabeça no tópico. Eu fico aqui com você.",
     )
     private val lateNight = listOf(
         "Estudo da noite também conta. Bora fechar o dia bem?",
@@ -126,18 +180,26 @@ object FolhaFalas {
         "Madrugada é silenciosa. Mas o sono também é importante.",
         "Revisão rápida e boa noite. Combinado?",
         "Admiro a garra. Mas amanhã você precisa estar inteiro.",
+        "Ainda acordado? Tô aqui, mas promete que dorme logo depois?",
+        "Uma revisãozinha e cama. O sono é quem guarda o que você estudou.",
+        "Tarde assim eu só recomendo coisa leve. Flashcards, que tal?",
+        "Você é dedicado demais. Só não esquece de cuidar de você também.",
     )
     private val monday = listOf(
         "Segunda-feira: semana nova, edital menor.",
         "Começar a semana estudando é meio caminho andado.",
         "Segunda chegou. Bora dar o tom da semana?",
         "Nova semana, nova chance de ficar à frente.",
+        "Segunda! Como foi o fim de semana? Bora começar bem?",
+        "Semana nova. Eu já organizei seu plano, é só seguir.",
     )
     private val friday = listOf(
         "Sexta! Fecha a semana com chave de ouro?",
         "Sexta-feira também é dia de estudo. Depois, descanso merecido.",
         "Um tópico hoje e o fim de semana fica mais leve.",
         "Sexta de quem vai passar: estudando um pouquinho.",
+        "Sextou! Mas antes, um tópico pra fechar a semana com orgulho?",
+        "Sexta-feira! Você aguentou a semana toda. Falta só esse passo.",
     )
     private val weekend = listOf(
         "Fim de semana! Um pouco hoje faz diferença na segunda.",
@@ -146,6 +208,8 @@ object FolhaFalas {
         "Enquanto muitos descansam, você avança. Mas descansa também!",
         "Fim de semana é ótimo pra colocar revisão em dia.",
         "Estudar no fim de semana conta em dobro na motivação.",
+        "Fim de semana! Sem cobrança: só um pouco, no seu tempo.",
+        "Sábado ou domingo, eu tô aqui. Bora um tópico e depois descanso?",
     )
     private fun examLines(days: Long): List<String> = when {
         days <= 0 -> listOf("É hoje! Respira fundo. Você se preparou para isso.")
@@ -208,6 +272,14 @@ object FolhaFalas {
         "Mais um dia completo no histórico. Que orgulho!",
         "Você terminou o que planejou. Pouca gente faz isso.",
         "Dia redondo! Vai lá viver um pouco, que eu cuido do plano.",
+        "Terminou tudo! Pode ir descansar, eu fico aqui guardando o progresso.",
+        "Dia completo! Amanhã eu te mostro o que vem a seguir.",
+        "Que dia bom! Eu tô sorrindo de orelha a orelha, se eu tivesse orelha.",
+        "Fechou! Agora é descansar: a memória trabalha enquanto você dorme.",
+        "Você fez exatamente o que combinou. Isso me deixa muito feliz.",
+        "Missão do dia completa. Se quiser, revisa os erros; se não, merecido descanso.",
+        "Mais um dia vencido. Tô anotando cada um deles, viu?",
+        "Pode desligar com a consciência tranquila. Hoje foi seu.",
     ).pick(seed)
 
     // ------------------------------------------------------------ Perfil, desempenho e conquistas
@@ -235,6 +307,12 @@ object FolhaFalas {
             add("Olha quanta coisa você já fez. Dá orgulho, né?")
             add("Esse perfil é o retrato de quem não desiste.")
             add("Daqui a pouco esse perfil vai ter um emblema novo. Sinto isso.")
+            add("Fico olhando seu perfil e lembrando de cada dia que a gente estudou junto.")
+            add("Se você visse o que eu vejo aqui, ia ter orgulho também.")
+            add("Nível $level. Quando a gente se conheceu, você ainda estava começando.")
+            add("Tudo isso aqui foi você que fez. Eu só acompanhei.")
+            if (streak >= 7) add("Uma semana inteira seguida? Eu tô até emocionado.")
+            if (xpToday >= 100) add("Hoje você rendeu demais. Eu vi tudo daqui.")
         }
         return options.pick(seed)
     }
@@ -247,6 +325,9 @@ object FolhaFalas {
             "Nível prova de verdade. Pode mandar mais difícil.",
             "Eu fiquei até sem palavras. Que domínio!",
             "Desse jeito a banca vai ter que inventar pergunta nova.",
+        "Eu tô até sem graça de te elogiar tanto. Mas mereceu!",
+        "Que bateria! Me conta, você estudou escondido de mim?",
+        "Esse resultado vai direto pro meu mural de orgulho.",
         ).pick(seed)
         percent >= 70 -> listOf(
             "Muito bom! Acima de 70% é ritmo de aprovado.",
@@ -255,6 +336,9 @@ object FolhaFalas {
             "Bom demais! Revisando os erros, isso vai a 90.",
             "Acima da média de aprovação. Segue firme!",
             "Ótima bateria. Só falta polir os detalhes.",
+        "Gostei muito! Os poucos erros já estão guardados pra gente revisar.",
+        "Bom resultado! Se quiser, revisamos juntos o que escapou.",
+        "Tá no ritmo certo. Mais umas rodadas assim e fica difícil te pegar.",
         ).pick(seed)
         percent >= 50 -> listOf(
             "Bom caminho! Revisando os erros, a próxima sai bem melhor.",
@@ -263,6 +347,9 @@ object FolhaFalas {
             "Nem bom, nem ruim: informativo. Agora a gente sabe o que treinar.",
             "Tá chegando lá. Mais uma rodada e esse número sobe.",
             "Os erros de hoje são os acertos da prova.",
+        "Deu pra ver direitinho o que falta. Eu já anotei pra gente reforçar.",
+        "Resultado honesto. Agora eu sei onde te ajudar, e isso é ótimo.",
+        "Metade foi, metade fica pra próxima. Bora ler a explicação dos erros?",
         ).pick(seed)
         else -> listOf(
             "Dia difícil acontece. O importante é que você treinou, e cada erro virou aprendizado.",
@@ -271,6 +358,9 @@ object FolhaFalas {
             "Assunto novo é assim mesmo. Vamos ler a teoria e voltar mais forte?",
             "Esse conteúdo vai virar seu. Só precisa de mais uma volta.",
             "Respira. Ninguém nasce sabendo. Eu te ajudo a revisar.",
+        "Ei, não fica chateado. Eu também não sabia nada disso no começo.",
+        "Hoje não foi o dia, e tá tudo bem. Vamos rever a teoria juntos?",
+        "Esse resultado não diz quem você é. Diz só o que falta estudar.",
         ).pick(seed)
     }
 
@@ -282,6 +372,8 @@ object FolhaFalas {
             "Esses números contam uma história bonita.",
             "Desempenho firme. Agora é não deixar cair.",
             "Com esse acerto, cada questão nova é chance de confirmar.",
+        "Olhando seus números, eu fico tranquilo. Você tá preparado.",
+        "Acerto alto e constante. É exatamente o que a banca teme.",
         ).pick(seed)
         accuracy >= 50 -> listOf(
             "No caminho certo. Revisando os pontos fracos, isso sobe rápido.",
@@ -289,6 +381,8 @@ object FolhaFalas {
             "O gráfico está subindo. Mais um pouco e passa dos 70.",
             "Dá pra ver evolução. Foco nas matérias mais fracas agora.",
             "Bom ponto de partida. A revisão é o que leva para cima.",
+        "Tô vendo progresso de verdade. Bora atacar a matéria mais fraca?",
+        "Se você revisar os erros, eu aposto que esse número sobe rápido.",
         ).pick(seed)
         else -> listOf(
             "Base em construção. Cada erro agora é um acerto no dia da prova.",
@@ -296,6 +390,8 @@ object FolhaFalas {
             "Todo aprovado já esteve exatamente aqui.",
             "Os números vão subir. A gente começa pela teoria e volta às questões.",
             "Não olha só o número: olha o quanto você já treinou.",
+        "Começo é assim mesmo. Eu acompanho cada ponto que você ganhar.",
+        "Calma, a gente constrói isso juntos. Primeiro a teoria, depois as questões.",
         ).pick(seed)
     }
 
@@ -304,18 +400,21 @@ object FolhaFalas {
             "Primeiro dia da sequência! Todo aprovado começou exatamente assim.",
             "Dia 1. O mais importante de todos.",
             "Começou a sequência! Amanhã a gente faz o dia 2.",
+        "Primeiro dia! Volta amanhã que eu vou estar te esperando.",
         ).pick(seed)
         days < 7 -> listOf(
             "$days dias seguidos! Constância vence talento.",
             "$days dias sem falhar. Tô orgulhoso de você!",
             "$days dias! A primeira semana está logo ali.",
             "Sequência de $days. O hábito está nascendo.",
+        "$days dias seguidos! Eu tô contando cada um, viu?",
         ).pick(seed)
         days < 30 -> listOf(
             "$days dias de sequência! Isso já é hábito de aprovado.",
             "$days dias! A banca que se prepare.",
             "$days dias seguidos. Você está ficando imparável.",
             "Sequência de $days dias. Pouca gente chega aqui.",
+        "$days dias! Você nem precisa mais de mim pra lembrar de estudar.",
         ).pick(seed)
         days < 100 -> listOf(
             "$days dias seguidos. Você é a definição de disciplina!",
@@ -336,6 +435,10 @@ object FolhaFalas {
         "Medalha nova! Coloca no peito, que você merece.",
         "Essa conquista conta uma parte da sua história.",
         "A coleção está crescendo. E você também.",
+        "Emblema novo! Eu sabia que esse vinha.",
+        "Conquistou! Tô pulando de alegria aqui.",
+        "Mais um pra coleção. Você tá colecionando vitórias.",
+        "Esse emblema é prova de que esforço aparece.",
     ).pick(seed)
 
     // ------------------------------------------------------------ questões
@@ -359,6 +462,16 @@ object FolhaFalas {
         "Mandou bem. Segue que tem mais.",
         "Acertou! Já pode ensinar isso pra alguém.",
         "Show! Isso é treino virando resultado.",
+        "Acertou! Eu sabia que você lembrava dessa.",
+        "Isso! Viu como estudar a teoria fez diferença?",
+        "Certíssimo. Tô ficando mal-acostumado com tanto acerto.",
+        "Boa! Essa era daquelas que a banca adora, e você não caiu.",
+        "Acertou! Pode guardar esse raciocínio, ele vai servir na prova.",
+        "Exatamente o que eu ia responder. Somos uma dupla e tanto.",
+        "Mandou bem! Segue nesse ritmo que eu tô gostando.",
+        "Acertou com segurança. Dá pra ver que esse conteúdo assentou.",
+        "Isso aí! Mais uma pra conta. Tô anotando tudo.",
+        "Correto! Você nem hesitou, né? Gostei.",
     )
     private val wrong = listOf(
         "Errar aqui é melhor que errar na prova. Lê a explicação comigo?",
@@ -375,6 +488,14 @@ object FolhaFalas {
         "Lê com calma a explicação: é ali que mora o ponto.",
         "Banca adora essa armadilha. Agora você já conhece.",
         "Quem erra treinando acerta na prova. Segue!",
+        "Opa, essa escapou. Vem cá que a explicação deixa claro.",
+        "Tudo bem, essa era capciosa. Eu guardei pra gente rever depois.",
+        "Errou, mas olha pelo lado bom: agora você conhece essa armadilha.",
+        "Não esquenta. Lê a explicação comigo que vai fazer sentido.",
+        "Essa pegou muita gente, pode ter certeza. Agora não pega mais você.",
+        "Errar faz parte. O importante é entender o porquê, e eu te mostro.",
+        "Hmm, quase! O detalhe tá na explicação. Dá uma olhada?",
+        "Calma, uma questão não define nada. A próxima é sua.",
     )
 
     fun answer(isCorrect: Boolean, seed: Long): String = (if (isCorrect) correct else wrong).pick(seed)
@@ -386,6 +507,8 @@ object FolhaFalas {
         "Viu? Um erro não define a bateria. Mandou bem agora.",
         "Recuperação de campeão! Segue assim.",
         "Errou, aprendeu, acertou. O ciclo perfeito.",
+        "Ufa! Eu sabia que você ia se recuperar rapidinho.",
+        "Isso! Deixou o erro pra trás e voltou firme.",
     ).pick(seed)
 
     fun fire(seed: Long): String = listOf(
@@ -396,6 +519,9 @@ object FolhaFalas {
         "Acerto atrás de acerto. Que fase!",
         "Você entrou no modo prova. Não para agora!",
         "Eu já parei de contar os acertos. Que bateria!",
+        "Para tudo! Que sequência é essa?",
+        "Você tá impossível hoje. Eu tô adorando.",
+        "Mais um acerto! Acho que você nasceu pra essa matéria.",
     ).pick(seed)
 
     // ------------------------------------------------------------ a missão do ponto fraco
@@ -439,9 +565,13 @@ object FolhaFalas {
         "Sabe o que combina com você? Uma posse.", "Cada clique seu me deixa mais animado!", "Shhh… tô memorizando o edital.",
         "Eu não canso. Mas você pode descansar, viu?", "Hoje eu acordei com cheiro de aprovação.", "Me cutuca depois de uma bateria de questões!",
         "Já fez alongamento hoje? O corpo agradece.", "Um gole de água e mais um tópico. Combinado?", "Folha pronto pra próxima missão!",
+        "Oi! Tava aqui pensando no seu plano.", "Quer saber? Hoje eu tô muito confiante em você.", "Me pergunta qualquer coisa… brincadeira, eu só sei incentivar mesmo.",
+        "Opa! Você me pegou relendo suas anotações.", "Tô de plantão. Precisando, é só tocar.", "Hoje eu tô com cara de quem vai ver você passando.",
+        "Psiu! Já viu quantos tópicos você fechou?", "Às vezes eu fico só admirando seu progresso.", "Você me toca e eu fico feliz. Simples assim.",
+        "Combinado: você estuda, eu comemoro.", "Ei, tudo bem por aí? Tô aqui se precisar.", "Eu não durmo, só fico esperando você voltar.",
     )
     val tapMorning = listOf("Bom dia! Já tomou café?", "Cedinho assim? Orgulho!", "Manhã é a melhor hora pra memória.", "Bom dia! Hoje rende.", "Acordou estudando? Isso é foco!")
     val tapNight = listOf("Tá tarde, hein? Mais um e cama!", "Estudo da noite também conta.", "Não esquece de dormir, tá? A memória agradece.", "Coruja estudiosa detectada!", "Último tópico e boa noite?")
-    val pet = listOf("Ahh, que carinho bom!", "Hehe, faz de novo!", "Você é demais!", "Fiquei vermelhinho…", "Agora eu estudo até de cabeça pra baixo!", "Carinho recarrega minhas páginas!", "Assim eu fico mal-acostumado…", "Melhor dupla de estudos, né?")
-    val back = listOf("Voltou! Senti sua falta.", "Ei, que bom te ver!", "Bora continuar de onde paramos?", "Eu guardei a página pra você!", "Olha quem chegou! Bora?", "Tava te esperando. Vamos?", "Que bom que voltou. O edital também sentiu falta.")
+    val pet = listOf("Ahh, que carinho bom!", "Hehe, faz de novo!", "Você é demais!", "Fiquei vermelhinho…", "Agora eu estudo até de cabeça pra baixo!", "Carinho recarrega minhas páginas!", "Assim eu fico mal-acostumado…", "Melhor dupla de estudos, né?", "Ai, que fofo! Agora eu fico motivado o dia inteiro.", "Esse carinho valeu por um café.", "Para que eu fico sem jeito… mas não para não.")
+    val back = listOf("Voltou! Senti sua falta.", "Ei, que bom te ver!", "Bora continuar de onde paramos?", "Eu guardei a página pra você!", "Olha quem chegou! Bora?", "Tava te esperando. Vamos?", "Que bom que voltou. O edital também sentiu falta.", "Ah, você! Eu tava justamente pensando em você.", "Bem-vindo de volta! Já deixei tudo arrumado.", "Voltou! Bora ver o que tem pra hoje?", "Oi de novo! Como foi lá fora?")
 }
