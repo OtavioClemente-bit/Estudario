@@ -1,0 +1,1878 @@
+{
+  "id": "engenharia-controle-automacao.sistemas-supervisorios-scada",
+  "subject": "Engenharia de Controle e Automação",
+  "title": "Sistemas supervisórios: arquitetura e aplicação",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Sistemas supervisórios: Arquitetura e aplicação",
+    "Sistemas supervisórios industriais",
+    "SCADA e sistemas supervisórios",
+    "Arquitetura de sistemas SCADA",
+    "Supervisory Control and Data Acquisition",
+    "Interface homem-máquina industrial",
+    "IHM para controle de processos",
+    "Alarmes em sistemas supervisórios",
+    "Históricos de processos industriais",
+    "Redundância em sistemas SCADA",
+    "Telemetria de processos industriais",
+    "Controle distribuído em processos",
+    "Sistemas de aquisição de dados industriais"
+  ],
+  "scope": {
+    "covers": "Arquitetura e aplicação de sistemas supervisórios industriais; camadas de campo, controle, comunicação, supervisão e operação; distinção entre IHM, SCADA e sistema de controle distribuído (DCS); aquisição de dados e comandos; alarmes e eventos; históricos e tendências; redundância, disponibilidade e sincronização; telemetria e comunicação com instalações remotas; interoperabilidade por OPC UA e conceitos de segurança operacional.",
+    "excludes": "Projeto detalhado de controladores e malhas de controle, programação de CLP, dimensionamento de instrumentação, configuração específica de produtos comerciais, redes de telecomunicação em profundidade e normas de segurança funcional."
+  },
+  "theoryTitle": "Como os sistemas supervisórios conectam processo, controle e operador",
+  "chapters": [
+    {
+      "title": "1. Arquitetura e finalidade",
+      "markdown": "### O problema que este assunto resolve\n\nUma instalação industrial tem sensores, atuadores, controladores e operadores distribuídos pelo processo. O sistema supervisório reúne informação desses pontos, apresenta o estado da operação e permite que pessoas autorizadas enviem comandos de alto nível. A função supervisória complementa o controle local: não substitui automaticamente a lógica rápida e determinística do CLP ou do controlador de processo.\n\n> **Siglas e termos deste capítulo**\n> - **SCADA**: supervisão, controle e aquisição de dados (*Supervisory Control and Data Acquisition*).\n> - **IHM**: interface homem-máquina; tela e meios de interação entre operador e processo.\n> - **CLP/PLC**: controlador lógico programável que lê entradas, executa lógica e comanda saídas.\n> - **RTU**: unidade terminal remota que coleta sinais e pode executar controle local em instalações remotas.\n> - **OT**: tecnologia operacional que monitora ou altera processos físicos.\n\n### Camadas e fluxo de informação\n\nUma arquitetura frequente tem instrumentos e atuadores no campo; CLPs, RTUs ou controladores DCS no nível de controle; redes e gateways para transportar dados; servidores SCADA para comunicação, alarmes e históricos; e estações IHM para visualização e operação. O arranjo concreto varia: em sistemas menores, várias funções podem residir no mesmo equipamento; em instalações maiores, servidores, clientes, historiadores e gateways ficam separados.\n\n| Elemento | Papel típico | Exemplo de informação\n| --- | --- | --- |\n| Campo | Medir variável ou atuar fisicamente | Pressão, posição de válvula\n| Controle | Executar lógica e malhas locais | Intertravamento, partida de bomba\n| Comunicação | Transportar dados e comandos | Rede industrial, rádio, fibra\n| Supervisão | Agregar, alarmar e registrar | Estado de unidades, tendência\n| Operação | Exibir e permitir interação | Tela de processo, reconhecimento\n\nO caminho de leitura costuma ir do sensor ao controlador, deste ao servidor ou gateway e então à tela e ao histórico. Um comando de operador percorre o sentido inverso, sujeito às permissões, intertravamentos e lógica local configurada. Perda da tela ou do servidor supervisório não deve ser confundida com perda automática do controle local; a consequência real depende do desenho e da política de operação.\n\n### IHM, SCADA e DCS não são sinônimos perfeitos\n\nIHM nomeia principalmente a interface de interação. SCADA descreve uma solução de supervisão e aquisição de dados, muitas vezes adequada a áreas geograficamente dispersas e com comunicação por enlaces de longa distância. DCS (sistema de controle distribuído) distribui funções de controle entre controladores e estações conectados, comum em processos contínuos integrados. Há sobreposição: um DCS pode ter supervisão e telas, e um SCADA pode conversar com controladores de muitos fabricantes. A sigla, isoladamente, não determina a topologia ou a capacidade do produto.\n\n### Como cai na prova\n\n- Se o enunciado descreve telas e interação, o conceito central é IHM; se trata de coleta e supervisão de instalações remotas, SCADA é provável; se enfatiza controle integrado distribuído no processo, considere DCS.\n- Controladores locais continuam responsáveis pelas funções de controle que lhes foram atribuídas; a estação supervisória fornece visão e comandos, sem presumir que executa toda a malha.\n- Camadas são uma forma de organizar responsabilidades, não uma exigência de que cada camada esteja em um servidor físico separado."
+    },
+    {
+      "title": "2. Comunicação e aquisição",
+      "markdown": "### O problema que este assunto resolve\n\nO operador precisa saber o valor atual, a qualidade e a origem dos dados antes de interpretar uma tela ou emitir um comando. A aquisição envolve ler variáveis e estados dos controladores, identificar mudanças relevantes e transportar dados à supervisão. Uma tela atraente não corrige um ponto mal endereçado, uma unidade incorreta ou uma comunicação desatualizada.\n\n> **Siglas e termos deste capítulo**\n> - **Tag**: identificador de uma variável ou estado do processo.\n> - **Polling**: consulta periódica feita pelo sistema supervisor a um dispositivo.\n> - **Qualidade do dado**: indicação de validade, atualidade ou condição da leitura.\n> - **OPC UA**: padrão de interoperabilidade industrial com modelos cliente-servidor e publicação/assinatura.\n> - **Intertravamento**: condição lógica que bloqueia ou condiciona uma ação para preservar a sequência operacional.\n\n### Da variável à tela\n\nCada ponto deve ter nome consistente, descrição, unidade de engenharia, escala, origem e tratamento de qualidade. A tela pode apresentar valor numérico, estado discreto, tendência ou representação de equipamento. Deve distinguir valor normal de dado inválido ou antigo; manter uma aparência coerente e evitar informação decorativa que distraia. Telas de visão geral ajudam a localizar uma condição, enquanto telas de detalhe apoiam o diagnóstico e a operação.\n\nA IHM pode permitir comandos como abrir uma válvula ou reconhecer um alarme. Operações críticas costumam exigir confirmação ou permissões adequadas, mas a confirmação visual não substitui intertravamentos no controlador. O sistema deve tornar claro se o comando foi solicitado, aceito, executado ou recusado. Escrever um valor de referência (setpoint) também não significa que o processo atingiu esse valor.\n\n### Comunicação e interoperabilidade\n\nProtocolos industriais podem usar consulta cliente-servidor, conexões persistentes ou publicação de mensagens. No modelo cliente-servidor OPC UA, clientes acessam serviços expostos por servidores; assinaturas podem entregar notificações de mudanças, eventos e alarmes. No PubSub, publicadores enviam mensagens a uma infraestrutura de distribuição sem depender de conhecer cada assinante. São modelos complementares: cliente-servidor é adequado a acesso solicitado e configuração; PubSub pode distribuir dados de forma desacoplada. Um gateway pode integrar protocolos distintos, mas precisa preservar semântica, qualidade e contexto.\n\nDados em enlaces lentos ou intermitentes exigem atenção a intervalo de atualização, banda, armazenamento local e sinalização de falha. Reduzir tráfego por taxa de amostragem ou por mudança de valor pode ser adequado, desde que não oculte fenômenos importantes ao processo. A indicação de comunicação saudável deve vir de diagnóstico verificável, como atualização recente ou estado do canal.\n\n### Como cai na prova\n\n- Qualidade ruim ou obsoleta não deve ser apresentada como leitura atual válida.\n- Um comando da IHM não contorna a lógica de permissivos e intertravamentos do controlador.\n- OPC UA define interoperabilidade e modelos de troca; não é sinônimo de SCADA nem determina sozinho a arquitetura física."
+    },
+    {
+      "title": "3. Alarmes, eventos e históricos",
+      "markdown": "### O problema que este assunto resolve\n\nO operador precisa identificar condições que exijam atenção e reconstruir o que ocorreu. Alarmes apontam situações que demandam resposta; eventos registram ocorrências relevantes, como mudança de modo, comando ou reconhecimento. Históricos guardam amostras ou eventos ao longo do tempo para análise, relatório e comparação. Misturar esses três papéis produz listas ruidosas e dificulta a resposta.\n\n> **Siglas e termos deste capítulo**\n> - **Alarme**: notificação de condição anormal que requer avaliação ou ação do operador.\n> - **Evento**: registro datado de uma ocorrência ou transição, com ou sem necessidade de ação.\n> - **Historiador**: serviço ou banco especializado em armazenar dados temporais de processo.\n> - **Tendência**: gráfico de valores em função do tempo.\n> - **Deadband**: faixa de variação usada para evitar registrar ou transmitir oscilações insignificantes.\n\n### Alarmes úteis e tratáveis\n\nUm alarme bem definido tem causa reconhecível, prioridade coerente, mensagem compreensível e resposta operacional prevista. Limites, histerese e temporização podem evitar que ruído de medição ou oscilação rápida gere repetição excessiva. A histerese separa o ponto de ativação do ponto de retorno ao normal; sem ela, uma variável próxima do limite pode alternar continuamente entre normal e alarme. A prioridade deve refletir urgência e consequência, e não ser usada como decoração.\n\nA lista de alarmes ativos informa condições ainda presentes; o histórico de alarmes registra ativações, retornos e reconhecimentos para análise. Reconhecer significa que o operador tomou conhecimento, não que a causa foi corrigida. Suprimir ou colocar ponto fora de serviço deve ser controlado e visível, para não mascarar condições reais. Alarmes repetidos ou sem ação útil são sintomas de racionalização deficiente.\n\n### Histórico e interpretação temporal\n\nO historiador associa amostras a tempo, tag e metadados como qualidade. Pode registrar por intervalo, por mudança ou com combinação das duas estratégias. Compressão e deadband reduzem armazenamento, mas podem eliminar detalhes; a escolha deve preservar a resolução necessária para investigação. Uma tendência permite observar transientes, ciclos e relação entre variáveis, desde que escalas, intervalos e lacunas de comunicação estejam claros.\n\nRelógios sincronizados entre controladores, servidores e estações ajudam a ordenar eventos. Dados recebidos depois de uma interrupção podem chegar atrasados; o registro deve distinguir tempo de ocorrência e tempo de recepção quando isso for relevante. Retenção, cópias e acesso ao histórico fazem parte do projeto de operação, pois a tela em tempo real não substitui evidência histórica.\n\n### Como cai na prova\n\n- Reconhecimento de alarme não elimina nem normaliza a condição de processo.\n- Evento registra ocorrência; alarme acrescenta expectativa de atenção ou resposta.\n- Compressão do histórico economiza espaço com perda potencial de detalhe, e por isso requer configuração compatível com a análise desejada."
+    },
+    {
+      "title": "4. Redundância e DCS",
+      "markdown": "### O problema que este assunto resolve\n\nUma falha de servidor, rede, energia ou enlace pode interromper a supervisão ou a chegada de dados. Redundância usa componentes ou caminhos alternativos para manter uma função disponível. Telemetria transporta medições e estados entre locais distantes, como estações de bombeamento, subestações ou reservatórios. Em ambos os casos, o projeto precisa considerar falhas reais, não apenas instalar dois equipamentos.\n\n> **Siglas e termos deste capítulo**\n> - **Redundância**: duplicação ou alternativa de recurso para tolerar falha.\n> - **Failover**: transferência da função ativa para componente redundante.\n> - **RTU**: equipamento remoto de aquisição e controle, geralmente preparado para comunicação com centro supervisor.\n> - **DCS**: sistema de controle distribuído, com controle repartido por controladores interligados.\n> - **Store-and-forward**: guardar dados localmente durante falha de enlace e encaminhá-los após a recuperação.\n\n### Redundância com função definida\n\nÉ possível redundar servidores SCADA, redes, fontes de alimentação, controladores, enlaces ou armazenamento. A duplicação só ajuda se a falha de causa comum não derrubar os dois lados: dois servidores na mesma alimentação vulnerável, por exemplo, não cobrem a perda dessa alimentação. O mecanismo de failover deve evitar dois nós ativos disputando escrita, preservar estado necessário e indicar ao operador qual lado está ativo. Testes de comutação e retorno verificam se a alternativa realmente funciona.\n\nDisponibilidade não é sinônimo de segurança funcional nem de integridade dos dados. Um sistema pode continuar acessível e apresentar dados desatualizados; por isso qualidade, carimbo de tempo e alarmes de comunicação são indispensáveis. Redundância também não substitui cópia de segurança: ela pode replicar uma exclusão ou corrupção para o componente reserva.\n\n### DCS e supervisão integrada\n\nEm um DCS, controladores distribuídos atuam em unidades do processo e trocam informação com estações de operação, engenharia e serviços comuns. A distribuição pode reduzir dependência de um único controlador central e aproximar o controle das unidades físicas. O sistema integrado costuma oferecer visão coordenada do processo, alarmes e configuração; ainda assim, falhas de rede, servidor ou controlador têm efeitos que dependem da topologia e das funções alocadas. DCS e SCADA podem coexistir: um SCADA pode supervisionar vários subsistemas ou DCS.\n\n### Telemetria e enlaces remotos\n\nEm telemetria, uma RTU ou controlador coleta sinais no local e os envia ao centro por rádio, celular, fibra ou outro enlace. A comunicação pode ser intermitente e ter latência; lógica local deve manter funções necessárias durante desconexão, conforme o projeto. Buffer local pode conservar amostras para envio posterior, mas não transforma dado atrasado em informação em tempo real. O centro supervisor precisa indicar perda de comunicação e distinguir último valor recebido da condição atual. Comandos remotos devem ter autenticação, autorização e confirmação de estado.\n\nA segmentação entre redes corporativas e redes de controle, o controle de acesso e a administração de mudanças reduzem exposição sem ignorar os requisitos de disponibilidade e segurança física da OT. A orientação do NIST para OT destaca que desempenho, confiabilidade e segurança do processo influenciam a seleção de controles.\n\n### Como cai na prova\n\n- Redundância precisa cobrir o modo de falha relevante e ser testada; duplicação nominal não garante disponibilidade.\n- Telemetria é aquisição e transmissão de dados a distância; ela não implica que a malha de controle dependa do centro remoto.\n- Buffer entrega dados atrasados após reconexão e deve preservar sua condição temporal, sem rotulá-los como atuais."
+    },
+    {
+      "title": "4. Telemetria e redundância",
+      "markdown": "### O problema que este assunto resolve\n\nInstalações remotas dependem de enlaces sujeitos a latência e interrupção. A telemetria transporta medições e estados, enquanto controladores e RTUs podem manter funções locais previstas pelo projeto. O sistema central precisa distinguir uma amostra recebida agora de uma amostra antiga que acabou de ser retransmitida.\n\n> **Siglas e termos deste capítulo**\n> - **RTU**: unidade terminal remota que coleta sinais e pode executar controle local.\n> - **Telemetria**: medição e transmissão de informação a distância.\n> - **Buffer**: armazenamento temporário de amostras durante uma interrupção.\n> - **Carimbo de tempo**: horário associado à ocorrência ou à recepção de um dado.\n\n### Enlace, atraso e operação local\n\nUm enlace pode usar rádio, celular ou fibra e apresentar latência variável. Buffer local permite reenviar medições depois da reconexão, conservando o horário da ocorrência. A supervisão deve sinalizar a falha e mostrar a idade ou qualidade do último valor, evitando tratá-lo como estado atual. A lógica necessária para manter o processo durante desconexão precisa estar alocada localmente conforme análise da instalação.\n\n### Como cai na prova\n\n- Telemetria leva informação entre locais; ela não determina que todo controle seja centralizado.\n- Amostra retransmitida continua histórica, mesmo quando chega ao centro após a reconexão.\n- Redundância e buffer melhoram continuidade em situações distintas e não garantem, isoladamente, integridade ou atualidade dos dados."
+    }
+  ],
+  "summary": "Sistemas supervisórios conectam instrumentos e controladores à operação por meio de comunicação, servidores e IHM. SCADA enfatiza supervisão e aquisição distribuída, IHM é a interface de interação e DCS distribui o controle entre controladores integrados. A qualidade da aplicação depende de dados contextualizados, comandos sujeitos à lógica de controle, alarmes acionáveis, histórico temporal confiável e redundância desenhada e testada. Telemetria leva dados de instalações remotas e precisa sinalizar falhas, atrasos e condições locais de operação.",
+  "flashcards": [
+    {
+      "front": "O que significa SCADA?",
+      "back": "Supervisory Control and Data Acquisition: supervisão, controle e aquisição de dados."
+    },
+    {
+      "front": "Qual é o papel principal de uma IHM?",
+      "back": "Exibir informações do processo e permitir interação do operador com funções autorizadas."
+    },
+    {
+      "front": "O que executa normalmente o controle local rápido?",
+      "back": "CLP, RTU ou controlador de processo, conforme a arquitetura."
+    },
+    {
+      "front": "O que é um historiador?",
+      "back": "Serviço que registra dados de processo associados ao tempo para consulta e análise."
+    },
+    {
+      "front": "Reconhecer um alarme resolve a causa?",
+      "back": "Não. Indica ciência do operador; a condição pode continuar ativa."
+    },
+    {
+      "front": "Para que serve histerese em um alarme?",
+      "back": "Evita alternância repetida ao separar os limites de ativação e retorno."
+    },
+    {
+      "front": "O que diferencia evento de alarme?",
+      "back": "Evento registra uma ocorrência; alarme indica condição que requer atenção ou resposta."
+    },
+    {
+      "front": "O que registra uma tendência?",
+      "back": "A variação de uma ou mais variáveis ao longo do tempo."
+    },
+    {
+      "front": "O que uma indicação de qualidade ruim comunica?",
+      "back": "Que a leitura pode ser inválida, obsoleta ou afetada por falha de aquisição."
+    },
+    {
+      "front": "O que é uma RTU?",
+      "back": "Unidade remota que adquire sinais e pode executar funções locais e comunicar-se com supervisão."
+    },
+    {
+      "front": "O que caracteriza um DCS?",
+      "back": "Controle distribuído entre controladores integrados e estações de operação."
+    },
+    {
+      "front": "O que significa failover?",
+      "back": "Transferência de serviço para um componente alternativo após uma falha."
+    },
+    {
+      "front": "Redundância substitui backup?",
+      "back": "Não. A réplica pode reproduzir corrupção ou exclusão; backup atende recuperação distinta."
+    },
+    {
+      "front": "O que é polling?",
+      "back": "Consulta periódica do sistema supervisor a um dispositivo ou servidor."
+    },
+    {
+      "front": "Como funciona OPC UA cliente-servidor?",
+      "back": "Clientes solicitam serviços a servidores, que expõem dados e notificações."
+    },
+    {
+      "front": "Como funciona OPC UA PubSub?",
+      "back": "Publicadores enviam mensagens distribuídas a assinantes sem conhecer cada destinatário."
+    },
+    {
+      "front": "O que faz deadband?",
+      "back": "Reduz registros ou transmissões de variações abaixo de uma faixa definida."
+    },
+    {
+      "front": "O que é store-and-forward?",
+      "back": "Armazenar dados durante interrupção e encaminhá-los quando o enlace voltar."
+    },
+    {
+      "front": "Por que sincronizar relógios industriais?",
+      "back": "Para ordenar e correlacionar alarmes, eventos e dados de diferentes equipamentos."
+    },
+    {
+      "front": "O que intertravamento faz em um comando?",
+      "back": "Impõe condições lógicas que autorizam ou bloqueiam uma ação do processo."
+    }
+  ],
+  "tips": [
+    "Separe interface de operação (IHM), função supervisória (SCADA) e controle distribuído (DCS).",
+    "Siga o caminho do dado do instrumento ao controlador, à comunicação e à tela antes de diagnosticar uma falha.",
+    "Em alarmes, diferencie ativação, reconhecimento e retorno à condição normal.",
+    "Ao avaliar histórico, observe qualidade, carimbo de tempo, compressão e lacunas de comunicação.",
+    "Em redundância, identifique o modo de falha coberto, a comutação e possíveis causas comuns.",
+    "Em telemetria, diferencie dado atual de dado armazenado e enviado após reconexão."
+  ],
+  "traps": [
+    "Tratar SCADA, IHM e DCS como nomes equivalentes para a mesma função.",
+    "Supor que a estação supervisória substitui a lógica local do controlador.",
+    "Interpretar o reconhecimento de alarme como correção do processo.",
+    "Confundir evento registrado com alarme que exige resposta operacional.",
+    "Supor que dois servidores garantem alta disponibilidade mesmo com dependências comuns.",
+    "Exibir valor recebido antes de uma interrupção como se fosse leitura em tempo real."
+  ],
+  "activeRecall": [
+    "Desenhe o fluxo de uma medição desde o sensor até uma tendência consultada pelo operador.",
+    "Explique por que um comando aceito pela IHM pode não ter sido executado no processo.",
+    "Compare SCADA e DCS pelo tipo de aplicação e pela distribuição do controle.",
+    "Descreva como histerese reduz alarmes oscilantes perto de um limite.",
+    "Explique o que deve aparecer para o operador quando um ponto perde comunicação.",
+    "Diferencie tempo da ocorrência e tempo de recepção de uma amostra atrasada.",
+    "Liste falhas de causa comum que podem inutilizar dois servidores redundantes.",
+    "Explique como buffer local ajuda a telemetria sem recuperar a atualidade do dado."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "IHM confundida com SCADA",
+      "summary": "IHM é a interface de interação; SCADA é o sistema de supervisão e aquisição que pode servir dados a uma ou várias interfaces."
+    },
+    {
+      "key": "e2",
+      "title": "Supervisão confundida com controle local",
+      "summary": "A estação pode solicitar comandos, mas o controlador local executa a lógica e aplica permissivos conforme o projeto."
+    },
+    {
+      "key": "e3",
+      "title": "Reconhecimento confundido com normalização",
+      "summary": "Reconhecer registra que o operador tomou ciência; não remove a condição que originou o alarme."
+    },
+    {
+      "key": "e4",
+      "title": "Redundância confundida com cópia de segurança",
+      "summary": "Failover mantém serviço diante de falha; backup permite recuperar dados e estados anteriores."
+    },
+    {
+      "key": "e5",
+      "title": "Dado atrasado confundido com dado atual",
+      "summary": "Buffer e retransmissão preservam amostras, mas carimbo de tempo e qualidade devem mostrar que chegaram depois."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em uma arquitetura supervisória em camadas, qual componente costuma executar a lógica local de uma bomba?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O historiador, ao consultar o último valor gravado da bomba.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O servidor de alarmes, que classifica notificações, mas não executa a lógica cíclica de acionamento da bomba.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A tela de tendência, calculando a saída a cada atualização gráfica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O controlador, aplicando lógica e permissivos definidos para a bomba.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O gateway corporativo, enviando diretamente tensão ao motor conectado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O CLP ou controlador executa a lógica de controle e aciona saídas conforme entradas e permissivos. Historiador, tela, servidor de alarmes e gateway têm funções de supervisão ou integração, não substituem automaticamente o controlador local.",
+      "section": "1. Arquitetura e finalidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A sigla SCADA designa principalmente a tela gráfica usada pelo operador para visualizar uma única máquina.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. SCADA designa uma solução de supervisão, controle e aquisição de dados, que pode integrar vários dispositivos e telas. A tela de interação é a IHM, uma parte possível do sistema supervisório.",
+      "section": "1. Arquitetura e finalidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde melhor a uma IHM em um sistema de automação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Interface que apresenta estados e permite interação autorizada do operador.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Unidade que substitui sensores e atua fisicamente sobre o processo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Arquivo que conserva amostras e eventos após o encerramento do turno.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Rede dedicada que transporta exclusivamente comandos entre controladores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Controlador que executa todas as malhas em uma planta distribuída, enquanto a tela apenas arquiva sinais e não oferece interação ao operador.",
+          "correct": false
+        }
+      ],
+      "explanation": "IHM é a interface de visualização e interação entre operador e processo. Sensores, atuadores, redes, historiadores e controladores são componentes diferentes, ainda que integrados à mesma solução.",
+      "section": "1. Arquitetura e finalidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma falha isolada do cliente IHM, os controladores locais podem continuar executando a lógica que lhes foi atribuída.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A interface é uma camada de operação e sua falha não implica por si só a falha dos controladores. O comportamento concreto depende das dependências da arquitetura e de onde a lógica foi implementada.",
+      "section": "1. Arquitetura e finalidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma estação central acompanha reservatórios afastados e recebe leituras de RTUs por enlaces de comunicação. Qual conceito descreve melhor a solução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um historiador local sem aquisição de sinais remotos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma IHM isolada que não se comunica com controladores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma arquitetura SCADA com supervisão de pontos distribuídos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Um sistema DCS restrito a um único controlador central, sem aquisição remota, sem enlaces de comunicação e sem integração dos reservatórios afastados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma malha analógica sem coleta de dados para operação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A supervisão central de instalações geograficamente dispersas por meio de RTUs e enlaces é uma aplicação típica de SCADA. O historiador registra dados, a IHM é interface, e DCS não significa controlador único.",
+      "section": "1. Arquitetura e finalidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema DCS distribui funções de controle entre controladores integrados e pode apresentar supervisão coordenada do processo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O controle distribuído reparte funções entre controladores interligados, com estações de operação e serviços associados. A presença de telas não deixa de caracterizar o DCS nem torna DCS e IHM sinônimos.",
+      "section": "1. Arquitetura e finalidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência representa um caminho comum para uma leitura chegar à tela de operação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "IHM, atuador, historiador, sensor e controlador, nessa ordem, começando pela tela antes da medição física.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Historiador, controlador, sensor, IHM e atuador, nessa ordem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sensor, controlador, comunicação ou gateway, supervisão e IHM.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Servidor corporativo, atuador, controlador, sensor e tela de alarme.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tela de operação, sensor, rede, válvula e controlador, nessa ordem.",
+          "correct": false
+        }
+      ],
+      "explanation": "A variável é medida no campo, lida pelo controlador e transportada pela comunicação até a supervisão e a IHM. A disposição exata varia, mas a tela não é a origem física da medição.",
+      "section": "1. Arquitetura e finalidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em qualquer instalação, cada camada do sistema supervisório precisa corresponder a um servidor físico exclusivo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Camadas descrevem responsabilidades e separação lógica. Em instalações pequenas, diversas funções podem compartilhar equipamento; em sistemas maiores, podem ser distribuídas por servidores e estações distintos.",
+      "section": "1. Arquitetura e finalidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa distingue corretamente SCADA, IHM e DCS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "SCADA é uma interface, IHM é uma rede e DCS é um historiador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "IHM executa toda lógica, SCADA mede fisicamente e DCS só armazena dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DCS é sempre remoto, SCADA sempre local e IHM dispensa operador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "IHM é a interface, SCADA supervisiona e DCS distribui funções de controle.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "SCADA e DCS são protocolos de comunicação de campo, enquanto a IHM é um controlador que executa diretamente as malhas do processo.",
+          "correct": false
+        }
+      ],
+      "explanation": "IHM nomeia a interface homem-máquina; SCADA descreve supervisão e aquisição; DCS identifica uma arquitetura de controle distribuído. Os conceitos podem coexistir em uma mesma instalação.",
+      "section": "1. Arquitetura e finalidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gateway pode integrar dispositivos que usam protocolos diferentes, mas precisa preservar contexto e qualidade dos dados para evitar interpretações equivocadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A conversão de transporte ou protocolo não basta se a unidade, o significado, a origem ou a qualidade forem perdidos. A interoperabilidade exige que o dado continue interpretável pelos sistemas conectados.",
+      "section": "2. Comunicação e aquisição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual informação deve acompanhar uma variável de processo para auxiliar a interpretação da leitura na IHM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Nome identificável, unidade, origem e indicação de qualidade ou atualidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente a cor escolhida pelo projetista para a tela de operação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A senha do operador e o endereço de todos os servidores da rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A prioridade de todos os alarmes da unidade, sem vínculo com o ponto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O nome do fabricante, omitindo unidade, escala, origem e estado da comunicação, pois esses dados não influenciam a interpretação do valor medido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Nome, unidade, origem e qualidade ajudam a interpretar o valor corretamente. Cor isolada não dá contexto suficiente, e credenciais ou informações genéricas de alarme não descrevem a leitura do processo.",
+      "section": "2. Comunicação e aquisição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No OPC UA cliente-servidor, um cliente pode solicitar serviços a um servidor e receber notificações de mudanças ou eventos por assinaturas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O modelo cliente-servidor prevê solicitações e respostas, e assinaturas podem fornecer notificações de dados, alarmes e eventos. O padrão também contempla o modelo distinto PubSub.",
+      "section": "2. Comunicação e aquisição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual característica descreve o modelo OPC UA PubSub?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada assinante consulta diretamente todos os sensores por cabo dedicado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Publicadores emitem mensagens distribuídas sem conhecer cada assinante.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um historiador substitui todos os controladores e executa malhas locais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A comunicação só ocorre por solicitação síncrona de uma única IHM.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Todos os dados são armazenados no controlador antes de qualquer troca.",
+          "correct": false
+        }
+      ],
+      "explanation": "No PubSub, publicadores enviam mensagens à infraestrutura de distribuição sem precisar conhecer a identidade de cada assinante. É um modelo complementar ao cliente-servidor, não uma substituição de controladores ou historiadores.",
+      "section": "2. Comunicação e aquisição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma leitura sem atualização recente, após falha de comunicação, deve ser distinguida de uma medição atual válida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O operador precisa perceber perda de comunicação ou obsolescência. Manter o último valor pode ser útil para contexto, desde que qualidade e tempo deixem claro que ele não representa necessariamente a condição atual.",
+      "section": "2. Comunicação e aquisição",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um comando remoto para abrir uma válvula foi aceito pela interface. O que ainda precisa ser verificado para concluir que houve atuação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se a tela mudou de cor após receber o clique do operador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Se o historiador recebeu uma amostra anterior ao comando, mesmo que não haja retorno do controlador nem confirmação da posição real da válvula.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se o controlador aceitou o comando e o estado retornado confirma a atuação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Se a estação permaneceu conectada à rede corporativa durante a ação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se o alarme associado foi reconhecido antes da solicitação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Aceitação pela interface confirma apenas o envio ou recebimento da solicitação. A lógica pode negar a ação por permissivos, e a confirmação do estado do equipamento é necessária para verificar a atuação real.",
+      "section": "2. Comunicação e aquisição",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Polling é uma forma de aquisição na qual o sistema consulta periodicamente um dispositivo ou servidor para obter dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. No polling, o cliente ou supervisor faz consultas periódicas. Outras arquiteturas podem usar notificações ou publicação de mensagens; o método escolhido influencia tráfego e latência.",
+      "section": "2. Comunicação e aquisição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o principal efeito de um deadband configurado para o registro de uma variável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar a prioridade de todos os alarmes gerados pelo ponto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir a unidade de engenharia por um código de qualidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Impedir que o controlador execute a lógica de intertravamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Evitar registros de pequenas variações dentro de uma faixa definida.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Converter automaticamente mensagens PubSub em comandos de válvula.",
+          "correct": false
+        }
+      ],
+      "explanation": "Deadband reduz registros ou transmissões de variações consideradas pequenas. Essa economia pode ocultar detalhes, portanto a faixa precisa ser compatível com o comportamento que se deseja analisar.",
+      "section": "3. Alarmes, eventos e históricos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma IHM com confirmação de comando torna dispensável implementar permissivos e intertravamentos no controlador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Confirmação na interface reduz erros de interação, mas não substitui permissivos e intertravamentos na lógica de controle. O controlador deve aplicar as condições operacionais previstas independentemente da confirmação visual.",
+      "section": "2. Comunicação e aquisição",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação define melhor um alarme de processo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registro de qualquer mudança de tela, sem relação com condição operacional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mensagem que indica condição anormal e demanda avaliação ou resposta.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Cópia de segurança automática das medições de todos os instrumentos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Comando de saída que força o equipamento a voltar ao modo automático.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Consulta de rotina que o supervisor envia a cada dispositivo remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Alarme é uma notificação de condição que exige atenção ou resposta do operador. Mudanças genéricas podem ser eventos, cópias são função de armazenamento e consultas pertencem à aquisição de dados.",
+      "section": "3. Alarmes, eventos e históricos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Reconhecer um alarme registra que o operador tomou conhecimento, mas não prova que a condição de processo foi corrigida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Reconhecimento e normalização são estados diferentes. O alarme pode permanecer ativo até que a variável volte à condição esperada, mesmo depois que o operador o reconheça.",
+      "section": "3. Alarmes, eventos e históricos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual configuração ajuda a reduzir a alternância repetida de um alarme quando a variável oscila perto do limite?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar a resolução gráfica e remover o carimbo de tempo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar o registro de retorno ao normal no histórico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar histerese entre o limite de ativação e o de retorno.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Duplicar o ponto em duas telas com escalas incompatíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Configurar o reconhecimento automático como condição de normalização.",
+          "correct": false
+        }
+      ],
+      "explanation": "Histerese define pontos diferentes para ativar e retirar o alarme, reduzindo oscilação quando a medição está próxima ao limite. Não se deve apagar registros nem confundir reconhecimento com normalização.",
+      "section": "3. Alarmes, eventos e históricos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um evento e um alarme são equivalentes porque todo evento exige resposta imediata do operador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Evento registra uma ocorrência, como mudança de modo ou comando, sem necessariamente exigir ação. Alarme identifica condição que demanda avaliação ou resposta operacional.",
+      "section": "3. Alarmes, eventos e históricos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática favorece o uso operacional de alarmes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir causa reconhecível, prioridade coerente, mensagem clara e resposta prevista.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Atribuir a maior prioridade a qualquer variação para chamar atenção constante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar texto genérico para que o operador consulte o manual em cada ocorrência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ocultar alarmes repetidos sem controlar a supressão ou registrar a mudança.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Configurar o alarme para desaparecer quando a tela for fechada pelo operador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Alarmes eficazes são acionáveis: o operador entende a condição, sua prioridade e a resposta esperada. Prioridade indiscriminada, texto vago e supressão invisível aumentam ruído e podem mascarar problemas.",
+      "section": "3. Alarmes, eventos e históricos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um historiador pode registrar valores por intervalo, por mudança ou combinando as duas estratégias, conforme a necessidade de análise.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Estratégias periódicas e por mudança são comuns e podem ser combinadas. Taxa de amostragem e compressão devem preservar o detalhe necessário para investigar o processo.",
+      "section": "3. Alarmes, eventos e históricos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é uma consequência possível de usar compressão ou deadband muito amplo no histórico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O controlador passa a executar todas as amostras sem usar sensores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pequenas variações e detalhes de transientes podem deixar de ser armazenados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Os alarmes reconhecidos tornam-se automaticamente condições normais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A comunicação deixa de precisar de carimbos de tempo sincronizados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A redundância física passa a proteger o banco contra qualquer corrupção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Compressão reduz espaço, mas pode remover variações ou detalhes temporais. A configuração deve equilibrar armazenamento e resolução necessária, sem alterar a execução do controlador nem a semântica dos alarmes.",
+      "section": "3. Alarmes, eventos e históricos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sincronizar relógios de controladores e servidores ajuda a ordenar eventos ocorridos em diferentes partes da instalação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Carimbos de tempo coerentes permitem correlacionar alarmes e mudanças em sistemas diferentes. Em dados retransmitidos, pode ser importante guardar também quando a amostra foi recebida.",
+      "section": "3. Alarmes, eventos e históricos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma amostra armazenada durante uma falha de enlace chega ao centro após a reconexão. Como ela deve ser interpretada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como valor atual, pois a chegada recente substitui o tempo original.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Como alarme reconhecido, pois permaneceu em buffer local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Como comando executado, desde que tenha sido retransmitida sem erro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como dado histórico atrasado, preservando o tempo da ocorrência e sua qualidade.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Como dado inválido por definição, mesmo que tenha sido registrado corretamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O buffer conserva dados para entrega posterior, mas não os torna atuais. A amostra deve manter seu carimbo de ocorrência e indicar condição de comunicação, permitindo distingui-la do estado presente.",
+      "section": "4. Telemetria e redundância",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de um historiador elimina a necessidade de alarmes, pois o operador pode consultar tendências depois que uma condição anormal ocorrer.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Históricos apoiam análise temporal, mas não substituem notificações oportunas de condições que exigem ação. Alarmes e históricos cumprem funções complementares.",
+      "section": "3. Alarmes, eventos e históricos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre redundância em SCADA está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Duplicar servidores garante serviço mesmo quando ambos usam a mesma alimentação vulnerável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Redundância pode cobrir falhas específicas se dependências e comutação forem consideradas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um servidor reserva elimina a necessidade de observar qualidade e atualidade dos dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Failover consiste em apagar o histórico para liberar o nó principal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Redundância serve somente para aumentar a capacidade de armazenamento histórico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Redundância melhora disponibilidade quando os recursos alternativos cobrem modos de falha relevantes e não compartilham a mesma causa de falha. A comutação deve ser testada e a qualidade do dado continua necessária.",
+      "section": "4. Redundância e DCS",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A duplicação de um servidor SCADA pode deixar de proteger a supervisão se ambos dependerem do mesmo enlace ou fonte de energia vulnerável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Dependências comuns criam causa única capaz de derrubar os componentes principal e reserva. O desenho deve avaliar alimentação, rede, armazenamento e outros recursos compartilhados.",
+      "section": "4. Redundância e DCS",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que caracteriza o failover em uma arquitetura redundante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Suspender os registros até que o servidor principal seja reinstalado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Copiar toda tela de operação para o banco corporativo ao fim do turno, sem assumir a função do nó que falhou.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter qualquer valor inválido em medição de qualidade normal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar intertravamentos quando um controlador deixa de responder.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transferir a função ativa para um componente alternativo após falha detectada.",
+          "correct": true
+        }
+      ],
+      "explanation": "Failover é a transferência de função para o recurso alternativo. O mecanismo deve evitar disputa entre nós e preservar o estado necessário; não envolve apagar registros ou relaxar proteções do processo.",
+      "section": "4. Redundância e DCS",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma réplica redundante substitui necessariamente uma cópia de segurança, pois qualquer exclusão no nó ativo pode ser recuperada no nó reserva.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Replicação pode propagar exclusões e corrupção. Backup conserva uma cópia recuperável segundo uma estratégia distinta; redundância atende continuidade de serviço diante de falhas previstas.",
+      "section": "4. Redundância e DCS",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ação permite verificar se a redundância configurada realmente atende ao objetivo de disponibilidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conferir apenas se a tela mostra dois nomes de servidores cadastrados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desligar o historiador e considerar o sistema integralmente disponível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Testar comutação e retorno, observando estado, dados e dependências comuns.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar alarmes de comunicação para evitar ocorrências no teste.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Confiar no fabricante sem validar o comportamento na instalação real.",
+          "correct": false
+        }
+      ],
+      "explanation": "O teste de comutação e retorno revela se o nó reserva assume a função corretamente e se dados e dependências permanecem adequados. A mera existência de dois servidores não comprova disponibilidade operacional.",
+      "section": "4. Redundância e DCS",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um DCS, controladores distribuídos podem executar funções locais enquanto estações de operação oferecem visão coordenada do processo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A distribuição do controle não impede integração das informações e operação coordenada. O impacto de falhas ainda depende da topologia e das funções alocadas aos controladores e serviços.",
+      "section": "4. Redundância e DCS",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual estratégia ajuda uma estação remota a atravessar uma interrupção temporária de comunicação sem depender continuamente do centro supervisor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desligar todos os controladores locais até o enlace voltar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter funções locais previstas e armazenar dados para envio posterior.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apresentar a última medição recebida como atual sem sinalização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transferir intertravamentos para uma tela remota indisponível.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apagar o buffer local para reduzir a latência do próximo comando.",
+          "correct": false
+        }
+      ],
+      "explanation": "A estação pode manter controle local definido pelo projeto e guardar amostras em buffer para encaminhá-las após a reconexão. O centro deve indicar a perda de comunicação e a idade dos dados apresentados.",
+      "section": "4. Telemetria e redundância",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Telemetria significa transportar medições ou estados a distância; seu uso não exige que toda a lógica de controle dependa do centro supervisor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. RTUs e controladores podem coletar e comunicar dados remotos, enquanto funções locais permanecem no local conforme o projeto. O enlace permite supervisão e comandos autorizados, mas não define por si só onde roda cada malha.",
+      "section": "4. Telemetria e redundância",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao projetar alarmes de perda de comunicação com RTUs, qual comportamento de tela é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir o valor mais recente com novo horário para parecer atualizado, embora nenhuma leitura nova tenha chegado da RTU.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir automaticamente o último valor por zero e sinalizar normalidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ocultar os pontos remotos até que o operador feche a tela atual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reconhecer os alarmes de processo como se todos tivessem normalizado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter o último valor e identificá-lo como desatualizado ou sem comunicação.",
+          "correct": true
+        }
+      ],
+      "explanation": "O último valor pode oferecer contexto, desde que a interface sinalize perda de comunicação e não o apresente como atual. Substituir por zero ou renovar o horário criaria informação enganosa.",
+      "section": "4. Telemetria e redundância",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um DCS e um SCADA podem coexistir quando a supervisão SCADA integra informações de subsistemas de controle distribuído.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os conceitos descrevem funções e arquiteturas que podem se sobrepor. Um SCADA pode supervisionar vários subsistemas, inclusive um ou mais DCS, por interfaces de comunicação adequadas.",
+      "section": "4. Redundância e DCS",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre a prioridade de alarmes é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Deve refletir urgência e consequência, com resposta operacional compreensível.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Deve ser máxima em todos os pontos para que nenhum evento seja ignorado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pode ser escolhida pela cor da tela, sem considerar o processo associado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Precisa corresponder à ordem alfabética dos nomes das variáveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Deve ser removida sempre que o operador reconhecer a condição ativa.",
+          "correct": false
+        }
+      ],
+      "explanation": "A prioridade representa urgência e consequência para orientar a atenção. Se todos os alarmes recebem a mesma prioridade máxima, a lista perde capacidade de destacar condições críticas.",
+      "section": "3. Alarmes, eventos e históricos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tendência histórica, sozinha, confirma que a variável continua no mesmo valor observado antes da perda de comunicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A tendência mostra dados registrados até certo momento, mas não confirma o estado atual durante a interrupção. Qualidade e horário da última amostra devem ser observados para evitar essa inferência.",
+      "section": "3. Alarmes, eventos e históricos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual escolha de arquitetura é coerente para uma rede de instalações de água afastadas com enlace intermitente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma rede redundante sem diagnóstico, relógio ou validação das leituras, deixando o operador sem meios de distinguir dado atual de dado antigo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma tela central ligada diretamente a cada atuador sem controlador local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um historiador único que executa intertravamentos durante a desconexão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um servidor corporativo que substitui rádio e armazenamento na estação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RTUs com funções locais, telemetria, indicação de qualidade e buffer temporal.",
+          "correct": true
+        }
+      ],
+      "explanation": "RTUs ou controladores locais podem manter funções previstas durante falhas, enquanto telemetria envia dados ao centro. Buffer e indicação de qualidade distinguem amostras atrasadas; supervisão central não deve ser presumida como única responsável pelo controle.",
+      "section": "4. Telemetria e redundância",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Segmentar redes corporativas e redes de controle pode reduzir exposição, desde que a solução considere disponibilidade e segurança operacional da OT.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A segmentação limita caminhos de acesso, mas os controles precisam respeitar requisitos de desempenho, confiabilidade e segurança física dos processos. A orientação do NIST para OT considera essas características ao recomendar medidas de proteção.",
+      "section": "4. Telemetria e redundância",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em OPC UA, alarmes e dados históricos podem ser disponibilizados por serviços do servidor, integrados ao mesmo modelo de informação que os dados correntes.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não, pois o padrão limita cada servidor a uma única variável de processo e impede expor outros tipos de informação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Não, OPC UA transporta exclusivamente comandos discretos de saída.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não, alarmes só podem existir em telas locais sem comunicação de rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sim, mas somente se todos os clientes forem historiadores do mesmo fabricante.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim, o padrão integra modelos para dados, alarmes, eventos e acesso histórico.",
+          "correct": true
+        }
+      ],
+      "explanation": "OPC UA inclui modelos e serviços para dados correntes, alarmes e eventos, além de acesso histórico. A implementação depende das capacidades suportadas pelo servidor, mas não se limita a comandos discretos ou a um fabricante único.",
+      "section": "2. Comunicação e aquisição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando alarmes sem resposta útil se repetem em grande número, isso pode indicar necessidade de revisar sua definição e apresentação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Alarmes frequentes, vagos ou sem ação associada geram ruído e dificultam identificar condições importantes. Revisar causa, prioridade, mensagem e resposta prevista melhora o uso operacional.",
+      "section": "3. Alarmes, eventos e históricos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer reduzir o tráfego em um enlace remoto sem perder amostras relevantes para analisar transientes. Qual decisão é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir leituras contínuas por comandos de atuação enviados ao historiador, que não é responsável por executar nem arquivar medições desse tipo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar deadband máximo, pois transientes aparecem integralmente em qualquer caso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar carimbos de tempo e recuperar a ordem pelo nome dos pontos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transmitir somente alarmes reconhecidos e descartar todas as amostras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Escolher taxa e deadband após avaliar dinâmica do processo e resolução necessária.",
+          "correct": true
+        }
+      ],
+      "explanation": "A amostragem e o deadband equilibram tráfego e detalhe. A configuração deve preservar fenômenos importantes para a análise; deadband excessivo pode apagar transientes e comprometer a interpretação histórica.",
+      "section": "2. Comunicação e aquisição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma falha no servidor de supervisão torna necessariamente impossível qualquer controle local executado pelos controladores de campo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A perda de supervisão não implica automaticamente a perda de controle local. O efeito depende das funções implementadas e das dependências da instalação; controladores podem continuar executando a lógica que lhes foi atribuída.",
+      "section": "1. Arquitetura e finalidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual característica de uma IHM ajuda a reduzir erro de operação em um comando importante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar o mesmo botão para comandar equipamentos de estados opostos sem identificar qual deles receberá o pedido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar a indicação de estado por animações sem vínculo com o equipamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ocultar permissivos e intertravamentos para acelerar a interação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exibir o estado do comando e fornecer confirmação coerente com a ação solicitada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Indicar sucesso antes que o controlador responda ao pedido de operação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A interface deve comunicar pedido, resposta e estado observado sem indicar sucesso prematuramente. Permissivos e intertravamentos continuam no controlador; animações ou botões ambíguos aumentam risco de erro.",
+      "section": "2. Comunicação e aquisição",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma arquitetura de alta disponibilidade pode continuar acessível e ainda assim apresentar dados incorretos ou desatualizados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Disponibilidade do serviço não garante integridade ou atualidade de cada leitura. Qualidade, carimbo de tempo, diagnóstico de comunicação e validação de dados são necessários em paralelo à redundância.",
+      "section": "4. Redundância e DCS",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma estação telemétrica, por que um buffer local pode ser útil durante interrupção de enlace?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque guarda amostras para encaminhamento posterior, com seus tempos originais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Porque transforma qualquer leitura atrasada em estado de processo atual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque substitui a necessidade de controlador e lógica de segurança local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque impede que o sistema central detecte a perda de comunicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque reconhece automaticamente alarmes que surgiram no período offline.",
+          "correct": false
+        }
+      ],
+      "explanation": "Buffer local preserva amostras durante a interrupção e permite encaminhá-las depois, mantendo seu contexto temporal. Ele não atualiza o processo nem substitui lógica local, e a indisponibilidade do enlace deve continuar visível.",
+      "section": "4. Telemetria e redundância",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A prioridade de um alarme deve ser determinada pela urgência e consequência operacional, não apenas pela frequência com que aparece.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Frequência elevada pode apontar problema de configuração, mas não torna automaticamente o alarme mais crítico. A prioridade deve orientar resposta de acordo com urgência e consequência.",
+      "section": "3. Alarmes, eventos e históricos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção descreve um uso apropriado de tendência histórica durante análise de processo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar variáveis no tempo, verificando escala, qualidade e lacunas registradas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Inferir o estado atual mesmo sem dados novos ou indicação de comunicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir intertravamentos por inspeção visual posterior no gráfico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar eventos para que as curvas fiquem contínuas na tela de operação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Considerar amostras comprimidas como valores medidos em todos os instantes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tendências ajudam a investigar relações, transientes e ciclos, desde que escalas, qualidade, intervalos e lacunas sejam considerados. Não substituem lógica de controle nem provam condições não observadas entre amostras.",
+      "section": "3. Alarmes, eventos e históricos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "OPC Unified Architecture, Part 1: Overview and Concepts",
+      "publisher": "OPC Foundation",
+      "reference": "Arquitetura cliente-servidor, PubSub, notificações, eventos, alarmes, histórico e interoperabilidade",
+      "url": "https://reference.opcfoundation.org/specs/OPC-10000-1/full",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SCADA with Industrial Edge for shop floor integration",
+      "publisher": "Siemens",
+      "reference": "Exemplo de arquitetura SCADA, aquisição, integração, redundância, alarmes e visualização",
+      "url": "https://www.siemens.com/en-us/content/architecture-hub/scada/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SP 800-82 Rev. 4, Guide to Operational Technology (OT) Security",
+      "publisher": "National Institute of Standards and Technology (NIST)",
+      "reference": "Requisitos particulares de desempenho, confiabilidade e segurança de tecnologia operacional; topologias de OT",
+      "url": "https://csrc.nist.gov/pubs/sp/800/82/r4/ipd",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

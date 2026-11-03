@@ -1,0 +1,2145 @@
+{
+  "id": "informatica.django-desenvolvimento-web",
+  "subject": "Informática",
+  "title": "Desenvolvimento web com Django",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Desenvolvimento web com Django",
+    "Framework Django para aplicações web",
+    "Fundamentos do framework Django",
+    "Modelagem de dados em projetos Django",
+    "Camada de apresentação com templates Django",
+    "Camada de controle com views Django",
+    "Administração de dados no Django Admin",
+    "Segurança de aplicações desenvolvidas em Django",
+    "APIs web construídas com Django",
+    "API RESTful e respostas JSON no Django",
+    "Testes automatizados em aplicações Django",
+    "Deploy de aplicações Django em produção",
+    "Django ORM e migrações de banco de dados"
+  ],
+  "scope": {
+    "covers": "Desenvolvimento web com Django: arquitetura de projeto e aplicações, ciclo HTTP e URLconf, modelos, ORM e migrações, templates e formulários, views e middleware, admin e autenticação/autorização, segurança web, respostas JSON, princípios de API RESTful e métodos HTTP, testes automatizados e cliente de testes, configuração de produção, WSGI/ASGI e arquivos estáticos.",
+    "excludes": "Implementação específica com Django REST Framework ou outra biblioteca externa, detalhes de uma versão particular além dos conceitos estáveis, administração avançada de SGBD, infraestrutura de nuvem de fornecedor e desenho completo de interfaces com JavaScript."
+  },
+  "theoryTitle": "Do modelo Django à aplicação em produção",
+  "chapters": [
+    {
+      "title": "1. Fundamentos, requisições e camada de controle",
+      "markdown": "### O problema que este assunto resolve\n\nDjango é um framework web Python que organiza o caminho entre uma requisição HTTP e a resposta enviada ao cliente. Um projeto agrega configuração e roteamento; cada aplicação (app) reúne uma parte reutilizável do domínio, como catálogo ou contas. O comando `startproject` cria a estrutura do projeto e `startapp` cria a base de uma app. A app precisa ser incluída em `INSTALLED_APPS` para participar de recursos como modelos e migrações.\n\n> **Siglas e termos deste capítulo**\n> - **HTTP**: protocolo de requisição e resposta usado na Web.\n> - **URLconf**: módulo Python que associa padrões de caminho a views.\n> - **View**: função ou classe que recebe uma requisição e produz uma resposta.\n> - **Middleware**: componente que pode tratar requisições e respostas em pontos comuns do ciclo.\n> - **WSGI / ASGI**: interfaces entre servidores web e aplicações Python síncronas / assíncronas.\n\n### O caminho de uma requisição\n\nO servidor entrega a requisição ao Django; o URL dispatcher procura uma rota no URLconf e chama a view correspondente. A view pode validar dados, consultar modelos, aplicar regras e escolher uma resposta. `HttpRequest` contém dados da requisição; a view retorna um `HttpResponse` ou uma subclasse, como `JsonResponse`. O URLconf faz o roteamento, enquanto a view concentra a decisão da aplicação. Middleware pode atuar antes da view e depois que uma resposta é produzida.\n\n| Peça | Responsabilidade | Exemplo típico |\n| --- | --- | --- |\n| URLconf | Resolver caminho para código | `/produtos/` aponta para `lista` |\n| View | Orquestrar a regra e a resposta | Consultar produtos e renderizar |\n| Model | Representar dados persistidos | Produto e seu preço |\n| Template | Gerar apresentação HTML | Página de catálogo |\n| Middleware | Tratar preocupações transversais | Sessão, autenticação, CSRF |\n\n### Separação de responsabilidades\n\nDjango é frequentemente descrito pela arquitetura MTV: Model, Template, View. O Model representa dados e regras próximas deles; o Template apresenta conteúdo; a View coordena a requisição e a resposta. Em explicações que usam MVC, a view do Django exerce parte do papel atribuído ao controller, enquanto o template se aproxima da view visual. Não se deve confundir o nome “view” do Django com a tela HTML: são objetos diferentes.\n\nViews baseadas em função são funções Python que aceitam `request`; views baseadas em classe organizam comportamento por métodos e podem reutilizar classes genéricas, como `ListView` e `DetailView`. Ambas são alternativas; uma não substitui obrigatoriamente a outra. Para redirecionar, renderizar template ou obter objeto com resposta 404, atalhos como `redirect`, `render` e `get_object_or_404` reduzem código repetitivo.\n\n### Como cai na prova\n\n- A rota não contém a lógica de apresentação: ela seleciona a view.\n- A view recebe `HttpRequest` e precisa devolver uma resposta HTTP.\n- Template produz apresentação; não é a função que decide o roteamento.\n- `runserver` é útil no desenvolvimento, mas não é servidor de produção."
+    },
+    {
+      "title": "2. Modelagem, ORM e migrações",
+      "markdown": "### O problema que este assunto resolve\n\nUm modelo Django é uma classe Python derivada de `django.db.models.Model`; seus atributos de campo descrevem colunas e, em geral, cada modelo corresponde a uma tabela. O ORM permite consultar e alterar dados com objetos Python, sem escrever SQL para as operações comuns. O modelo é a fonte declarativa da estrutura e dos metadados do domínio, não uma cópia automática de toda regra possível do negócio.\n\n> **Siglas e termos deste capítulo**\n> - **ORM**: mapeamento objeto-relacional; traduz operações sobre objetos em consultas ao banco.\n> - **PK / FK**: chave primária / chave estrangeira.\n> - **QuerySet**: conjunto consultável de resultados do ORM; normalmente é avaliado sob demanda.\n> - **Migração**: arquivo que registra uma mudança de esquema e sua dependência na sequência.\n> - **`null` / `blank`**: permitem nulidade no banco / ausência na validação de formulários.\n\n### Campos, relações e integridade\n\nCampos como `CharField`, `DateField`, `BooleanField` e `DecimalField` descrevem tipos de dado; `max_length` limita texto e campos relacionais declaram vínculos. `ForeignKey` expressa muitos-para-um, `OneToOneField` um-para-um e `ManyToManyField` muitos-para-muitos. Uma FK exige política `on_delete`, como `CASCADE` para propagar exclusão relacionada ou `PROTECT` para impedir a exclusão enquanto houver dependentes. A escolha deve refletir a regra do domínio.\n\n`primary_key=True` define chave primária explicitamente; caso contrário, Django adiciona uma chave primária automática. `unique=True` exige unicidade; `Meta.constraints` e `Meta.indexes` permitem declarar restrições e índices. `null=True` fala com o banco; `blank=True` afeta a validação. Eles não são sinônimos. Consultas por `filter()` retornam QuerySets; `get()` espera um único resultado e pode lançar exceção se não houver ou houver mais de um.\n\n### Mudanças no esquema\n\n`makemigrations` compara modelos com o estado de migrações e cria arquivos de operações; `migrate` aplica ou desfaz migrações no banco. `showmigrations` lista migrações e estado, e `sqlmigrate` mostra o SQL que uma migração produzirá. Arquivos de migração devem acompanhar o código e ser revistos, especialmente ao renomear ou remover campos. Alterar uma classe Python sem aplicar a migração deixa banco e código fora de sincronia.\n\n### Como cai na prova\n\n- Atributos de campo mapeiam dados, relações expressam cardinalidade e migrações alteram o esquema.\n- `makemigrations` cria arquivos; `migrate` os aplica.\n- `null` é do armazenamento, `blank` é da validação.\n- ORM não elimina a necessidade de compreender índices, integridade e custo das consultas."
+    },
+    {
+      "title": "3. Apresentação, formulários e administração",
+      "markdown": "### O problema que este assunto resolve\n\nA camada de apresentação transforma dados em conteúdo legível, enquanto formulários convertem entrada do usuário em dados validados. Templates Django misturam HTML estático com variáveis, filtros e tags; a view envia um contexto para o template. `render(request, template, context)` carrega, renderiza e devolve resposta HTTP. A renderização escapa conteúdo HTML por padrão em contextos usuais, reduzindo risco de XSS, mas o uso de `safe`, `mark_safe` e desligamento de autoescape exige cuidado.\n\n> **Siglas e termos deste capítulo**\n> - **DTL**: Django Template Language, linguagem de templates incluída no Django.\n> - **Contexto**: dicionário de valores disponibilizados ao template.\n> - **Form / ModelForm**: formulário de validação / formulário ligado a um modelo.\n> - **XSS**: injeção de script que passa a ser executado no navegador de outra pessoa.\n> - **Admin**: interface administrativa baseada nos metadados de modelos.\n\n### Formulários e apresentação\n\nUm `Form` define campos e validação; `ModelForm` deriva campos de um modelo e pode persistir uma instância quando solicitado. Em uma view, a submissão costuma ser distinguida por `request.method == 'POST'`; dados enviados por formulário tradicional aparecem em `request.POST`. Um formulário vinculado (`bound`) pode ser validado com `is_valid()`. Em formulário HTML que altera estado, o token `{% csrf_token %}` deve ser incluído dentro do formulário POST para que o middleware CSRF possa validar a origem. A apresentação não substitui validação no servidor.\n\nTemplates podem herdar uma estrutura com `{% extends %}` e preencher blocos; isso evita repetir cabeçalho e navegação. Filtros transformam valores para apresentação, e tags controlam blocos e inclusão. Templates não devem receber responsabilidade de acesso direto ao banco ou de autorização.\n\n### Django Admin\n\nO admin automático lê metadados dos modelos e permite que usuários confiáveis gerenciem registros. Uma app habilitada e um modelo registrado em `admin.site.register()` ou com `@admin.register` passam a aparecer conforme permissões. `ModelAdmin` configura listagem, filtros, pesquisa e campos editáveis. O acesso padrão requer usuário com `is_staff=True` e autenticação; permissões de adicionar, alterar, excluir e visualizar são verificadas separadamente. O admin é indicado como ferramenta interna centrada em modelos, não como substituto universal da interface pública do produto.\n\n### Como cai na prova\n\n- Contexto liga view e template; o template não consulta sozinho o banco.\n- CSRF protege requisições de alteração autenticadas contra submissões forjadas.\n- O admin usa modelos e permissões, mas não é uma aplicação de workflow pronta.\n- Escapar saída ajuda contra XSS; marcar texto como seguro transfere responsabilidade ao desenvolvedor."
+    },
+    {
+      "title": "4. Segurança, APIs, testes e produção",
+      "markdown": "### O problema que este assunto resolve\n\nAplicações web recebem dados não confiáveis, expõem operações e precisam continuar previsíveis em produção. Django oferece mecanismos úteis, mas a configuração e as decisões da aplicação continuam relevantes. Toda entrada precisa ser validada; autenticação identifica quem fez a requisição, autorização decide o que essa pessoa pode fazer. HTTPS protege o tráfego em trânsito e configurações de cookies e hosts devem acompanhar o ambiente real.\n\n> **Siglas e termos deste capítulo**\n> - **CSRF**: falsificação de requisição entre sites usando credenciais existentes.\n> - **JSON**: formato textual de intercâmbio de dados estruturados, independente de linguagem.\n> - **REST**: estilo arquitetural que organiza recursos e interações por semântica HTTP.\n> - **WSGI / ASGI**: interfaces de servidor para aplicações síncronas / assíncronas.\n> - **`DEBUG`**: configuração de depuração; deve estar desativada em produção.\n\n### Segurança e APIs\n\nO sistema de templates escapa caracteres perigosos em HTML; consultas do ORM parametrizam valores em operações comuns e reduzem risco de injeção SQL, mas SQL bruto exige parametrização. Proteção CSRF deve permanecer ativa para formulários e chamadas que usam cookies de sessão e alteram estado. Não se deve desativá-la indiscriminadamente. `ALLOWED_HOSTS` limita hosts aceitos; `SECRET_KEY` deve ser mantida secreta; mensagens de erro e páginas de depuração não devem revelar detalhes internos ao público.\n\nUma API RESTful expõe recursos por URIs estáveis e usa métodos HTTP conforme sua semântica. `GET` recupera representação; `POST` costuma criar ou submeter processamento; `PUT` substitui uma representação; `PATCH` altera parcialmente; `DELETE` solicita remoção. Métodos seguros não devem produzir mudança de estado pretendida; idempotência descreve se repetições têm o mesmo efeito final. Uma API não se torna RESTful somente por responder JSON.\n\n`JsonResponse` serializa dados JSON e define o tipo de conteúdo apropriado; por padrão espera um dicionário, e `safe=False` permite outros tipos quando a escolha é deliberada. JSON admite objetos, arrays, strings, números, booleanos e `null`; não admite comentários ou vírgulas finais. Respostas de API devem usar status HTTP coerentes, validar dados e aplicar autenticação, autorização e controle de acesso.\n\n### Testes e operação\n\nDjango integra testes com `unittest`. `TestCase` cria isolamento transacional para testes de banco; `Client` simula requisições sem iniciar servidor de rede. É possível verificar status, conteúdo, template usado, redirecionamento, login e efeitos de persistência. Testes de unidade focam regra isolada; testes de integração verificam componentes em conjunto. Testar caminhos inválidos e permissões ajuda a evitar regressões.\n\nEm produção, `runserver` não é apropriado. Use um servidor WSGI ou ASGI adequado, configure `DEBUG=False`, hosts permitidos, segredos fora do repositório, HTTPS, logging, banco e arquivos estáticos. `collectstatic` reúne arquivos estáticos para o mecanismo de publicação configurado; o servidor de aplicação não deve ser presumido como servidor estático de produção. Execute `check --deploy` com configurações de produção e revise a lista de verificação oficial.\n\n### Como cai na prova\n\n- JSON é formato de representação; REST diz respeito também a recursos e semântica HTTP.\n- CSRF, XSS e injeção SQL são riscos distintos e exigem controles distintos.\n- `Client` testa o ciclo HTTP dentro do processo, sem navegador real.\n- Deploy exige servidor WSGI/ASGI e configuração segura; `runserver` é de desenvolvimento."
+    }
+  ],
+  "summary": "Django organiza aplicações web Python em modelos, templates, views, URLconfs e middleware. Modelos descrevem dados e o ORM, com migrações, sincroniza o esquema; views processam requisições e coordenam templates HTML ou respostas JSON. Forms validam entrada, o admin dá gestão interna por permissões, e recursos de segurança como escape de templates e CSRF precisam ser usados corretamente. APIs devem respeitar semântica HTTP e controles de acesso. Testes com TestCase e Client verificam código e requisições. Em produção, use servidor WSGI/ASGI, configuração segura, HTTPS, arquivos estáticos e verificações de deploy.",
+  "flashcards": [
+    {
+      "front": "O que representa um model Django?",
+      "back": "Uma classe derivada de Model cujos campos descrevem dados persistidos; em geral corresponde a uma tabela."
+    },
+    {
+      "front": "Qual a função de `makemigrations`?",
+      "back": "Criar arquivos de migração a partir das mudanças feitas nos modelos."
+    },
+    {
+      "front": "Qual a função de `migrate`?",
+      "back": "Aplicar ou reverter migrações no banco de dados."
+    },
+    {
+      "front": "Como se relacionam URLconf e view?",
+      "back": "URLconf associa caminhos a views; a view processa a requisição correspondente."
+    },
+    {
+      "front": "O que uma view recebe e devolve?",
+      "back": "Recebe HttpRequest e retorna um HttpResponse ou subclasse."
+    },
+    {
+      "front": "Qual o papel do template?",
+      "back": "Gerar a apresentação a partir de conteúdo estático e dados recebidos no contexto."
+    },
+    {
+      "front": "O que distingue `null` de `blank`?",
+      "back": "`null` permite ausência no banco; `blank` permite ausência na validação de formulário."
+    },
+    {
+      "front": "Que relação modela `ForeignKey`?",
+      "back": "Uma relação muitos-para-um, com cada objeto relacionado apontando para um registro."
+    },
+    {
+      "front": "Para que serve `ModelForm`?",
+      "back": "Criar campos e validação de formulário associados a um modelo."
+    },
+    {
+      "front": "Como reduzir risco de XSS em templates Django?",
+      "back": "Manter escape automático e evitar marcar conteúdo não confiável como seguro."
+    },
+    {
+      "front": "O que o token CSRF verifica?",
+      "back": "Ajuda a rejeitar submissões forjadas feitas com credenciais da sessão da vítima."
+    },
+    {
+      "front": "Para que se recomenda o Django Admin?",
+      "back": "Gestão interna de modelos por usuários confiáveis, com controle de permissões."
+    },
+    {
+      "front": "O que significa `is_staff` no admin padrão?",
+      "back": "Indica se o usuário pode acessar a interface administrativa, sujeito às demais permissões."
+    },
+    {
+      "front": "Que método HTTP é destinado à leitura segura?",
+      "back": "GET recupera uma representação e não deve solicitar mudança de estado."
+    },
+    {
+      "front": "Qual a diferença conceitual entre PUT e PATCH?",
+      "back": "PUT normalmente substitui a representação; PATCH aplica alteração parcial."
+    },
+    {
+      "front": "O que faz `JsonResponse`?",
+      "back": "Serializa dados para JSON e produz uma resposta HTTP com tipo de conteúdo JSON."
+    },
+    {
+      "front": "O que testa o Django Client?",
+      "back": "Simula requisições HTTP ao projeto sem iniciar um servidor de rede."
+    },
+    {
+      "front": "Por que usar `TestCase`?",
+      "back": "Oferece suporte a testes, incluindo isolamento transacional para operações com banco."
+    },
+    {
+      "front": "O que é WSGI?",
+      "back": "Interface padrão entre servidores web e aplicações Python síncronas."
+    },
+    {
+      "front": "O que é ASGI?",
+      "back": "Interface de servidor Python que também dá suporte a aplicações assíncronas."
+    },
+    {
+      "front": "Por que `runserver` não deve atender produção?",
+      "back": "É servidor leve de desenvolvimento, não projetado para operação de produção."
+    },
+    {
+      "front": "O que faz `collectstatic`?",
+      "back": "Reúne arquivos estáticos nos destinos definidos para publicação."
+    },
+    {
+      "front": "O que `ALLOWED_HOSTS` controla?",
+      "back": "Quais valores de host o Django aceita nas requisições recebidas."
+    },
+    {
+      "front": "Por que desativar `DEBUG` em produção?",
+      "back": "Evita expor páginas de depuração e informações internas em erros públicos."
+    },
+    {
+      "front": "JSON é sinônimo de REST?",
+      "back": "Não. JSON é formato de dados; REST é um estilo de interação com recursos e semântica HTTP."
+    }
+  ],
+  "tips": [
+    "Memorize o fluxo: URLconf escolhe a view; view coordena modelo e template ou resposta direta.",
+    "Separe a grafia makemigrations (gera arquivo) de migrate (aplica no banco).",
+    "Em modelos, associe ForeignKey a muitos-para-um e ManyToManyField a muitos-para-muitos.",
+    "Em questões de segurança, identifique o vetor: CSRF usa credenciais da vítima; XSS executa script no navegador; SQL injection altera consulta.",
+    "JSON é formato de representação; uma API RESTful também depende de recursos, métodos e status HTTP coerentes.",
+    "Para produção, descarte runserver e revise DEBUG, hosts, segredos, HTTPS, static files e check --deploy."
+  ],
+  "traps": [
+    "Chamar template HTML de view: no Django, view é código Python que produz resposta.",
+    "Achar que mudar o model altera imediatamente o banco: é preciso gerar e aplicar migrações.",
+    "Tratar null e blank como sinônimos: um afeta o banco e outro a validação.",
+    "Supor que CSRF protege contra todo acesso não autorizado ou substitui autorização.",
+    "Afirmar que toda API que retorna JSON é RESTful, independentemente dos métodos e recursos.",
+    "Usar servidor de desenvolvimento e DEBUG ligado como configuração de produção."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o percurso de uma requisição desde o URLconf até a resposta.",
+      "answer": "O URL dispatcher encontra o padrão e chama a view com HttpRequest. A view processa regras e dados e devolve HttpResponse, muitas vezes renderizando template ou JSON."
+    },
+    {
+      "question": "Como uma alteração de campo chega ao banco?",
+      "answer": "Edite o model, gere arquivo com makemigrations, revise e aplique com migrate."
+    },
+    {
+      "question": "Compare `null=True` e `blank=True`.",
+      "answer": "null=True permite valor nulo no armazenamento; blank=True permite campo vazio durante validação de formulário."
+    },
+    {
+      "question": "Qual o papel do admin e qual seu limite de uso?",
+      "answer": "É uma interface interna, centrada em modelos, para usuários confiáveis; uma interface pública ou fluxo de negócio específico deve ter views próprias."
+    },
+    {
+      "question": "Quais controles distintos ajudam contra CSRF e XSS?",
+      "answer": "CSRF usa middleware e token em formulários/cenários pertinentes; XSS é mitigado por escape da saída e cautela com conteúdo marcado como seguro."
+    },
+    {
+      "question": "O que torna uma API mais que uma saída JSON?",
+      "answer": "Recursos endereçáveis, uso coerente dos métodos e códigos HTTP, representações claras e controles de acesso."
+    },
+    {
+      "question": "Como testar uma view sem navegador externo?",
+      "answer": "Usar o Client do Django para enviar requisições simuladas e verificar status, conteúdo, templates e efeitos."
+    },
+    {
+      "question": "Quais mudanças básicas revisar antes de publicar?",
+      "answer": "Servidor WSGI/ASGI, DEBUG=False, hosts, segredos, HTTPS, arquivos estáticos, banco, logging e check --deploy."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Roteamento, view e template confundidos",
+      "summary": "URLconf aponta caminho para view; a view processa HttpRequest e retorna resposta; o template constrói apresentação com contexto."
+    },
+    {
+      "key": "e2",
+      "title": "Modelos e migrações fora de sincronia",
+      "summary": "makemigrations cria arquivos e migrate os aplica; null trata banco e blank validação; relações representam cardinalidades diferentes."
+    },
+    {
+      "key": "e3",
+      "title": "Admin e segurança tratados como automáticos",
+      "summary": "Admin é ferramenta interna sujeita a permissões; escape, CSRF, autenticação e autorização têm finalidades diferentes e exigem configuração correta."
+    },
+    {
+      "key": "e4",
+      "title": "JSON tomado como REST",
+      "summary": "JSON é formato de intercâmbio; APIs também precisam de recursos, semântica dos métodos HTTP, status apropriados e controle de acesso."
+    },
+    {
+      "key": "e5",
+      "title": "Desenvolvimento confundido com produção",
+      "summary": "runserver é servidor leve de desenvolvimento; produção pede WSGI/ASGI, DEBUG=False, hosts/segredos seguros, HTTPS e tratamento de arquivos estáticos."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um projeto Django, qual componente associa padrões de caminho a funções ou classes que processam as requisições?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O formulário transforma caminhos recebidos em nomes de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O template associa caminhos às tabelas e escolhe o registro atual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O model converte cada endereço web diretamente em uma view.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O middleware define sozinho todos os caminhos públicos do projeto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O URLconf relaciona caminhos solicitados às views correspondentes.",
+          "correct": true
+        }
+      ],
+      "explanation": "O URLconf é a configuração de rotas: mapeia expressões de caminho para views. Templates apresentam dados, models representam dados e middleware trata etapas transversais; formulários validam entrada.",
+      "section": "1. Fundamentos, requisições e camada de controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função de view Django recebe normalmente um HttpResponse e devolve um objeto HttpRequest para o navegador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O framework passa HttpRequest para a view; a view devolve HttpResponse ao servidor para formar a resposta enviada ao cliente.",
+      "section": "1. Fundamentos, requisições e camada de controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação separou uma página de catálogo em HTML e uma view que envia a lista de produtos. Qual solução representa a camada de apresentação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colocar todo o HTML no URLconf para que o roteador o renderize.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar uma migração de banco para montar a página a cada visita.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenar cada fragmento HTML como campo obrigatório do model Produto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mover a lista de produtos para uma classe de middleware de sessão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar um template que recebe os produtos no contexto enviado pela view.",
+          "correct": true
+        }
+      ],
+      "explanation": "O template é a camada que gera a apresentação e recebe valores por contexto. A view obtém os dados e seleciona a resposta; URLconf roteia, model persiste e migrações alteram esquema.",
+      "section": "1. Fundamentos, requisições e camada de controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na arquitetura MTV frequentemente associada ao Django, o nome View designa necessariamente o arquivo HTML exibido no navegador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A view do Django é uma função ou classe Python que processa a requisição e produz a resposta; o template é que gera a apresentação HTML.",
+      "section": "1. Fundamentos, requisições e camada de controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um middleware de autenticação está instalado no ciclo de requisição. Qual descrição melhor caracteriza esse componente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É uma tabela ORM usada para guardar senhas em cada aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É o arquivo que substitui o URLconf e escolhe todas as views.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É uma migração automática executada antes de cada requisição HTTP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É um template especial que renderiza somente usuários autenticados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É uma etapa transversal que pode processar requisições e respostas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Middleware envolve pontos comuns do processamento e pode enriquecer ou tratar requisições e respostas. Ele não substitui roteamento, camada de dados ou templates.",
+      "section": "1. Fundamentos, requisições e camada de controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma view, `render(request, template_name, context)` combina o template e o contexto, mas devolve somente o nome do template como texto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `render()` combina o template com o contexto e devolve uma resposta HTTP renderizada; não devolve apenas o nome do arquivo.",
+      "section": "1. Fundamentos, requisições e camada de controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma view baseada em classe precisa ser usada em todo projeto Django porque funções não conseguem processar requisições HTTP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Views podem ser funções ou classes. Classes genéricas facilitam comportamentos comuns, mas funções também recebem requisições e retornam respostas normalmente.",
+      "section": "1. Fundamentos, requisições e camada de controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rota `/itens/42/` precisa entregar o identificador capturado a uma view de detalhe. Onde se declara o padrão que captura esse valor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "No template da página inicial, como variável de contexto obrigatória.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Na configuração de campos do model, como chave estrangeira automática.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "No middleware, que converte caminhos em argumentos posicionais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "No URLconf, usando um conversor de caminho e associando a view.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "No arquivo de migração, que registra todos os endereços válidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Padrões de rota e conversores ficam no URLconf; o dispatcher captura o segmento e passa o valor à view. Os demais componentes não definem roteamento de aplicação.",
+      "section": "1. Fundamentos, requisições e camada de controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando `runserver` fornece um servidor leve voltado ao desenvolvimento e não é apropriado como servidor de produção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação do Django descreve runserver como servidor leve de desenvolvimento; implantação requer servidor adequado por WSGI ou ASGI.",
+      "section": "1. Fundamentos, requisições e camada de controle",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um time deseja organizar catálogo e contas em unidades reutilizáveis dentro de um único projeto. Qual estrutura corresponde ao uso convencional de Django?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar apps para áreas funcionais e incluí-las em INSTALLED_APPS.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Colocar todas as regras na configuração global e evitar módulos de app.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar um projeto separado para cada model e compartilhar templates por SQL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir cada área como um middleware sem modelos ou URLconf.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar uma tabela de banco para cada template e tratá-la como app.",
+          "correct": false
+        }
+      ],
+      "explanation": "Projetos Django agregam configurações e apps; apps organizam funcionalidades e são registradas em INSTALLED_APPS para participar de recursos do framework.",
+      "section": "1. Fundamentos, requisições e camada de controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O URL dispatcher seleciona o template final a partir do caminho e executa diretamente toda a lógica de negócio da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O URL dispatcher consulta o URLconf para localizar e chamar uma view; não escolhe template nem executa sozinho a regra de negócio.",
+      "section": "1. Fundamentos, requisições e camada de controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação descreve corretamente os papéis de Model, Template e View no padrão MTV do Django?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Model recebe caminhos; Template valida autenticação; View mantém arquivos estáticos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Model escolhe URLs; Template consulta banco; View armazena colunas persistentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Model trata conexões HTTP; Template define permissões; View cria tabelas automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Model converte HTML; Template aplica migrações; View registra campos administrativos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Model representa dados; Template apresenta conteúdo; View coordena requisição e resposta.",
+          "correct": true
+        }
+      ],
+      "explanation": "No MTV, Model descreve dados, Template constrói a apresentação e View coordena a requisição. Roteamento e persistência são responsabilidades de outras partes e não se invertem dessa forma.",
+      "section": "1. Fundamentos, requisições e camada de controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um atributo de campo de uma classe derivada de `django.db.models.Model` é apenas texto de apresentação e nunca representa uma coluna de dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Campos declarados no model descrevem dados persistidos e, em geral, mapeiam colunas; não são apenas rótulos visuais.",
+      "section": "2. Modelagem, ORM e migrações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma entidade Pedido contém vários itens e cada item pertence a um pedido. Qual relação Django representa naturalmente esse vínculo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um OneToOneField no item, pois cada pedido contém apenas um item.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um ForeignKey no item apontando para o pedido relacionado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um ManyToManyField, pois cada item pertence a vários pedidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um CharField no pedido contendo todos os itens serializados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um BooleanField no item identificando a tabela de destino.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada item aponta para um pedido e vários itens podem apontar ao mesmo pedido: é uma relação muitos-para-um representada por ForeignKey no lado dos itens.",
+      "section": "2. Modelagem, ORM e migrações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O campo `blank=True` permite que o banco sempre armazene NULL, enquanto `null=True` controla apenas a validação do formulário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `null` trata de nulidade no banco; `blank` afeta se um campo pode ficar vazio na validação. Os parâmetros não têm esses papéis invertidos.",
+      "section": "2. Modelagem, ORM e migrações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe alterou um model e quer registrar a operação que sincronizará o esquema do banco. Qual sequência tem os papéis corretos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Rodar migrate para criar arquivos e makemigrations para aplicá-los.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Rodar collectstatic para criar migração e check para executá-la.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Rodar startapp para aplicar as colunas e runserver para registrá-las.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Rodar makemigrations para criar arquivos e migrate para aplicá-los.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Rodar sqlmigrate para aplicar tudo e showmigrations para gerar operações.",
+          "correct": false
+        }
+      ],
+      "explanation": "makemigrations cria arquivos a partir das alterações nos modelos; migrate aplica ou reverte essas operações no banco. sqlmigrate exibe SQL e showmigrations lista estado.",
+      "section": "2. Modelagem, ORM e migrações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O ORM exige que o desenvolvedor escreva SQL específico do banco para cada consulta comum feita pelos modelos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O ORM oferece uma API de consulta em Python e adapta operações comuns ao backend; SQL manual pode ser usado em casos específicos.",
+      "section": "2. Modelagem, ORM e migrações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma relação entre Autor e Livro admite vários autores por livro e vários livros por autor. Qual campo expressa diretamente essa cardinalidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um campo DateField no livro com validação de data compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma ForeignKey no autor apontando a um único livro fixo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um campo ManyToManyField em um dos modelos participantes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Um OneToOneField no livro com exclusividade para ambos os lados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um campo BooleanField para marcar autores que escrevem livros.",
+          "correct": false
+        }
+      ],
+      "explanation": "ManyToManyField representa a associação em que vários registros de cada lado se relacionam com vários do outro, usando uma tabela intermediária conforme necessário.",
+      "section": "2. Modelagem, ORM e migrações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`makemigrations` aplica imediatamente as mudanças de esquema ao banco de dados de produção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O comando apenas produz arquivos de migração a partir dos modelos; nenhuma operação altera o banco até que `migrate` seja executado no ambiente configurado.",
+      "section": "2. Modelagem, ORM e migrações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa inspecionar o SQL gerado para uma migração antes de aplicá-la. Qual ferramenta de linha de comando atende diretamente a essa finalidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`check`, que aplica alterações e registra dados de autenticação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`showmigrations`, que imprime o HTML final da aplicação web.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`collectstatic`, que mostra alterações DDL antes de executá-las.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`createsuperuser`, que gera SQL para cada campo do modelo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`sqlmigrate`, que exibe o SQL de uma migração.",
+          "correct": true
+        }
+      ],
+      "explanation": "sqlmigrate mostra o SQL que uma migração produzirá. showmigrations relata migrações e status; os demais comandos têm funções distintas de deploy ou administração.",
+      "section": "2. Modelagem, ORM e migrações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O parâmetro `on_delete` de uma ForeignKey define o que acontece com objetos relacionados quando o objeto referenciado é excluído.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A política declarada, como CASCADE ou PROTECT, determina o tratamento da relação durante a exclusão, devendo refletir as regras de integridade do domínio.",
+      "section": "2. Modelagem, ORM e migrações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre `get()` e `filter()` em um QuerySet é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`get()` sempre retorna uma lista, enquanto `filter()` exige um único resultado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`filter()` retorna resultados consultáveis; `get()` espera uma única correspondência.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ambos aplicam migrações e criam colunas antes de consultar o banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`get()` modifica os registros; `filter()` apaga os que não correspondem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`filter()` só funciona com chaves primárias automáticas do framework.",
+          "correct": false
+        }
+      ],
+      "explanation": "filter() constrói um QuerySet com zero ou mais resultados. get() espera exatamente uma correspondência e sinaliza erro se não houver ou se houver mais de uma.",
+      "section": "2. Modelagem, ORM e migrações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela de banco é necessariamente criada assim que o programador salva uma classe Model, mesmo sem migração aplicada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Alterar a classe descreve o estado desejado no código. É preciso gerar e aplicar migrações para propagar mudanças ao esquema do banco.",
+      "section": "2. Modelagem, ORM e migrações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra exige impedir a exclusão de um departamento enquanto existirem empregados vinculados. Qual política relacional é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar CASCADE para excluir os empregados automaticamente junto ao departamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar SET_NULL mesmo sem aceitar nulos no campo de departamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PROTECT bloqueia exclusão com dependentes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar DO_NOTHING para garantir que o banco rejeite toda consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar ManyToManyField para tornar o departamento impossível de remover.",
+          "correct": false
+        }
+      ],
+      "explanation": "PROTECT impede a exclusão do objeto referenciado quando há objetos dependentes. CASCADE remove dependentes e SET_NULL desvincula, opções incompatíveis com a regra indicada.",
+      "section": "2. Modelagem, ORM e migrações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ModelForm pode derivar campos e validação de um modelo e ser usado para criar ou atualizar uma instância desse modelo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. ModelForm liga o formulário a um Model, reaproveitando campos e validações relevantes; a view controla validação e persistência.",
+      "section": "3. Apresentação, formulários e administração",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um formulário HTML que altera estado usando sessão autenticada, como se ativa normalmente a proteção CSRF do Django?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Incluir `{% csrf_token %}` no formulário POST.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Adicionar uma ForeignKey chamada csrf_token ao model de usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Renomear o caminho do formulário para conter a palavra csrf.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar o middleware CSRF e confiar na validação visual do navegador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Guardar o token apenas no CSS para que o servidor o leia automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O token CSRF é incluído no formulário pelo template tag e validado pelo middleware. Um campo de banco ou nome de URL não substitui esse mecanismo.",
+      "section": "3. Apresentação, formulários e administração",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O escape automático de templates reduz parte do risco de XSS, mas conteúdo marcado como seguro ou autoescape desligado exige cautela.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O mecanismo escapa caracteres perigosos em HTML em situações comuns; `safe`, `mark_safe` e desativação de escape podem expor a aplicação se o conteúdo não for confiável.",
+      "section": "3. Apresentação, formulários e administração",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer que funcionários autorizados alterem registros de um model por uma interface administrativa pronta. Qual recurso do Django atende melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O URL dispatcher, que gera telas CRUD para qualquer caminho declarado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Django Admin, após registrar o modelo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O mecanismo de migração, que concede acesso visual a todos os modelos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O sistema de templates, que cria usuários com privilégios por contexto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Django Client, que publica alterações diretamente ao usuário final.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Admin fornece interface interna centrada em modelos e sujeita a autenticação e permissões. Migrações tratam esquema; URLconf e templates não criam por si sós um painel administrativo.",
+      "section": "3. Apresentação, formulários e administração",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O usuário padrão precisa ter `is_staff=True` para entrar no admin, mas permissões de operações sobre cada modelo continuam relevantes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. is_staff habilita acesso ao site administrativo padrão, mas as permissões de visualização, inclusão, alteração ou exclusão continuam controlando ações específicas.",
+      "section": "3. Apresentação, formulários e administração",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja evitar repetição de cabeçalho e rodapé em páginas HTML relacionadas. Que recurso de templates é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar uma migração por página para armazenar cabeçalho e rodapé no esquema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar ForeignKey entre os arquivos de template para herdar seus blocos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar middleware que concatene HTML em todas as respostas do projeto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`extends` e blocos permitem herança de templates.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Converter cada fragmento em permissão de usuário no admin padrão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A herança de templates permite uma estrutura base e blocos substituídos em páginas filhas. Middleware é transversal, mas não é o mecanismo adequado para organizar layouts HTML.",
+      "section": "3. Apresentação, formulários e administração",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A proteção CSRF serve para determinar quais registros um usuário pode visualizar, substituindo permissões e autorização da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. CSRF ajuda contra requisições forjadas usando credenciais da vítima; autorização decide quais ações ou dados cada usuário pode acessar.",
+      "section": "3. Apresentação, formulários e administração",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um site quer permitir edição de fluxo de negócio público com várias etapas, validações específicas e experiência própria. Como tratar o Admin?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar o Admin como interface universal, pois ele substitui todo front-end de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Expor o Admin sem autenticação para que views próprias não sejam necessárias.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar views e templates próprios; o Admin é indicado sobretudo para gestão interna.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Converter cada etapa do fluxo em uma permissão e deixar o banco renderizar telas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar apenas migrações e remover formulários, pois o Admin processa todo negócio.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação recomenda o Admin como ferramenta interna centrada em modelos. Processos que precisam abstrair tabelas e oferecer experiência específica pedem views próprias.",
+      "section": "3. Apresentação, formulários e administração",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um Form vinculado, `is_valid()` executa validações e disponibiliza os dados limpos para que a view decida o próximo passo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A view deve verificar a validade antes de usar cleaned_data ou salvar um ModelForm; entrada do cliente não deve ser considerada confiável por vir de um formulário.",
+      "section": "3. Apresentação, formulários e administração",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma view precisa retornar JSON contendo uma lista no topo da resposta. Qual comportamento do Django deve ser considerado ao usar JsonResponse?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "JsonResponse rejeita todo dado estruturado e só aceita texto HTML simples.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "JsonResponse exige que a lista seja salva primeiro como campo de model.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "JsonResponse transforma qualquer objeto Python em JSON sem conversor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Por padrão espera dicionário; `safe=False` permite outros tipos deliberadamente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "JsonResponse sempre converte listas em templates e ignora o corpo da resposta.",
+          "correct": false
+        }
+      ],
+      "explanation": "JsonResponse serializa dados e, por segurança, espera por padrão um dicionário. Para uma lista ou outro tipo de topo, safe=False precisa ser informado conscientemente.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "JSON define um formato textual de intercâmbio que pode representar objetos, arrays, strings, números, booleanos e null.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. JSON é um formato de dados independente de linguagem, com esses tipos estruturados; não é, por si só, protocolo de transporte ou estilo arquitetural.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API recebe pedido para substituir integralmente a representação de um recurso identificado. Qual método HTTP é normalmente associado a essa semântica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "GET, pois recupera o recurso e substitui seu conteúdo no servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "PUT, que normalmente solicita substituição da representação do recurso.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "HEAD, que substitui o corpo sem alterar metadados da resposta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "OPTIONS, que grava os campos enviados na entidade identificada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "TRACE, que aplica a atualização como operação de persistência remota.",
+          "correct": false
+        }
+      ],
+      "explanation": "PUT é associado à criação ou substituição da representação no URI-alvo, conforme contrato da API. GET é recuperação; HEAD, OPTIONS e TRACE têm outras semânticas.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Toda aplicação que responde com JSON é necessariamente RESTful, mesmo se ignorar recursos e semântica dos métodos HTTP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. JSON é apenas formato de representação. REST envolve restrições e interação orientada a recursos; uma saída JSON não garante desenho RESTful.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint altera parcialmente o endereço de um cliente existente. Qual método é mais alinhado à semântica usual para essa operação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "PATCH, que expressa uma modificação parcial de uma representação existente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "GET, que atualiza silenciosamente os campos informados pelo cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "TRACE, que aplica mudanças e retorna o objeto persistido ao chamador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "HEAD, que grava apenas os cabeçalhos enviados no corpo da entidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "OPTIONS, que substitui parcialmente os dados do recurso no servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "PATCH é usado para aplicar modificações parciais. GET é destinado à recuperação, e os demais métodos citados não têm semântica de edição parcial.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "GET é definido como método seguro: seu propósito semântico é recuperar uma representação, sem solicitar alteração de estado da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A semântica HTTP considera GET seguro; efeitos incidentais de registro ou métricas não mudam o propósito de leitura e GET não deve ser usado para ações que alteram estado.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente envia repetidamente a mesma operação PUT com o mesmo conteúdo. Que propriedade HTTP descreve ter o mesmo efeito final após essas repetições?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Negociação, que escolhe o idioma sem relacionar tentativas sucessivas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Segurança, que garante que toda repetição será recusada pelo servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cacheabilidade, que impede o servidor de receber novamente a solicitação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Idempotência, propriedade de repetição com o mesmo efeito pretendido final.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Autenticação, que transforma cada solicitação em uma leitura sem efeito.",
+          "correct": false
+        }
+      ],
+      "explanation": "Idempotência indica que várias solicitações idênticas têm o mesmo efeito pretendido que uma única solicitação. Não significa que o servidor as rejeita ou deixa de recebê-las.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A API deve definir respostas e códigos HTTP coerentes com sucesso, ausência de recurso e falha de validação, em vez de devolver sempre 200.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Clientes dependem dos códigos de status para interpretar resultados. Uma API deve representar sucesso e diferentes classes de erro com status apropriados e corpo documentado.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste precisa chamar uma view, conferir status e conteúdo e não deve iniciar servidor de rede. Qual ferramenta integrada é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`Client` do Django, que simula requisições ao projeto durante o teste.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`collectstatic`, que executa URLs e compara respostas HTTP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`makemigrations`, que simula formulários e testa seus códigos de status.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`createsuperuser`, que envia requisições e verifica todos os templates.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`runserver`, obrigatório para cada teste unitário de view.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Django Client simula requisições sem iniciar um servidor de rede e permite verificar status, conteúdo, templates e redirecionamentos.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`TestCase` integra o sistema de testes do Django com recursos para isolamento transacional em testes que usam banco de dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. TestCase é baseado em unittest e fornece isolamento de operações de banco, facilitando testes repetíveis sem contaminar outros casos.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma requisição HTTP chega com um cabeçalho Host que não pertence aos domínios configurados. Qual configuração do Django participa da validação desses hosts?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`STATIC_URL`, que define quais hosts podem executar código Python.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`INSTALLED_APPS`, que lista domínios aceitos na camada HTTP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`ALLOWED_HOSTS`, que define nomes de host aceitos pelo projeto.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`TEMPLATES`, que bloqueia cabeçalhos antes de chamar o roteador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`MIGRATION_MODULES`, que valida a origem de conexões do navegador.",
+          "correct": false
+        }
+      ],
+      "explanation": "ALLOWED_HOSTS lista hosts válidos para a aplicação e protege contra certos ataques baseados em Host. As demais configurações têm finalidades diferentes.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A configuração `DEBUG=True` deve permanecer ativa em produção para que usuários recebam páginas detalhadas de exceção e auxiliem a equipe.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Páginas de depuração podem revelar detalhes internos. Em produção DEBUG deve ser desativado, com erros acompanhados por logging apropriado.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Django será publicada atrás de um servidor web. Qual par de interfaces é suportado para comunicação com servidores de aplicação Python?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "ORM e DTL, interfaces de transporte entre aplicação e servidor web.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "WSGI e ASGI, interfaces que conectam servidores web à aplicação Django.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "CSRF e XSS, protocolos síncronos usados para servir páginas HTML.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "JSON e URLconf, padrões que substituem o servidor de produção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "GET e PATCH, interfaces de processo entre servidor e banco relacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Django oferece interfaces WSGI e ASGI para integração com servidores. WSGI atende aplicações síncronas; ASGI também permite padrões assíncronos.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em produção, `collectstatic` reúne arquivos estáticos nos locais configurados para que sejam servidos pelo mecanismo de publicação escolhido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. collectstatic coleta arquivos estáticos de apps e destinos configurados. A publicação desses arquivos depende do servidor ou serviço configurado.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática ajuda a proteger uma aplicação Django contra injeção SQL em consultas comuns construídas com ORM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concatenar diretamente toda entrada do usuário na string SQL antes do filtro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escapar somente a saída HTML e confiar nisso para consultas ao banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar validação de formulários e permitir operadores ORM livres.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar consultas parametrizadas pelo ORM e parametrizar corretamente SQL bruto.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Armazenar a entrada em cookie e executá-la como nome de tabela.",
+          "correct": false
+        }
+      ],
+      "explanation": "O ORM parametriza valores nas consultas comuns; SQL bruto também precisa parametrizar dados do usuário. Escape HTML protege contexto de apresentação, não consultas SQL.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O mecanismo de autenticação identifica o usuário; autorização e permissões determinam se ele pode realizar uma operação específica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Autenticação trata da identidade; autorização avalia os direitos dessa identidade sobre a operação ou recurso solicitado.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um desenvolvedor publicou o código Django com configurações de produção em repositório público. Qual conduta protege melhor valores sensíveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardar SECRET_KEY e senhas em variáveis de ambiente ou mecanismo de segredos fora do código.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Codificar os segredos em Base64 e mantê-los versionados junto aos templates.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Compartilhar uma única senha administrativa em comentários do arquivo settings.py.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exibir os segredos no log de inicialização para facilitar a auditoria pública.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir as credenciais por nomes previsíveis e deixar DEBUG ligado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Segredos não devem ser publicados no repositório; devem vir de ambiente protegido ou serviço de segredos. Codificação reversível ou exposição em logs não os protege.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A recomendação `check --deploy` pode ser executada com as configurações de produção para identificar problemas de implantação e segurança.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A lista de implantação recomenda executar as verificações com configurações de produção para apontar ajustes que não aparecem no modo local.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aplicativo usa cookies de sessão e recebe formulários de alteração de dados. Qual postura de segurança é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar CSRF globalmente porque cookies já autenticam o usuário com segurança.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter proteção CSRF pertinente, validar entrada e verificar autorização da operação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar apenas escape de template, que impede toda requisição forjada externa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aceitar qualquer POST se o usuário estiver autenticado, sem conferir permissões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar o formulário por GET para que a mudança não exija validação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sessões autenticam, mas podem ser abusadas por CSRF. Deve-se conservar o token/middleware quando pertinente e também validar dados e autorização; escape de saída trata outro risco.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os testes de Django só podem verificar funções Python isoladas; não conseguem simular requests ou observar conteúdo de respostas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O framework de testes e o Client permitem simular requisições, inspecionar respostas e verificar efeitos em várias camadas da aplicação.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint que remove o recurso identificado recebeu uma solicitação HTTP DELETE. Qual resposta geral descreve corretamente o método?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "DELETE é usado para solicitar remoção do recurso-alvo conforme o contrato da API.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "DELETE recupera o recurso sem efeitos, sendo sinônimo de GET.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DELETE substitui integralmente a representação e é equivalente a PUT.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DELETE consulta opções disponíveis sem alterar o recurso, como OPTIONS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "DELETE executa apenas uma verificação de cabeçalhos, como HEAD.",
+          "correct": false
+        }
+      ],
+      "explanation": "DELETE solicita remoção da associação entre o recurso e sua funcionalidade atual no URI-alvo; detalhes do resultado dependem da API e devem ser comunicados por status HTTP adequado.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O método POST costuma ser empregado para submeter dados a processamento ou criar um recurso, de acordo com o contrato do endpoint.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. POST submete a representação ao recurso-alvo para processamento, frequentemente criando um recurso, mas seu efeito concreto depende do contrato definido pela API.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa testar se um usuário sem permissão recebe resposta de acesso negado ao tentar editar um registro. Qual abordagem é mais completa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Testar somente a existência da tabela e presumir que permissões são automáticas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar apenas collectstatic e confirmar que o botão de edição está oculto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar Client com usuário sem permissão e verificar status e ausência de alteração.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Criar um usuário staff e ignorar a verificação de autorização na view.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Testar apenas o template em texto, sem chamar a rota ou autenticar usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Client pode simular a requisição autenticada como usuário sem permissão; o teste deve conferir a resposta e confirmar que os dados não foram alterados. Ocultar um botão não substitui autorização no servidor.",
+      "section": "4. Segurança, APIs, testes e produção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Django documentation 5.2 — Models",
+      "publisher": "Django Software Foundation",
+      "reference": "Modelos, campos e mapeamento para tabelas",
+      "url": "https://docs.djangoproject.com/en/5.2/topics/db/models/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Django documentation 5.2 — Migrations",
+      "publisher": "Django Software Foundation",
+      "reference": "makemigrations, migrate, showmigrations e sqlmigrate",
+      "url": "https://docs.djangoproject.com/en/5.2/topics/migrations/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Django documentation 5.2 — URL dispatcher",
+      "publisher": "Django Software Foundation",
+      "reference": "URLconf e resolução de requisições",
+      "url": "https://docs.djangoproject.com/en/5.2/topics/http/urls/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Django documentation 5.2 — Writing views",
+      "publisher": "Django Software Foundation",
+      "reference": "Views, HttpRequest e respostas",
+      "url": "https://docs.djangoproject.com/en/5.2/topics/http/views/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Django documentation 5.2 — Templates",
+      "publisher": "Django Software Foundation",
+      "reference": "Renderização, contexto e linguagem de templates",
+      "url": "https://docs.djangoproject.com/en/5.2/topics/templates/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Django documentation 5.2 — The Django admin site",
+      "publisher": "Django Software Foundation",
+      "reference": "Uso, ativação, registro de modelos e permissões no Admin",
+      "url": "https://docs.djangoproject.com/en/5.2/ref/contrib/admin/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Django documentation 5.2 — Security in Django",
+      "publisher": "Django Software Foundation",
+      "reference": "Validação de entrada, XSS, CSRF e práticas de segurança",
+      "url": "https://docs.djangoproject.com/en/5.2/topics/security/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Django documentation 5.2 — Testing in Django",
+      "publisher": "Django Software Foundation",
+      "reference": "Testes, TestCase e simulação de requisições",
+      "url": "https://docs.djangoproject.com/en/5.2/topics/testing/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Django documentation 5.2 — Request and response objects",
+      "publisher": "Django Software Foundation",
+      "reference": "HttpRequest, HttpResponse e JsonResponse",
+      "url": "https://docs.djangoproject.com/en/5.2/ref/request-response/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Django documentation 5.2 — Deployment checklist",
+      "publisher": "Django Software Foundation",
+      "reference": "Configurações de segurança, performance e operação antes do deploy",
+      "url": "https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 9110: HTTP Semantics",
+      "publisher": "Internet Engineering Task Force",
+      "reference": "Semântica de métodos e propriedades HTTP",
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 8259: The JavaScript Object Notation (JSON) Data Interchange Format",
+      "publisher": "Internet Engineering Task Force",
+      "reference": "Sintaxe e tipos do formato JSON",
+      "url": "https://www.rfc-editor.org/rfc/rfc8259.html",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}
