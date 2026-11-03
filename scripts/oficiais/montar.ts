@@ -34,6 +34,9 @@ function secao(m: Json, texto: string): string {
 }
 const slug = (banca: string) => norm(banca).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
+// Alertas que eu conferi e liberei (gabarito oficial certo e norma ainda vigente): work/oficiais/alertas-ok.json.
+let alertasLiberados = new Set<string>();
+try { alertasLiberados = new Set((JSON.parse(Deno.readTextFileSync(`${ROOT}work/oficiais/alertas-ok.json`)) as string[]).map(String)); } catch { /* nenhum */ }
 const porRecorte = new Map<string, { banca: string; topic: string; questions: Json[] }>();
 const alertas: Json[] = [];
 const contagem = { respostas: 0, aceitas: 0, semMateria: 0, curtas: 0, alerta: 0, desconhecidas: 0 };
@@ -49,7 +52,7 @@ for (const arquivo of arquivos) {
     const m = materias.get(escolhida);
     if (!m || !q.cands.some((c: Json) => c.id === escolhida)) { contagem.semMateria++; continue; }
     const explicacao = String(it.explicacao ?? "").trim();
-    if (String(it.alerta ?? "").trim()) { contagem.alerta++; alertas.push({ id: q.id, alerta: it.alerta, explicacao }); continue; }
+    if (String(it.alerta ?? "").trim() && !alertasLiberados.has(String(it.id))) { contagem.alerta++; alertas.push({ id: q.id, alerta: it.alerta, explicacao }); continue; }
     if (explicacao.length < 120) { contagem.curtas++; continue; }
     const ce = q.alternativas.length === 0;
     const statement = `${q.base && q.base.length > 20 && !/^\(?Dispon[ií]vel em/i.test(q.base) ? `${q.base.trim()}\n\n` : ""}${String(q.enunciado).trim()}`;
