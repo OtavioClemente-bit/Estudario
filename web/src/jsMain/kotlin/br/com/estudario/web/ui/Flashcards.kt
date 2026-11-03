@@ -72,6 +72,11 @@ fun FlashcardsScreen(topicId: Long?, saved: Boolean = false, deckId: Long? = nul
     }
 
     if (index >= deck.size) {
+        // Baralho terminado: conta para o emblema de flashcards (a mesma lista do app, uma vez por dia).
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            val day = (kotlin.js.Date.now() / 86_400_000).toLong()
+            br.com.estudario.web.data.Prefs.addSynced("flashDecks", setOf("deck-${deckId ?: topicId ?: (if (saved) "caderno" else "geral")}-$day"))
+        }
         Card(extra = "pad-lg") {
             Div({ classes("stack"); attr("style", "align-items:center;text-align:center;padding:12px 0") }) {
                 Ring(if (deck.isEmpty()) 1.0 else knew.toDouble() / deck.size) { B { Text("$knew/${deck.size}") }; Span { Text("lembrei") } }

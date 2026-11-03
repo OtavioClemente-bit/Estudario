@@ -21,7 +21,7 @@ object SyncedPrefs {
     const val SNAPSHOT_KEY = "userPrefs"
     private const val FOLHA_PREFS = "folha_look"
     /** Lista na foto -> chave em folha_look (as mesmas de WardrobeScreen e FolhaGift). */
-    private val folhaSets = mapOf("wardrobeSeen" to "vistos", "celebratedPieces" to "celebrated")
+    private val folhaSets = mapOf("wardrobeSeen" to "vistos", "celebratedPieces" to "celebrated", "flashDecks" to br.com.estudario.data.FlashDeckLog.KEY)
     private const val BADGES = "celebratedBadges"
 
     private fun app(context: Context) = context.applicationContext as EstudarioApplication
@@ -54,6 +54,7 @@ object SyncedPrefs {
                 folha(context).edit().putString(key, (local.orEmpty() + remote).sorted().joinToString(",")).apply()
             }
         }
+        br.com.estudario.data.FlashDeckLog.refresh(context)
         json.set(BADGES).takeIf { it.isNotEmpty() }?.let { app(context).preferences.markBadgesEarned(it) }
     }
 

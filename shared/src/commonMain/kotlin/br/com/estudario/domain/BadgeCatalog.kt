@@ -36,6 +36,8 @@ data class BadgeExtras(
     val streakSaves: Int = 0,
     val earlyDays: Int = 0,
     val lateDays: Int = 0,
+    /** Baralhos de flashcards terminados fora do plano (tópico, Caderno, revisão). */
+    val flashDecks: Int = 0,
 ) {
     companion object {
         /** Dias distintos com estudo antes das 7h e com estudo das 22h às 3h59 (a madrugada conta para a noite anterior). */
@@ -204,9 +206,9 @@ object BadgeCatalog {
     val flashcards = tiers(
         BadgeCategory.FLASHCARDS, "flash", "baralhos",
         listOf(
-            Triple(5, "Primeiras cartas", "Revisar 5 baralhos de flashcards do plano"),
-            Triple(25, "Baralho afiado", "Revisar 25 baralhos de flashcards do plano"),
-            Triple(100, "Mestre das cartas", "Revisar 100 baralhos de flashcards do plano"),
+            Triple(5, "Primeiras cartas", "Terminar 5 baralhos de flashcards"),
+            Triple(25, "Baralho afiado", "Terminar 25 baralhos de flashcards"),
+            Triple(100, "Mestre das cartas", "Terminar 100 baralhos de flashcards"),
         ),
     ).map { it.copy(id = "flash-" + mapOf(5 to 50, 25 to 500, 100 to 2000).getValue(it.target)) }   // o id segue o da arte
 
@@ -256,8 +258,8 @@ object BadgeCatalog {
         val editalPercent = if (input.topicsTotal == 0) 0 else input.topicsStudied * 100 / input.topicsTotal
         val maiorDia = input.days.maxOfOrNull { it.minutes } ?: 0
         val simulados = planWork.count { it.type == PlanTaskType.SIMULATION }
-        val baralhos = planWork.count { it.type == PlanTaskType.FLASHCARDS }
         val x = input.extras
+        val baralhos = planWork.count { it.type == PlanTaskType.FLASHCARDS } + x.flashDecks
         val faltamParaValer = (200 - input.totalQuestions).coerceAtLeast(0)
 
         return all.map { badge ->

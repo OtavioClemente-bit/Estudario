@@ -406,6 +406,7 @@ fun ReviewSessionScreen(
                 } else RateCard(review, reviews, recalled, forgotten, correct, questions.size) { difficulty ->
                     val days = nextDueDays(review, reviews, difficulty, correct, questions.size)
                     viewModel.completeReview(review, difficulty, correct, questions.size, recalled, forgotten, startedAt)
+                    if (recalled + forgotten > 0) br.com.estudario.data.FlashDeckLog.record(viewModel.getApplication<android.app.Application>(), "rev-${review.id}")
                     // as questões da revisão contam no Desempenho (tempo e acertos), como no site
                     if (results.isNotEmpty()) {
                         val end = System.currentTimeMillis()

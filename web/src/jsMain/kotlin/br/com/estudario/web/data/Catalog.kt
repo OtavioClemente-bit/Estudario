@@ -123,7 +123,10 @@ object Catalog {
 
     /** A banca do edital do catálogo de onde o concurso veio (achado pelo nome), ou null. */
     suspend fun boardFor(competitionName: String): String? = runCatching {
-        val all = entries()
+        // A banca de um edital antigo (TRT-3 2022 = FUMARC) não é a do próximo concurso: só vale a do
+        // catálogo quando o edital é deste ano ou do anterior.
+        val minYear = kotlin.js.Date().getFullYear() - 1
+        val all = entries().filter { (it.year ?: 0) >= minYear }
         val entry = all.firstOrNull { it.title.equals(competitionName, true) }
             ?: all.filter { it.shortName.equals(competitionName, true) }.mapNotNull { it.board?.trim()?.ifBlank { null } }.distinct().singleOrNull()?.let { return it }
         entry?.board?.trim()?.ifBlank { null }

@@ -53,6 +53,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -128,6 +129,8 @@ fun SimulationExamScreen(simulationId: Long, onExit: () -> Unit, onFinished: (Lo
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LinearProgressIndicator() }
         return
     }
+    // Alternativas riscadas ("id:letra"), como na prova de papel: só ajudam a pensar, não são salvas.
+    val crossed = remember { mutableStateMapOf<String, Boolean>() }
     val safeIndex = index.coerceIn(0, questions.lastIndex)
     val question = questions[safeIndex]
     val remaining = (limitSeconds - elapsed).coerceAtLeast(0)
@@ -161,14 +164,24 @@ fun SimulationExamScreen(simulationId: Long, onExit: () -> Unit, onFinished: (Lo
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             MarkdownText(question.question.statement)
             val trueFalse = question.options.map { it.key }.toSet() == setOf("C", "E")
+            if (!trueFalse) Text("Arraste uma alternativa para o lado para riscar", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             question.options.sortedBy { it.position }.forEach { option ->
                 val selected = answers[question.question.id] == option.key
+                val crossKey = "${question.question.id}:${option.key}"
+                val isCrossed = crossed[crossKey] == true
+                fun toggleCross() {
+                    crossed[crossKey] = !isCrossed
+                    if (!isCrossed && selected) { answers.remove(question.question.id); save() }
+                }
+                br.com.estudario.ui.screens.SwipeToEliminate(crossed = isCrossed, enabled = true, onToggle = ::toggleCross) {
                 Surface(
                     shape = RoundedCornerShape(14.dp),
                     border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
                     color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                    modifier = Modifier.fillMaxWidth().selectable(selected = selected) {
-                        // Tocar de novo na marcada desmarca: deixar em branco é uma escolha de prova.
+                    modifier = Modifier.fillMaxWidth().alpha(if (isCrossed) 0.45f else 1f).selectable(selected = selected) {
+                        // Riscada: tocar desfaz o risco. Tocar de novo na marcada desmarca: deixar em
+                        // branco é uma escolha de prova.
+                        if (isCrossed) { crossed[crossKey] = false; return@selectable }
                         if (selected) answers.remove(question.question.id) else answers[question.question.id] = option.key
                         save()
                     },
@@ -179,9 +192,17 @@ fun SimulationExamScreen(simulationId: Long, onExit: () -> Unit, onFinished: (Lo
                             contentAlignment = Alignment.Center,
                         ) { Text(option.key, fontWeight = FontWeight.Bold, color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant) }
                         Spacer(Modifier.width(12.dp))
-                        if (trueFalse) Text(if (option.key == "C") "Certo" else "Errado", Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
-                        else MarkdownText(option.text, Modifier.weight(1f))
+                        if (trueFalse) Text(if (option.key == "C") "Certo" else "Errado", Modifier.weight(1f), fontWeight = FontWeight.SemiBold, textDecoration = if (isCrossed) androidx.compose.ui.text.style.TextDecoration.LineThrough else null)
+                        else br.com.estudario.ui.components.StudyInlineText(
+                            option.text, Modifier.weight(1f),
+                            onTap = {
+                                if (isCrossed) crossed[crossKey] = false
+                                else { if (selected) answers.remove(question.question.id) else answers[question.question.id] = option.key; save() }
+                            },
+                            style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface, textDecoration = if (isCrossed) androidx.compose.ui.text.style.TextDecoration.LineThrough else null),
+                        )
                     }
+                }
                 }
             }
         }

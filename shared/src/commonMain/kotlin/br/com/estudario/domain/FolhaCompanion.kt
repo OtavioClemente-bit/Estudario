@@ -86,8 +86,8 @@ object FolhaMemory {
             ).pick(c.seed), "proud")
         }
         if (c.todayDone) return null
-        // de vez em quando, uma fala pessoal no lugar da de sempre
-        if (c.seed % 2 != 0L) return null
+        // Quase sempre uma fala pessoal (soa como conversa); de vez em quando, a de sempre.
+        if (c.seed % 4 == 0L) return null
         val options = buildList {
             if (c.lastSubject != null && c.lastSubjectDaysAgo == 1) add(Line("Ontem foi ${c.lastSubject}. Hoje a gente segue firme?", "talking"))
             if (c.lastSubject != null && c.lastSubjectDaysAgo == 0) add(Line("Já mandou ${c.lastSubject} hoje. Mais um pouquinho?", "happy"))
@@ -98,6 +98,34 @@ object FolhaMemory {
             if (c.bond >= 3) add(Line("Amigo que estuda junto passa junto. Partiu?", "wave"))
             if (c.hour in 5..9) add(Line("Bom dia${nome?.let { ", $it" } ?: ""}! Cabeça fresquinha é a melhor hora.", "wave"))
             if (c.hour >= 22 || c.hour < 2) add(Line("Tá tarde${nome?.let { ", $it" } ?: ""}. Um tópico curtinho e cama, combinado?", "talking"))
+            c.lastSubject?.let { s ->
+                when (c.lastSubjectDaysAgo) {
+                    0 -> {
+                        add(Line("Vi que você já passou por $s hoje. Tá rendendo, hein?", "proud"))
+                        add(Line("$s hoje já foi. Quer variar um pouco ou seguir nela?", "talking"))
+                    }
+                    1 -> {
+                        add(Line("Fiquei pensando em $s, que você estudou ontem. Hoje uma revisãozinha cai bem.", "talking"))
+                        add(Line("Ontem foi $s e você mandou bem. Bora manter o embalo?", "happy"))
+                    }
+                    in 2..6 -> add(Line("Faz uns dias que a gente não vê $s. Não deixa esfriar, tá?", "talking"))
+                    else -> {}
+                }
+            }
+            if (nome != null) {
+                add(Line("Oi, $nome! Como você tá hoje? Eu tô animado pra gente estudar.", "wave"))
+                add(Line("$nome, separei o próximo passo pra você. Bem tranquilo, prometo.", "talking"))
+                add(Line("E aí, $nome? Pronto pra deixar o edital um pouco menor?", "happy"))
+                if (c.hour in 12..17) add(Line("Boa tarde, $nome! Bora encaixar um estudo nesse pedaço do dia?", "wave"))
+                if (c.hour in 18..21) add(Line("Boa noite, $nome! Cansou do dia? Começa leve que eu acompanho.", "talking"))
+            }
+            if (c.streak in 1..2) add(Line("Começamos uma sequência! Hoje é o dia de deixar ela maior.", "happy"))
+            if (c.streak >= 7) add(Line("${c.streak} dias juntos sem falhar. Eu fico até emocionado.", "proud"))
+            if (c.streak >= 14) add(Line("Mais de duas semanas seguidas, $voce. Isso já é quem você é.", "proud"))
+            c.daysToExam?.takeIf { it in 61..400 }?.let { add(Line("Ainda faltam $it dias. Com calma e constância, dá pra chegar muito bem.", "talking")) }
+            if (c.bond >= 2) add(Line("A gente já virou parceiro de estudo, né? Bora mais um dia.", "happy"))
+            if (c.bond >= 5) add(Line("Depois de tanto tempo junto, eu já sei: hoje você vai mandar bem.", "proud"))
+            if (away == 1) add(Line("Ontem você estudou, hoje a gente continua. Simples assim.", "happy"))
         }
         return options.takeIf { it.isNotEmpty() }?.pick(c.seed / 2)
     }
@@ -119,5 +147,11 @@ object FolhaMemory {
         "Bateria difícil acontece. Cada erro aqui é um que não acontece na prova.",
         "Ei, não desanima! Eu tô aqui. Vamos uma de cada vez.",
         "Errar três seguidas dói, mas é assim que o conteúdo gruda. Bora!",
+        "Ei, eu sei que frustra. Que tal ler a teoria desse ponto e voltar depois?",
+        "Respira comigo. Ninguém acerta tudo, e você tá aprendendo agora.",
+        "Essas estão difíceis mesmo. Não é você, é o assunto pedindo mais uma volta.",
+        "Tô do seu lado. Uma de cada vez, sem pressa.",
+        "Quando todo mundo erra, quem revisa passa na frente. Vamos revisar?",
+        "Não desiste agora. A próxima pode ser justamente a que vira o jogo.",
     )
 }
