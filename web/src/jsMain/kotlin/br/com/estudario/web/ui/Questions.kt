@@ -594,13 +594,7 @@ internal fun AnswerReaction(right: Boolean, correctKey: String?, questionId: Lon
             B({ classes("reaction-title") }) { Text(when { fire -> "Em chamas!"; relief -> "Ufa, virou!"; right -> "Mandou bem!"; tough -> "Tô aqui com você"; else -> "Não foi dessa vez" }) }
             P({ classes("small") }) { Text(line) }
             if (!right) P({ classes("xs", "muted") }) { Text("Resposta certa: ${correctKey ?: "?"}. A questão foi para o caderno de erros.") }
-            if (right && streak >= 2) Span({ classes("streak-chip") }) { Icon("local_fire_department", filled = true); Text("$streak seguidas") }
-        }
-        if (badge != null) Div({ classes("badge-pop") }) {
-            // Marca da bateria (3, 5, 10... seguidas), só na hora: não é emblema das Conquistas nem fica salva.
-            Icon("local_fire_department", filled = true)
-            Span({ classes("xs") }) { Text("${streak} seguidas") }
-            B { Text(badge.second) }
+            if (right && streak >= 2) Span({ classes("streak-chip") }) { Icon("local_fire_department", filled = true); Text(if (badge != null) "$streak seguidas · ${badge.second}" else "$streak seguidas") }
         }
     }
 }
