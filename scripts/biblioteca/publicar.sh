@@ -5,6 +5,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
+# Questões de prova real já explicadas pelo ChatGPT: remonta conteudo/recortes-oficiais antes de publicar.
+if [ -f work/oficiais/questoes.jsonl ]; then deno run -A scripts/oficiais/montar.ts >/dev/null; fi
+
 REF="gaqqilzhmvkxfpvivwwv"
 KEY=$(npx --no-install supabase projects api-keys --project-ref "$REF" -o json 2>/dev/null | deno eval "
 const a = JSON.parse(await new Response(Deno.stdin.readable).text());
