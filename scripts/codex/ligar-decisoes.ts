@@ -47,11 +47,16 @@ const concurso = (arq: string) => arq.split("--")[0];
 const onde = new Map<string, Set<string>>();
 const editais = [...Deno.readDirSync("conteudo/editais")].filter((e) => e.name.endsWith(".json")).map((e) => e.name);
 const dados = new Map<string, Record<string, any>>();
+// Itens ligados provisoriamente a uma matéria que não trata da norma citada (03/11): quando a decisão do Codex
+// aponta outra matéria publicada, a ligação nova substitui a provisória.
+let provisorios = new Set<string>();
+try { provisorios = new Set((JSON.parse(Deno.readTextFileSync("work/norma-pendente.json")) as string[]).map((s) => normalizeAlias(s))); } catch { /* nenhum */ }
+const livre = (t: Record<string, any>) => t.topico == null || (provisorios.has(normalizeAlias(String(t.texto))) && texto.get(normalizeAlias(String(t.texto))) !== t.topico);
 for (const arq of editais) {
   const ed = ler(`conteudo/editais/${arq}`);
   dados.set(arq, ed);
   for (const d of ed.disciplinas) for (const t of d.topicos) {
-    if (t.topico != null) continue;
+    if (!livre(t)) continue;
     const k = normalizeAlias(String(t.texto));
     if (texto.has(k)) { const s = onde.get(k) ?? new Set(); s.add(concurso(arq)); onde.set(k, s); }
   }
@@ -73,7 +78,7 @@ const porId = new Map<string, number>();
 for (const [arq, ed] of dados) {
   let n = 0;
   for (const d of ed.disciplinas) for (const t of d.topicos) {
-    if (t.topico != null || bloqueados.has(t.texto)) continue;
+    if (!livre(t) || bloqueados.has(t.texto)) continue;
     const k = normalizeAlias(String(t.texto));
     const p = permitido.get(k);
     if (!p || (p !== "todos" && !p.has(concurso(arq)))) continue;
