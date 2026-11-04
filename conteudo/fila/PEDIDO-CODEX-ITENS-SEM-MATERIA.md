@@ -36,6 +36,11 @@ Decida UMA de quatro coisas e grave `conteudo/entrada/itens-sem-materia/<n>.json
 2. **materia-nova** — nenhuma matéria cobre o item e ele é conteúdo que se estuda (ex.: "Tuberculose", "Macros" do Excel,
    "Regime pluviométrico", "Gestão democrática" na educação). Escreva a matéria completa (abaixo) e use o id dela.
    Se um item posterior da lista for o mesmo assunto, ligue-o à matéria que você criou.
+   **Antes de decidir materia-nova, é obrigatório procurar** em `conteudo/fila/indice-materias.tsv` (atualizado a cada
+   rodada; traz as publicadas, os rascunhos e as "em produção") com pelo menos 2 palavras-chave do item (ex.: grep -i
+   "hibernate", grep -i "governan.*dados"). Se achar matéria que cobre o item ou tem seção sobre ele, LIGUE. Na amostra
+   de 04/11, 1 em cada 8 matérias novas já existia com outro nome (ex.: "Hibernate Envers" já era seção de
+   informatica.persistencia-jpa-hibernate-bancos). Use o id exatamente como está no índice (não invente variações).
 3. **amplo** — o item é uma disciplina ou lei inteira, grande demais para UMA matéria (ex.: "Constituição da República
    Federativa do Brasil de 1988", "Raciocínio lógico", "Gramática normativa", "Conhecimentos gerais e atualidades",
    "Direito Administrativo"). Não escreva nada: grave a decisão "amplo" (id null) e passe ao próximo. Eu cuido desses.

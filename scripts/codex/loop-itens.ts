@@ -42,6 +42,8 @@ log(`loop do Codex iniciado: ${feitos()} de ${total} itens já decididos`);
 let semAvanco = 0;
 while (feitos() < total) {
   const antes = feitos();
+  // Índice das matérias atualizado a cada rodada (estava parado em 28/10 e o Codex criava matéria que já existia).
+  await new Deno.Command("deno", { args: ["run", "-A", `${ROOT}scripts/codex/indice-materias.ts`], stdout: "null", stderr: "null" }).output().catch(() => undefined);
   const inicio = primeiroFaltando();
   log(`rodada começando no item ${inicio}`);
   const o = await new Deno.Command("node", {
