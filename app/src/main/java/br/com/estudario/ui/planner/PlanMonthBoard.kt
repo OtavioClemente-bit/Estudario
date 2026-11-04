@@ -81,7 +81,7 @@ private val pending = setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENT
  */
 @Composable
 /** O nome curto da matéria, como no site ("Direito - Administrativo" vira "Administrativo"). */
-private fun monthSubject(name: String) = name.substringAfter(" – ").substringAfter(" - ").trim()
+private fun monthSubject(name: String) = name.substringAfter(" \u2013 ").substringAfter(" - ").trim()
 
 /** Minutos curtos para caber no dia: 45m, 1h, 1h30. */
 private fun shortMin(minutes: Int): String = when {
