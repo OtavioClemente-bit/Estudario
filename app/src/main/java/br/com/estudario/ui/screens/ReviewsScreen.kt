@@ -50,8 +50,8 @@ private val Mint = Color(0xFF2FD39A)
 private val Red = Color(0xFFE5484D)
 private val Violet = Color(0xFFA78BFF)
 private val Cyan = Color(0xFF22D3EE)
-private val InkA = Color(0xFF2E2799)
-private val InkB = Color(0xFF1B1464)
+private val InkA = Color(0xFF1F3B8A)
+private val InkB = Color(0xFF14285E)
 
 /** Revisar tudo em sequência: ao terminar uma, a próxima do dia abre sozinha (como no site). */
 internal object ReviewRun { var active = false }

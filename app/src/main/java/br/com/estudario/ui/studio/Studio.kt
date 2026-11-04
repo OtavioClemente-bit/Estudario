@@ -88,10 +88,10 @@ import kotlin.math.roundToInt
  */
 object Gx {
     private val d: Boolean get() = br.com.estudario.ui.theme.CxTheme.dark
-    val bg: Color get() = if (d) Color(0xFF12143A) else Color(0xFFF3F1FF)
-    val bg2: Color get() = if (d) Color(0xFF1C1B52) else Color(0xFFFFFFFF)
-    val bg3: Color get() = if (d) Color(0xFF262467) else Color(0xFFECE8FF)
-    val bg0: Color get() = if (d) Color(0xFF0B0C26) else Color(0xFFE9E5FF)
+    val bg: Color get() = if (d) Color(0xFF0E1A33) else Color(0xFFF8F5EC)
+    val bg2: Color get() = if (d) Color(0xFF14223F) else Color(0xFFFFFDF8)
+    val bg3: Color get() = if (d) Color(0xFF1B2B4D) else Color(0xFFF2EDE0)
+    val bg0: Color get() = if (d) Color(0xFF0B1529) else Color(0xFFE9E3D2)
     val accentText: Color get() = if (d) Color(0xFFC9BEFF) else Color(0xFF5B44E0)
     val soft: Color get() = if (d) Color(0xFFC9C5F0) else Color(0xFF48447A)
     /** Fundo de botão desligado. */
@@ -99,7 +99,7 @@ object Gx {
     val ink: Color get() = if (d) Color(0xFFF4F2FF) else Color(0xFF1F1B4D)
     val strong: Color get() = if (d) Color.White else Color(0xFF14113A)
     val mute: Color get() = if (d) Color(0xFFA9A6D6) else Color(0xFF6B6894)
-    val line: Color get() = if (d) Color(0x33A78BFF) else Color(0x2E5B4BF5)
+    val line: Color get() = if (d) Color(0x2E8CBEFF) else Color(0x291C1E25)
     val track: Color get() = tint(0.08f)
     fun tint(alpha: Float): Color = br.com.estudario.ui.theme.CxTheme.tint(alpha)
     /** No claro, a cor do destaque um tom mais funda, para texto ler bem no fundo branco. */

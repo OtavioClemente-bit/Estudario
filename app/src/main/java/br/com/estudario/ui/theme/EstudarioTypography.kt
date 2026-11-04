@@ -67,7 +67,7 @@ val Nunito = FontFamily(
 @OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
 val Bricolage = FontFamily(
     listOf(400, 500, 600, 700, 800).map { w ->
-        Font(R.font.bricolage_grotesque, FontWeight(w), variationSettings = androidx.compose.ui.text.font.FontVariation.Settings(androidx.compose.ui.text.font.FontVariation.weight(w)))
+        Font(R.font.bricolage_grotesque, FontWeight(w), variationSettings = androidx.compose.ui.text.font.FontVariation.Settings(androidx.compose.ui.text.font.FontVariation.weight(w), androidx.compose.ui.text.font.FontVariation.Setting("opsz", 14f)))
     },
 )
 
@@ -83,7 +83,7 @@ val MonoNum = FontFamily(
 )
 
 private fun TextStyle.nunito() = copy(fontFamily = Nunito)
-private fun TextStyle.titulo() = copy(fontFamily = Bricolage, letterSpacing = (-0.3).sp)
+private fun TextStyle.titulo() = copy(fontFamily = Bricolage, letterSpacing = 0.sp)
 
 val EstudarioTypography = BaseTypography.run {
     Typography(

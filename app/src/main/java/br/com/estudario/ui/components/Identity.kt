@@ -96,7 +96,7 @@ fun ProfileAvatar(
  * mesmo lugar da foto, então o resto do app (menu, topo, perfil) mostra sem saber a diferença.
  */
 enum class PresetAvatar(val key: String, val label: String, val top: Color, val bottom: Color, val glyph: br.com.estudario.ui.brand.Glyph?) {
-    FOLHA("folha", "Folha", Color(0xFF6C5CFF), Color(0xFF3326CE), null),
+    FOLHA("folha", "Folha", Color(0xFF2F5BD3), Color(0xFF3326CE), null),
     CAPELO("capelo", "Formatura", Color(0xFF34D399), Color(0xFF0E8F63), br.com.estudario.ui.brand.Glyph.Cap),
     LAMPADA("lampada", "Ideia", Color(0xFFFFC857), Color(0xFFE08A00), br.com.estudario.ui.brand.Glyph.Bulb),
     ALVO("alvo", "Foco", Color(0xFFFF8A7A), Color(0xFFD9443A), br.com.estudario.ui.brand.Glyph.Target),

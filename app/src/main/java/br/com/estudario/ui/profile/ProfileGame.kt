@@ -113,12 +113,12 @@ import br.com.estudario.ui.theme.EstudarioTheme
 
 internal object Game {
     private val d: Boolean get() = br.com.estudario.ui.theme.CxTheme.dark
-    val bg: Color get() = if (d) Color(0xFF12143A) else Color(0xFFF3F1FF)
-    val bg2: Color get() = if (d) Color(0xFF1C1B52) else Color(0xFFFFFFFF)
-    val deep: Color get() = if (d) Color(0xFF0B0C26) else Color(0xFFE9E5FF)
+    val bg: Color get() = if (d) Color(0xFF0E1A33) else Color(0xFFF8F5EC)
+    val bg2: Color get() = if (d) Color(0xFF14223F) else Color(0xFFFFFDF8)
+    val deep: Color get() = if (d) Color(0xFF0B1529) else Color(0xFFE9E3D2)
     val ink: Color get() = if (d) Color.White else Color(0xFF14113A)
     val muted: Color get() = if (d) Color(0xFFA9ABD9) else Color(0xFF6B6894)
-    val line: Color get() = if (d) Game.tint(0.10f) else Color(0x2E5B4BF5)
+    val line: Color get() = if (d) Game.tint(0.10f) else Color(0x291C1E25)
     val track: Color get() = tint(0.08f)
     fun tint(alpha: Float): Color = br.com.estudario.ui.theme.CxTheme.tint(alpha)
     /** No claro, a cor do destaque um tom mais funda, para texto ler bem no fundo branco. */

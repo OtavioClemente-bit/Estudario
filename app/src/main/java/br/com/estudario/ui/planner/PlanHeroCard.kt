@@ -42,8 +42,8 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
-private val Ink = Color(0xFF2E2799)
-private val InkDeep = Color(0xFF1B1464)
+private val Ink = Color(0xFF1F3B8A)
+private val InkDeep = Color(0xFF14285E)
 private val Gold = Color(0xFFF5B83D)
 private val Mint = Color(0xFF7EE0B8)
 private val Paper = Color(0xFFFFFBEF)

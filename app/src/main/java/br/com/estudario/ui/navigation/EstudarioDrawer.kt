@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.compositeOver
 import android.content.res.Configuration
 import br.com.estudario.ui.theme.EstudarioTheme
 import br.com.estudario.ui.components.EstudarioGlyph
@@ -195,8 +196,8 @@ private fun DrawerRow(entry: DrawerEntry, selected: Boolean) {
                         val r = androidx.compose.ui.geometry.CornerRadius(12.dp.toPx())
                         drawRoundRect(ink, topLeft = androidx.compose.ui.geometry.Offset(3.dp.toPx(), 4.dp.toPx()), size = size, cornerRadius = r)
                     }
-                    .background(paper, shape)
-                    .border(2.dp, ink, shape)
+                    .background(primary.copy(alpha = .16f).compositeOver(paper), shape)
+                    .border(2.dp, if (paper.luminance() < 0.4f) primary else ink, shape)
                 else Modifier,
             )
             .clip(shape)
