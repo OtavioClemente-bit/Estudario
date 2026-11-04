@@ -129,6 +129,7 @@ internal fun PlanMonthBoard(
     onFocus: (PlannerTaskUi) -> Unit,
     onMove: (PlannerTaskUi, LocalDate) -> Unit,
     onSwap: (PlannerTaskUi, PlannerTaskUi) -> Unit = { _, _ -> },
+    onDayOff: (LocalDate, Boolean) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -226,6 +227,23 @@ internal fun PlanMonthBoard(
                 listOf("Teoria" to taskTypeColor(PlanTaskType.THEORY), "Questões" to taskTypeColor(PlanTaskType.QUESTIONS), "Revisão" to taskTypeColor(PlanTaskType.REVIEW), "Simulado" to taskTypeColor(PlanTaskType.SIMULATION), "Atrasado" to LateColor).forEach { (label, c) ->
                     Text(label, Modifier.clip(RoundedCornerShape(8.dp, 5.dp, 9.dp, 6.dp)).background(c.copy(alpha = 0.16f)).border(1.5.dp, c, RoundedCornerShape(8.dp, 5.dp, 9.dp, 6.dp)).padding(horizontal = 8.dp, vertical = 3.dp),
                         style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+                }
+            }
+            // o caminho do edital neste mês (o plano marca as tarefas só algumas semanas à frente)
+            state.roadmap?.months?.firstOrNull { it.month.year == month.year && it.month.month.ordinal == month.monthValue - 1 }?.let { rm ->
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp, 7.dp, 13.dp, 8.dp)).background(Color(0xFFFFD23F).copy(alpha = 0.22f))
+                        .border(1.5.dp, br.com.estudario.ui.brand.cutInk(), RoundedCornerShape(12.dp, 7.dp, 13.dp, 8.dp)).padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(if (rm.newTopics == 0) "Neste mês: revisão, questões e simulados" else "Neste mês: ${rm.newTopics} tópicos novos", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black)
+                    if (rm.slices.isNotEmpty()) androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        rm.slices.take(6).forEach { sl ->
+                            Text("${monthSubject(sl.name)} · ${sl.newTopics}", Modifier.clip(RoundedCornerShape(7.dp)).background(MaterialTheme.colorScheme.surface).border(1.dp, br.com.estudario.ui.brand.cutInk(), RoundedCornerShape(7.dp)).padding(horizontal = 7.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        }
+                        if (rm.slices.size > 6) Text("+${rm.slices.size - 6} matérias", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text("Até o fim do mês, ${rm.coveragePercent}% do edital visto.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             // a semana começa na segunda, como no site
@@ -345,6 +363,14 @@ internal fun PlanMonthBoard(
                         Box(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(6.dp, 4.dp, 6.dp, 4.dp)).background(MaterialTheme.colorScheme.surfaceVariant).border(1.5.dp, ink, RoundedCornerShape(6.dp, 4.dp, 6.dp, 4.dp))) {
                             Box(Modifier.fillMaxWidth((load.toFloat() / dayLimit.coerceAtLeast(1)).coerceIn(0f, 1f)).height(10.dp).background(if (load > dayLimit) LateColor else Color(0xFF3BB273)))
                         }
+                    }
+                    if (day.toEpochDay() >= today) {
+                        val isOff = day.toEpochDay() in offDays
+                        if (isOff) TextButton(onClick = { onDayOff(day, false) }) { Text("Tirar a folga") }
+                        else if (dayLimit > 0) TextButton(onClick = {
+                            onDayOff(day, true)
+                            android.widget.Toast.makeText(context, "Folga marcada. Os estudos desse dia vão para os próximos dias.", android.widget.Toast.LENGTH_SHORT).show()
+                        }) { Text("Folga neste dia") }
                     }
                     Text(
                         if (canEdit) "Segure um estudo e solte num dia do calendário para mudar. Ele fica fixado lá." else "Toque para começar. Mudar de dia é dos planos Essencial e Pro.",

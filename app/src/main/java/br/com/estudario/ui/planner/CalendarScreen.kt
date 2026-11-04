@@ -43,6 +43,7 @@ fun CalendarScreen(
     /** Arrastar no mês (planos pagos): o estudo vai para o dia escolhido e fica fixado lá. */
     onMoveTask: (PlannerTaskUi, LocalDate) -> Unit = { _, _ -> },
     onSwapTasks: (PlannerTaskUi, PlannerTaskUi) -> Unit = { _, _ -> },
+    onDayOff: (LocalDate, Boolean) -> Unit = { _, _ -> },
 ) {
     val theoryByTopic = remember(state.tasks) {
         state.tasks.map { it.entity }.filter { it.type == br.com.estudario.domain.planner.PlanTaskType.THEORY && it.topicId != null && it.status != PlanTaskStatus.REPROGRAMADA }
@@ -62,7 +63,7 @@ fun CalendarScreen(
             header = header,
         )
         PlanSection.WEEK -> WeekPlanView(state = state, onFocus = onFocus, onReprogram = onReprogram, onSkip = onSkip, onGenerate = onGenerate, header = header)
-        PlanSection.MONTH -> MonthPlanView(state = state, onFocus = onFocus, onReprogram = onReprogram, onSkip = onSkip, onGenerate = onGenerate, header = header, onMoveTask = onMoveTask, onSwapTasks = onSwapTasks)
+        PlanSection.MONTH -> MonthPlanView(state = state, onFocus = onFocus, onReprogram = onReprogram, onSkip = onSkip, onGenerate = onGenerate, header = header, onMoveTask = onMoveTask, onSwapTasks = onSwapTasks, onDayOff = onDayOff)
         PlanSection.YEAR -> OverviewPlanView(state = state, header = header, onEditAvailability = onEditAvailability, onShiftRoadmapEnd = onShiftRoadmapEnd)
     }
     }
@@ -371,6 +372,7 @@ private fun MonthPlanView(
     header: LazyListScope.() -> Unit,
     onMoveTask: (PlannerTaskUi, LocalDate) -> Unit,
     onSwapTasks: (PlannerTaskUi, PlannerTaskUi) -> Unit,
+    onDayOff: (LocalDate, Boolean) -> Unit,
 ) {
     val monthTasks = state.monthTasks
     val plannedMinutes = monthTasks.plannedLoadMinutes()
@@ -394,7 +396,7 @@ private fun MonthPlanView(
 
     PlanList(header) {
         // O mês inteiro, legível e arrastável (pagos): o calendário e a lista do dia escolhido.
-        item(key = "month-board") { PlanMonthBoard(state, onFocus, onMoveTask, onSwapTasks) }
+        item(key = "month-board") { PlanMonthBoard(state, onFocus, onMoveTask, onSwapTasks, onDayOff) }
         item { PlannerSummary(plannedMinutes = plannedMinutes, actualMinutes = actualMinutes, completionPercent = completionPercent, plannedLabel = "planejadas no mês", periodTitle = "Progresso do mês") }
         if (bySubject.isNotEmpty()) {
             item { Text("Distribuição por matéria", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }
