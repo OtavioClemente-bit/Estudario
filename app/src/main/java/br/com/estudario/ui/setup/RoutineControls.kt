@@ -44,7 +44,7 @@ import kotlin.math.roundToInt
  * barras arredondadas que enchem com a cor do eixo, o valor escrito numa pílula ao lado e nada que
  * role para o lado ou corte em celular estreito. O site usa os mesmos desenhos (SetupWizard.kt).
  */
-internal val RoutineIndigo = Color(0xFF5B4BF5)
+internal val RoutineIndigo = Color(0xFF2F5BD3)
 internal val RoutineWeekend = Color(0xFF9563FF)
 internal val RoutineBlock = Color(0xFFFF7A45)
 

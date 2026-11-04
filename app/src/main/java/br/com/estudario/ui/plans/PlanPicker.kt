@@ -92,7 +92,7 @@ internal data class TierLook(val color: Color, val deep: Color, val accent: Colo
 
 internal fun tierLook(tier: String): TierLook = when (tier) {
     "PRO" -> TierLook(Color(0xFF7C3AED), Color(0xFF4C1D95), Color(0xFFF5B83D), Glyph.Gem, "Reta final? O Pro tem folga para gerar tudo o que você precisar, sem contar material.")
-    "ESSENCIAL" -> TierLook(Color(0xFF4F46E5), Color(0xFF2E2799), Color(0xFF22C59A), Glyph.Star, "O Essencial dá conta de um tópico novo por dia, com questões e simulados todo mês.")
+    "ESSENCIAL" -> TierLook(Color(0xFF4F46E5), Color(0xFF1F3B8A), Color(0xFF22C59A), Glyph.Star, "O Essencial dá conta de um tópico novo por dia, com questões e simulados todo mês.")
     else -> TierLook(Color(0xFF16A37F), Color(0xFF0B6B53), Color(0xFFF5B83D), Glyph.Books, "Começando? No Grátis, a matéria do seu plano de hoje é sempre livre, pronta da biblioteca, e você adianta as próximas com um anúncio curto.")
 }
 

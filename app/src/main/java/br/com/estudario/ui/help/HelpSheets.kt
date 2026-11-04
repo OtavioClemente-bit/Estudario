@@ -47,7 +47,7 @@ import br.com.estudario.ui.studio.GxSection
 @Composable
 fun HelpButton(label: String, onClick: () -> Unit) {
     Box(
-        Modifier.padding(4.dp).size(36.dp).shadow(6.dp, CircleShape, ambientColor = Color(0xFFA78BFF), spotColor = Color(0xFFA78BFF))
+        Modifier.padding(4.dp).size(36.dp).shadow(6.dp, CircleShape, ambientColor = Color(0xFF8FB0FF), spotColor = Color(0xFF8FB0FF))
             .clip(CircleShape).background(Brush.verticalGradient(listOf(Color.White, Color(0xFFCFC4FF))))
             .clickable(onClick = onClick).semantics { contentDescription = label },
         contentAlignment = Alignment.Center,

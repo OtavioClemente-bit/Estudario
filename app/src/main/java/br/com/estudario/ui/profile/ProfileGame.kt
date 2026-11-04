@@ -125,7 +125,7 @@ internal object Game {
     fun readable(c: Color): Color = if (d) c else androidx.compose.ui.graphics.lerp(c, Color(0xFF14113A), 0.38f)
     val mint = Color(0xFF34D399)
     val flame = Color(0xFFFF8A3D)
-    val violet = Color(0xFF8B7CFF)
+    val violet = Color(0xFF8FB0FF)
     val gold = Color(0xFFFFC94A)
 }
 
@@ -141,7 +141,7 @@ internal fun leagueOf(level: Int): League = when (levelTier(level)) {
     else -> League("Esmeralda", Color(0xFF10B981), Color(0xFF6EE7B7))
 }
 
-private val AttrColors = listOf(Color(0xFF8B7CFF), Color(0xFF34D399), Color(0xFF60A5FA), Color(0xFFFFC94A), Color(0xFFF472B6), Color(0xFF22D3EE))
+private val AttrColors = listOf(Color(0xFF8FB0FF), Color(0xFF34D399), Color(0xFF60A5FA), Color(0xFFFFC94A), Color(0xFFF472B6), Color(0xFF22D3EE))
 
 internal fun formatXp(xp: Int): String = "%,d".format(xp).replace(',', '.')
 

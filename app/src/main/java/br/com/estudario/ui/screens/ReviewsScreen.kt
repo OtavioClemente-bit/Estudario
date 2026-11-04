@@ -50,7 +50,7 @@ import java.util.Locale
 private val Gold = Color(0xFFF5B83D)
 private val Mint = Color(0xFF2FD39A)
 private val Red = Color(0xFFE5484D)
-private val Violet = Color(0xFFA78BFF)
+private val Violet = Color(0xFF8FB0FF)
 private val Cyan = Color(0xFF22D3EE)
 private val InkA = Color(0xFF1F3B8A)
 private val InkB = Color(0xFF14285E)
@@ -263,7 +263,7 @@ private fun PanelHead(glyph: Glyph, color: Color, title: String, subtitle: Strin
         }
         if (count != null) Box(
             Modifier.shadow(10.dp, RoundedCornerShape(12.dp), ambientColor = Violet, spotColor = Violet).clip(RoundedCornerShape(12.dp))
-                .background(Brush.linearGradient(listOf(Color(0xFF8C70FF), Color(0xFF5B4BF5))))
+                .background(Brush.linearGradient(listOf(Color(0xFF2F5BD3), Color(0xFF2F5BD3))))
                 .border(1.5.dp, Violet, RoundedCornerShape(12.dp)).defaultMinSize(minWidth = 42.dp, minHeight = 34.dp).padding(horizontal = 12.dp),
             contentAlignment = Alignment.Center,
         ) { Text("$count", fontWeight = FontWeight.Black, fontSize = 16.sp, color = Color.White) }

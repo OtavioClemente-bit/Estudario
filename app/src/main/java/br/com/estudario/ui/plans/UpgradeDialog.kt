@@ -132,7 +132,7 @@ fun UpgradeDialog(reason: UpgradeReason, onDismiss: () -> Unit, onSignIn: (() ->
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Brush.verticalGradient(listOf(Color(0xFF2E2799), Color(0xFF1B1464), Color(0xFF0E0C24)))),
+                .background(Brush.verticalGradient(listOf(Color(0xFF1F3B8A), Color(0xFF14285E), Color(0xFF0E0C24)))),
         ) {
             // Brilho dourado no alto, a cor do capelo.
             Box(
@@ -186,7 +186,7 @@ fun UpgradeDialog(reason: UpgradeReason, onDismiss: () -> Unit, onSignIn: (() ->
                         .clickable { plans = true },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("Conhecer os planos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = Color(0xFF1B1464))
+                    Text("Conhecer os planos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = Color(0xFF14285E))
                 }
                 Spacer(Modifier.height(10.dp))
                 Text(

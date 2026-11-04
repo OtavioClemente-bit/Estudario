@@ -244,7 +244,7 @@ internal fun ReprogramDialog(taskTitle: String, onDismiss: () -> Unit, onPick: (
                 Text(taskTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text("O que você já fez dela continua registrado.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(4.dp))
-                ReprogramOption("Deixar o plano encaixar", "Vai para o primeiro espaço livre do seu cronograma", Color(0xFF7C5CFF)) { onPick(null); onDismiss() }
+                ReprogramOption("Deixar o plano encaixar", "Vai para o primeiro espaço livre do seu cronograma", Color(0xFF2F5BD3)) { onPick(null); onDismiss() }
                 ReprogramOption("Amanhã", "Entra no plano de amanhã", Color(0xFF22C59A)) { onPick(java.time.LocalDate.now().plusDays(1)); onDismiss() }
                 ReprogramOption("Hoje", "Fazer ainda hoje, junto com o que já estava", Color(0xFFF2852B)) { onPick(java.time.LocalDate.now()); onDismiss() }
                 TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Cancelar") }

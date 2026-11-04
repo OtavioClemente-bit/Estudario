@@ -247,7 +247,7 @@ fun DailyMissionCard(
 private fun MissionStep(index: Int, item: MissionItemUi, isNow: Boolean, isOpen: Boolean, onSelect: () -> Unit, onStart: (() -> Unit)?, onGenerate: (() -> Unit)?) {
     val g = br.com.estudario.ui.profile.Game
     val color = when (item.kind) {
-        br.com.estudario.domain.planner.PlanTaskType.THEORY -> androidx.compose.ui.graphics.Color(0xFFA78BFF)
+        br.com.estudario.domain.planner.PlanTaskType.THEORY -> androidx.compose.ui.graphics.Color(0xFF8FB0FF)
         br.com.estudario.domain.planner.PlanTaskType.QUESTIONS, br.com.estudario.domain.planner.PlanTaskType.SIMULATION -> androidx.compose.ui.graphics.Color(0xFF2FD39A)
         br.com.estudario.domain.planner.PlanTaskType.REVIEW -> androidx.compose.ui.graphics.Color(0xFF22D3EE)
         br.com.estudario.domain.planner.PlanTaskType.FLASHCARDS, br.com.estudario.domain.planner.PlanTaskType.ACTIVE_RECALL -> androidx.compose.ui.graphics.Color(0xFFFFC94D)

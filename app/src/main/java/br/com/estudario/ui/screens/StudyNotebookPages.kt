@@ -160,7 +160,7 @@ private fun daySeed(): Long = LocalDate.now().toEpochDay()
 private fun firmColor(f: StudyNotebook.Firmness) = when (f) { StudyNotebook.Firmness.FIRM -> Mint; StudyNotebook.Firmness.MID -> Gold; StudyNotebook.Firmness.COLD -> Coral }
 private fun since(at: Long, now: Long): String { val d = ((now - at) / 86_400_000L).toInt(); return when { d <= 0 -> "hoje"; d == 1 -> "ontem"; else -> "há $d dias" } }
 private fun kindOf(p: StudyNotebook.Page): Pair<String, Color> = when (p) {
-    is StudyNotebook.Page.Key -> "Ponto-chave" to Color(0xFF5B4BE8)
+    is StudyNotebook.Page.Key -> "Ponto-chave" to Color(0xFF2F5BD3)
     is StudyNotebook.Page.MarkPage -> "Seu grifo" to Color(0xFFFFD43B)
     is StudyNotebook.Page.Trap -> "Pegadinha" to Stamp
     is StudyNotebook.Page.Recall -> "Lembrar" to Mint
@@ -200,7 +200,7 @@ private fun MarkQuote(mark: StudyNotebook.Mark) {
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Box(if (long && !open) Modifier.heightIn(max = 150.dp).clipToBounds() else Modifier) { br.com.estudario.ui.components.MarkdownText(md) }
-        if (long) Text(if (open) "recolher" else "ver o trecho inteiro", Modifier.clickable { open = !open }, color = Color(0xFF5B4BE8), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        if (long) Text(if (open) "recolher" else "ver o trecho inteiro", Modifier.clickable { open = !open }, color = Color(0xFF2F5BD3), fontWeight = FontWeight.Bold, fontSize = 13.sp)
         if (mark.note.isNotBlank()) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (nbDark()) Color(0xFFE8DC8A) else Postit).padding(horizontal = 10.dp, vertical = 6.dp)) {
             Text("✎ SUA NOTA", fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp, color = Color(0xFF3E3300).copy(alpha = 0.65f))
             Text(mark.note, fontFamily = Hand, fontSize = 19.sp, lineHeight = 22.sp, color = Color(0xFF3E3300))
@@ -432,8 +432,8 @@ fun NotebookFlipScreen(viewModel: AppViewModel, onClose: () -> Unit, onPage: (Lo
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Row(Modifier.weight(1f).clickable { onPage(page.topicId) }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Description, null, Modifier.size(18.dp), tint = Color(0xFF5B4BE8)); Spacer(Modifier.width(6.dp))
-                        Text("Abrir a página do tópico", color = Color(0xFF5B4BE8), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Icon(Icons.Outlined.Description, null, Modifier.size(18.dp), tint = Color(0xFF2F5BD3)); Spacer(Modifier.width(6.dp))
+                        Text("Abrir a página do tópico", color = Color(0xFF2F5BD3), fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                     br.com.estudario.ui.components.ReportErrorButton(br.com.estudario.data.remote.ReportKind.OTHER, { StudyNotebook.pageText(page) }, topic?.title)
                 }
@@ -524,7 +524,7 @@ fun NotebookPageScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Uni
             val quotes = topic.marks.map { it.quote.trim() }.filter { it.length >= 8 }
             val thin = lines.size < 3 && topic.tips.size < 3 && topic.recall.size < 4
             Column(Modifier.fillMaxWidth().notebookPaper(24f).padding(start = 34.dp, end = 12.dp, top = 18.dp, bottom = 22.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text((subjects.firstOrNull { it.id == topic.subjectId }?.name ?: "").uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color(0xFF5B4BE8), letterSpacing = 0.5.sp)
+                Text((subjects.firstOrNull { it.id == topic.subjectId }?.name ?: "").uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color(0xFF2F5BD3), letterSpacing = 0.5.sp)
                 Text(topic.title, fontWeight = FontWeight.Black, fontSize = 23.sp, color = Ink)
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     val chip = @Composable { t: String, warn: Boolean -> Text(t, Modifier.clip(RoundedCornerShape(50)).background(if (warn) Color(0xFFFFE9D6) else Color(0xFFF1ECFF)).padding(horizontal = 9.dp, vertical = 3.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (warn) Color(0xFFB5560F) else Color(0xFF4232C9)) }

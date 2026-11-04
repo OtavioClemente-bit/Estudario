@@ -58,7 +58,7 @@ object NoteTags {
 
     /** Cor de cada etiqueta, a mesma do site. */
     fun color(tag: String?): Color = when (tag) {
-        "Macete" -> Color(0xFF5B4BF5)
+        "Macete" -> Color(0xFF2F5BD3)
         "Resumo" -> Color(0xFF1FA97F)
         "Dúvida" -> Color(0xFF2F8FE0)
         "Pegadinha" -> Color(0xFFE5484D)

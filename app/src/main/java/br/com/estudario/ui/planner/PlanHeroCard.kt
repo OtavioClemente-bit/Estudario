@@ -48,7 +48,7 @@ private val Gold = Color(0xFFF5B83D)
 private val Mint = Color(0xFF7EE0B8)
 private val Paper = Color(0xFFFFFBEF)
 private val Tape = Color(0x99F5E6B8)
-private val PaperInk = Color(0xFF26215C)
+private val PaperInk = Color(0xFF1C2A4F)
 private val weekdayInitials = listOf("S", "T", "Q", "Q", "S", "S", "D")
 
 /**

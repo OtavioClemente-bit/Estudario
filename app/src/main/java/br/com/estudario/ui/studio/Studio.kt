@@ -107,7 +107,7 @@ object Gx {
     fun tint(alpha: Float): Color = br.com.estudario.ui.theme.CxTheme.tint(alpha)
     /** No claro, a cor do destaque um tom mais funda, para texto ler bem no fundo branco. */
     fun readable(c: Color): Color = if (d) c else androidx.compose.ui.graphics.lerp(c, Color(0xFF14113A), 0.38f)
-    val violet = Color(0xFFA78BFF)
+    val violet = Color(0xFF8FB0FF)
     val mint = Color(0xFF2FD39A)
     val gold = Color(0xFFFFC94D)
     val red = Color(0xFFFF5A7A)
