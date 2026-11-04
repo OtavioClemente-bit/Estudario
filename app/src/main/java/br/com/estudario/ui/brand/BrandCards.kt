@@ -25,6 +25,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.compositeOver
@@ -155,4 +158,20 @@ private fun ChunkyCard(
             CompositionLocalProvider(LocalContentColor provides colors.contentColor) { content() }
         }
     }
+}
+
+/**
+ * O painel de papel recortado para os painéis desenhados à mão (herói do início, do plano, do
+ * perfil, do estúdio): sombra dura deslocada na cor da tinta e borda de tinta, sem degradê.
+ * Use ANTES do clip: `Modifier.cutPanel(shape).clip(shape).background(cor)`.
+ */
+@Composable
+fun Modifier.cutPanel(shape: Shape, shadow: androidx.compose.ui.unit.Dp = 5.dp): Modifier {
+    val ink = cutInk()
+    return this
+        .drawBehind {
+            val outline = shape.createOutline(size, layoutDirection, this)
+            translate(shadow.toPx() * 0.8f, shadow.toPx()) { drawOutline(outline, ink) }
+        }
+        .border(2.5.dp, ink, shape)
 }

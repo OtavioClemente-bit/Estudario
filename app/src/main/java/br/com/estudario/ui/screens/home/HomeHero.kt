@@ -1,5 +1,6 @@
 package br.com.estudario.ui.screens.home
 
+import br.com.estudario.ui.brand.cutPanel
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.runtime.getValue
@@ -89,8 +90,9 @@ fun HomeHero(
     Column(
         modifier
             .fillMaxWidth()
+            .cutPanel(shape)
             .clip(shape)
-            .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(ink, inkDeep)))
+            .background(ink)
             .drawBehind {
                 // Pauta do caderno, bem leve, e a linha vermelha da margem.
                 val step = 26.dp.toPx()
@@ -186,9 +188,8 @@ fun DailyMissionCard(
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
     run {
         Column(
-            modifier.fillMaxWidth().clip(shape)
-                .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(g.bg2, g.bg)))
-                .border(1.dp, g.line, shape)
+            modifier.fillMaxWidth().cutPanel(shape).clip(shape)
+                .background(g.bg2)
                 .padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {

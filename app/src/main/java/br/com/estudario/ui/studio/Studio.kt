@@ -1,5 +1,6 @@
 package br.com.estudario.ui.studio
 
+import br.com.estudario.ui.brand.cutPanel
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -173,10 +174,8 @@ fun GxPanel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -
     val shape = RoundedCornerShape(26.dp)
     run {
         Column(
-            modifier.fillMaxWidth().clip(shape)
-                .background(Brush.linearGradient(listOf(Gx.bg2, Gx.bg)))
-                .drawBehind { drawCircle(Brush.radialGradient(listOf(Color(0x387C5CFF), Color.Transparent), Offset(size.width, 0f), size.width * 0.7f), size.width * 0.7f, Offset(size.width, 0f)) }
-                .border(1.dp, Gx.line, shape),
+            modifier.fillMaxWidth().cutPanel(shape).clip(shape)
+                .background(Gx.bg2),
             content = content,
         )
     }
@@ -561,6 +560,6 @@ fun GxFormatMock(letters: String, certoErrado: Boolean, color: Color, on: Boolea
 fun GxBar(fraction: Float, color: Color, height: Dp = 8.dp) {
     val shown by animateFloatAsState(fraction.coerceIn(0f, 1f), tween(800, easing = FastOutSlowInEasing), label = "gx-bar")
     Box(Modifier.fillMaxWidth().height(height).clip(RoundedCornerShape(50)).background(Gx.track)) {
-        Box(Modifier.fillMaxWidth(shown).fillMaxHeight().clip(RoundedCornerShape(50)).background(Brush.horizontalGradient(listOf(Color(0xFF7C5CFF), color))))
+        Box(Modifier.fillMaxWidth(shown).fillMaxHeight().clip(RoundedCornerShape(50)).background(color))
     }
 }

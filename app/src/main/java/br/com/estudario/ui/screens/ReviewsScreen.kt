@@ -1,5 +1,6 @@
 package br.com.estudario.ui.screens
 
+import br.com.estudario.ui.brand.cutPanel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -110,7 +111,7 @@ fun ReviewsScreen(
         // ---- o topo: quantas para hoje, o botão de começar e os quatro números
         item {
             Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(Brush.linearGradient(listOf(InkA, InkB)))
+                Modifier.fillMaxWidth().cutPanel(RoundedCornerShape(26.dp)).clip(RoundedCornerShape(26.dp)).background(InkA)
                     .drawBehind {
                         val step = 26.dp.toPx(); var y = step
                         while (y < size.height) { drawLine(Color.White.copy(alpha = 0.05f), Offset(0f, y), Offset(size.width, y), 1.dp.toPx()); y += step }
@@ -296,7 +297,7 @@ private fun DueRow(stage: Int, color: Color, subject: String, title: String, met
             Spacer(Modifier.weight(1f))
             Row(
                 Modifier.shadow(6.dp, RoundedCornerShape(50)).clip(RoundedCornerShape(50))
-                    .background(if (late) Brush.horizontalGradient(listOf(Color(0xFFFF5A7A), Red)) else Brush.horizontalGradient(listOf(Color(0xFF7C5CFF), Color(0xFF5B4BF5), Mint)))
+                    .background(if (late) Red else Mint)
                     .clickable(onClick = onOpen).padding(start = 10.dp, end = 16.dp, top = 9.dp, bottom = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {

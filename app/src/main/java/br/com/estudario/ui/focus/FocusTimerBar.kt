@@ -100,7 +100,7 @@ fun FocusTimerBar(session: FocusSessionPrefs, now: Long, collapsed: Boolean, hid
                 Text(if (session.paused) "PAUSADO" else "MODO FOCO", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = content.copy(alpha = .75f))
                 Text(session.title.ifBlank { "Sessão de estudo" }, style = MaterialTheme.typography.bodySmall, color = content, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            if (!hidden) Text(focusClock(session, now), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = content)
+            if (!hidden) Text(focusClock(session, now), style = MaterialTheme.typography.titleMedium.copy(fontFamily = br.com.estudario.ui.theme.MonoNum), fontWeight = FontWeight.Bold, color = content)
             IconButton(onClick = actions.onTogglePause) {
                 Icon(if (session.paused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause, if (session.paused) "Retomar" else "Pausar", tint = content)
             }
@@ -129,7 +129,7 @@ fun FocusTimerPill(session: FocusSessionPrefs, now: Long, hidden: Boolean, actio
                     StatusDot(session, content, size = 7)
                     if (!hidden) {
                         Spacer(Modifier.width(6.dp))
-                        Text(focusClock(session, now), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = content)
+                        Text(focusClock(session, now), style = MaterialTheme.typography.labelMedium.copy(fontFamily = br.com.estudario.ui.theme.MonoNum), fontWeight = FontWeight.Bold, color = content)
                     }
                 }
             }

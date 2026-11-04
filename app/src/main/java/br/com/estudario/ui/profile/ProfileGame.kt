@@ -1,5 +1,6 @@
 package br.com.estudario.ui.profile
 
+import br.com.estudario.ui.brand.cutPanel
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -160,9 +161,8 @@ internal fun GamePanel(
     val shape = RoundedCornerShape(24.dp)
     run {
         Column(
-            Modifier.fillMaxWidth().clip(shape)
-                .background(Brush.verticalGradient(listOf(Game.bg2, Game.bg)))
-                .border(1.dp, Game.line, shape)
+            Modifier.fillMaxWidth().cutPanel(shape).clip(shape)
+                .background(Game.bg2)
                 .padding(18.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -201,8 +201,8 @@ internal fun PlayerCard(
     val shine by loop.animateFloat(-0.6f, 1.6f, infiniteRepeatable(tween(5_200, easing = LinearEasing)), label = "cartao-brilho")
     run {
         Column(
-            Modifier.fillMaxWidth().clip(shape)
-                .background(Brush.linearGradient(listOf(Game.bg2, Game.bg, Game.deep)))
+            Modifier.fillMaxWidth().cutPanel(shape).clip(shape)
+                .background(Game.bg2)
                 .drawBehind {
                     // Grade fina de holograma e o brilho da liga no canto.
                     val step = 22.dp.toPx()
@@ -218,7 +218,6 @@ internal fun PlayerCard(
                     val cx = size.width * shine
                     drawRect(Brush.linearGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.07f), Color.Transparent), Offset(cx - 120f, 0f), Offset(cx + 120f, size.height)))
                 }
-                .border(1.5.dp, Brush.linearGradient(listOf(league.c2.copy(alpha = 0.7f), Game.line, league.c1.copy(alpha = 0.5f))), shape)
                 .padding(18.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -553,12 +552,12 @@ internal fun TrophyRoom(progress: ProgressEngine.ProgressSummary, onBadges: () -
     val locked = progress.nextBadges.take(3)
     GamePanel("Sala de troféus", Game.gold, trailing = "Ver todos", onTrailing = onBadges) {
         Row(verticalAlignment = Alignment.Bottom) {
-            Text("${earned.size}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = Game.readable(Game.gold))
+            Text("${earned.size}", style = MaterialTheme.typography.headlineMedium.copy(fontFamily = br.com.estudario.ui.theme.MonoNum), fontWeight = FontWeight.Black, color = Game.readable(Game.gold))
             Text(" de ${progress.badges.size} troféus", style = MaterialTheme.typography.bodyMedium, color = Game.muted, modifier = Modifier.padding(bottom = 4.dp))
         }
         Spacer(Modifier.height(8.dp))
         Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)).background(Game.track)) {
-            Box(Modifier.fillMaxWidth(earned.size.toFloat() / total).fillMaxHeight().clip(RoundedCornerShape(50)).background(Brush.horizontalGradient(listOf(Color(0xFFF59E0B), Game.gold))))
+            Box(Modifier.fillMaxWidth(earned.size.toFloat() / total).fillMaxHeight().clip(RoundedCornerShape(50)).background(Game.gold))
         }
         Spacer(Modifier.height(14.dp))
         // Na vitrine, os três últimos ganhos; embaixo, os três mais perto de sair, trancados.
@@ -608,7 +607,7 @@ internal fun ComboPanel(streak: StreakSummary) {
             StreakFlame(lit = streak.current > 0, size = 76.dp, frozen = streak.current == 0 && streak.best > 0)
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Text("${streak.current}", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black, color = if (streak.current > 0) Game.flame else Game.ink)
+                Text("${streak.current}", style = MaterialTheme.typography.displaySmall.copy(fontFamily = br.com.estudario.ui.theme.MonoNum), fontWeight = FontWeight.Black, color = if (streak.current > 0) Game.flame else Game.ink)
                 Text(if (streak.current == 1) "dia de combo" else "dias de combo", style = MaterialTheme.typography.bodyMedium, color = Game.muted)
             }
         }
@@ -673,7 +672,7 @@ internal fun AttributesPanel(progress: ProgressEngine.ProgressSummary) {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(source.label, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = Game.ink, modifier = Modifier.weight(1f))
-                        Text("${formatXp(source.xp)} XP", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = Game.readable(color))
+                        Text("${formatXp(source.xp)} XP", style = MaterialTheme.typography.labelMedium.copy(fontFamily = br.com.estudario.ui.theme.MonoNum), fontWeight = FontWeight.Black, color = Game.readable(color))
                         Text("  ${percents[i]}%", style = MaterialTheme.typography.labelSmall, color = Game.muted)
                     }
                     Spacer(Modifier.height(5.dp))
