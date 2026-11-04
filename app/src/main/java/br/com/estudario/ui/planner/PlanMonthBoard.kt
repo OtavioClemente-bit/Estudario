@@ -80,8 +80,8 @@ private val pending = setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENT
  * plano se encaixa em volta). No Grátis, segurar mostra a oferta.
  */
 @Composable
-/** O nome curto da matéria, como no site ("Direito – Administrativo" vira "Administrativo"). */
-private fun monthSubject(name: String) = name.substringAfter(" – ").substringAfter(" - ").trim()
+/** O nome curto da matéria, como no site ("Direito - Administrativo" vira "Administrativo"). */
+private fun monthSubject(name: String) = name.substringAfter(" 2013 ").substringAfter(" - ").trim()
 
 /** Minutos curtos para caber no dia: 45m, 1h, 1h30. */
 private fun shortMin(minutes: Int): String = when {
