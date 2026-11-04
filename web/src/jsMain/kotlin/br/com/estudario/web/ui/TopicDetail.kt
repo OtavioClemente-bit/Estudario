@@ -1191,13 +1191,18 @@ private fun ReviewTab(summaries: List<Summary>, recall: List<br.com.estudario.we
                 Div({ classes("small", "muted") }) { Text("${recall.size} ${if (recall.size == 1) "pergunta" else "perguntas"} para responder de cabeça e depois conferir. ★ guarda no Caderno.") }
             }
         }
-        recall.forEach { s -> key("r${s.id}") { RecallCard(s.id, s.text, s.answer, s.favorite) } }
+        // Mostrou a resposta de todas: conta um baralho para o emblema de flashcards (uma vez por dia), igual ao app.
+        val seen = remember(recall.first().id) { androidx.compose.runtime.mutableStateListOf<Long>() }
+        recall.forEach { s -> key("r${s.id}") { RecallCard(s.id, s.text, s.answer, s.favorite) {
+            if (s.id !in seen) seen.add(s.id)
+            if (recall.all { it.id in seen }) countFlashDeck("recall-${recall.first().id}")
+        } } }
     }
     practicing?.let { deck -> DeckDialog(deck) { practicing = null } }
 }
 
 @Composable
-private fun RecallCard(id: Long, question: String, answer: String?, favorite: Boolean) {
+private fun RecallCard(id: Long, question: String, answer: String?, favorite: Boolean, onShown: () -> Unit = {}) {
     var shown by remember(id) { mutableStateOf(false) }
     Div({ classes("recall-card") }) {
         Div({ classes("row", "between"); attr("style", "align-items:flex-start") }) {
@@ -1206,7 +1211,7 @@ private fun RecallCard(id: Long, question: String, answer: String?, favorite: Bo
         }
         if (!answer.isNullOrBlank()) {
             if (shown) Div({ classes("recall-answer") }) { Markdown(answer) }
-            else Btn("Mostrar resposta", { shown = true }, style = "tonal", small = true, icon = "visibility")
+            else Btn("Mostrar resposta", { shown = true; onShown() }, style = "tonal", small = true, icon = "visibility")
         }
     }
 }
@@ -1242,7 +1247,7 @@ private fun DeckDialog(deck: Summary, onClose: () -> Unit) {
             Btn("Anterior", { if (index > 0) { index--; flipped = false } }, style = "ghost", icon = "arrow_back", enabled = index > 0)
             Btn(if (saved) "Salvo no Caderno" else "Salvar cartão", { Store.update { Actions.toggleSavedFlashcard(it, deck.id, deck.topicId, card.front, card.back) } }, style = if (saved) "tonal" else "outline", icon = if (saved) "bookmark" else "bookmark_border")
             if (index < cards.lastIndex) Btn("Próximo", { index++; flipped = false }, style = "primary", icon = "arrow_forward")
-            else Btn("Terminar", onClose, style = "primary", icon = "check")
+            else Btn("Terminar", { countFlashDeck("deck-${deck.id}"); onClose() }, style = "primary", icon = "check")
         }
     }
 }
@@ -1376,4 +1381,10 @@ private fun overlapIdsNow(theoryId: Long): Set<Long> {
     if (f == null || f == undefined) return emptySet()
     val arr = f(theoryId) as? Array<dynamic> ?: return emptySet()
     return arr.mapNotNull { (it as? Number)?.toLong() }.toSet()
+}
+
+/** Um baralho terminado conta para o emblema de flashcards: a mesma lista sincronizada do app, uma vez por dia. */
+private fun countFlashDeck(id: String) {
+    val day = (kotlin.js.Date.now() / 86_400_000).toLong()
+    br.com.estudario.web.data.Prefs.addSynced("flashDecks", setOf("$id-$day"))
 }

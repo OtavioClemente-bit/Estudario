@@ -212,6 +212,7 @@ fun StudyNotebookScreen(
             saved = false,
             onToggleSave = null,
             onDismiss = { cardsFor = null },
+            deckKey = "caderno-$title",
             isCardSaved = { card -> list.any { it.text == card.front && it.answer.orEmpty() == card.back } },
             onToggleCard = { card -> list.firstOrNull { it.text == card.front && it.answer.orEmpty() == card.back }?.let(viewModel::deleteSnippet) },
         )

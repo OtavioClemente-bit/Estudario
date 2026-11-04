@@ -47,6 +47,8 @@ fun RecallCard(
     showIcon: Boolean = true,
     /** Na revisão espaçada: a resposta da pessoa (lembrou ou não) segue direto para a próxima pergunta. */
     onVerdict: ((Boolean) -> Unit)? = null,
+    /** Chamado ao virar para a resposta (conta a carta para o emblema de flashcards). */
+    onReveal: (() -> Unit)? = null,
     trailing: @Composable (() -> Unit)? = null,
 ) {
     var showBack by rememberSaveable(revealKey) { mutableStateOf(false) }
@@ -61,6 +63,7 @@ fun RecallCard(
         scope.launch {
             squash.animateTo(0f, tween(130))
             showBack = toBack
+            if (toBack) onReveal?.invoke()
             if (!toBack) verdict = 0
             squash.animateTo(1f, tween(170))
         }
