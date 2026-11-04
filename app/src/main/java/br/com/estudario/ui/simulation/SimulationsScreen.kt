@@ -600,7 +600,7 @@ fun EvolutionChart(scores: List<Int>, target: Int, modifier: Modifier = Modifier
     val line = Gx.violet
     val goal = Gx.mint
     val grid = Gx.tint(0.1f)
-    Box(modifier.fillMaxWidth().clip(CardShape).background(Gx.tint(0.04f)).border(1.dp, Gx.tint(0.09f), CardShape).padding(14.dp)) {
+    Box(modifier.fillMaxWidth().gxCut(CardShape, Gx.bg2).padding(14.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val first = scores.first()
             val last = scores.last()
