@@ -78,7 +78,7 @@ const out = await Deno.open(`${SAIDA}/questoes.jsonl`, { write: true, create: tr
 const enc = new TextEncoder();
 const fora: Record<string, number> = {};
 let total = 0, ok = 0, firmes = 0;
-for (const banca of ["cebraspe", "fgv", "fundatec"]) {
+for (const banca of ["cebraspe", "fgv", "fundatec", "cesgranrio", "aocp"]) {
   for (const arquivo of walk(`${PROVAS}/${banca}`)) {
     let j: Json; try { j = JSON.parse(Deno.readTextFileSync(arquivo)); } catch { continue; }
     const ano = anoDe(j);
