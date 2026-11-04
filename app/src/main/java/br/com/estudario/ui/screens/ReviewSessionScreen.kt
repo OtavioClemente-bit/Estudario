@@ -159,7 +159,7 @@ fun ReviewSessionScreen(
     val highlights = remember(reviewId, material, config) {
         material.marks.filter { it.theoryId in theoryOrder && it.quote.isNotBlank() }
             .sortedWith(compareBy({ theoryOrder[it.theoryId] }, { it.blockIndex }, { it.createdAt }))
-            .map { ReviewCard("GRIFO", topicTheories.firstOrNull { theory -> theory.id == it.theoryId }?.title.orEmpty(), it.quote, it.note.takeIf { _ -> config.showHighlightNotes }) }
+            .map { val th = topicTheories.firstOrNull { theory -> theory.id == it.theoryId }; ReviewCard("GRIFO", th?.title.orEmpty(), br.com.estudario.domain.StudyNotebook.restoreQuote(it.quote, br.com.estudario.ui.components.studyBlocks(th?.markdown.orEmpty()), it.blockIndex), it.note.takeIf { _ -> config.showHighlightNotes }) }
     }
     if (highlightsOpen && highlights.isNotEmpty()) NotebookReview("Grifos · ${topic?.title.orEmpty()}", highlights, allowNavigation = false) { highlightsOpen = false }
     val recall = remember(reviewId, material, config) {

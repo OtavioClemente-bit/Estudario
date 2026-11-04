@@ -627,7 +627,7 @@ internal fun NotebookReview(title: String, cards: List<ReviewCard>, allowNavigat
                     Text(card.place, style = MaterialTheme.typography.labelLarge, color = scheme.primary, fontWeight = FontWeight.Bold)
                     if (!card.quote.isNullOrBlank()) Row(Modifier.fillMaxWidth().background(Color(0x33FFC857), RoundedCornerShape(12.dp)).height(IntrinsicSize.Min)) {
                         Box(Modifier.width(5.dp).fillMaxHeight().background(Color(0xFFF2A900)))
-                        Text(card.quote, Modifier.padding(14.dp), style = MaterialTheme.typography.bodyLarge.copy(lineHeight = MaterialTheme.typography.bodyLarge.lineHeight * 1.15f))
+                        Box(Modifier.padding(14.dp)) { br.com.estudario.ui.components.MarkdownText(remember(card.quote) { br.com.estudario.domain.StudyNotebook.quoteMarkdown(card.quote) }) }
                     }
                     if (!card.body.isNullOrBlank()) {
                         if (card.quote != null) Text("SUA NOTA", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = scheme.onSurfaceVariant)
