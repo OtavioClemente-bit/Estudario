@@ -50,7 +50,9 @@ for (const arquivo of arquivos) {
     if (!q) { contagem.desconhecidas++; continue; }
     const escolhida = String(it.materia ?? "").trim().split(/\s/)[0];
     const m = materias.get(escolhida);
-    if (!m || !q.cands.some((c: Json) => c.id === escolhida)) { contagem.semMateria++; continue; }
+    // Basta a matéria existir: os 5 candidatos mudam quando o preparar.ts roda de novo com a biblioteca maior, e a
+    // escolha feita sobre a lista antiga continua válida (04/11: exigir a lista atual derrubava ~3 mil explicações).
+    if (!m) { contagem.semMateria++; continue; }
     const explicacao = String(it.explicacao ?? "").trim();
     if (String(it.alerta ?? "").trim() && !alertasLiberados.has(String(it.id))) { contagem.alerta++; alertas.push({ id: q.id, alerta: it.alerta, explicacao }); continue; }
     if (explicacao.length < 120) { contagem.curtas++; continue; }
