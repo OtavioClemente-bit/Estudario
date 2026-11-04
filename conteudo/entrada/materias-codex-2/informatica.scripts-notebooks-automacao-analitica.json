@@ -1,0 +1,2285 @@
+{
+  "id": "informatica.scripts-notebooks-automacao-analitica",
+  "subject": "Informática",
+  "title": "Desenvolvimento de scripts, notebooks e automação analítica",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Desenvolvimento de scripts e notebooks",
+    "Scripts para rotinas analíticas automatizadas",
+    "Automação de rotinas de análise de dados",
+    "Notebooks Jupyter para análise de dados",
+    "Programação de scripts analíticos em Python",
+    "Execução automatizada de notebooks Jupyter",
+    "Rotinas reproduzíveis de tratamento analítico",
+    "Pipelines simples para processamento de dados",
+    "Agendamento de tarefas de análise de dados",
+    "Desenvolvimento de automações com Python",
+    "Organização de código para análise de dados",
+    "Reprodutibilidade de análises em notebooks"
+  ],
+  "scope": {
+    "covers": "Desenvolvimento de scripts e notebooks para análise de dados e automação de rotinas: decomposição de tarefas, parâmetros de linha de comando, caminhos e arquivos, leitura e validação de dados, transformações e agregações, logs, erros e códigos de saída, execução não interativa de notebooks, kernels e células, estado e ordem de execução, parâmetros, agendamento, idempotência, dependências, testes, reprodutibilidade, segurança e publicação de resultados.",
+    "excludes": "Administração de sistemas operacionais e plataformas de orquestração em profundidade, construção de modelos de aprendizado de máquina, estatística inferencial avançada, administração de bancos de dados, desenvolvimento de interfaces web e detalhes dependentes de versões específicas de bibliotecas."
+  },
+  "theoryTitle": "Scripts e notebooks como rotinas analíticas reproduzíveis",
+  "chapters": [
+    {
+      "title": "1. Scripts reutilizáveis",
+      "markdown": "### O problema que este assunto resolve\n\nUma rotina analítica costuma repetir passos: localizar arquivos, conferir colunas, corrigir tipos, calcular indicadores e entregar um resultado. Repetir esses passos manualmente aumenta o risco de esquecer uma etapa ou aplicar uma regra diferente a cada mês. Um **script** transforma a sequência em instruções executáveis e revisáveis.\n\n> **Siglas e termos deste capítulo**\n> - **Script**: arquivo de código executado para realizar uma tarefa delimitada.\n> - **CLI**: interface de linha de comando, que recebe argumentos e opções.\n> - **Função**: bloco nomeado que recebe entradas e pode devolver um resultado.\n> - **Caminho**: localização de um arquivo ou diretório no sistema de arquivos.\n\n### Estruture entradas, processamento e saídas\n\nSepare a rotina em três partes: obtenção de parâmetros e dados; processamento em funções pequenas; gravação do resultado e registro da execução. Por exemplo, uma rotina mensal pode receber `--entrada vendas.csv` e `--saida resumo.csv`, validar as colunas `data`, `regiao` e `valor`, agrupar por região e gravar a soma. Essa separação facilita testar o cálculo sem depender de arquivos reais.\n\nEm Python, `argparse` constrói interfaces de linha de comando, apresenta ajuda e verifica argumentos obrigatórios e tipos básicos. Um argumento posicional pode identificar o arquivo de entrada; uma opção como `--saida` permite escolher o destino. Um valor padrão precisa ser explícito e adequado: assumir sempre o diretório pessoal do autor torna a rotina frágil em outro computador.\n\n`pathlib.Path` representa caminhos com operações próprias, como combinar diretórios com `/`, consultar `exists()` e criar diretórios com `mkdir()`. Isso reduz concatenações manuais de barras que podem divergir entre sistemas. Verifique a existência e o tipo esperado do caminho, e informe claramente quando a entrada estiver ausente.\n\n### Falhas, logs e encerramento\n\nErros previsíveis devem produzir mensagem útil e encerramento identificável. Uma exceção capturada sem contexto pode esconder a causa; capturar todas e continuar pode gerar um arquivo parcial que parece válido. Registre início, parâmetros relevantes, quantidade de linhas lidas, etapa concluída e falha. O módulo `logging` oferece níveis como `DEBUG`, `INFO`, `WARNING` e `ERROR`; `print` é útil para interação simples, mas não substitui um registro organizado em tarefas recorrentes.\n\nUma rotina automatizada também deve comunicar sucesso ou falha pelo código de saída do processo. A ferramenta que a chamou pode então decidir se continua o fluxo. Não grave a saída final como se estivesse completa após erro de leitura ou transformação. Para arquivos importantes, grave em destino temporário e só substitua o destino oficial depois de concluir e validar o resultado.\n\n### Como cai na prova\n\n- `argparse` trata argumentos da CLI; ele não agenda a execução nem processa os dados por si só.\n- `pathlib` representa e manipula caminhos; não valida o conteúdo sem código adicional.\n- Capturar uma exceção e ignorá-la pode transformar falha em sucesso aparente."
+    },
+    {
+      "title": "2. Dados e transformações",
+      "markdown": "### O problema que este assunto resolve\n\nUma análise só é confiável se os dados lidos correspondem ao que o cálculo espera. Um CSV pode ter separador diferente, cabeçalho renomeado, valores vazios ou números registrados como texto. A automação deve verificar essas condições antes de produzir indicadores.\n\n> **Siglas e termos deste capítulo**\n> - **CSV**: formato textual tabular em que campos são separados por delimitador.\n> - **DataFrame**: estrutura tabular de linhas e colunas usada pelo pandas.\n> - **Esquema esperado**: conjunto de colunas, tipos e regras que a entrada deve cumprir.\n> - **Agregação**: resumo de observações, como soma, média ou contagem por grupo.\n\n### Leia e confira antes de calcular\n\nO módulo padrão `csv` permite ler e gravar registros CSV; no pandas, `read_csv` carrega os dados em um DataFrame e aceita parâmetros para separador, codificação, tipos e valores reconhecidos como ausentes. Não confunda uma coluna numérica com texto: a conversão implícita pode falhar ou produzir valores ausentes. Confira nomes e quantidade de colunas, tipos relevantes, duplicidades e valores ausentes de acordo com a regra do negócio.\n\nValidação deve distinguir defeito impeditivo de ocorrência que pode ser tratada. Se `valor` precisa ser numérico, texto inválido deve causar erro ou ser explicitamente contabilizado; descartá-lo silenciosamente muda o total sem deixar pista. Se o relatório aceita linhas sem região, decida se elas serão agrupadas como categoria ausente ou excluídas, e informe a regra.\n\n### Transformar e resumir\n\nOperações vetorizadas do pandas costumam ser mais claras e eficientes do que percorrer cada linha com um laço Python. `groupby` expressa o padrão dividir, aplicar e combinar: agrupa pelas chaves, calcula estatísticas e reúne os resultados. É possível obter soma, média, tamanho ou contagem por grupo. Por padrão, chaves ausentes podem ficar fora dos grupos; `dropna=False` permite incluí-las. Essa escolha altera o resultado e deve ser deliberada.\n\nApós a transformação, compare propriedades que deveriam permanecer: total de linhas antes e depois de um filtro, soma de valores em uma conversão, unicidade da chave ou presença das colunas de saída. Grave CSV com `to_csv`; considere `index=False` quando o índice do DataFrame não fizer parte dos dados de negócio. Escolha explicitamente codificação e delimitador quando consumidores esperarem convenções específicas.\n\n### Como cai na prova\n\n- `groupby` realiza agrupamento para operações como soma ou contagem; não é uma agenda de tarefas.\n- Ausências nas chaves de agrupamento podem ser excluídas pelo padrão; é preciso considerar `dropna`.\n- Validar a entrada antes de gravar evita publicar um resultado parcial ou incompatível."
+    },
+    {
+      "title": "3. Notebooks e kernels",
+      "markdown": "### O problema que este assunto resolve\n\nUm notebook combina código executável, explicação, resultados e, em geral, tabelas ou gráficos no mesmo documento. Isso favorece exploração e comunicação, mas cria um risco: a ordem em que as células foram executadas pode ser diferente da ordem em que aparecem. Um resultado visível pode depender de uma variável antiga que não será criada ao executar o documento do início.\n\n> **Siglas e termos deste capítulo**\n> - **`.ipynb`**: formato de notebook Jupyter armazenado como documento JSON.\n> - **Kernel**: processo que executa código de uma linguagem e conserva seu estado em memória.\n> - **Célula**: unidade de código, texto Markdown ou conteúdo bruto dentro do notebook.\n> - **nbformat**: biblioteca e especificação para ler, validar e escrever notebooks.\n\n### Estrutura e estado\n\nO formato do notebook contém campos de metadados, versão do formato e lista de células. Células de código incluem fonte, contador de execução e saídas; células Markdown apresentam narrativa. O kernel é um processo de longa duração: variáveis criadas em uma célula continuam disponíveis nas seguintes até que o estado seja reiniciado. Por isso, executar células fora de ordem pode mascarar dependências.\n\nUm teste prático de consistência é reiniciar o kernel e executar todas as células em sequência. Se uma célula falhar por variável inexistente, o documento dependia de estado oculto. Organize as células para que cada resultado seja produzido a partir das anteriores, mantenha a narrativa perto da análise e remova saídas obsoletas quando elas confundirem a leitura.\n\n### Automatizar a execução\n\n`nbclient` executa células de um notebook e atualiza as saídas; pode-se escolher o kernel, o diretório de trabalho e um tempo limite por célula. Por padrão, um erro interrompe a execução e gera `CellExecutionError`. `allow_errors=True` permite continuar apesar de erros, mas isso deve ser uma decisão consciente: não significa que o relatório esteja correto. A interface `jupyter execute` também executa arquivos `.ipynb` pela linha de comando.\n\nO diretório de trabalho importa: caminhos relativos são resolvidos a partir dele. Defina esse contexto para evitar que uma tarefa funcione apenas quando iniciada numa pasta específica. Salve o notebook executado em outro arquivo ou num destino controlado, para distinguir a fonte da execução que contém resultados.\n\n### Como cai na prova\n\n- O notebook é um documento estruturado; o kernel é o processo que executa o código.\n- Um contador de execução não prova que todas as células rodaram na ordem correta.\n- `allow_errors` deixa a execução prosseguir com erros; não corrige os cálculos nem atesta validade."
+    },
+    {
+      "title": "4. Automação de rotinas",
+      "markdown": "### O problema que este assunto resolve\n\nUma tarefa analítica recorrente precisa iniciar no momento adequado, receber entradas, executar as etapas, deixar rastros e informar o resultado. Um agendador dispara o processo; o próprio script deve cuidar de parâmetros, validações, arquivos, logs e saída de erro. Agendar um comando não torna o código correto nem garante que ele seja seguro para repetir.\n\n> **Siglas e termos deste capítulo**\n> - **Agendador**: serviço ou recurso do sistema que inicia uma tarefa segundo calendário ou evento.\n> - **Idempotência**: propriedade de repetir uma operação sem produzir efeitos acumulados indesejados.\n> - **Dependência**: pacote, arquivo ou serviço necessário para executar a rotina.\n> - **Código de saída**: valor informado pelo processo que indica sucesso ou falha ao chamador.\n\n### Desenhe o fluxo da tarefa\n\nDefina o gatilho, a origem, a transformação, o destino e a forma de notificação. Uma tarefa diária pode buscar um arquivo fechado do dia anterior, validar que chegou, produzir um resumo e registrar quantas linhas processou. O agendador precisa usar o interpretador e o ambiente de dependências corretos, informar diretório de trabalho e encaminhar logs. Caminhos relativos, credenciais disponíveis apenas na sessão interativa e pacotes instalados globalmente são causas frequentes de falha em execução agendada.\n\nA tarefa deve tratar ausência de entrada, entrada duplicada, execução concorrente e falha no meio do processamento. Uma chave de data ou identificador de lote pode permitir reconhecer uma entrada já processada. Gravar primeiro num temporário e publicar o arquivo final ao concluir reduz a chance de leitores consumirem um resultado pela metade. Evite sobrescrever dados de origem.\n\n### Repetição segura e monitoramento\n\nUma rotina idempotente pode ser repetida sem duplicar registros ou somar novamente os mesmos valores. Isso pode exigir substituir um resultado do lote identificado, usar uma chave única ou separar cada execução num diretório próprio. O desenho depende do efeito pretendido; simplesmente executar o mesmo `INSERT` ou anexar linhas de novo não é idempotente.\n\nRegistre identificador da execução, horário, entrada, versão do código, contagens e duração. Não registre senhas, tokens ou dados pessoais sem necessidade. Uma execução com código diferente de zero deve ser tratada como falha pelo sistema chamador. Para notebooks, preserve também o arquivo de saída executado e o erro apresentado, respeitando o controle de acesso aos dados.\n\n### Como cai na prova\n\n- Agendamento inicia a rotina; parâmetros, validação e recuperação de falhas pertencem ao fluxo implementado.\n- Reexecutar uma tarefa que anexa dados pode duplicá-los; idempotência requer desenho explícito.\n- Log útil registra contexto operacional, mas não deve expor credenciais."
+    },
+    {
+      "title": "5. Qualidade e reprodutibilidade",
+      "markdown": "### O problema que este assunto resolve\n\nUm script pode funcionar na máquina de quem o escreveu e falhar em outro ambiente por diferença de pacote, caminho, entrada ou configuração. Um notebook pode produzir uma tabela sem que outra pessoa consiga reproduzi-la. Qualidade analítica inclui código verificável, ambiente recriável e resultado interpretável.\n\n> **Siglas e termos deste capítulo**\n> - **Teste unitário**: verificação isolada de uma função ou unidade pequena de comportamento.\n> - **Ambiente virtual**: instalação isolada de pacotes Python para um projeto.\n> - **Semente aleatória**: estado inicial que permite reproduzir certas operações pseudoaleatórias.\n> - **Proveniência**: registro de onde vieram os dados e como o resultado foi produzido.\n\n### Testar partes e o fluxo inteiro\n\nExtraia cálculos para funções com entradas e saídas explícitas. Uma função que recebe uma tabela e devolve um resumo pode ser testada com um conjunto pequeno conhecido, incluindo casos vazios, ausências e valores extremos. Testes unitários verificam partes; um teste de integração confirma que leitura, transformação e gravação funcionam juntas. Para `unittest`, os testes podem ser executados pela linha de comando com `python -m unittest`; falhas precisam levar a uma execução considerada malsucedida.\n\n### Recriar e explicar a execução\n\n`venv` cria ambientes virtuais isolados. Registre dependências do projeto para que outro ambiente instale os pacotes esperados; não suponha que um pacote disponível globalmente também exista no servidor agendado. Ambientes virtuais geralmente não são portáveis entre caminhos ou máquinas: recrie-os no destino com a lista de dependências.\n\nPara reproduzir uma análise, registre origem e período dos dados, parâmetros, versão do código e dependências relevantes. Se houver aleatoriedade, fixe uma semente quando a biblioteca permitir, sabendo que isso não garante igualdade entre versões diferentes ou hardware distinto. Separe configuração de código e mantenha segredos fora do notebook e do repositório. Apresente unidades, período, filtros e limitações junto a tabelas e gráficos: um número sem contexto pode ser interpretado de modo errado.\n\n### Como cai na prova\n\n- Testar a função de transformação com dados conhecidos torna o cálculo verificável sem depender da fonte externa.\n- Ambiente virtual isola pacotes; não empacota automaticamente os dados nem torna o ambiente copiável.\n- A trilha da execução deve permitir entender quais entradas e parâmetros produziram o resultado."
+    }
+  ],
+  "summary": "Scripts tornam tarefas analíticas repetíveis e parametrizáveis; notebooks juntam código, narrativa e saídas, mas dependem do estado do kernel e da ordem das células. Uma automação confiável valida entradas, registra logs, controla erros e códigos de saída, usa dependências identificadas e foi desenhada para reexecução segura. Testes, execução integral do notebook e registro de proveniência ajudam a reproduzir e revisar os resultados.",
+  "flashcards": [
+    {
+      "front": "Qual é a finalidade de `argparse`?",
+      "back": "Definir e interpretar argumentos e opções de linha de comando, inclusive ajuda e valores esperados."
+    },
+    {
+      "front": "O que `pathlib.Path` representa?",
+      "back": "Um caminho de arquivo ou diretório com operações para combinar caminhos e consultar propriedades."
+    },
+    {
+      "front": "O que é um kernel Jupyter?",
+      "back": "O processo que executa o código do notebook e mantém variáveis em memória durante a sessão."
+    },
+    {
+      "front": "O que o formato `.ipynb` contém?",
+      "back": "Um documento JSON com versão, metadados e células, incluindo código, texto e saídas."
+    },
+    {
+      "front": "O que faz `nbclient`?",
+      "back": "Executa células de notebooks programaticamente e atualiza as saídas do documento."
+    },
+    {
+      "front": "Qual efeito padrão de um erro no `nbclient`?",
+      "back": "A execução para e uma exceção `CellExecutionError` é levantada."
+    },
+    {
+      "front": "O que significa idempotência numa rotina?",
+      "back": "Repetir a operação não causa efeitos cumulativos indesejados, como duplicar o mesmo lote."
+    },
+    {
+      "front": "Para que serve `logging`?",
+      "back": "Registrar eventos em níveis como INFO e ERROR para acompanhar e diagnosticar execuções."
+    },
+    {
+      "front": "O que representa código de saída zero?",
+      "back": "Convencionalmente indica sucesso do processo ao programa que o chamou."
+    },
+    {
+      "front": "Como pandas `groupby` organiza um cálculo?",
+      "back": "Divide observações em grupos, aplica operações e combina os resultados."
+    },
+    {
+      "front": "Como incluir chaves ausentes num agrupamento pandas?",
+      "back": "Use `dropna=False` no `groupby`, se essa categoria fizer sentido para a análise."
+    },
+    {
+      "front": "Para que serve `DataFrame.to_csv`?",
+      "back": "Gravar o conteúdo tabular em arquivo CSV, com opções de formato e índice."
+    },
+    {
+      "front": "Por que reiniciar o kernel antes de executar o notebook inteiro?",
+      "back": "Para identificar dependências ocultas de variáveis criadas em execuções fora de ordem."
+    },
+    {
+      "front": "O que faz um ambiente `venv`?",
+      "back": "Isola o interpretador e pacotes instalados para um projeto Python."
+    },
+    {
+      "front": "Qual diferença entre teste unitário e de integração?",
+      "back": "O unitário verifica uma unidade pequena; o de integração verifica componentes trabalhando juntos."
+    },
+    {
+      "front": "Por que não ignorar exceções numa automação?",
+      "back": "Pode haver saída parcial ou incorreta tratada como se a rotina tivesse concluído com sucesso."
+    },
+    {
+      "front": "Que dados ajudam a reproduzir um resultado analítico?",
+      "back": "Fonte e período de dados, parâmetros, versão do código e dependências relevantes."
+    },
+    {
+      "front": "O que `allow_errors=True` faz no nbclient?",
+      "back": "Permite continuar após erros de células; não corrige os erros nem atesta validade do resultado."
+    },
+    {
+      "front": "Por que gravar em temporário antes do arquivo final?",
+      "back": "Para evitar que consumidores encontrem uma saída incompleta se o processamento falhar."
+    },
+    {
+      "front": "Por que informar `index=False` ao gravar CSV?",
+      "back": "Quando o índice técnico do DataFrame não deve virar uma coluna adicional no arquivo."
+    }
+  ],
+  "tips": [
+    "Separe leitura, transformação e gravação em funções pequenas com entradas claras.",
+    "Valide nomes de colunas e tipos antes de iniciar cálculos ou substituir resultados.",
+    "Execute notebooks com kernel reiniciado para revelar dependências de estado ocultas.",
+    "Defina explicitamente diretório de trabalho e ambiente para tarefas agendadas.",
+    "Registre contagens, parâmetros e falhas sem expor credenciais ou dados desnecessários.",
+    "Desenhe a rotina para repetir lotes sem duplicar ou publicar saídas incompletas."
+  ],
+  "traps": [
+    "Confundir o arquivo do notebook com o kernel que executa seu código.",
+    "Achar que ordem visual das células garante ordem em que foram executadas.",
+    "Supor que permitir erros numa execução de notebook torna os resultados válidos.",
+    "Tratar um log de erro como suficiente se o processo ainda devolve sucesso.",
+    "Presumir que `groupby` inclui automaticamente chaves ausentes em toda configuração.",
+    "Confundir repetição de tarefa com idempotência: anexar as mesmas linhas duplica dados."
+  ],
+  "activeRecall": [
+    "Explique o caminho desde argumento de entrada até o arquivo analítico validado.",
+    "Diferencie script, notebook, kernel e formato `.ipynb`.",
+    "Descreva como um erro de célula se comporta na execução não interativa do notebook.",
+    "Como evitar que uma entrada repetida produza duplicação no destino?",
+    "O que se deve conferir em um CSV antes de calcular totais por grupo?",
+    "Quais registros operacionais ajudam a diagnosticar uma tarefa agendada?",
+    "Por que um `venv` não deve ser simplesmente copiado para outro caminho?",
+    "Como verificar que uma análise inteira pode ser reproduzida do início?"
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Estado oculto de notebook",
+      "summary": "Variáveis do kernel persistem entre células e podem mascarar execução fora de ordem.",
+      "description": "Variáveis do kernel persistem entre células e podem mascarar execução fora de ordem; reiniciar e executar tudo revela dependências."
+    },
+    {
+      "key": "e2",
+      "title": "Falha tratada como sucesso",
+      "summary": "Capturar erros e seguir sem validar pode publicar uma saída parcial como se fosse correta.",
+      "description": "Capturar ou permitir erros sem checar resultados e código de saída pode publicar saída parcial como válida."
+    },
+    {
+      "key": "e3",
+      "title": "Reexecução com efeitos duplicados",
+      "summary": "Anexar sempre o mesmo lote pode duplicar dados quando a tarefa é executada novamente.",
+      "description": "Uma rotina que anexa sempre o mesmo lote não é idempotente; identifique lotes e defina atualização segura."
+    },
+    {
+      "key": "e4",
+      "title": "Ambiente implícito",
+      "summary": "Dependências, diretório e credenciais interativas podem faltar no contexto agendado.",
+      "description": "Pacotes globais, diretório atual e credenciais interativas podem faltar no agendador; declare contexto e dependências."
+    },
+    {
+      "key": "e5",
+      "title": "Entrada analítica sem validação",
+      "summary": "Colunas, tipos e valores ausentes inesperados podem mudar silenciosamente o cálculo.",
+      "description": "Colunas renomeadas, tipos incorretos e ausências alteram cálculos; valide o esquema e explicite o tratamento."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Qual organização facilita testar o cálculo de uma rotina analítica sem depender da leitura de um arquivo real?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concentrar leitura, cálculo e gravação no bloco principal do programa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Separar a transformação em função com dados de entrada e resultado definidos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar todas as etapas por comandos digitados manualmente no terminal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Guardar o cálculo em variável global compartilhada entre vários arquivos, para qualquer módulo alterar o mesmo estado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Duplicar o cálculo em cada rotina que consome o mesmo arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma função com entrada e saída explícitas pode receber uma tabela pequena conhecida e ser verificada isoladamente. Isso separa regra analítica de acesso a disco e evita depender da fonte externa para testar o cálculo.",
+      "section": "1. Scripts reutilizáveis",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O módulo `argparse` permite declarar opções obrigatórias e apresentar uma mensagem de ajuda para um programa de linha de comando.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. `argparse` interpreta argumentos e opções, permite configurar valores esperados e produz ajuda da interface de linha de comando. A lógica analítica continua sendo implementada separadamente.",
+      "section": "1. Scripts reutilizáveis",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual abordagem torna o caminho de entrada menos dependente do sistema operacional usado para executar o script?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Montar o caminho concatenando barras invertidas em uma string fixa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar sempre a pasta pessoal do desenvolvedor como diretório de entrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Representar o caminho com `pathlib.Path` e combinar partes do diretório.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Substituir o caminho por uma variável global definida na sessão interativa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Copiar o arquivo para a pasta atual antes de cada execução manual.",
+          "correct": false
+        }
+      ],
+      "explanation": "`pathlib.Path` fornece operações para representar e combinar caminhos sem codificar manualmente separadores específicos. A origem ainda deve ser informada ou configurada de modo explícito, pois a biblioteca não adivinha o arquivo correto.",
+      "section": "1. Scripts reutilizáveis",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina pode capturar qualquer exceção, ignorar o erro e devolver código de saída zero sem afetar a confiabilidade do resultado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O chamador interpreta o código de saída como sinal de sucesso ou falha. Ignorar uma exceção pode deixar um arquivo incompleto enquanto informa sucesso; a falha deve ser registrada e comunicada adequadamente.",
+      "section": "1. Scripts reutilizáveis",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que é uma forma adequada de comunicar a ausência do arquivo de entrada numa tarefa automatizada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar um arquivo de saída vazio e encerrar como se o cálculo tivesse terminado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Repetir o cálculo usando a última entrada encontrada em qualquer pasta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pular a leitura e registrar somente uma mensagem genérica de conclusão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Validar o caminho, registrar a falha e terminar com indicação de erro.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Substituir a entrada ausente por uma tabela sem linhas e publicar o resumo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A rotina deve verificar a condição antes de processar, indicar qual entrada faltou e retornar estado de falha ao chamador. Inventar uma fonte alternativa ou publicar resultado vazio pode ocultar o problema operacional.",
+      "section": "1. Scripts reutilizáveis",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O módulo `logging` cria por padrão um arquivo permanente com rotação diária, sem configurar handlers ou destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. `logging` oferece níveis como `INFO` e `ERROR`, mas o destino e a forma de saída dependem da configuração de handlers; rotação diária de arquivo não é criada automaticamente por padrão.",
+      "section": "1. Scripts reutilizáveis",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual registro ajuda mais a investigar uma execução que terminou com totais inesperados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Horário e nome do autor original, sem identificar a entrada processada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Identificador da execução, parâmetros, contagens e etapa em que ocorreu a falha.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Somente uma mensagem `terminado`, independente do resultado calculado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conteúdo integral de todas as linhas, inclusive credenciais e dados pessoais, para reproduzir a análise diretamente pelo log.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apenas a duração total, sem indicação da origem ou do código executado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Identificador, parâmetros, contagens e etapa permitem relacionar o resultado à execução e localizar divergências. Registrar todas as linhas pode expor dados sensíveis e não substitui metadados operacionais úteis.",
+      "section": "1. Scripts reutilizáveis",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para verificar se o cálculo funciona com entrada vazia, basta executar a análise uma única vez com o arquivo mensal de produção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Um arquivo real não garante que casos-limite como entrada vazia estejam cobertos. Testes com conjuntos pequenos e controlados permitem conferir explicitamente esse comportamento sem depender da fonte de produção.",
+      "section": "1. Scripts reutilizáveis",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script declara `--entrada` e `--saida` como opções. Qual responsabilidade permanece fora do `argparse`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Interpretar a grafia das opções e informar ajuda sobre seu uso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ler os valores informados pelo usuário na linha de comando.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Determinar se a soma por região obedece à regra analítica do negócio.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Verificar se a opção obrigatória foi informada na chamada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Associar argumentos reconhecidos a nomes acessíveis pelo programa e conferir automaticamente as regras analíticas do negócio.",
+          "correct": false
+        }
+      ],
+      "explanation": "`argparse` cuida da interface e da interpretação dos argumentos. A regra que transforma dados e calcula totais pertence à lógica do programa e deve ser implementada e testada separadamente.",
+      "section": "1. Scripts reutilizáveis",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função de processamento deve receber explicitamente os parâmetros de que depende, em vez de consultar silenciosamente estado global mutável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Dependências explícitas tornam entradas e resultados mais claros e facilitam testes isolados. Estado global oculto pode variar entre chamadas e dificultar explicar por que duas execuções produziram resultados distintos.",
+      "section": "1. Scripts reutilizáveis",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina deve substituir o relatório final somente depois de confirmar que leitura, transformação e validações terminaram corretamente. Qual técnica ajuda a cumprir esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gravar diretamente no destino desde a primeira linha processada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar um arquivo temporário e publicar o destino após a validação final.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apagar o relatório anterior antes de verificar se a entrada chegou.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar erros de gravação e registrar conclusão na saída padrão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Gravar o resultado em múltiplos destinos sem verificar nenhum deles e informar conclusão assim que o primeiro arquivo abrir.",
+          "correct": false
+        }
+      ],
+      "explanation": "Produzir num temporário permite validar o resultado antes de substituir a saída oficial, reduzindo a chance de consumidores lerem uma gravação parcial. A publicação deve ocorrer apenas após o processamento e as verificações previstas concluírem.",
+      "section": "1. Scripts reutilizáveis",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A execução de um script a partir de outro diretório pode mudar a resolução de caminhos relativos, se a rotina depender do diretório atual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Caminhos relativos são interpretados em relação ao contexto de execução definido pelo processo. Uma rotina agendada deve configurar o diretório de trabalho ou resolver caminhos a partir de uma localização explicitamente definida.",
+      "section": "1. Scripts reutilizáveis",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao configurar uma rotina para aceitar uma pasta de entrada, qual verificação evita tratar um arquivo comum como se fosse diretório?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar somente que o argumento não está vazio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Testar se existe ao menos um arquivo no computador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter o argumento para texto e concatenar o nome do relatório.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Checar existência e se o caminho aponta para um diretório.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Criar um diretório com o mesmo nome sem conferir o conteúdo existente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Existência e tipo são verificações diferentes: um caminho existente pode apontar para um arquivo. Conferir que a entrada é diretório evita iniciar o fluxo com um objeto incompatível com o que a rotina espera.",
+      "section": "1. Scripts reutilizáveis",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A mensagem de ajuda gerada por `argparse` substitui a documentação das regras de cálculo e tratamento de dados do programa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A ajuda descreve a interface de argumentos e opções, mas não documenta automaticamente as regras de negócio nem explica as decisões de transformação. Esses comportamentos precisam de documentação e testes próprios.",
+      "section": "1. Scripts reutilizáveis",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a principal razão para extrair a agregação de dados para uma função sem acesso direto a disco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir verificar o resultado com dados de teste pequenos e previsíveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Garantir que a origem de dados nunca apresente valores ausentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fazer com que o script execute automaticamente no horário definido, mesmo quando nenhuma rotina de agendamento foi configurada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Dispensar validação das colunas recebidas pela função.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenar a saída somente no estado do kernel Jupyter.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma transformação desacoplada da leitura pode ser chamada com um conjunto de dados construído para o teste, e sua saída comparada a um resultado esperado. Isso não substitui validação de entrada nem agenda a execução.",
+      "section": "1. Scripts reutilizáveis",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um log operacional deve conter senhas e tokens de acesso para que o administrador possa reproduzir a execução sem consultar configurações externas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Credenciais em logs podem ser expostas a usuários que não deveriam acessá-las. Registre contexto não secreto, como identificador e parâmetros seguros, e mantenha segredos em configuração protegida.",
+      "section": "1. Scripts reutilizáveis",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência é apropriada para criar um resumo CSV por região a partir de dados tabulares?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gravar primeiro, agrupar depois e conferir colunas ao final.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Validar entrada, agrupar por região e gravar o resultado esperado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Renomear colunas após a agregação e manter a entrada sem leitura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Agrupar por nome do arquivo e usar a região como diretório de saída.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Publicar cada linha original no arquivo final antes de calcular totais.",
+          "correct": false
+        }
+      ],
+      "explanation": "A rotina precisa confirmar que os dados e a coluna de agrupamento estão presentes, calcular o resumo e então produzir o arquivo com a estrutura pretendida. Gravar antes do cálculo ou pular validações pode publicar um resultado incompatível.",
+      "section": "2. Dados e transformações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em pandas, `groupby` calcula somente uma estatística global e não pode separar observações conforme uma chave.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. `groupby` permite separar observações pelas chaves e aplicar operações como soma, média, contagem ou filtragem por grupo, combinando os resultados ao final.",
+      "section": "2. Dados e transformações",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual decisão inclui linhas cuja chave de agrupamento está ausente no cálculo com pandas `groupby`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `index=False` ao gravar o resultado para incluir grupos vazios.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir `sort=False` para que ausências sejam convertidas em categoria e apareçam no total de cada grupo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir `dropna=False` quando a categoria ausente deve ser representada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Aplicar `to_csv` antes do agrupamento e reabrir o arquivo gravado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `read_csv` sem informar separador para criar grupos ausentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O padrão do `groupby` exclui valores ausentes nas chaves; `dropna=False` os mantém como grupo, se essa representação fizer sentido. `sort` controla ordenação, e parâmetros de gravação não alteram quais grupos foram calculados.",
+      "section": "2. Dados e transformações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na leitura de um CSV, valores que parecem números podem ter sido carregados como texto e devem ser verificados antes de calcular totais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Um delimitador ou conteúdo inesperado pode levar a tipos inadequados. Verificar e converter a coluna de modo controlado evita somas inválidas ou falhas silenciosas na análise.",
+      "section": "2. Dados e transformações",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um valor não numérico aparece na coluna `valor`, qual procedimento preserva melhor a auditabilidade do total?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descartar a linha sem registrar a quantidade de descartes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir o texto por zero sem verificar a regra de negócio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Contabilizar ou rejeitar o valor conforme regra explicitada e registrada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Somar a representação textual junto aos valores numéricos disponíveis, convertendo letras em zero sem registrar a decisão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar toda a coluna por uma constante para manter o formato tabular.",
+          "correct": false
+        }
+      ],
+      "explanation": "A rotina deve decidir se dado inválido impede o processamento ou pode ser tratado segundo regra documentada, e registrar ocorrências. Descartar ou converter sem evidência altera o total sem permitir explicar o impacto.",
+      "section": "2. Dados e transformações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao usar `index=False`, `DataFrame.to_csv` inclui o índice do DataFrame como coluna adicional no CSV.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. `index=False` omite o índice na gravação. Sem essa opção, `to_csv` inclui o índice por padrão, o que pode criar uma coluna que não pertence aos dados de negócio.",
+      "section": "2. Dados e transformações",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Antes de agrupar vendas por região, qual validação protege contra uma mudança no cabeçalho do arquivo de origem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gravar a tabela em formato CSV uma segunda vez.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ordenar todas as linhas pelo índice original do DataFrame.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conferir se as colunas esperadas estão presentes antes do cálculo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Executar o agrupamento e ignorar colunas que não foram encontradas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o nome de todas as colunas para o nome do arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A validação do esquema detecta cabeçalhos ausentes ou renomeados antes da operação que depende deles. Prosseguir ignorando a coluna pode resultar em falha ou produzir relatório sem o agrupamento pretendido.",
+      "section": "2. Dados e transformações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma agregação pandas com chaves ausentes sempre inclui automaticamente essas linhas como um grupo, sem configuração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O comportamento padrão de `groupby` exclui chaves NA. Para incluí-las como grupo, pode-se configurar `dropna=False`, considerando se essa categoria é válida para a análise.",
+      "section": "2. Dados e transformações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa somar valores e contar registros por departamento. Qual operação expressa esse resumo tabular no pandas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar `groupby` pelo departamento e agregar as colunas relevantes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aplicar `to_csv` pelo departamento para calcular cada total e gerar automaticamente uma linha por categoria.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar `Path.exists` a cada valor para obter as contagens.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar `argparse` à coluna para separar as observações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar `logging` às linhas para calcular a média do grupo.",
+          "correct": false
+        }
+      ],
+      "explanation": "`groupby` divide as observações pelas chaves e permite calcular soma e contagem por grupo. As demais ferramentas atendem a caminhos, interface de argumentos ou registro de eventos, e não executam agregação tabular.",
+      "section": "2. Dados e transformações",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Usar `sort=False` em `groupby` inclui chaves ausentes que seriam excluídas pelo padrão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. `sort` controla a ordenação das chaves de grupo. A inclusão de valores ausentes nas chaves é controlada por `dropna`; por padrão esses valores são excluídos.",
+      "section": "2. Dados e transformações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao entregar um CSV a um sistema que espera ponto e vírgula, qual prática reduz ambiguidade de interpretação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Deixar o leitor inferir o delimitador a partir do nome do arquivo e assumir que a extensão identifica a codificação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir o delimitador esperado na gravação e documentar a convenção.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Gravar sempre com separador padrão e trocar a extensão depois.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter o arquivo para JSON sem informar os campos produzidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover os cabeçalhos para que o consumidor localize as colunas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O formato textual pode usar convenções diferentes de delimitador e codificação. Defini-las de acordo com o consumidor evita que linhas inteiras sejam interpretadas como uma única coluna ou que caracteres sejam corrompidos.",
+      "section": "2. Dados e transformações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A validação do esquema de entrada deve ocorrer antes de se confiar no total agregado produzido pelo script.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Se colunas ou tipos não correspondem às expectativas, uma operação pode falhar ou calcular algo diferente do esperado. Validar a entrada antes da agregação protege a interpretação do resultado.",
+      "section": "2. Dados e transformações",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após filtrar registros inválidos, qual conferência pode revelar uma perda maior que a esperada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar contagens antes e depois e registrar a regra de exclusão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conferir apenas a cor escolhida para a tabela exportada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reiniciar o kernel e repetir sem salvar as contagens originais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ordenar as colunas alfabeticamente após a gravação do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somar o índice do DataFrame para estimar os registros removidos sem comparar as linhas filtradas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Contagens comparáveis mostram o efeito do filtro e ajudam a detectar exclusões excessivas. A regra aplicada deve ser registrada para que o resultado possa ser interpretado e auditado.",
+      "section": "2. Dados e transformações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma célula Jupyter pode depender de uma variável criada antes no kernel, mesmo que essa variável seja definida numa célula que aparece depois dela no documento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O kernel conserva o estado entre execuções, e a ordem real pode divergir da ordem visual. Assim, a célula pode funcionar numa sessão já usada embora falhe numa execução limpa de cima para baixo.",
+      "section": "3. Notebooks e kernels",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a diferença entre o arquivo `.ipynb` e o kernel de um notebook?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O arquivo contém só código; o kernel armazena permanentemente o relatório final.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O arquivo agenda a tarefa; o kernel controla o sistema de arquivos remoto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O arquivo armazena documento e saídas; o kernel executa código e conserva estado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O arquivo converte Python em SQL; o kernel valida o formato CSV de entrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O arquivo é uma imagem; o kernel é o visualizador de células Markdown.",
+          "correct": false
+        }
+      ],
+      "explanation": "`.ipynb` é um documento JSON com células, metadados e saídas. O kernel é um processo de execução que mantém variáveis em memória durante a sessão; reiniciá-lo elimina esse estado volátil.",
+      "section": "3. Notebooks e kernels",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Células Markdown podem conter explicações e narrativa junto às células de código num notebook Jupyter.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O formato do notebook admite células de código, Markdown e conteúdo bruto. A mistura de texto, código e saídas favorece a explicação de uma análise no próprio documento.",
+      "section": "3. Notebooks e kernels",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise funciona apenas porque uma célula antiga criou uma variável no kernel. Como verificar sua execução reproduzível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Renomear a variável na célula antiga sem executar o notebook.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Salvar o documento sem saídas e manter a sessão atual aberta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar novamente somente a célula que mostra a tabela final.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reiniciar o kernel e executar todas as células na ordem do documento.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Alterar o contador de execução para corresponder à ordem visual.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma sessão limpa remove estado residual. Executar tudo na sequência revela dependências ocultas e identifica se cada variável necessária é produzida pelas células anteriores do documento.",
+      "section": "3. Notebooks e kernels",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O contador de execução mostrado numa célula prova que todas as células foram executadas na ordem em que aparecem no notebook.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Contadores registrados não demonstram, por si, que a execução ocorreu em ordem visual nem que todas as células foram executadas na sessão atual. Uma execução limpa e integral verifica melhor as dependências.",
+      "section": "3. Notebooks e kernels",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao executar um notebook por `nbclient`, qual configuração define quanto uma célula pode esperar por uma resposta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O método `groupby`, que encerra o notebook após cada grupo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A opção `index=False`, que interrompe a célula após gravar dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O parâmetro `dropna`, que limita a duração do kernel.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O argumento `timeout`, que limita o tempo de execução da célula.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O campo `execution_count`, que encerra processos excedentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "`nbclient` permite configurar um tempo máximo para resposta de cada célula; ao excedê-lo pode ocorrer timeout. O limite deve considerar o tipo de tarefa sem ser confundido com parâmetros de pandas ou contadores do formato.",
+      "section": "3. Notebooks e kernels",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Com `allow_errors=False`, `nbclient` continua a execução após uma célula falhar e guarda os erros no documento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O padrão `allow_errors=False` interrompe a execução e levanta `CellExecutionError` após a falha. A opção `allow_errors=True` é que permite continuar com erros registrados nas células.",
+      "section": "3. Notebooks e kernels",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um notebook usa caminhos relativos e será executado por uma tarefa agendada. O que deve ser fixado para reduzir diferenças entre execução manual e agendada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O último contador de execução e o estado do kernel interativo anterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O tema visual do notebook e a largura de exibição das células.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A cor dos gráficos e a posição do cursor na interface web.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O diretório de trabalho da execução e a localização esperada dos arquivos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A ordem em que os arquivos aparecem no explorador do usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Caminhos relativos dependem do diretório de trabalho. Configurar esse contexto e os locais de entrada evita que a execução automatizada procure arquivos numa pasta diferente daquela usada durante o desenvolvimento.",
+      "section": "3. Notebooks e kernels",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A API `nbformat` permite ler e escrever documentos de notebook e validar sua estrutura conforme o formato conhecido pela biblioteca.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. `nbformat` provê operações para ler, escrever, converter e validar documentos Jupyter. A validação estrutural não verifica se a lógica analítica dentro do código está correta.",
+      "section": "3. Notebooks e kernels",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma célula que depende da variável `resultado` pode ser movida para antes da célula que a cria sem alterar a dependência, desde que o contador de execução seja mantido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A ordem lógica precisa criar `resultado` antes de seu uso numa execução limpa. Um contador mantido no documento não cria a variável no kernel nem corrige dependências de execução.",
+      "section": "3. Notebooks e kernels",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que salvar o notebook executado em um destino separado da fonte original pode ser útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converte as células executadas em funções independentes do kernel.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Faz com que células com erro sejam corrigidas automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permite preservar a fonte e inspecionar saídas e erros daquela execução.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Garante que o relatório deixe de conter dados sensíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Impede que o kernel mantenha qualquer estado entre células.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um arquivo de saída separado preserva o documento-fonte e registra resultados daquela execução, inclusive erros que ajudem a depuração. A separação não corrige lógica nem elimina a necessidade de revisar conteúdo sensível.",
+      "section": "3. Notebooks e kernels",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um kernel mantém objetos criados por células anteriores durante a sessão, até que o estado seja encerrado ou reiniciado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O kernel é um processo de longa duração e conserva variáveis na memória. Esse comportamento permite exploração interativa, mas também possibilita dependência de estado não visível no documento.",
+      "section": "3. Notebooks e kernels",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual uso do `jupyter execute` corresponde a uma execução não interativa de notebook?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `argparse` para converter Markdown em código Python executável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Abrir o arquivo como CSV e pedir ao pandas que calcule seus metadados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Editar o campo de saída manualmente sem iniciar kernel algum.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Invocá-lo pela linha de comando com o caminho do arquivo `.ipynb`.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Renomear o notebook para `.py` e executar suas células como texto.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação do nbclient descreve `jupyter execute arquivo.ipynb` como interface de linha de comando para execução. O comando inicia o fluxo de execução do documento, sujeito ao kernel e às opções configuradas.",
+      "section": "3. Notebooks e kernels",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa agendada deve indicar o ambiente Python que contém as dependências do projeto, pois pacotes globais podem não estar disponíveis ao processo agendado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O ambiente da tarefa pode diferir da sessão interativa. Usar o interpretador e dependências do projeto evita depender de instalações globais que não existem no contexto de execução automatizada.",
+      "section": "4. Automação de rotinas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa diária anexa o mesmo arquivo ao relatório histórico. Como evitar duplicações quando houver nova tentativa da mesma data?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mudar a extensão do arquivo para o agendador ignorar duplicatas sozinho.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar a tarefa duas vezes e somar ambas as saídas para conferência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover a identificação da data para que os registros pareçam distintos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Identificar o lote e substituir ou rejeitar a repetição segundo regra definida.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desativar logs para que a repetição não seja observada pelos usuários.",
+          "correct": false
+        }
+      ],
+      "explanation": "A identificação do lote permite detectar reprocessamento e aplicar uma política como substituir aquele lote ou recusá-lo. Anexar os mesmos registros novamente não é idempotente e duplica os dados.",
+      "section": "4. Automação de rotinas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um agendador, por si só, valida o esquema dos dados e garante que a saída de uma análise esteja correta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O agendador dispara o comando segundo um calendário ou evento. Validação, transformação, tratamento de falhas e verificação do resultado devem ser implementados na rotina ou em etapas explícitas do fluxo.",
+      "section": "4. Automação de rotinas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência representa um fluxo robusto para relatório recorrente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar cálculo, localizar a entrada depois e apagar o log anterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir gatilho, validar entrada, transformar, validar e publicar saída.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Publicar arquivo vazio, aguardar o agendador e calcular quando houver tempo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Repetir a última saída disponível, sem identificar sua data de origem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar código de saída e marcar a rotina como concluída ao iniciar.",
+          "correct": false
+        }
+      ],
+      "explanation": "O fluxo precisa confirmar a entrada, executar as transformações e conferir o produto antes da publicação. Registrar o gatilho e o estado final permite ao sistema e à equipe distinguir sucesso de falha.",
+      "section": "4. Automação de rotinas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processamento que escreve sempre no arquivo final à medida que lê linhas pode deixar um resultado parcial se o processo for interrompido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Uma interrupção durante gravação pode deixar um arquivo truncado ou incompleto. Produzir uma saída temporária e publicá-la após validação reduz esse risco para os consumidores.",
+      "section": "4. Automação de rotinas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina agendada falha porque tenta ler `dados/entrada.csv` relativo a uma pasta inesperada. Qual correção trata a causa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar a validação da existência da entrada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o número de células Markdown do notebook.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar o nome do processo no agendador sem mudar o contexto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformar o caminho em índice numérico do DataFrame.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Configurar o diretório de trabalho ou resolver o caminho explicitamente.",
+          "correct": true
+        }
+      ],
+      "explanation": "O caminho relativo é interpretado em relação ao diretório de trabalho efetivo. Definir esse diretório ou construir caminho explícito torna a localização da entrada previsível tanto em execução manual quanto agendada.",
+      "section": "4. Automação de rotinas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina idempotente pode ser repetida sem causar efeitos acumulados indevidos, embora isso exija identificar e tratar o lote repetido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Idempotência é uma propriedade do efeito da operação quando repetida. Identificação de lote, substituição controlada ou restrição de unicidade podem ajudar; simplesmente anexar novamente não a garante.",
+      "section": "4. Automação de rotinas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A tarefa terminou com código de saída de falha, mas o arquivo anterior ainda existe. O que deve fazer o fluxo chamador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Considerar sucesso porque qualquer arquivo no destino é suficiente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tratar a execução como falha e verificar se a saída é antiga ou parcial.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apagar os logs e marcar a data atual como processada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar a próxima etapa usando a saída sem conferir sua origem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar o retorno do processo e notificar conclusão normal.",
+          "correct": false
+        }
+      ],
+      "explanation": "A presença de um arquivo não prova que ele foi criado pela execução atual nem que está completo. O código de saída deve ser considerado, e a saída precisa ser validada antes que etapas posteriores a consumam.",
+      "section": "4. Automação de rotinas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Executar duas instâncias simultâneas de um mesmo lote pode causar disputa por arquivos de saída e duplicidade de processamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Concorrência precisa ser considerada quando duas execuções podem receber o mesmo lote. Identificadores, travas ou destinos segregados podem evitar que processos sobrescrevam ou dupliquem resultados.",
+      "section": "4. Automação de rotinas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma credencial necessária a uma rotina não deve ser escrita em célula de notebook versionada. Qual alternativa é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Salvar a credencial no comentário Markdown ao lado da consulta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Gravá-la numa saída oculta para não aparecer na tela do notebook.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Colocá-la no nome do arquivo de entrada para evitar variáveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Incluí-la em todos os logs para facilitar a busca posterior.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Obtê-la por configuração protegida disponível ao processo de execução.",
+          "correct": true
+        }
+      ],
+      "explanation": "Segredos devem vir de configuração protegida e não ser persistidos no código ou nas saídas versionadas. Ocultar visualmente um valor não impede que ele permaneça no documento ou no histórico do repositório.",
+      "section": "4. Automação de rotinas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Registrar horário, identificador do lote e contagem processada ajuda a correlacionar uma falha com a entrada que a provocou.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Esses metadados dão contexto para diagnóstico e comparação de execuções sem exigir que todo o conteúdo de dados seja copiado para os logs.",
+      "section": "4. Automação de rotinas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A tarefa de análise diária funciona no terminal interativo, mas falha no agendador porque o comando não encontra um pacote instalado globalmente. Qual ação é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Copiar o arquivo `.ipynb` para a pasta de instalação global do pacote.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Adicionar o nome do pacote ao relatório final como coluna calculada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover o registro de erro e considerar a execução concluída.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reiniciar o notebook interativo antes de cada horário de execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Configurar o interpretador do ambiente do projeto e declarar suas dependências.",
+          "correct": true
+        }
+      ],
+      "explanation": "A execução agendada deve invocar o ambiente que contém os pacotes do projeto, e as dependências devem ser declaradas para recriação. A sessão interativa pode ter instalações que o processo automatizado não herda.",
+      "section": "4. Automação de rotinas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um agendador não recebe código de saída, não há necessidade de registrar logs de uma rotina analítica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Logs ajudam a identificar entrada, etapa, contagens e causa de falha independentemente de como o agendador apresenta o retorno. O código de saída e os registros se complementam.",
+      "section": "4. Automação de rotinas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma saída deve ser substituída por lote identificado, em vez de simplesmente anexar todos os registros em cada reexecução. Qual propriedade isso favorece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conversão de todos os arquivos CSV em documentos JSON.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Persistência de variáveis entre kernels diferentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Inferência automática do tipo de cada coluna de origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Execução de células em ordem arbitrária no notebook.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Idempotência da reexecução do mesmo lote.",
+          "correct": true
+        }
+      ],
+      "explanation": "Substituir controladamente o resultado associado ao mesmo identificador evita que uma nova tentativa acumule cópias. Isso favorece idempotência e torna a recuperação após falha mais segura.",
+      "section": "4. Automação de rotinas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`python -m unittest` pode iniciar a descoberta e execução de testes do módulo padrão de testes unitários do Python.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação do `unittest` descreve execução pela linha de comando, inclusive descoberta de testes quando invocado sem argumentos. Os resultados podem ser usados para decidir se a rotina deve prosseguir.",
+      "section": "5. Qualidade e reprodutibilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de dados de teste é mais útil para verificar uma função que calcula soma por departamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O relatório final do mês anterior, sem a entrada que o produziu.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma cópia integral dos dados pessoais de produção, sem resultado esperado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente o nome do arquivo, sem valores nem colunas para agrupar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma tabela aleatória cuja saída não pode ser calculada previamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Poucas linhas conhecidas, incluindo grupos distintos e caso vazio relevante.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um exemplo pequeno e controlado permite calcular a saída esperada e testar casos de grupos diferentes ou entrada vazia. Isso verifica diretamente a regra sem depender de grandes dados reais.",
+      "section": "5. Qualidade e reprodutibilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ambiente virtual `venv` isola pacotes do projeto, mas em geral não deve ser tratado como diretório portátil para copiar entre máquinas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. `venv` separa instalações, mas scripts e caminhos podem se referir ao local de criação. A prática adequada é recriar o ambiente no destino com as dependências declaradas.",
+      "section": "5. Qualidade e reprodutibilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como um teste de integração complementa o teste unitário de uma transformação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remove dependências de configuração sem executar nenhum componente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substitui todas as verificações de valores esperados por uma captura de tela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Confirma que o agendador acionará a rotina em qualquer sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Garante que dados futuros tenham a mesma distribuição dos dados de teste.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Verifica a interação entre leitura, transformação e gravação no fluxo completo.",
+          "correct": true
+        }
+      ],
+      "explanation": "O teste unitário isola uma unidade pequena; o teste de integração verifica componentes conectados, como leitura, cálculo e escrita. Nenhum deles garante características de dados futuros sem validações próprias.",
+      "section": "5. Qualidade e reprodutibilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Fixar uma semente aleatória garante resultados idênticos entre versões diferentes da biblioteca e equipamentos distintos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A semente ajuda a repetir operações pseudoaleatórias sob condições compatíveis, mas mudanças de versão, implementação ou hardware podem alterar o resultado; outros detalhes do ambiente também importam.",
+      "section": "5. Qualidade e reprodutibilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual registro favorece a proveniência de uma tabela analítica entregue a outra equipe?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O nome da última variável usada no kernel, sem outros metadados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas a cor de fundo escolhida para visualizar a tabela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente a quantidade de linhas, sem origem nem data de referência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A senha do banco e o token em que o arquivo foi criado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Origem e período dos dados, parâmetros e versão do código usados.",
+          "correct": true
+        }
+      ],
+      "explanation": "Origem, período, parâmetros e versão ajudam a relacionar o resultado às condições que o produziram. Senhas são segredos e não devem ser incluídas como metadados de proveniência.",
+      "section": "5. Qualidade e reprodutibilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma lista de dependências permite recriar os pacotes esperados num novo ambiente, mas não substitui a disponibilidade e validação dos dados de entrada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Registrar dependências ajuda a preparar o software, enquanto os dados e sua estrutura são outra parte da execução reproduzível. Ambos precisam ser disponibilizados e verificados.",
+      "section": "5. Qualidade e reprodutibilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao apresentar uma métrica num relatório analítico, quais informações reduzem o risco de interpretação equivocada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Unidade, período, filtros e limitações relevantes do cálculo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apenas o número em destaque, sem unidade ou período de referência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O contador de execução da célula que exibiu a métrica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O diretório temporário usado pelo sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A lista integral de variáveis que permaneceram no kernel.",
+          "correct": false
+        }
+      ],
+      "explanation": "Unidade, período, filtros e limitações dão contexto para interpretar a métrica. Um valor isolado pode ser lido com escala ou abrangência erradas, ainda que o cálculo esteja correto.",
+      "section": "5. Qualidade e reprodutibilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste unitário que verifica uma função de agregação garante sozinho que o arquivo final terá codificação e delimitador aceitos pelo sistema consumidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O teste da função verifica o cálculo isolado. Codificação, delimitador e gravação devem ser cobertos por validação ou teste de integração do processo de saída.",
+      "section": "5. Qualidade e reprodutibilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual interpretação diferencia adequadamente validação estrutural de validação analítica num notebook?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A estrutural verifica formato e campos; a analítica avalia regras e resultados do cálculo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A estrutural confirma os totais; a analítica verifica apenas a extensão `.ipynb`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ambas significam que o kernel iniciou, sem examinar células ou resultados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A estrutural agenda execuções; a analítica instala pacotes no ambiente virtual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A estrutural protege credenciais; a analítica ordena os metadados do documento.",
+          "correct": false
+        }
+      ],
+      "explanation": "`nbformat` pode validar se o documento atende à estrutura reconhecida, mas isso não prova que o código executa ou que os valores calculados são corretos. A lógica exige verificações analíticas e testes próprios.",
+      "section": "5. Qualidade e reprodutibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Remover saídas antigas de um notebook garante que ele executará corretamente sem reiniciar o kernel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Limpar saídas antigas ajuda a não confundir resultados obsoletos com atuais, mas não executa as células nem elimina estado oculto. Reinicie o kernel e rode o documento integralmente para verificar dependências.",
+      "section": "5. Qualidade e reprodutibilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe pretende alterar a origem de dados mensal sem editar o código do cálculo. Qual recurso de interface ajuda a parametrizar essa escolha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Argumento de linha de comando definido com `argparse`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Índice automático produzido por `DataFrame.to_csv`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Contador de execução mantido no metadata do notebook.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Nível `ERROR` configurado no módulo de logging.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Opção `dropna` do agrupamento pandas.",
+          "correct": false
+        }
+      ],
+      "explanation": "`argparse` permite fornecer o caminho da entrada como argumento da execução, separando configuração variável do código que realiza o cálculo. As demais opções tratam de gravação, logs ou grupos ausentes.",
+      "section": "5. Qualidade e reprodutibilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para comparar resultados mensais de modo confiável, registrar a versão do código e os parâmetros usados é tão relevante quanto guardar a tabela final.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A tabela sozinha pode não explicar quais regras e parâmetros produziram seus valores. A versão do código e os parâmetros permitem reconstruir diferenças entre execuções, junto à origem dos dados.",
+      "section": "5. Qualidade e reprodutibilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que comportamento deve ter o pipeline quando um teste de validação essencial falhar antes da publicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Interromper publicação, registrar a falha e indicar estado malsucedido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Publicar a saída e deixar a validação apenas como aviso visual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar o teste e copiar o resultado parcial para o destino final.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar a origem e iniciar uma execução com os mesmos dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar o código de saída para sucesso sem corrigir a condição.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma condição essencial que falha deve impedir que uma saída não validada seja promovida como resultado confiável. O pipeline deve preservar contexto para diagnóstico e comunicar falha ao chamador.",
+      "section": "5. Qualidade e reprodutibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando `jupyter execute` aceita somente um arquivo de notebook por chamada e não pode receber uma lista de documentos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A interface de linha de comando pode receber mais de um notebook como argumento. Cada documento será executado com o kernel e as opções configuradas para a chamada.",
+      "section": "3. Notebooks e kernels",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Python — argparse: Parser for command-line options, arguments and sub-commands",
+      "publisher": "Python Software Foundation",
+      "reference": "Construção de interfaces de linha de comando, argumentos, opções e ajuda",
+      "url": "https://docs.python.org/3/library/argparse.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Python — pathlib: Object-oriented filesystem paths",
+      "publisher": "Python Software Foundation",
+      "reference": "Representação e manipulação de caminhos de arquivos e diretórios",
+      "url": "https://docs.python.org/3/library/pathlib.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Python — logging: Logging facility for Python",
+      "publisher": "Python Software Foundation",
+      "reference": "Registro de eventos e níveis de log",
+      "url": "https://docs.python.org/3/library/logging.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Python — csv: CSV File Reading and Writing",
+      "publisher": "Python Software Foundation",
+      "reference": "Leitura e gravação de registros CSV",
+      "url": "https://docs.python.org/3/library/csv.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Python — unittest: Unit testing framework",
+      "publisher": "Python Software Foundation",
+      "reference": "Testes unitários e execução de testes pela linha de comando",
+      "url": "https://docs.python.org/3/library/unittest.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Python — venv: Creation of virtual environments",
+      "publisher": "Python Software Foundation",
+      "reference": "Ambientes virtuais, isolamento e recriação de dependências",
+      "url": "https://docs.python.org/3/library/venv.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Jupyter Notebook Format",
+      "publisher": "Project Jupyter",
+      "reference": "Estrutura JSON do notebook, metadados, células e saídas",
+      "url": "https://github.com/jupyter/nbformat/blob/main/docs/format_description.rst",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Executing notebooks — nbclient",
+      "publisher": "Project Jupyter",
+      "reference": "Execução, kernel, diretório de trabalho, timeout e tratamento de erros",
+      "url": "https://nbclient.readthedocs.io/en/latest/client.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Group by: split-apply-combine",
+      "publisher": "pandas",
+      "reference": "Agregação, transformações e tratamento de chaves ausentes em groupby",
+      "url": "https://pandas.pydata.org/docs/user_guide/groupby.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "IO tools (text, CSV, HDF5, …)",
+      "publisher": "pandas",
+      "reference": "Leitura e gravação de dados tabulares, incluindo CSV",
+      "url": "https://pandas.pydata.org/docs/user_guide/io.html",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

@@ -1,0 +1,1849 @@
+{
+  "id": "informatica.redes-seguranca-nuvem-vpn-subredes-gateways",
+  "subject": "Informática",
+  "title": "Redes e segurança em nuvem: VPNs, sub-redes, gateways e grupos de segurança",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Redes e segurança em nuvem: VPNs, sub-redes, gateways e grupos de segurança",
+    "VPNs, sub-redes, gateways e grupos de segurança",
+    "Redes virtuais e segmentação em nuvem",
+    "Sub-redes e tabelas de rotas na nuvem",
+    "Gateways de internet e NAT em nuvem",
+    "Gateways VPN para redes locais e nuvem",
+    "Grupos de segurança de redes virtuais",
+    "Regras de entrada e saída de tráfego em nuvem",
+    "Conectividade privada com VPN site a site",
+    "Segmentação de redes em provedores de nuvem",
+    "Segurança de tráfego entre sub-redes virtuais",
+    "VPNs, sub-redes, gateways e grupos de segurança em nuvem"
+  ],
+  "scope": {
+    "covers": "Fundamentos práticos de redes virtuais em nuvem: CIDR e divisão de redes em sub-redes sem sobreposição; rotas e seleção de próximo salto; sub-redes públicas e privadas; gateways de internet, NAT e VPN; VPN site a site e de acesso remoto, túneis IPsec/IKE e roteamento estático ou dinâmico; regras de grupos de segurança stateful, escopo, origem, destino, portas e protocolos; camadas de filtragem e diagnóstico de conectividade. Exemplos de comportamento de AWS VPC, Microsoft Azure Virtual Network e Google Cloud VPC são identificados como específicos do provedor.",
+    "excludes": "Configuração passo a passo por console ou CLI de um provedor, dimensionamento comercial e preços, arquitetura avançada de firewall e inspeção, protocolos de roteamento em profundidade e administração de sistemas operacionais."
+  },
+  "theoryTitle": "Redes e segurança em nuvem",
+  "chapters": [
+    {
+      "title": "1. Redes virtuais e sub-redes",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação em nuvem precisa de endereços para máquinas e serviços, limites entre ambientes e caminhos para trocar pacotes. A rede virtual fornece esse espaço lógico. Dividi-la em sub-redes permite separar, por exemplo, balanceadores expostos, servidores de aplicação e bancos de dados. A segmentação organiza o tráfego; por si só, não substitui regras de filtragem.\n\n> **Siglas e termos deste capítulo**\n> - **VPC/VNet**: rede privada virtual definida dentro de um provedor.\n> - **CIDR**: notação de prefixo que identifica um bloco de endereços, como `10.20.0.0/16`.\n> - **Sub-rede**: parte de um bloco de endereços, normalmente associada a uma zona ou região conforme o provedor.\n> - **IP privado**: endereço usado dentro de redes privadas; não é, por si, um endereço público da Internet.\n\n### Prefixos, intervalos e planejamento\n\nEm IPv4, um prefixo `/24` contém 256 endereços no bloco matemático, enquanto `/26` contém 64; o prefixo maior deixa menos bits para hosts. Provedores podem reservar alguns endereços para funções internas, então a quantidade utilizável pode ser menor. Ao dividir `10.20.0.0/24` em quatro blocos iguais `/26`, obtêm-se `10.20.0.0/26`, `10.20.0.64/26`, `10.20.0.128/26` e `10.20.0.192/26`. São blocos distintos e contíguos.\n\n| Decisão | Por que importa |\n| --- | --- |\n| Reservar blocos sem sobreposição | Redes conectadas por VPN precisam distinguir os destinos; prefixos repetidos criam ambiguidade de rota. |\n| Dimensionar para crescimento | Endereços insuficientes podem exigir renumeração ou expansão planejada. |\n| Separar camadas por sub-rede | Facilita aplicar rotas e controles diferentes aos recursos. |\n| Conferir a máscara/prefixo | Uma rota cobre o bloco indicado, não apenas o endereço-base escrito. |\n\nUma sub-rede pode ser chamada de pública ou privada conforme suas rotas e recursos associados, não por uma propriedade mágica do nome. Em um exemplo AWS, a subnet é pública se sua tabela tiver rota para internet gateway; as instâncias também precisam de endereço público para comunicação IPv4 direta. A terminologia e os detalhes de cada nuvem variam.\n\n### Como cai na prova\n\nA banca pode sugerir que duas redes com o mesmo CIDR se comunicam naturalmente por VPN. O conflito de endereços dificulta determinar a qual rede pertence um destino; o desenho deve usar intervalos não sobrepostos ou uma solução explícita de tradução/renumeração. Também é comum confundir segmentação com autorização: pertencer à mesma VPC não garante que uma conexão seja permitida por todos os controles."
+    },
+    {
+      "title": "2. Rotas e gateways",
+      "markdown": "### O problema que este assunto resolve\n\nTer endereços e sub-redes não basta: cada pacote precisa de um caminho. A tabela de rotas associa prefixos de destino a um próximo salto. O roteador escolhe a rota aplicável mais específica entre as rotas válidas; não é o grupo de segurança que decide para onde encaminhar o pacote.\n\n> **Siglas e termos deste capítulo**\n> - **Rota**: prefixo de destino associado a um próximo salto.\n> - **Gateway**: componente que encaminha tráfego entre redes ou para um serviço de conectividade.\n> - **Internet gateway**: caminho de uma rede virtual para a Internet, conforme configuração e endereçamento do provedor.\n> - **NAT**: tradução de endereços de rede; gateway NAT costuma permitir saída iniciada de uma rede privada.\n\n### Tipos de gateway e caminhos\n\nUm gateway de Internet fornece um alvo de rota para destinos externos. No exemplo AWS, uma tabela de rota com destino `0.0.0.0/0` para o internet gateway encaminha destinos IPv4 não cobertos por rotas mais específicas; para acesso IPv4 direto, o recurso também precisa de endereço IPv4 público. A rota, sozinha, não concede autorização de firewall.\n\nUm gateway NAT permite que recursos privados iniciem conexões de saída usando tradução de endereços, sem aceitar conexões arbitrárias iniciadas da Internet para esses recursos. O retorno de uma conexão iniciada de dentro é acompanhado pelo estado do fluxo. Um NAT não é sinônimo de firewall e não cria, por si, uma rota de entrada pública para as instâncias privadas.\n\n| Componente | Função principal | Confusão frequente |\n| --- | --- | --- |\n| Internet gateway | Encaminhar tráfego da rede virtual para/de redes externas conforme rotas e endereços | Achar que dispensa IP público, rota ou regra de segurança |\n| Gateway NAT | Permitir saída iniciada por recursos privados com tradução | Supor que publica automaticamente os recursos privados |\n| Gateway VPN | Terminar ou encaminhar o túnel entre redes | Achar que túnel ativo garante rota e permissão de aplicação |\n| Tabela de rotas | Escolher o próximo salto para o destino | Confundir caminho com autorização |\n\n### Como cai na prova\n\nSe uma VM privada não acessa um serviço externo, verifique rota da sub-rede para o NAT, disponibilidade e rota de saída do próprio NAT, regras de segurança e controles de rede. Em sentido inverso, para alcançar uma rede remota pela VPN, devem existir rotas de ambos os lados com prefixos compatíveis. Um gateway existente, mas sem rota aplicável, não encaminha o tráfego desejado."
+    },
+    {
+      "title": "3. VPNs e túneis entre redes",
+      "markdown": "### O problema que este assunto resolve\n\nUma organização pode precisar trocar tráfego entre uma rede local e uma rede virtual de nuvem, ou entre locais, usando uma rede intermediária não confiável. A VPN estabelece conectividade lógica protegida por mecanismos de autenticação e criptografia. Ela não transforma automaticamente toda a rede remota em uma rede autorizada para qualquer serviço.\n\n> **Siglas e termos deste capítulo**\n> - **VPN**: rede privada virtual construída sobre uma infraestrutura de transporte compartilhada ou pública.\n> - **Site a site**: conecta gateways de redes, como escritório e nuvem.\n> - **Acesso remoto**: conecta o dispositivo de um usuário à rede corporativa ou virtual.\n> - **IPsec/IKE**: conjunto de mecanismos para proteger tráfego IP e negociar parâmetros/chaves do túnel.\n> - **BGP**: protocolo que pode trocar rotas dinamicamente entre pares configurados.\n\n### Como o túnel participa do caminho\n\nEm uma VPN IPsec site a site, gateways pares negociam parâmetros criptográficos e estabelecem associação/túnel. O tráfego interno destinado ao prefixo remoto é encapsulado e protegido para atravessar a Internet; no outro extremo, é desencapsulado e encaminhado. A Internet vê os endereços externos dos gateways no transporte, enquanto as redes participantes encaminham os prefixos internos pelo túnel.\n\nA conexão pode usar rotas estáticas configuradas manualmente ou roteamento dinâmico com BGP, quando suportado e configurado. BGP pode anunciar e retirar prefixos conforme o estado da sessão; não substitui a configuração de segurança do túnel nem as regras que autorizam o tráfego da aplicação. O Azure VPN Gateway, por exemplo, documenta conexões site a site e ponto a site com IPsec/IKE. Recursos e limitações mudam entre produtos.\n\n| Tipo | Pontos conectados | Uso comum |\n| --- | --- | --- |\n| Site a site | Gateway de rede local e gateway de rede virtual | Integrar escritório ou datacenter à nuvem |\n| Ponto a site | Cliente individual e gateway virtual | Acesso remoto de usuários ou dispositivos |\n| VPN entre redes virtuais | Gateways de duas redes virtuais | Interligar ambientes em nuvens/regiões quando o serviço oferece esse modo |\n\n### Como cai na prova\n\nTúnel estabelecido, rota, retorno e filtragem são verificações diferentes. Se os prefixos local e remoto se sobrepõem, a tabela pode não distinguir os destinos. Se a sessão VPN está ativa mas não há rota para a sub-rede remota, os pacotes não seguem o túnel. Se a rota existe mas um grupo de segurança bloqueia a porta, a aplicação continua inacessível."
+    },
+    {
+      "title": "4. Grupos de segurança e filtragem stateful",
+      "markdown": "### O problema que este assunto resolve\n\nUma rede conectada precisa limitar quais fluxos chegam a cada carga de trabalho. Grupos de segurança aplicam regras a interfaces, instâncias ou recursos, conforme o provedor. Uma regra costuma especificar direção, protocolo, porta ou intervalo, origem/destino e ação. O princípio prático é liberar apenas o necessário para a função do recurso.\n\n> **Siglas e termos deste capítulo**\n> - **Ingress/entrada**: tráfego que chega ao recurso protegido.\n> - **Egress/saída**: tráfego que parte do recurso protegido.\n> - **Stateful**: acompanha conexões e permite automaticamente o tráfego de resposta correspondente, conforme o produto.\n> - **Stateless**: avalia pacotes sem associar automaticamente o retorno ao fluxo inicial.\n> - **CIDR de origem**: faixa de endereços autorizada como origem de um fluxo.\n\n### Escrever regras com intenção clara\n\nPara um servidor web, pode-se permitir entrada TCP nas portas de serviço a partir de origens esperadas; para administração, restringe-se a origem à rede de gestão ou a um bastion apropriado. Um banco deve aceitar a porta da aplicação apenas dos servidores que precisam consultá-lo, não de toda a Internet. Essas são políticas ilustrativas: portas e fontes concretas dependem do protocolo e da arquitetura implantada.\n\nEm AWS, security groups são stateful, associados a recursos de rede e aceitam regras de permissão; respostas a tráfego permitido são admitidas automaticamente. Network ACLs atuam no nível da sub-rede e são stateless, podendo permitir ou negar conforme regras ordenadas. Google Cloud também documenta firewall VPC stateful, com rastreamento de conexões; outros serviços podem ter semânticas diferentes. Não generalize um detalhe de um provedor para todos.\n\n| Controle | Escopo típico | Estado do retorno |\n| --- | --- | --- |\n| Grupo de segurança AWS | Interfaces/instâncias associadas | Stateful |\n| Network ACL AWS | Sub-rede | Stateless; retorno precisa de regra compatível |\n| Regra de firewall VPC Google Cloud | Tráfego relacionado a recursos da VPC | Stateful |\n| NSG Azure | Interfaces ou sub-redes, com regras de prioridade | A plataforma acompanha o fluxo; regras efetivas dependem da avaliação e do estado |\n\n### Como cai na prova\n\nUma regra de saída permissiva não corrige necessariamente uma regra de entrada ausente para uma conexão nova. Já em um controle stateful, a resposta de uma conexão iniciada e permitida pode ser reconhecida como parte do mesmo fluxo. Em troubleshooting, identifique primeiro o sentido do fluxo, a origem vista pelo recurso, o protocolo e a porta; depois confira a regra efetiva e a rota."
+    },
+    {
+      "title": "5. Integração dos controles e diagnóstico",
+      "markdown": "### O problema que este assunto resolve\n\nUma conexão de aplicação só funciona quando todos os elementos relevantes concordam: endereços, rota de ida, gateway/túnel, filtros no caminho, processo de destino e rota de retorno. Aprovar o pacote em um controle não faz os demais controles ignorarem suas regras.\n\n> **Siglas e termos deste capítulo**\n> - **Plano de endereçamento**: blocos reservados para redes, sub-redes e pares conectados.\n> - **Fluxo**: comunicação descrita por origem, destino, protocolo e portas.\n> - **Regra efetiva**: regra que realmente se aplica após associações, prioridades e políticas herdadas.\n> - **Log de fluxo**: registro de metadados sobre tráfego aceito ou rejeitado, quando habilitado pelo serviço.\n\n### Roteiro de análise\n\n1. Confirme IPs, prefixos e ausência de sobreposição entre as redes conectadas.\n2. Verifique se a sub-rede de origem tem rota para o prefixo de destino e se o próximo salto é o gateway esperado.\n3. Confirme estado da VPN, parâmetros de negociação e rotas estáticas ou anunciadas.\n4. Examine os filtros no sentido de entrada e saída em cada camada: grupo de segurança, ACL, firewall e firewall do sistema.\n5. Confira o caminho de retorno, a porta/protocolo do serviço e se o processo está escutando.\n6. Use logs e métricas disponíveis para localizar o ponto de descarte; não conclua que a VPN falhou só porque uma aplicação está inacessível.\n\nUm erro recorrente é adicionar uma rota `0.0.0.0/0` para o gateway de Internet sem conferir endereços, filtros ou rotas mais específicas. Outro é testar com ICMP quando o serviço bloqueia ICMP, e inferir que todo o tráfego TCP está indisponível. O teste precisa corresponder ao protocolo e à porta investigados.\n\n### Como cai na prova\n\nConsidere servidor em sub-rede privada que deve baixar atualizações, mas não receber conexões iniciadas da Internet. O desenho comum usa saída para gateway NAT e não publica endereço/rota de entrada para a instância. Ainda assim, o grupo de segurança precisa permitir a saída requerida e a resposta deve seguir o estado do fluxo. Para integrar escritório e nuvem, além do túnel devem existir rotas coerentes, prefixos sem conflito e regras que autorizem o serviço."
+    }
+  ],
+  "summary": "Uma rede virtual em nuvem usa blocos CIDR e sub-redes para endereçar e segmentar recursos. Planeje prefixos sem sobreposição, pois redes conectadas por VPN precisam distinguir destinos. Tabelas de rotas escolhem o próximo salto; gateways de Internet, NAT e VPN exercem papéis diferentes. Um gateway NAT costuma permitir conexões de saída iniciadas por recursos privados, sem publicar esses recursos para conexões novas da Internet. VPNs site a site ou ponto a site criam conectividade protegida, frequentemente com IPsec/IKE; túneis precisam de rotas de ida e volta e não substituem autorização. Grupos de segurança filtram fluxos por direção, protocolo, portas e origem/destino. Em AWS, security groups são stateful e associados a recursos, enquanto network ACLs são stateless e associadas a sub-redes. Detalhes variam por provedor. Diagnostique em camadas: endereços, rota, gateway/túnel, filtros, retorno e serviço de destino.",
+  "flashcards": [
+    {
+      "front": "Para que serve um bloco CIDR?",
+      "back": "Representa um intervalo de endereços IP por um prefixo, usado para dimensionar redes, sub-redes e destinos de rota."
+    },
+    {
+      "front": "O que significa dividir um /24 em quatro blocos iguais?",
+      "back": "Criar quatro prefixos /26 contíguos, cada qual com 64 endereços IPv4 no bloco matemático."
+    },
+    {
+      "front": "Por que evitar sobreposição de CIDR entre redes conectadas?",
+      "back": "Um endereço de destino pode pertencer a ambos os lados, causando ambiguidade na seleção e no anúncio das rotas."
+    },
+    {
+      "front": "O que define uma rota?",
+      "back": "Um prefixo de destino e o próximo salto para encaminhar pacotes destinados a esse prefixo."
+    },
+    {
+      "front": "Qual o papel do internet gateway?",
+      "back": "Oferecer um caminho entre a rede virtual e redes externas quando as rotas e os endereços permitem."
+    },
+    {
+      "front": "O que faz um gateway NAT em uma sub-rede privada?",
+      "back": "Permite que recursos iniciem conexões de saída com tradução de endereços, sem aceitar por isso conexões novas arbitrárias da Internet."
+    },
+    {
+      "front": "NAT é sinônimo de firewall?",
+      "back": "Não. NAT traduz endereços; regras de firewall controlam quais fluxos são autorizados."
+    },
+    {
+      "front": "O que conecta uma VPN site a site?",
+      "back": "Gateways de duas redes, por exemplo uma rede local e uma rede virtual de nuvem."
+    },
+    {
+      "front": "O que distingue VPN ponto a site?",
+      "back": "Conecta um cliente/dispositivo individual a uma rede por meio de um gateway VPN."
+    },
+    {
+      "front": "Qual é a função geral de IPsec e IKE em VPNs?",
+      "back": "Proteger tráfego IP e negociar parâmetros criptográficos e chaves para estabelecer associações/túneis."
+    },
+    {
+      "front": "O que BGP pode fornecer a uma VPN?",
+      "back": "Troca dinâmica de informações de rota entre pares configurados, em vez de depender somente de rotas estáticas."
+    },
+    {
+      "front": "O que uma regra de security group costuma especificar?",
+      "back": "Direção, protocolo, porta ou intervalo, origem/destino e permissão aplicável ao recurso protegido."
+    },
+    {
+      "front": "O que significa dizer que um grupo de segurança é stateful?",
+      "back": "O controle acompanha o fluxo e permite automaticamente tráfego de resposta associado a uma conexão permitida, conforme a implementação."
+    },
+    {
+      "front": "Qual contraste entre AWS security group e network ACL?",
+      "back": "Security group é stateful e associado a recursos; network ACL é stateless e se aplica à sub-rede."
+    },
+    {
+      "front": "Por que permitir uma porta de administração de qualquer origem é arriscado?",
+      "back": "Amplia a superfície de exposição; deve-se limitar a origem à rede administrativa ou ponto de acesso controlado."
+    },
+    {
+      "front": "O que é regra de entrada?",
+      "back": "Regra aplicada ao tráfego que chega ao recurso ou escopo protegido."
+    },
+    {
+      "front": "O que é regra de saída?",
+      "back": "Regra aplicada ao tráfego que parte do recurso ou escopo protegido."
+    },
+    {
+      "front": "Uma VPN ativa garante que a aplicação remota funciona?",
+      "back": "Não. Também são necessários rota aplicável, regras compatíveis, retorno e serviço escutando."
+    },
+    {
+      "front": "Por que conferir a rota de retorno?",
+      "back": "A resposta precisa encontrar caminho de volta; tráfego de ida permitido não garante conectividade bidirecional."
+    },
+    {
+      "front": "Como se define uma sub-rede pública em um exemplo AWS?",
+      "back": "É associada a tabela de rotas com rota para internet gateway; acesso IPv4 direto também requer endereço público no recurso."
+    },
+    {
+      "front": "Um recurso em sub-rede privada pode acessar a Internet?",
+      "back": "Pode iniciar saída por um gateway NAT ou outro caminho configurado, mesmo sem receber conexões novas diretamente da Internet."
+    },
+    {
+      "front": "O que verificar se a VPN está ativa mas uma porta não responde?",
+      "back": "Rotas dos dois lados, regras de entrada/saída, protocolo e porta, firewall do sistema e processo de destino."
+    },
+    {
+      "front": "Por que o teste precisa usar o protocolo da aplicação?",
+      "back": "Um teste ICMP pode falhar por bloqueio de ICMP mesmo quando a porta TCP/UDP do serviço funciona, ou vice-versa."
+    },
+    {
+      "front": "Para que servem logs de fluxo de rede?",
+      "back": "Ajudam a identificar tráfego aceito ou rejeitado e localizar o ponto provável de bloqueio, quando habilitados."
+    },
+    {
+      "front": "A segmentação de sub-redes substitui grupos de segurança?",
+      "back": "Não. A sub-rede separa endereços e permite desenho distinto; regras ainda controlam quais fluxos são autorizados."
+    }
+  ],
+  "tips": [
+    "Siga o pacote por etapas: endereço, rota, gateway, filtros, retorno e serviço de destino.",
+    "Sub-rede pública é uma conclusão sobre rota e configuração, não sobre o nome da sub-rede.",
+    "NAT facilita saída iniciada de dentro; não o trate como autorização geral nem como publicação de entrada.",
+    "Em VPN, compare os prefixos locais e remotos e confira os dois sentidos da rota.",
+    "Ao ler regra de segurança, pergunte: entrada ou saída, qual protocolo/porta e qual origem/destino?",
+    "Diferencie o comportamento documentado de um provedor de uma regra universal de redes em nuvem."
+  ],
+  "traps": [
+    "Achar que o gateway de Internet, sozinho, dá acesso: rota, endereçamento e filtros também importam.",
+    "Afirmar que NAT torna uma máquina privada publicamente acessível para conexões iniciadas de fora.",
+    "Confundir túnel VPN ativo com rotas e permissões de aplicação já corretas.",
+    "Tratar security group e network ACL como controles equivalentes em escopo e estado.",
+    "Supor que estar na mesma rede virtual significa poder comunicar sem filtragem.",
+    "Diagnosticar toda falha de aplicação com ping, embora ICMP e a porta do serviço tenham regras diferentes."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como quatro sub-redes iguais podem ser obtidas de `10.20.0.0/24`?",
+      "answer": "Dividindo-o em quatro blocos /26: 10.20.0.0/26, 10.20.0.64/26, 10.20.0.128/26 e 10.20.0.192/26."
+    },
+    {
+      "question": "Por que redes ligadas por VPN devem usar prefixos não sobrepostos?",
+      "answer": "Para que um destino seja associado sem ambiguidade ao lado correto e possa ser roteado/anunciado de forma coerente."
+    },
+    {
+      "question": "Explique a diferença funcional entre internet gateway e NAT gateway.",
+      "answer": "O internet gateway liga a rede virtual à Internet conforme configuração; o NAT gateway permite saída iniciada por recursos privados com tradução, sem publicar esses recursos para novas conexões de entrada."
+    },
+    {
+      "question": "Quais elementos são necessários além de túnel VPN para tráfego de aplicação?",
+      "answer": "Rotas de ida e volta, filtros que permitam o fluxo, endereços coerentes e serviço de destino disponível."
+    },
+    {
+      "question": "Como uma regra de grupo de segurança delimita um fluxo?",
+      "answer": "Define direção, protocolo, porta ou intervalo e a origem/destino autorizado no escopo ao qual se aplica."
+    },
+    {
+      "question": "O que o atributo stateful muda na filtragem?",
+      "answer": "O tráfego de resposta de uma conexão permitida pode ser aceito automaticamente por rastreamento do fluxo; controle stateless requer regras compatíveis também para retorno."
+    },
+    {
+      "question": "Descreva uma sequência prática para investigar uma conexão recusada entre escritório e nuvem.",
+      "answer": "Conferir endereços e sobreposição, estado do túnel, rotas dos dois lados, próximo salto, regras nos sentidos de entrada/saída, firewall local, caminho de retorno e serviço."
+    },
+    {
+      "question": "Por que uma sub-rede privada pode ter acesso externo sem aceitar conexões iniciadas pela Internet?",
+      "answer": "Pode encaminhar conexões de saída por NAT; o estado permite respostas associadas, enquanto não há rota/endereço público de entrada para iniciar um novo fluxo até o recurso."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Endereço e prefixo confundidos",
+      "summary": "CIDR representa um intervalo. Blocos sobrepostos entre redes conectadas dificultam seleção e anúncio de rotas."
+    },
+    {
+      "key": "e2",
+      "title": "Rota confundida com permissão",
+      "summary": "A rota escolhe o próximo salto; regras de segurança e firewalls decidem se o fluxo pode passar."
+    },
+    {
+      "key": "e3",
+      "title": "Gateway de Internet, NAT e VPN tratados como iguais",
+      "summary": "Internet gateway oferece caminho externo, NAT traduz fluxos de saída e gateway VPN conecta redes por túnel protegido."
+    },
+    {
+      "key": "e4",
+      "title": "VPN ativa tomada como conectividade completa",
+      "summary": "Túnel, rotas, prefixos, filtragem, retorno e serviço devem estar coerentes para a aplicação funcionar."
+    },
+    {
+      "key": "e5",
+      "title": "Estado e escopo de filtragem generalizados",
+      "summary": "Stateful/stateless e aplicação por recurso/sub-rede dependem do controle e do provedor; confira documentação específica."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Qual desenho permite dividir `10.20.0.0/24` em quatro sub-redes IPv4 iguais e sem sobreposição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar quatro blocos /26 consecutivos que cobrem o /24 inteiro.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar quatro blocos /25 consecutivos dentro do /24.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar quatro blocos /26 iniciados todos em 10.20.0.0.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar quatro blocos /24 distintos, todos contidos no /24 original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar quatro blocos /27 alternados e considerar coberto todo o /24.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um /24 contém quatro blocos /26 alinhados: 10.20.0.0/26, .64/26, .128/26 e .192/26. Um /25 divide o espaço em apenas dois blocos, e blocos repetidos ou maiores não cabem sem sobreposição. O provedor pode reservar endereços para uso interno.",
+      "section": "1. Redes virtuais e sub-redes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas redes privadas serão conectadas por VPN site a site e usam o mesmo bloco `10.0.0.0/16`. Qual é o principal problema de projeto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O túnel necessariamente converte IPv4 em IPv6 para separar os destinos, eliminando a necessidade de planejar os prefixos das redes conectadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O gateway deixa de negociar chaves porque o prefixo é privado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma rota para o bloco pode apontar a qualquer rede, sem distinguir o destino real.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Grupos de segurança passam a funcionar como servidores DHCP entre as redes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O bloco compartilhado impede que as duas redes usem criptografia IPsec.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com prefixos sobrepostos, o endereço de destino não identifica sem ambiguidade qual lado contém o recurso. A solução costuma envolver renumeração ou mecanismos explícitos de tradução/arquitetura compatíveis; o túnel e a criptografia não resolvem por si o conflito de rotas.",
+      "section": "1. Redes virtuais e sub-redes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No exemplo de AWS VPC documentado, o que caracteriza uma sub-rede pública para fins de roteamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Receber um nome com a palavra public no cadastro da VPC, o que por si só encaminha os pacotes sem depender de tabela de rotas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Estar associada a tabela que encaminha tráfego externo ao internet gateway.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ter todos os grupos de segurança configurados para permitir entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar exclusivamente endereços IPv4 privados no bloco da sub-rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não possuir rota local para comunicação entre recursos da VPC.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na AWS, a definição depende da rota da tabela associada para o internet gateway. Para comunicação IPv4 direta, a instância também precisa de endereço público; filtros ainda controlam os fluxos.",
+      "section": "1. Redes virtuais e sub-redes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que a tabela de rotas determina para um pacote cujo destino corresponde a um prefixo configurado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A senha de autenticação usada pelo processo de destino, que também determina o gateway e o caminho de rede de cada pacote.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O conjunto de usuários autorizados a abrir uma sessão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O próximo salto usado para encaminhar o pacote ao destino.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O conteúdo que será criptografado pela aplicação cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A regra de entrada que substitui todos os firewalls do host.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma rota associa prefixo de destino a próximo salto. A filtragem de segurança e a autenticação são funções distintas, mesmo que todas influenciem o sucesso da comunicação.",
+      "section": "2. Rotas e gateways",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação numa sub-rede privada precisa iniciar conexões IPv4 para buscar atualizações externas, sem ser publicada para conexões novas da Internet. Qual componente costuma atender a esse padrão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma tabela sem rotas e um IP público na instância privada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um grupo de segurança que substitua a necessidade de encaminhamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma ACL stateless sem rota para nenhum gateway externo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um NAT gateway com rota de saída da sub-rede privada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um túnel VPN sem rede remota ou gateway pareado, que ainda assim cria uma rota de entrada pública até a instância privada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O padrão é encaminhar saída iniciada pela rede privada por um NAT gateway, cuja rota e disponibilidade também devem estar corretas. NAT não substitui filtros nem cria uma rota pública de entrada até cada instância privada.",
+      "section": "2. Rotas e gateways",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação distingue corretamente um gateway NAT de um grupo de segurança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O gateway NAT traduz endereços no caminho; o grupo de segurança filtra fluxos conforme regras.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O gateway NAT escolhe usuários; o grupo de segurança anuncia rotas por BGP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O gateway NAT cifra dados de aplicação; o grupo de segurança termina túneis IPsec.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O gateway NAT divide CIDR; o grupo de segurança aloca endereços para hosts e anuncia os prefixos resultantes aos pares por BGP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O gateway NAT registra domínios; o grupo de segurança resolve nomes DNS internos.",
+          "correct": false
+        }
+      ],
+      "explanation": "NAT altera informações de endereço/porta no tráfego conforme sua função. Grupo de segurança avalia critérios de tráfego permitidos no escopo associado. Um não substitui a função do outro.",
+      "section": "2. Rotas e gateways",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância tem endereço IPv4 público e está em sub-rede com rota para internet gateway, mas não responde na porta do serviço. Qual conclusão é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O endereço público obriga o gateway a ignorar todas as regras de segurança.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A rota garante que o processo de aplicação esteja escutando corretamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O tráfego pode ainda ser barrado por filtros ou pelo próprio serviço/host.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A única causa possível é a ausência de NAT gateway na sub-rede pública, pois filtros e estado do processo nunca afetam conexões de entrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A instância só pode receber tráfego após a criação de uma VPN ponto a site.",
+          "correct": false
+        }
+      ],
+      "explanation": "Rota e endereço tornam o caminho possível, mas não autorizam automaticamente a porta nem garantem que o processo esteja ativo. Devem ser verificados grupo de segurança, ACL, firewall local, rota de retorno e serviço.",
+      "section": "2. Rotas e gateways",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde a uma VPN site a site?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma conexão TLS entre navegador e uma página pública específica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um túnel que liga gateways de redes, como escritório e nuvem.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma sub-rede que converte endereços privados em nomes DNS e negocia chaves IPsec entre os gateways das redes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma regra stateless aplicada somente ao tráfego de saída.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um endereço público atribuído a cada estação de trabalho remota.",
+          "correct": false
+        }
+      ],
+      "explanation": "VPN site a site conecta os gateways de duas redes, permitindo encaminhar tráfego entre prefixos configurados por um túnel protegido. Não equivale a uma sessão web nem a uma regra de filtragem.",
+      "section": "3. VPNs e túneis entre redes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para que serve IKE no contexto de uma VPN IPsec?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atribuir nomes DNS às máquinas de ambas as redes conectadas e selecionar as rotas que encaminham os prefixos remotos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter automaticamente rotas estáticas em endereços públicos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Filtrar portas de aplicação depois de o pacote chegar à VM.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Negociar parâmetros de segurança e chaves para associações protegidas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Substituir o protocolo IP e transportar apenas mensagens de correio.",
+          "correct": false
+        }
+      ],
+      "explanation": "IKE negocia parâmetros e chaves para estabelecer associações de segurança usadas na proteção do tráfego IPsec. A filtragem da aplicação e o roteamento continuam a ser configurados separadamente.",
+      "section": "3. VPNs e túneis entre redes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VPN está ativa, mas uma VM não alcança um servidor remoto cujo prefixo não aparece em nenhuma rota aplicável. O que explica melhor a falha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O estado do túnel por si só não cria a rota necessária ao destino.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A criptografia transforma todos os pacotes em tráfego de loopback.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O grupo de segurança cria automaticamente um anúncio BGP para o servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O NAT gateway remove o prefixo remoto de toda a tabela de rotas e cria por conta própria as regras de firewall da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A VM exige que cada servidor remoto possua endereço IPv4 público.",
+          "correct": false
+        }
+      ],
+      "explanation": "O túnel pode estar negociado sem haver uma rota que encaminhe o prefixo remoto para ele. É necessário configurar/anunciar rotas coerentes nos lados envolvidos e permitir o fluxo nos filtros.",
+      "section": "3. VPNs e túneis entre redes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que pode fornecer BGP numa VPN configurada para roteamento dinâmico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criptografia dos dados de aplicação sem associação IPsec, além da negociação automática de chaves sem qualquer par configurado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tradução de endereços de todos os prefixos remotos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definição automática das regras de entrada dos grupos de segurança.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Atribuição de endereços IP privados aos usuários de acesso remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Troca dinâmica de informações de rota entre pares configurados.",
+          "correct": true
+        }
+      ],
+      "explanation": "BGP pode anunciar e retirar prefixos dinamicamente entre pares estabelecidos. Não cifra o tráfego, não substitui a negociação VPN nem cria regras de segurança da aplicação.",
+      "section": "3. VPNs e túneis entre redes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um notebook individual conecta-se ao gateway da organização para alcançar recursos internos. Qual modalidade descreve melhor esse cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "VPN ponto a site ou de acesso remoto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Gateway NAT entre duas sub-redes públicas, que autentica individualmente o notebook e estabelece acesso remoto ao gateway corporativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Peering de sub-redes sem cliente VPN.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ACL stateless aplicada ao tráfego da Internet.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Rota padrão anunciada sem túnel ou autenticação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A modalidade ponto a site conecta um dispositivo/cliente individual ao gateway da rede. Site a site conecta gateways de redes inteiras.",
+      "section": "3. VPNs e túneis entre redes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No AWS VPC, qual característica é associada a security groups?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicação obrigatória a cada sub-rede e avaliação stateless em ordem numérica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Permissão de entrada e saída com retorno do fluxo permitido acompanhado pelo estado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Roteamento entre regiões sem qualquer tabela de rotas associada, com encaminhamento garantido mesmo quando não há prefixos configurados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tradução de endereços de toda a VPC para o espaço público.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Negação explícita como único tipo possível de regra do security group.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação AWS descreve security groups como stateful e com regras de permissão associadas a recursos. Network ACLs têm escopo de sub-rede e comportamento stateless, sendo um controle distinto.",
+      "section": "4. Grupos de segurança e filtragem stateful",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual regra representa o princípio de menor privilégio para um banco de dados acessado por aplicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir qualquer protocolo de qualquer origem em toda a rede virtual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Permitir somente a porta necessária a partir dos servidores de aplicação autorizados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Bloquear todo tráfego de saída e liberar administração de qualquer endereço, pois a ausência de saída impede conexões SSH de entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir a porta de banco a toda a Internet durante a operação normal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar o firewall e depender apenas do nome privado do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "O menor privilégio limita a regra ao serviço e às origens que precisam dele. Abrir a porta para toda a rede ou Internet amplia exposição desnecessariamente; nome privado não é mecanismo de autorização.",
+      "section": "4. Grupos de segurança e filtragem stateful",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um grupo stateful permite uma conexão TCP de entrada ao serviço. Como costuma ser tratado o tráfego de resposta desse mesmo fluxo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É descartado sempre, pois a resposta precisa iniciar outra conexão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É encaminhado por BGP sem passar por controles de estado, ainda que não exista sessão BGP ou anúncio de rota configurado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pode ser permitido automaticamente como tráfego de retorno associado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "É traduzido em ICMP e enviado ao gateway de Internet.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É aceito somente quando a sub-rede não possui tabela de rotas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um controle stateful mantém estado da conexão e permite o retorno correspondente sem exigir uma regra independente que abra uma nova conexão no sentido inverso, conforme a implementação do serviço.",
+      "section": "4. Grupos de segurança e filtragem stateful",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em AWS, qual diferença entre security group e network ACL deve orientar a análise de regras?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O security group é stateful e ligado a recursos; a ACL é stateless e ligada à sub-rede.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O security group escolhe rotas; a ACL termina túneis VPN de acesso remoto e negocia parâmetros criptográficos com o cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O security group traduz endereços; a ACL negocia chaves de criptografia IPsec.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O security group aplica-se somente à VPC inteira; a ACL somente a usuários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O security group exige regras explícitas de retorno; a ACL acompanha conexões automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na AWS, security groups são stateful e associados a interfaces/recursos; network ACLs são stateless e atuam no nível da sub-rede. Portanto, a ACL precisa permitir o tráfego de retorno compatível quando necessário.",
+      "section": "4. Grupos de segurança e filtragem stateful",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra de entrada permite TCP na porta da aplicação somente da sub-rede de front-end. Qual dado precisa ser conferido para validar a origem efetiva do fluxo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A descrição textual do recurso, sem consultar endereços ou caminhos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A faixa CIDR associada à origem que o recurso realmente observa.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O nome DNS público do usuário que iniciou a conexão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O algoritmo de compressão usado pelo processo de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A região de faturamento, que define a porta TCP de destino.",
+          "correct": false
+        }
+      ],
+      "explanation": "A regra compara a origem de rede conforme observada no ponto de aplicação. NAT, proxies ou gateways podem afetar esse endereço, por isso é necessário validar CIDR e caminho reais, além da porta e do protocolo.",
+      "section": "4. Grupos de segurança e filtragem stateful",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em serviços de nuvem, uma regra de segurança deve ser analisada considerando direção, protocolo, porta e origem ou destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Esses campos descrevem o fluxo que a regra pretende controlar. A regra efetiva depende ainda do escopo associado, das prioridades e de outros filtros no caminho.",
+      "section": "4. Grupos de segurança e filtragem stateful",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Toda regra chamada grupo de segurança tem necessariamente o mesmo escopo e o mesmo comportamento stateful em qualquer provedor de nuvem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Os detalhes variam entre produtos: um grupo pode ser associado a recursos, enquanto outros controles são aplicados a sub-redes ou políticas. É preciso consultar a semântica do provedor e do controle concreto.",
+      "section": "4. Grupos de segurança e filtragem stateful",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela de rotas encaminha o pacote ao gateway esperado, portanto o fluxo está autorizado mesmo se o grupo de segurança negar a porta de destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Roteamento determina o caminho; a regra de segurança filtra o fluxo. Uma rota válida não anula uma negação ou ausência de permissão no controle aplicável.",
+      "section": "2. Rotas e gateways",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gateway NAT costuma permitir que um recurso privado inicie uma conexão externa sem tornar esse recurso automaticamente acessível a novas conexões iniciadas da Internet.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "O NAT mantém tradução para o fluxo de saída e seu retorno. Isso não equivale a publicar uma rota de entrada até a máquina privada nem a liberar o fluxo nos controles de segurança.",
+      "section": "2. Rotas e gateways",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O simples estado conectado de um túnel VPN prova que as rotas dos prefixos remotos foram instaladas e que todas as portas da aplicação estão permitidas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Estado do túnel, instalação de rotas e autorização de portas são condições distintas. Uma VPN pode estar negociada enquanto falta rota ou uma regra de firewall bloqueia a aplicação.",
+      "section": "3. VPNs e túneis entre redes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando uma VPN usa BGP, a troca dinâmica de rotas elimina a necessidade de configurar e verificar regras de segurança para os serviços transportados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "BGP distribui informações de roteamento entre pares. Não substitui grupos de segurança, firewalls, autenticação de aplicação ou políticas de acesso aos serviços.",
+      "section": "3. VPNs e túneis entre redes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No AWS VPC, uma instância com rota para internet gateway pode dispensar endereço público e ainda manter conectividade IPv4 direta com a Internet.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "A documentação AWS indica que a instância precisa de endereço IPv4 público para comunicação IPv4 pela Internet gateway. Rota e gateway, sem endereço público, não bastam para esse caminho direto.",
+      "section": "2. Rotas e gateways",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um security group stateful pode reconhecer o tráfego de resposta associado a uma conexão permitida, de acordo com a implementação do provedor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Stateful significa que o controle acompanha o fluxo e trata o retorno correspondente como parte da conexão permitida. Isso não abre uma conexão nova no sentido oposto.",
+      "section": "4. Grupos de segurança e filtragem stateful",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VPN site a site conecta normalmente gateways de redes; VPN ponto a site é voltada a cliente/dispositivo individual conectando-se ao gateway.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "A distinção é o tipo de ponto conectado: rede a rede no modo site a site, ou cliente individual à rede no modo ponto a site/acesso remoto.",
+      "section": "3. VPNs e túneis entre redes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se os prefixos das duas redes conectadas por VPN se sobrepõem, criptografar o túnel garante que cada pacote seja encaminhado ao host correto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Criptografia protege o transporte, mas não resolve ambiguidade de endereçamento. É preciso evitar a sobreposição ou adotar solução explícita compatível de renumeração ou tradução.",
+      "section": "1. Redes virtuais e sub-redes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um grupo de segurança associado a uma VM substitui qualquer firewall de sistema operacional e todas as demais camadas de rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "A filtragem da nuvem é uma camada. ACLs, firewalls de host e controles de aplicação podem continuar relevantes; uma permissão em um nível não neutraliza bloqueios de outro nível.",
+      "section": "5. Integração dos controles e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma falha de ping demonstra necessariamente que a porta TCP usada pela aplicação também está bloqueada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Ping usa ICMP, que pode ser filtrado independentemente da porta TCP ou UDP do serviço. O teste deve corresponder ao protocolo e à porta investigados.",
+      "section": "5. Integração dos controles e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um controle stateless, o retorno do tráfego pode exigir uma regra compatível própria, pois o controle não associa automaticamente os pacotes à conexão inicial.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Um filtro stateless avalia pacotes sem manter a associação de estado da conexão. O tráfego de resposta deve passar pelas regras aplicáveis no sentido contrário.",
+      "section": "4. Grupos de segurança e filtragem stateful",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A existência de uma sub-rede separada para banco de dados impede por si só qualquer tráfego não autorizado até as instâncias nela localizadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "A segmentação organiza endereços e permite aplicar controles distintos, mas não é uma decisão completa de autorização. Rotas e regras efetivas ainda precisam restringir fluxos.",
+      "section": "1. Redes virtuais e sub-redes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma conexão sai da sub-rede privada por NAT, a investigação pode ignorar o grupo de segurança de saída e a rota associada à sub-rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "O caminho de saída ainda depende de rota e regras compatíveis, além de disponibilidade e configuração do NAT. NAT não ignora as políticas que controlam o fluxo da instância.",
+      "section": "5. Integração dos controles e diagnóstico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao diagnosticar acesso da rede local a uma aplicação em nuvem, conferir somente a rota de ida basta quando o túnel VPN aparece como conectado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Também é necessário validar retorno, rotas remotas, filtros nos sentidos pertinentes, firewall local e disponibilidade da aplicação. Estado conectado não prova o caminho completo.",
+      "section": "5. Integração dos controles e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Grupos de segurança e tabelas de rota exercem funções distintas: um filtra fluxos e a outra indica encaminhamento para destinos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "A rota escolhe o próximo salto segundo destino; o grupo de segurança permite ou bloqueia tráfego conforme suas regras. Um caminho pode existir e ser bloqueado, ou estar permitido e não ter rota útil.",
+      "section": "2. Rotas e gateways",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma conexão TCP de um cliente externo a uma aplicação, qual sequência de verificações é mais completa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conferir somente se o nome DNS resolve para algum endereço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conferir apenas se a aplicação tem uma conta de administrador ativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conferir rota, endereço, filtros nos sentidos envolvidos, retorno e serviço escutando.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Conferir a cor do estado do gateway e reiniciar todas as VMs.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conferir somente a regra de saída do cliente, sem examinar a nuvem.",
+          "correct": false
+        }
+      ],
+      "explanation": "O diagnóstico precisa seguir o fluxo completo: endereçamento e rota, gateway, regras de rede e host, caminho de retorno e processo/porta do serviço. DNS pode estar correto enquanto qualquer etapa posterior falha.",
+      "section": "5. Integração dos controles e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição melhor explica por que o túnel IPsec pode estar funcionando enquanto a aplicação continua indisponível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O túnel protege o transporte, mas rota, filtragem e serviço são etapas independentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "IPsec desativa por padrão os processos de aplicação nas redes conectadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A VPN substitui endereços IP por nomes e impede conexões TCP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O gateway altera automaticamente toda regra de segurança para negar tráfego.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma aplicação só funciona depois que o túnel é convertido em NAT público.",
+          "correct": false
+        }
+      ],
+      "explanation": "VPN fornece conectividade protegida entre pares. Rotas para os prefixos, permissões do fluxo, retorno e disponibilidade da aplicação continuam necessários e devem ser examinados separadamente.",
+      "section": "3. VPNs e túneis entre redes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sub-rede privada não possui rota para Internet gateway, mas tem rota padrão para um NAT gateway. Qual interpretação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pode iniciar tráfego externo pelo NAT, se os demais controles e a configuração funcionarem.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aceita qualquer conexão nova da Internet porque a rota é padrão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não pode enviar nenhum pacote, pois NAT só encaminha tráfego de entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A rota padrão transforma automaticamente o bloco privado em endereços públicos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A VPN passa a ser obrigatória mesmo para alcançar qualquer destino externo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O NAT gateway pode ser próximo salto para saída iniciada pelos recursos privados. Não transforma todos os endereços internos em públicos nem cria conectividade de entrada iniciada da Internet.",
+      "section": "2. Rotas e gateways",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa quer limitar a administração SSH de servidores Linux a sua rede de gestão. Qual regra atende melhor à intenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir SSH de qualquer origem para simplificar o acesso em viagens.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Permitir SSH apenas do CIDR de gestão ou ponto de acesso controlado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Permitir todas as portas de entrada apenas para endereços DNS conhecidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Bloquear saída DNS e liberar administração por rota padrão pública.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover regras de rede e depender do endereço IP privado do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Restringir a origem ao segmento de gestão reduz a exposição da porta administrativa e aplica menor privilégio. Liberar a porta de qualquer origem aumenta a superfície de ataque.",
+      "section": "4. Grupos de segurança e filtragem stateful",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar uma network ACL stateless com um security group stateful da AWS, qual consequência prática é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Na ACL, o retorno correspondente costuma precisar de permissão própria no sentido inverso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "No security group, toda resposta é bloqueada até existir rota BGP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A ACL acompanha sessões TCP e dispensa regras de retorno por conexão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ambos aplicam-se somente a nomes DNS, sem filtrar pacotes por protocolo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ACL substitui a criptografia do túnel sempre que está associada à VPC.",
+          "correct": false
+        }
+      ],
+      "explanation": "A network ACL AWS é stateless, portanto o retorno precisa passar por regras compatíveis. Security groups são stateful e reconhecem respostas associadas a fluxos permitidos.",
+      "section": "4. Grupos de segurança e filtragem stateful",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra permite tráfego TCP de entrada na porta 443 a partir de qualquer origem e está associada ao servidor web. O que ela expressa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permissão de saída UDP do servidor para todos os destinos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Permissão de entrada TCP na porta indicada a partir da origem ampla descrita.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Rota para encaminhar qualquer protocolo ao gateway VPN remoto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tradução de todos os endereços privados para endereços IPv6.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Regra de autenticação de usuários que acessam o servidor por SSH.",
+          "correct": false
+        }
+      ],
+      "explanation": "A regra descrita delimita entrada, TCP, porta 443 e origem ampla. O grupo filtra o fluxo, mas não garante que haja rota, endereço acessível ou processo escutando; a amplitude da origem deve ser avaliada conforme a necessidade.",
+      "section": "4. Grupos de segurança e filtragem stateful",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pacote destinado a um prefixo mais específico pode ser encaminhado por rota mais específica que uma rota padrão aplicável, conforme as regras de seleção da rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Roteadores normalmente preferem o prefixo aplicável mais específico, desde que a rota seja válida e aplicável ao recurso. Uma rota padrão não prevalece sobre uma rota válida mais específica.",
+      "section": "2. Rotas e gateways",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A palavra privada no nome de uma sub-rede garante que nenhum pacote consiga sair dela para um serviço externo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "A nomenclatura não determina o comportamento. Rotas podem permitir saída por NAT, firewall ou VPN; é preciso examinar a tabela de rotas e as regras efetivas.",
+      "section": "1. Redes virtuais e sub-redes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O gateway VPN pode transportar tráfego entre redes mesmo quando as regras de firewall da aplicação não permitem a porta solicitada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "O gateway oferece o caminho/túnel. Filtros continuam a determinar se o fluxo específico é aceito, então túnel funcional e aplicação bloqueada podem coexistir.",
+      "section": "3. VPNs e túneis entre redes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma regra de grupo de segurança, uma origem CIDR mais restrita pode reduzir os sistemas capazes de iniciar o fluxo autorizado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "A origem identifica o conjunto de endereços que pode iniciar o tráfego correspondente. Restringir esse conjunto aos clientes necessários aplica menor privilégio na camada de rede.",
+      "section": "4. Grupos de segurança e filtragem stateful",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma rota de sub-rede envia `0.0.0.0/0` ao internet gateway, essa rota libera automaticamente todas as portas da instância.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "A rota padrão determina encaminhamento para destinos IPv4 não cobertos por rotas mais específicas. Portas e protocolos continuam sujeitos a grupos de segurança, ACLs e firewall do host.",
+      "section": "2. Rotas e gateways",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente acessa o endereço correto e a rota aponta ao gateway VPN, mas a resposta não retorna. A rota de retorno é uma hipótese relevante a verificar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Conectividade bidirecional exige caminho de resposta compatível. A rota remota para a rede de origem e os controles de saída podem causar falha mesmo com rota de ida correta.",
+      "section": "5. Integração dos controles e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se a tabela de rotas possui um destino para a rede remota, não é necessário validar se o gateway indicado está conectado ou operacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Uma rota pode apontar a um próximo salto indisponível ou mal configurado. Além da seleção da rota, confira o estado e a configuração do gateway ou túnel usado por ela.",
+      "section": "5. Integração dos controles e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra de firewall que permite ICMP echo e uma regra que permite HTTPS TCP são controles de protocolos distintos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "ICMP e TCP são protocolos distintos; permitir um não implica permitir o outro. Testes e diagnóstico precisam corresponder ao protocolo e à porta do serviço.",
+      "section": "5. Integração dos controles e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um grupo de segurança pode permitir a conexão TCP para o servidor mesmo que o processo da aplicação esteja parado; a regra de rede não inicia o processo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "A regra autoriza tráfego de rede conforme seus critérios. Disponibilidade e escuta da aplicação são condições no host/serviço, separadas da decisão do grupo de segurança.",
+      "section": "5. Integração dos controles e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um NAT gateway e um gateway VPN podem ser tratados como o mesmo componente, pois ambos sempre criptografam e encaminham tráfego entre redes privadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "NAT traduz endereços para permitir certos fluxos de saída; gateway VPN participa de túneis protegidos entre clientes ou redes. Suas funções e caminhos não são intercambiáveis.",
+      "section": "2. Rotas e gateways",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o grupo de segurança permite a conexão, uma network ACL stateless associada à sub-rede não pode mais bloquear o pacote.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Camadas distintas podem filtrar o mesmo fluxo. Uma permissão no security group não invalida regras de ACL aplicáveis à sub-rede nem outras políticas no caminho.",
+      "section": "5. Integração dos controles e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O compartilhamento de uma VPC por peering ou VPN implica automaticamente que todas as regras de firewall da rede de origem passam a valer na rede de destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Conectividade entre redes e aplicação de regras são mecanismos distintos. O alcance das regras depende do provedor e da configuração; peering ou túnel não deve ser tratado como propagação automática de autorização.",
+      "section": "5. Integração dos controles e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gateway de Internet e uma rota para ele podem ser necessários, mas um recurso AWS também precisa de endereço público para comunicação IPv4 direta pela Internet gateway.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "A documentação AWS especifica rota para internet gateway e endereço IPv4 público na instância para conectividade IPv4 direta. Os filtros de rede ainda precisam permitir o fluxo.",
+      "section": "2. Rotas e gateways",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que é mais importante confirmar antes de liberar uma porta de administração para a Internet?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se a necessidade pode ser atendida por origem restrita, bastion ou acesso remoto controlado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Se todas as VMs têm o mesmo nome DNS e a mesma zona.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se a rede usa apenas IPv4 e não mantém nenhuma sub-rede adicional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se o NAT gateway tem capacidade para traduzir tráfego de administração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se a rota de saída está ausente para impedir qualquer auditoria posterior.",
+          "correct": false
+        }
+      ],
+      "explanation": "A exposição administrativa deve ser minimizada, restringindo origens e usando um ponto de acesso controlado quando apropriado. Abrir uma porta administrativa a todos os endereços amplia a superfície de ataque.",
+      "section": "4. Grupos de segurança e filtragem stateful",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o papel de um gateway de Internet em uma rede virtual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter o estado de autenticação dos usuários da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Oferecer alvo de rota entre a rede virtual e redes externas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituir CIDR por nomes de hosts nos pacotes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar a mesma permissão de entrada a todas as portas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Distribuir prefixos VPN aos pares sem roteador ou configuração.",
+          "correct": false
+        }
+      ],
+      "explanation": "O gateway de Internet permite encaminhamento entre a rede virtual e redes externas quando rotas, endereços e filtros são apropriados. Não executa autenticação da aplicação nem elimina controles.",
+      "section": "2. Rotas e gateways",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um firewall stateful acompanha conexões; uma regra que permite um fluxo estabelecido pode permitir o tráfego de resposta correspondente sem tratá-lo como conexão nova.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Esse é o significado operacional de stateful filtering. A permissão de retorno se limita ao fluxo associado e depende do estado mantido pelo serviço.",
+      "section": "4. Grupos de segurança e filtragem stateful",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rede com sub-redes para front-end, aplicação e banco, as rotas e grupos de segurança podem aplicar políticas distintas entre as camadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "A segmentação oferece limites para configurar caminhos e controles diferentes. Um exemplo é permitir que a camada de aplicação alcance a porta do banco enquanto a camada pública não o acessa diretamente.",
+      "section": "1. Redes virtuais e sub-redes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante a análise de uma conexão bloqueada, logs de fluxo, quando disponíveis, podem ajudar a localizar se o tráfego foi aceito ou rejeitado em um ponto de rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Logs de fluxo fornecem metadados úteis para localizar descartes e aceites. Eles complementam, mas não substituem, a checagem de rotas, regras e estado da aplicação.",
+      "section": "5. Integração dos controles e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Enable internet access for a VPC using an internet gateway",
+      "publisher": "Amazon Web Services",
+      "reference": "Rotas para internet gateway, definição de subnet pública e requisito de endereço público IPv4",
+      "url": "https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Internet_Gateway.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Infrastructure security in Amazon VPC",
+      "publisher": "Amazon Web Services",
+      "reference": "Security groups stateful versus network ACLs stateless, escopos e defesa em camadas",
+      "url": "https://docs.aws.amazon.com/vpc/latest/userguide/infrastructure-security.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Troubleshoot NAT gateways",
+      "publisher": "Amazon Web Services",
+      "reference": "Rotas de NAT gateway, sub-rede pública e privada, estado e resposta de conexões",
+      "url": "https://docs.aws.amazon.com/vpc/latest/userguide/nat-gateway-troubleshooting.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Secure your VPN Gateway deployment",
+      "publisher": "Microsoft Learn",
+      "reference": "Azure VPN Gateway, IPsec/IKE e recomendações de segmentação e NSG",
+      "url": "https://learn.microsoft.com/azure/vpn-gateway/secure-vpn-gateway",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Azure virtual networks and subnets",
+      "publisher": "Microsoft Learn",
+      "reference": "Planejamento de redes virtuais, sub-redes, endereçamento e segmentação",
+      "url": "https://learn.microsoft.com/en-us/azure/networking/design-guide/vnets-subnets",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Routes | Virtual Private Cloud",
+      "publisher": "Google Cloud Documentation",
+      "reference": "Rotas de VPC, destinos CIDR, próximos saltos e rotas dinâmicas aprendidas por Cloud Router/BGP",
+      "url": "https://docs.cloud.google.com/vpc/docs/routes",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "VPC firewall rules",
+      "publisher": "Google Cloud Documentation",
+      "reference": "Regras de firewall VPC stateful e rastreamento de conexões",
+      "url": "https://docs.cloud.google.com/firewall/docs/firewalls",
+      "accessedAt": "2026-11-04"
+    }
+  ]
+}
