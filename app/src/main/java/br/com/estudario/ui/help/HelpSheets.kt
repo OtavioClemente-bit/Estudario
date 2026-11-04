@@ -1,5 +1,6 @@
 package br.com.estudario.ui.help
 
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -47,11 +48,13 @@ import br.com.estudario.ui.studio.GxSection
 @Composable
 fun HelpButton(label: String, onClick: () -> Unit) {
     Box(
-        Modifier.padding(4.dp).size(36.dp).shadow(6.dp, CircleShape, ambientColor = Color(0xFF8FB0FF), spotColor = Color(0xFF8FB0FF))
-            .clip(CircleShape).background(Brush.verticalGradient(listOf(Color.White, Color(0xFFCFC4FF))))
-            .clickable(onClick = onClick).semantics { contentDescription = label },
+        // O "?" do caderno: bolinha amarela de marca-texto com borda de tinta e sombra dura (igual ao site).
+        Modifier.padding(4.dp).size(38.dp).clickable(onClick = onClick).semantics { contentDescription = label }
+            .drawBehind { drawCircle(Color(0xFF1C1E25), radius = size.minDimension / 2 - 1.dp.toPx(), center = center + androidx.compose.ui.geometry.Offset(2.dp.toPx(), 3.dp.toPx())) }
+            .padding(end = 2.dp, bottom = 3.dp)
+            .clip(CircleShape).background(Color(0xFFFFD23F)).border(2.5.dp, Color(0xFF1C1E25), CircleShape),
         contentAlignment = Alignment.Center,
-    ) { Text("?", fontSize = 18.sp, fontWeight = FontWeight.Black, color = Color(0xFF1A1440)) }
+    ) { Text("?", fontSize = 18.sp, fontWeight = FontWeight.Black, color = Color(0xFF1C1E25)) }
 }
 
 @Composable

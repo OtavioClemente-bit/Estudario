@@ -1,5 +1,7 @@
 package br.com.estudario.ui.simulation
 
+import androidx.compose.ui.graphics.compositeOver
+import br.com.estudario.ui.studio.gxCut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -81,7 +83,7 @@ import kotlinx.coroutines.launch
 
 private val ACTIVE_STATUSES = setOf("GENERATING", "PARTIAL", "READY", "IN_PROGRESS", "FAILED")
 private val STARTABLE_STATUSES = setOf("READY", "PARTIAL", "IN_PROGRESS")
-private val CardShape = RoundedCornerShape(18.dp)
+private val CardShape = RoundedCornerShape(18.dp, 11.dp, 20.dp, 13.dp)
 
 /**
  * Central de simulados, em seções fixas: o alto com banca, meta e números; o que está em andamento;
@@ -297,10 +299,9 @@ private fun SectionTitle(text: String) {
 @Composable
 private fun PlainCard(modifier: Modifier = Modifier, accent: Color? = null, onClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
     Box(
-        modifier.fillMaxWidth().clip(CardShape)
-            .background(accent?.copy(alpha = 0.08f) ?: Gx.tint(0.04f))
-            .border(1.dp, accent?.copy(alpha = 0.32f) ?: Gx.tint(0.09f), CardShape)
+        modifier.fillMaxWidth()
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
+            .gxCut(CardShape, accent?.copy(alpha = 0.12f)?.compositeOver(Gx.bg2) ?: Gx.bg2)
             .padding(14.dp),
     ) { content() }
 }

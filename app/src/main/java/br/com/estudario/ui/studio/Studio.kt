@@ -161,16 +161,8 @@ fun Modifier.gxClick(enabled: Boolean = true, onClick: () -> Unit): Modifier {
 fun StudioBackdrop(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     run {
         Box(
-            modifier
-                .background(Brush.verticalGradient(listOf(Gx.bg2, Gx.bg, Gx.bg0)))
-                .drawBehind {
-                    val step = 26.dp.toPx()
-                    var x = 0f
-                    while (x < size.width) { drawLine(Gx.tint(0.03f), Offset(x, 0f), Offset(x, size.height)); x += step }
-                    var y = 0f
-                    while (y < size.height) { drawLine(Gx.tint(0.03f), Offset(0f, y), Offset(size.width, y)); y += step }
-                    drawCircle(Brush.radialGradient(listOf(Color(0x387C5CFF), Color.Transparent), Offset(size.width, 0f), size.width * 0.8f), size.width * 0.8f, Offset(size.width, 0f))
-                },
+            // O papel do caderno do app (escolhido em Ajustes) aparece por trás: sem degradê nem brilho roxo.
+            modifier,
         ) { content() }
     }
 }
