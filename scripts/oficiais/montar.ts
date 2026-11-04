@@ -76,6 +76,13 @@ for (const arquivo of arquivos) {
     contagem.aceitas++;
   }
 }
+// Trava: se muitas respostas não acham a questão (questoes.jsonl incompleto, ex.: preparado enquanto a coleta
+// regravava as provas), não mexe nos recortes publicados. Em 04/11 isso tiraria metade das provas do app.
+if (contagem.desconhecidas > Math.max(50, contagem.respostas * 0.02)) {
+  console.error(`questoes.jsonl incompleto (${contagem.desconhecidas} respostas sem questão): recortes-oficiais mantidos como estão; rode o preparar.ts de novo com a coleta parada.`);
+  console.log(contagem);
+  Deno.exit(0);
+}
 try { Deno.removeSync(SAIDA, { recursive: true }); } catch { /* primeira vez */ }
 for (const [chave, g] of porRecorte) {
   Deno.mkdirSync(`${SAIDA}/${chave.split("/")[0]}`, { recursive: true });
