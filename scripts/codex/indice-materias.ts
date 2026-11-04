@@ -28,5 +28,10 @@ for (const f of Deno.readDirSync(`${ROOT}conteudo/entrada/itens-sem-materia`)) {
     if (j.decisao === "materia-nova" && j.id && !linhas.has(j.id)) linhas.set(j.id, `${j.id}\t(em produção)\t${limpa(j.texto).slice(0, 300)}`);
   } catch { /* ignora */ }
 }
-Deno.writeTextFileSync(`${ROOT}conteudo/fila/indice-materias.tsv`, ["id\ttítulo\to que cobre", ...[...linhas.values()].sort()].join("\n") + "\n");
+// O Codex pode estar com o arquivo aberto (o Windows recusa a escrita): grava ao lado e troca, tentando de novo.
+const destino = `${ROOT}conteudo/fila/indice-materias.tsv`;
+Deno.writeTextFileSync(`${destino}.novo`, ["id\ttítulo\to que cobre", ...[...linhas.values()].sort()].join("\n") + "\n");
+for (let t = 0; ; t++) {
+  try { Deno.renameSync(`${destino}.novo`, destino); break; } catch (e) { if (t >= 20) throw e; await new Promise((r) => setTimeout(r, 3000)); }
+}
 console.log(`${linhas.size} matérias no índice`);
