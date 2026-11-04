@@ -81,7 +81,17 @@ private val pending = setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENT
  */
 @Composable
 /** O nome curto da matéria, como no site ("Direito - Administrativo" vira "Administrativo"). */
-private fun monthSubject(name: String) = name.substringAfter(" \u2013 ").substringAfter(" - ").trim()
+private fun monthSubject(name: String): String {
+    val base = name.substringAfter(" \u2013 ").substringAfter(" - ").trim()
+    // No quadradinho do dia cabe uma palavra: "Direito do Trabalho" vira "Trabalho", "Língua Portuguesa" vira "Português".
+    val known = mapOf("Língua Portuguesa" to "Português", "Raciocínio Lógico-Matemático" to "Raciocínio", "Raciocínio Lógico" to "Raciocínio", "Segurança da Informação" to "Segurança", "Engenharia de Software" to "Eng. Software", "Banco de Dados" to "Banco Dados", "Redes de Computadores" to "Redes", "Governança de TI" to "Governança")
+    known[base]?.let { return it }
+    val m = Regex("^Direito (?:do |da |de |dos |das )?(.+)$").find(base)
+    val rest = m?.groupValues?.get(1) ?: return base
+    // "Processual do Trabalho" vira "Proc. Trabalho"
+    val proc = Regex("^Processual (?:do |da |de )?(.+)$").find(rest)?.groupValues?.get(1)
+    return (proc?.let { "Proc. " + it } ?: rest).replaceFirstChar { it.uppercase() }
+}
 
 /** Minutos curtos para caber no dia: 45m, 1h, 1h30. */
 private fun shortMin(minutes: Int): String = when {
@@ -250,7 +260,7 @@ internal fun PlanMonthBoard(
                         ) {
                             // a cabeça do dia: o número (hoje em amarelo) e o tempo ocupado
                             Row(
-                                Modifier.fillMaxWidth().background(if (epoch == today) Color(0xFFFFD23F) else Color.Transparent).padding(horizontal = 3.dp, vertical = 1.dp),
+                                Modifier.fillMaxWidth().background(if (epoch == today) Color(0xFFFFD23F) else Color.Transparent).padding(horizontal = 5.dp, vertical = 2.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
@@ -259,7 +269,7 @@ internal fun PlanMonthBoard(
                                     color = when { epoch == today -> Color(0xFF2A2100); past -> MaterialTheme.colorScheme.onSurfaceVariant; else -> MaterialTheme.colorScheme.onSurface },
                                 )
                             }
-                            Column(Modifier.padding(horizontal = 3.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Column(Modifier.padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 if (limit == 0) Text("folga", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 else if (used > 0) {
                                     Text("${shortMin(used)}/${shortMin(limit)}", fontSize = 8.sp, lineHeight = 9.sp, fontFamily = br.com.estudario.ui.theme.MonoNum, color = if (used > limit) LateColor else MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
