@@ -24,6 +24,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import br.com.estudario.ui.brand.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -70,6 +71,8 @@ internal fun taskTypeColor(type: PlanTaskType): Color = when (type) {
 }
 
 private val LateColor = Color(0xFFF0506B)
+/** A faixa das revisões espaçadas no mês (o azul das revisões do site). */
+private val ReviewBand = Color(0xFF3B9BE8)
 private val DoneColor = Color(0xFF9AA0A6)
 private val pending = setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO)
 
@@ -147,6 +150,21 @@ internal fun PlanMonthBoard(
         val dow = LocalDate.ofEpochDay(epoch).dayOfWeek.value
         return state.availability.firstOrNull { it.dayOfWeek == dow }?.let { if (it.unavailable) 0 else it.availableMinutes } ?: 0
     }
+    // As revisões espaçadas de cada dia, como no site: uma por tópico (a próxima etapa), no dia em que
+    // aparecem pela fila com teto (ReviewQueue). Elas não se arrastam: o dia certo da curva é o que fixa.
+    val app = context.applicationContext as br.com.estudario.EstudarioApplication
+    val allReviews by remember { app.database.dao().reviews() }.collectAsState(initial = emptyList())
+    val allTopics by remember { app.database.dao().topics() }.collectAsState(initial = emptyList())
+    val reviewsByDay = remember(allReviews, allTopics, today, state.availability, state.dayOverrides) {
+        val zone = java.time.ZoneId.systemDefault()
+        val names = allTopics.associate { it.id to it.title }
+        val next = br.com.estudario.domain.ReviewPolicy.nextPerTopic(allReviews)
+        val items = next.map { br.com.estudario.domain.ReviewQueue.Item(it.id, java.time.Instant.ofEpochMilli(it.dueAt).atZone(zone).toLocalDate().toEpochDay(), it.stage) }
+        val placed = br.com.estudario.domain.ReviewQueue.spread(items, today) { d -> limitOf(d).let { l -> if (l == 0) 0 else br.com.estudario.domain.ReviewQueue.capFor(l) } }
+        next.groupBy { placed[it.id] ?: today }.mapValues { (_, l) -> l.map { (names[it.topicId] ?: "Tópico") to it.stage } }
+    }
+    fun reviewMinutes(epoch: Long) = reviewsByDay[epoch].orEmpty().size * br.com.estudario.domain.ReviewQueue.MINUTES_EACH
+
     // passou do limite do dia: a pessoa escolhe trocar com um estudo de lá, colocar mesmo assim ou cancelar
     var overflow by remember { mutableStateOf<Pair<PlannerTaskUi, Long>?>(null) }
     overflow?.let { (task, to) ->
@@ -233,7 +251,9 @@ internal fun PlanMonthBoard(
                         val isSelected = selected == date
                         val past = epoch < today
                         val limit = limitOf(epoch)
-                        val used = tasks.sumOf { it.entity.plannedMinutes }
+                        val study = tasks.sumOf { it.entity.plannedMinutes }
+                        val revMin = if (past) 0 else reviewMinutes(epoch)
+                        val used = study + revMin
                         val doneCount = tasks.count { it.entity.status == PlanTaskStatus.CONCLUIDA }
                         val cellShape = RoundedCornerShape(9.dp, 5.dp, 10.dp, 6.dp)
                         Column(
@@ -273,15 +293,21 @@ internal fun PlanMonthBoard(
                                 if (limit == 0) Text("folga", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 else if (used > 0) {
                                     Text("${shortMin(used)}/${shortMin(limit)}", fontSize = 8.sp, lineHeight = 9.sp, fontFamily = br.com.estudario.ui.theme.MonoNum, color = if (used > limit) LateColor else MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                                    Box(Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
-                                        Box(Modifier.fillMaxWidth((used.toFloat() / limit).coerceIn(0f, 1f)).height(3.dp).background(if (used > limit) LateColor else Color(0xFF3BB273)))
+                                    // o limite do dia em duas cores: revisões (azul) e estudos (verde), vermelho se passou
+                                    val cap = maxOf(limit, used).coerceAtLeast(1)
+                                    Row(Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
+                                        if (revMin > 0) Box(Modifier.weight(revMin.toFloat() / cap).height(3.dp).background(if (used > limit) LateColor else ReviewBand))
+                                        if (study > 0) Box(Modifier.weight(study.toFloat() / cap).height(3.dp).background(if (used > limit) LateColor else Color(0xFF3BB273)))
+                                        if (cap - used > 0) Spacer(Modifier.weight((cap - used).toFloat() / cap))
                                     }
                                 }
+                                if (revMin > 0) Text("↻ ${reviewsByDay[epoch].orEmpty().size}", Modifier.fillMaxWidth().clip(RoundedCornerShape(3.dp)).background(ReviewBand.copy(alpha = 0.18f)).padding(horizontal = 2.dp),
+                                    fontSize = 8.sp, lineHeight = 9.sp, fontWeight = FontWeight.Black, color = ReviewBand, maxLines = 1)
                                 if (past && tasks.isNotEmpty()) {
                                     // dia que passou: só o resumo, como no site
                                     Text(if (doneCount == tasks.size) "✓ feito" else "$doneCount/${tasks.size}", fontSize = 8.sp, lineHeight = 9.sp, fontWeight = FontWeight.Black, color = if (doneCount == tasks.size) Color(0xFF3BB273) else LateColor)
                                 } else {
-                                    tasks.take(3).forEach { t ->
+                                    tasks.take(if (revMin > 0) 2 else 3).forEach { t ->
                                         val done = t.entity.status == PlanTaskStatus.CONCLUIDA
                                         val color = if (done) DoneColor else taskTypeColor(t.entity.type)
                                         Text(
@@ -291,7 +317,8 @@ internal fun PlanMonthBoard(
                                             color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else Color.White,
                                         )
                                     }
-                                    if (tasks.size > 3) Text("+${tasks.size - 3}", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    val shown = if (revMin > 0) 2 else 3
+                                    if (tasks.size > shown) Text("+${tasks.size - shown}", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }
@@ -302,7 +329,8 @@ internal fun PlanMonthBoard(
             selected?.let { day ->
                 val list = byDay[day.toEpochDay()].orEmpty().sortedWith(compareBy({ it.entity.status == PlanTaskStatus.CONCLUIDA }, { it.entity.type != PlanTaskType.THEORY }))
                 val dayLimit = limitOf(day.toEpochDay())
-                val load = list.sumOf { it.entity.plannedMinutes }
+                val dayReviews = if (day.toEpochDay() < today) emptyList() else reviewsByDay[day.toEpochDay()].orEmpty()
+                val load = list.sumOf { it.entity.plannedMinutes } + dayReviews.size * br.com.estudario.domain.ReviewQueue.MINUTES_EACH
                 Column(
                     Modifier.fillMaxWidth().padding(top = 6.dp).br_cutPanel().padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -322,7 +350,18 @@ internal fun PlanMonthBoard(
                         if (canEdit) "Segure um estudo e solte num dia do calendário para mudar. Ele fica fixado lá." else "Toque para começar. Mudar de dia é dos planos Essencial e Pro.",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    if (list.isEmpty()) Text(if (day.toEpochDay() < today) "Nada planejado neste dia." else "Nada planejado ainda.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (dayReviews.isNotEmpty()) {
+                        Text("Revisões espaçadas · fixas no dia certo da curva", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = ReviewBand)
+                        dayReviews.forEach { (topic, stage) ->
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp, 6.dp, 11.dp, 7.dp)).background(ReviewBand.copy(alpha = 0.12f)).border(1.5.dp, ReviewBand, RoundedCornerShape(10.dp, 6.dp, 11.dp, 7.dp)).padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("↻", fontWeight = FontWeight.Black, color = ReviewBand)
+                                Spacer(Modifier.width(8.dp))
+                                Text(topic, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("${stage}ª volta", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                    if (list.isEmpty() && dayReviews.isEmpty()) Text(if (day.toEpochDay() < today) "Nada planejado neste dia." else "Nada planejado ainda.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     list.forEach { t ->
                         var rowOrigin by remember(t.entity.id) { mutableStateOf(Offset.Zero) }
                         val movable = t.entity.status in pending
