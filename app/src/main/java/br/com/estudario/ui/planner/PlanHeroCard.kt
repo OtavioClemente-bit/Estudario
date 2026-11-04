@@ -226,7 +226,7 @@ private fun TodayMission(done: Int, total: Int, title: String, subtitle: String,
                 if (finished) drawCircle(accent)
                 else {
                     drawArc(Color(0xFFE9E3D3), 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(stroke))
-                    drawArc(Color(0xFF5B4BF5), -90f, 360f * shown, false, Offset(inset, inset), arc, style = Stroke(stroke, cap = StrokeCap.Round))
+                    drawArc(Color(0xFF2F5BD3), -90f, 360f * shown, false, Offset(inset, inset), arc, style = Stroke(stroke, cap = StrokeCap.Round))
                 }
             }
             Text(

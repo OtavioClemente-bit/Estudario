@@ -54,9 +54,9 @@ fun FilterChip(
     interactionSource: MutableInteractionSource? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val face by animateColorAsState(if (selected) scheme.primary else scheme.surfaceContainerLowest, label = "chip-face")
-    val content by animateColorAsState(if (selected) scheme.onPrimary else scheme.onSurface, label = "chip-content")
-    val edge = if (selected) lerp(scheme.primary, Color.Black, 0.25f) else scheme.outlineVariant
+    val face by animateColorAsState(if (selected) Color(0xFF2F5BD3) else scheme.surface, label = "chip-face")
+    val content by animateColorAsState(if (selected) Color.White else scheme.onSurface, label = "chip-content")
+    val edge = cutInk()
     val source = interactionSource ?: remember { MutableInteractionSource() }
     Box(
         modifier

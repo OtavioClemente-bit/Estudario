@@ -35,7 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import br.com.estudario.ui.brand.OutlinedButton
 import br.com.estudario.ui.brand.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import br.com.estudario.ui.brand.TextButton
 import br.com.estudario.data.local.SnippetKind
 import br.com.estudario.data.local.SummaryEntity
 import br.com.estudario.data.local.TopicSnippetEntity

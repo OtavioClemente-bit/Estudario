@@ -1,5 +1,8 @@
 package br.com.estudario.ui.studio
 
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawOutline
 import br.com.estudario.ui.brand.cutPanel
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -92,13 +95,13 @@ object Gx {
     val bg2: Color get() = if (d) Color(0xFF14223F) else Color(0xFFFFFDF8)
     val bg3: Color get() = if (d) Color(0xFF1B2B4D) else Color(0xFFF2EDE0)
     val bg0: Color get() = if (d) Color(0xFF0B1529) else Color(0xFFE9E3D2)
-    val accentText: Color get() = if (d) Color(0xFFC9BEFF) else Color(0xFF5B44E0)
-    val soft: Color get() = if (d) Color(0xFFC9C5F0) else Color(0xFF48447A)
+    val accentText: Color get() = if (d) Color(0xFFA9C3FF) else Color(0xFF2F5BD3)
+    val soft: Color get() = if (d) Color(0xFFB6C5E3) else Color(0xFF464A57)
     /** Fundo de botão desligado. */
-    val off: Color get() = if (d) Color(0xFF2A2860) else Color(0xFFDCD8F2)
-    val ink: Color get() = if (d) Color(0xFFF4F2FF) else Color(0xFF1F1B4D)
-    val strong: Color get() = if (d) Color.White else Color(0xFF14113A)
-    val mute: Color get() = if (d) Color(0xFFA9A6D6) else Color(0xFF6B6894)
+    val off: Color get() = if (d) Color(0xFF1D2F54) else Color(0xFFE9E3D2)
+    val ink: Color get() = if (d) Color(0xFFEAF1FF) else Color(0xFF1C1E25)
+    val strong: Color get() = if (d) Color.White else Color(0xFF0F1117)
+    val mute: Color get() = if (d) Color(0xFF8DA0C6) else Color(0xFF6A6F7D)
     val line: Color get() = if (d) Color(0x2E8CBEFF) else Color(0x291C1E25)
     val track: Color get() = tint(0.08f)
     fun tint(alpha: Float): Color = br.com.estudario.ui.theme.CxTheme.tint(alpha)
@@ -112,6 +115,33 @@ object Gx {
     val orange = Color(0xFFFF8A3D)
     val blue = Color(0xFF6F9BFF)
     val pink = Color(0xFFF472B6)
+}
+
+/** A tinta azul de caneta (o botão principal do app e do site). */
+val GxPen = Color(0xFF2F5BD3)
+private val GxCutCard = RoundedCornerShape(topStart = 18.dp, topEnd = 11.dp, bottomEnd = 20.dp, bottomStart = 13.dp)
+private val GxCutTile = RoundedCornerShape(topStart = 14.dp, topEnd = 8.dp, bottomEnd = 16.dp, bottomStart = 9.dp)
+private val GxCutChip = RoundedCornerShape(topStart = 10.dp, topEnd = 6.dp, bottomEnd = 11.dp, bottomStart = 7.dp)
+
+/**
+ * Papel recortado do estúdio: sombra dura de tinta deslocada, a cor da peça e a borda de tinta.
+ * [sunk] é a peça escolhida, afundada (sem sombra e deslocada para onde a sombra estava).
+ */
+@Composable
+fun Modifier.gxCut(shape: androidx.compose.ui.graphics.Shape, face: Color, sunk: Boolean = false, shadow: Dp = 4.dp, border: Color? = null): Modifier {
+    val ink = br.com.estudario.ui.brand.cutInk()
+    return this
+        .padding(end = shadow, bottom = shadow)
+        .drawBehind {
+            if (!sunk && shadow > 0.dp) {
+                val o = shape.createOutline(size, layoutDirection, this)
+                translate(shadow.toPx() * 0.8f, shadow.toPx()) { drawOutline(o, ink) }
+            }
+        }
+        .then(if (sunk) Modifier.graphicsLayer { translationX = shadow.toPx() * 0.6f; translationY = shadow.toPx() * 0.7f } else Modifier)
+        .clip(shape)
+        .background(face)
+        .border(2.dp, border ?: ink, shape)
 }
 
 /** Uma opção do estúdio: título, dica, desenho da turma e a cor dela. */
@@ -192,19 +222,13 @@ fun GxKicker(text: String, color: Color = Gx.accentText) {
 fun GxSection(glyph: Glyph, title: String, hint: String? = null, color: Color = Gx.violet, aside: String? = null, error: String? = null, content: @Composable ColumnScope.() -> Unit) {
     val shape = RoundedCornerShape(20.dp)
     Column(
-        Modifier.fillMaxWidth().clip(shape)
-            .background(Brush.linearGradient(listOf(Gx.tint(0.045f), Gx.tint(0.015f))))
-            .border(1.dp, if (error != null) Gx.red.copy(alpha = 0.6f) else Gx.tint(0.07f), shape)
-            .drawWithContent {
-                drawContent()
-                drawLine(Brush.horizontalGradient(listOf(Color.Transparent, color, Color.Transparent)), Offset(16.dp.toPx(), 0f), Offset(size.width - 16.dp.toPx(), 0f), 2.dp.toPx())
-            }
+        Modifier.fillMaxWidth().gxCut(GxCutCard, Gx.bg2, border = if (error != null) Gx.red else null)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(Gx.tint(0.06f)).border(1.5.dp, color.copy(alpha = 0.55f), RoundedCornerShape(13.dp)),
+                Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(color.copy(alpha = 0.18f)).border(2.dp, br.com.estudario.ui.brand.cutInk(), RoundedCornerShape(13.dp)),
                 contentAlignment = Alignment.Center,
             ) { BrandIcon(glyph, size = 32.dp) }
             Spacer(Modifier.width(12.dp))
@@ -248,9 +272,8 @@ private fun <T> GxTile(option: GxOption<T>, on: Boolean, multi: Boolean, showHin
     val tilt by animateFloatAsState(if (on) -6f else 0f, spring(dampingRatio = 0.4f, stiffness = 400f), label = "gx-ic")
     val tick by animateFloatAsState(if (on) 1f else 0.6f, spring(dampingRatio = 0.35f, stiffness = 500f), label = "gx-tick")
     Box(
-        modifier.heightIn(min = 108.dp).gxClick(onClick = onClick).clip(shape)
-            .background(if (on) Brush.linearGradient(listOf(c.copy(alpha = 0.24f), Gx.tint(0.03f))) else SolidColor(Gx.tint(0.035f)))
-            .border(1.5.dp, if (on) c else Gx.tint(0.09f), shape)
+        modifier.heightIn(min = 108.dp).gxClick(onClick = onClick)
+            .gxCut(GxCutTile, if (on) GxPen.copy(alpha = 0.16f).compositeOver(Gx.bg2) else Gx.bg2, sunk = on, border = if (on) GxPen else null)
             .padding(14.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -283,15 +306,14 @@ fun <T> GxSeg(options: List<GxOption<T>>, selected: T, columns: Int = 2, onPick:
                     val on = option.key == selected
                     val shape = RoundedCornerShape(16.dp)
                     Column(
-                        Modifier.weight(1f).gxClick { onPick(option.key) }.clip(shape)
-                            .background(if (on) Brush.linearGradient(listOf(option.color.copy(alpha = 0.24f), Gx.tint(0.03f))) else SolidColor(Gx.tint(0.035f)))
-                            .border(1.5.dp, if (on) option.color else Gx.tint(0.09f), shape)
+                        Modifier.weight(1f).gxClick { onPick(option.key) }
+                            .gxCut(GxCutTile, if (on) GxPen else Gx.bg2, sunk = on)
                             .padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(3.dp),
                     ) {
                         extra(option)
                         Text(option.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = if (on) Color.White else Gx.ink)
-                        if (option.hint.isNotBlank()) Text(option.hint, style = MaterialTheme.typography.bodySmall, color = Gx.mute)
+                        if (option.hint.isNotBlank()) Text(option.hint, style = MaterialTheme.typography.bodySmall, color = if (on) Color.White.copy(alpha = 0.85f) else Gx.mute)
                     }
                 }
                 repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
@@ -308,14 +330,13 @@ fun <T> GxPresets(options: List<GxOption<T>>, isOn: (T) -> Boolean, onPick: (T) 
         options.forEach { option ->
             val on = isOn(option.key)
             Row(
-                Modifier.gxClick { onPick(option.key) }.clip(RoundedCornerShape(50))
-                    .background(if (on) Brush.verticalGradient(listOf(Color(0xFFE4DCFF), Gx.violet)) else SolidColor(Gx.tint(0.05f)))
-                    .border(1.dp, if (on) Color.Transparent else Gx.tint(0.12f), RoundedCornerShape(50))
+                Modifier.gxClick { onPick(option.key) }
+                    .gxCut(GxCutChip, if (on) GxPen else Gx.bg2, sunk = on, shadow = 2.dp)
                     .padding(start = 8.dp, end = 14.dp, top = 5.dp, bottom = 5.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 option.glyph?.let { BrandIcon(it, size = 24.dp); Spacer(Modifier.width(6.dp)) }
-                Text(option.title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = if (on) Color(0xFF1A1440) else Gx.ink)
+                Text(option.title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = if (on) Color.White else Gx.ink)
             }
         }
     }
@@ -329,14 +350,13 @@ fun <T> GxChips(options: List<Pair<T, String>>, selected: T, onPick: (T) -> Unit
         options.forEach { (key, label) ->
             val on = key == selected
             Row(
-                Modifier.gxClick { onPick(key) }.clip(RoundedCornerShape(50))
-                    .background(if (on) Brush.verticalGradient(listOf(Color.White, Color(0xFFCFC4FF))) else SolidColor(Gx.tint(0.05f)))
-                    .border(1.dp, if (on) Color.Transparent else Gx.tint(0.12f), RoundedCornerShape(50))
+                Modifier.gxClick { onPick(key) }
+                    .gxCut(GxCutChip, if (on) GxPen else Gx.bg2, sunk = on, shadow = 2.dp)
                     .padding(horizontal = 13.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (on) { Icon(Icons.Rounded.Check, null, Modifier.size(15.dp), tint = Color(0xFF1A1440)); Spacer(Modifier.width(4.dp)) }
-                Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = if (on) Color(0xFF1A1440) else Gx.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (on) { Icon(Icons.Rounded.Check, null, Modifier.size(15.dp), tint = Color.White); Spacer(Modifier.width(4.dp)) }
+                Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = if (on) Color.White else Gx.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -414,14 +434,14 @@ fun GxCounter(
         if (clamped != current) { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onChange(clamped) }
     }
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.Black.copy(alpha = 0.22f)).border(1.dp, Gx.tint(0.06f), RoundedCornerShape(18.dp)).padding(14.dp),
+        Modifier.fillMaxWidth().gxCut(GxCutCard, Gx.bg3, shadow = 3.dp).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             GxRound("−", current > range.first) { set(current - step) }
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                 AnimatedContent(current, transitionSpec = { (scaleIn(initialScale = 0.75f) + fadeIn()) togetherWith fadeOut() }, label = "gx-num") { shown ->
-                    Text("$shown", fontSize = 48.sp, fontWeight = FontWeight.Black, color = Gx.strong, letterSpacing = (-1).sp)
+                    Text("$shown", fontSize = 48.sp, fontWeight = FontWeight.Bold, color = Gx.strong, fontFamily = br.com.estudario.ui.theme.MonoNum)
                 }
                 if (unit.isNotBlank()) Text(unit.uppercase(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Gx.mute, letterSpacing = 1.4.sp)
             }
@@ -432,7 +452,7 @@ fun GxCounter(
             value = current.toFloat(),
             onValueChange = { set((((it - range.first) / step).roundToInt() * step + range.first)) },
             valueRange = range.first.toFloat()..range.last.toFloat(),
-            colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color(0xFF7C5CFF), inactiveTrackColor = Gx.track, activeTickColor = Color.Transparent, inactiveTickColor = Color.Transparent),
+            colors = SliderDefaults.colors(thumbColor = Color(0xFFFFD23F), activeTrackColor = GxPen, inactiveTrackColor = Gx.track, activeTickColor = Color.Transparent, inactiveTickColor = Color.Transparent),
         )
         mood(current)?.let { Text(it, Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, color = Gx.mute, textAlign = TextAlign.Center) }
         val chips = quick.filter { it in range }
@@ -441,12 +461,11 @@ fun GxCounter(
                 val on = n == current
                 Text(
                     "$n",
-                    Modifier.widthIn(min = 48.dp).gxClick { set(n) }.clip(RoundedCornerShape(10.dp))
-                        .background(if (on) Gx.mint else Gx.tint(0.06f))
-                        .border(1.dp, if (on) Gx.mint else Gx.tint(0.12f), RoundedCornerShape(10.dp))
+                    Modifier.widthIn(min = 48.dp).gxClick { set(n) }
+                        .gxCut(GxCutChip, if (on) Color(0xFF3BB273) else Gx.bg2, sunk = on, shadow = 2.dp)
                         .padding(horizontal = 10.dp, vertical = 7.dp),
                     style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
-                    color = if (on) Color(0xFF0B3B29) else Gx.ink,
+                    color = if (on) Color(0xFF08240F) else Gx.ink,
                 )
             }
         }
@@ -456,10 +475,10 @@ fun GxCounter(
 @Composable
 private fun GxRound(label: String, enabled: Boolean, onClick: () -> Unit) {
     Box(
-        Modifier.size(52.dp).gxClick(enabled = enabled, onClick = onClick).clip(CircleShape)
-            .background(if (enabled) Brush.verticalGradient(listOf(Color(0xFFE4DCFF), Gx.violet)) else SolidColor(Gx.tint(0.1f))),
+        Modifier.size(52.dp).gxClick(enabled = enabled, onClick = onClick)
+            .gxCut(GxCutTile, if (enabled) GxPen else Gx.bg2, shadow = if (enabled) 3.dp else 0.dp),
         contentAlignment = Alignment.Center,
-    ) { Text(label, fontSize = 26.sp, fontWeight = FontWeight.Black, color = if (enabled) Color(0xFF1A1440) else Gx.mute) }
+    ) { Text(label, fontSize = 26.sp, fontWeight = FontWeight.Black, color = if (enabled) Color.White else Gx.mute) }
 }
 
 /** Uma linha de liga e desliga, grande. */
@@ -468,9 +487,8 @@ fun GxSwitchRow(title: String, subtitle: String, checked: Boolean, onChange: (Bo
     val shape = RoundedCornerShape(16.dp)
     val knob by animateFloatAsState(if (checked) 1f else 0f, spring(dampingRatio = 0.5f, stiffness = 500f), label = "gx-sw")
     Row(
-        Modifier.fillMaxWidth().gxClick { onChange(!checked) }.clip(shape)
-            .background(if (checked) Brush.horizontalGradient(listOf(Gx.mint.copy(alpha = 0.12f), Gx.tint(0.02f))) else SolidColor(Gx.tint(0.035f)))
-            .border(1.5.dp, if (checked) Gx.mint.copy(alpha = 0.45f) else Gx.tint(0.08f), shape)
+        Modifier.fillMaxWidth().gxClick { onChange(!checked) }
+            .gxCut(GxCutTile, if (checked) Color(0xFF3BB273).copy(alpha = 0.16f).compositeOver(Gx.bg2) else Gx.bg2, shadow = 3.dp)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -487,13 +505,13 @@ fun GxSwitchRow(title: String, subtitle: String, checked: Boolean, onChange: (Bo
 
 /** O botão de lançar: grande, em degradê, com brilho correndo e o desenho da turma. */
 @Composable
-fun GxLaunch(label: String, glyph: Glyph = Glyph.Pencil, enabled: Boolean = true, modifier: Modifier = Modifier.fillMaxWidth(), colors: List<Color> = listOf(Color(0xFF7C5CFF), Color(0xFF5B4BF5), Color(0xFF2FD39A)), ink: Color = Color.White, onClick: () -> Unit) {
+fun GxLaunch(label: String, glyph: Glyph = Glyph.Pencil, enabled: Boolean = true, modifier: Modifier = Modifier.fillMaxWidth(), colors: List<Color> = listOf(GxPen), ink: Color = Color.White, onClick: () -> Unit) {
     // o brilho é lido só no desenho, numa camada própria: antes refazia a tela inteira a cada quadro
     val run = rememberInfiniteTransition(label = "gx-brilho").animateFloat(-0.3f, 1.3f, infiniteRepeatable(tween(3_200, easing = LinearEasing)), label = "gx-brilho-x")
     val shape = RoundedCornerShape(18.dp)
     Box(
-        modifier.heightIn(min = 58.dp).gxClick(enabled = enabled, onClick = onClick).clip(shape)
-            .background(if (enabled) Brush.horizontalGradient(colors) else SolidColor(Gx.off))
+        modifier.heightIn(min = 58.dp).gxClick(enabled = enabled, onClick = onClick)
+            .gxCut(GxCutTile, if (enabled) colors.first() else Gx.off, shadow = if (enabled) 4.dp else 0.dp)
             .graphicsLayer()
             .drawWithContent {
                 drawContent()

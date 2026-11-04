@@ -20,6 +20,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.TextButton
 import br.com.estudario.ui.brand.Slider
 import br.com.estudario.ui.brand.FilterChip
 import br.com.estudario.ui.brand.LinearProgressIndicator
@@ -366,7 +367,7 @@ private fun ReviewReminderCard(count: Int, onOpen: () -> Unit) {
                 Text(if (count == 1) "1 revisão para hoje" else "$count revisões para hoje", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = androidx.compose.ui.graphics.Color(0xFF26234A))
                 Text("Uns ${count * 3} minutos · +${count * 20} XP · revisar no dia certo é o que fixa", style = MaterialTheme.typography.bodySmall, color = androidx.compose.ui.graphics.Color(0xFF4E4B6B))
             }
-            Text("Revisar", style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = androidx.compose.ui.graphics.Color(0xFF5B4BF5))
+            Text("Revisar", style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = androidx.compose.ui.graphics.Color(0xFF2F5BD3))
         }
     }
 }

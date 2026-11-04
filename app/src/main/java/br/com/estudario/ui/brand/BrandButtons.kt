@@ -32,6 +32,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.lerp
@@ -200,6 +203,60 @@ private fun ChunkyButton(
         ) {
             CompositionLocalProvider(LocalContentColor provides contentColor) {
                 ProvideTextStyle(MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Black)) { content() }
+            }
+        }
+    }
+}
+
+/**
+ * O botão de texto do Estudário: em vez do texto solto do Material, uma etiqueta pequena de papel
+ * recortado (borda de tinta, sombra dura curta) com o texto na cor da tinta. Mesma assinatura do
+ * TextButton do Material, para trocar só o import.
+ */
+@Composable
+fun TextButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    @Suppress("UNUSED_PARAMETER") shape: Shape = BrandButtonShape,
+    colors: ButtonColors = ButtonDefaults.textButtonColors(),
+    @Suppress("UNUSED_PARAMETER") elevation: ButtonElevation? = null,
+    @Suppress("UNUSED_PARAMETER") border: BorderStroke? = null,
+    @Suppress("UNUSED_PARAMETER") contentPadding: PaddingValues = ButtonDefaults.TextButtonContentPadding,
+    interactionSource: MutableInteractionSource? = null,
+    content: @Composable RowScope.() -> Unit,
+) {
+    val source = interactionSource ?: remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val ink = cutInk()
+    val tagShape = RoundedCornerShape(topStart = 10.dp, topEnd = 6.dp, bottomEnd = 11.dp, bottomStart = 7.dp)
+    val down = if (pressed && enabled) 2.dp else 0.dp
+    val scheme = MaterialTheme.colorScheme
+    val text = if (enabled) colors.contentColor else colors.disabledContentColor
+    val face = if (colors.containerColor.alpha > 0f) colors.containerColor else scheme.surfaceContainerLowest
+    Box(
+        modifier
+            .defaultMinSize(minHeight = 42.dp)
+            .clickable(interactionSource = source, indication = null, enabled = enabled, role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            Modifier
+                .offset(x = down, y = down)
+                .drawBehind {
+                    if (down == 0.dp) {
+                        val o = tagShape.createOutline(size, layoutDirection, this)
+                        translate(2.dp.toPx(), 3.dp.toPx()) { drawOutline(o, ink.copy(alpha = if (enabled) 1f else .35f)) }
+                    }
+                }
+                .background(face, tagShape)
+                .border(2.dp, ink.copy(alpha = if (enabled) 1f else .35f), tagShape)
+                .padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+        ) {
+            CompositionLocalProvider(LocalContentColor provides text) {
+                ProvideTextStyle(MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold)) { content() }
             }
         }
     }

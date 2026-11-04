@@ -712,7 +712,7 @@ private fun FirstStepsCard(answered: Int, onPlan: () -> Unit, onQuiz: () -> Unit
                     val left = listOf(true, planSeen, answered >= 5).count { !it }
                     Text("Eu te mostro o caminho. Faltam $left ${if (left == 1) "passo" else "passos"}.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
                 }
-                androidx.compose.material3.TextButton(onClick = { hidden = true; prefs.edit().putBoolean("first_steps_hidden", true).apply() }) { Text("Fechar") }
+                br.com.estudario.ui.brand.TextButton(onClick = { hidden = true; prefs.edit().putBoolean("first_steps_hidden", true).apply() }) { Text("Fechar") }
             }
             FirstStep(1, "Escolher o concurso", true, null) {}
             FirstStep(2, "Ver o seu plano montado", planSeen, "Ver plano") { planSeen = true; prefs.edit().putBoolean("first_steps_plan", true).apply(); onPlan() }

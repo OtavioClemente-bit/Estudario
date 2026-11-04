@@ -1,5 +1,12 @@
 package br.com.estudario.ui.planner
 
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -83,19 +90,17 @@ fun InteractiveCalendar(
             MonthArrow(Icons.AutoMirrored.Outlined.KeyboardArrowRight, "Mês seguinte") { currentMonth = currentMonth.plusMonths(1); isExpanded = true }
         }
         // Semana ou mês, num seletor (no lugar do "Ver mês" escondido embaixo).
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)).padding(4.dp),
-        ) {
+        // Duas abas de papel recortado; a escolhida fica na tinta azul e "afundada".
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             listOf(false to "Semana", true to "Mês").forEach { (expanded, label) ->
                 val on = isExpanded == expanded
-                Box(
-                    Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
-                        .background(if (on) MaterialTheme.colorScheme.primary else Color.Transparent)
-                        .clickable { isExpanded = expanded; if (!expanded) currentMonth = YearMonth.from(selectedDate) }
-                        .padding(vertical = 8.dp),
-                    contentAlignment = Alignment.Center,
+                CutTile(
+                    Modifier.weight(1f).height(44.dp),
+                    face = if (on) CalInk else MaterialTheme.colorScheme.surface,
+                    pressed = on,
+                    onClick = { isExpanded = expanded; if (!expanded) currentMonth = YearMonth.from(selectedDate) },
                 ) {
-                    Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = if (on) Color.White else MaterialTheme.colorScheme.onSurface)
                 }
             }
         }
@@ -122,19 +127,49 @@ fun InteractiveCalendar(
         }
         // Legenda curta: o que cada cor quer dizer.
         Row(Modifier.fillMaxWidth().padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally)) {
-            Legend(CalGold, "Hoje", ring = true)
-            Legend(CalMint, "Feito")
-            Legend(MaterialTheme.colorScheme.primary, "Com estudo", bar = true)
+            Legend(Color(0xFFFFD23F), "Hoje")
+            Legend(Color(0xFF3BB273), "Feito")
+            Legend(CalInk, "Com estudo", bar = true)
         }
     }
 }
 
 @Composable
 private fun MonthArrow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
+    CutTile(Modifier.size(42.dp), face = MaterialTheme.colorScheme.surface, onClick = onClick) {
+        Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+/** A tinta azul de caneta do Estudário (a mesma do botão principal e do site). */
+private val CalInk = Color(0xFF2F5BD3)
+
+/**
+ * Um quadradinho de papel recortado: cantos desiguais, borda de tinta e sombra dura deslocada.
+ * [pressed] mostra a peça afundada (sem sombra), como a aba escolhida.
+ */
+@Composable
+private fun CutTile(modifier: Modifier, face: Color, pressed: Boolean = false, onClick: () -> Unit, content: @Composable () -> Unit) {
+    val ink = br.com.estudario.ui.brand.cutInk()
+    val shape = RoundedCornerShape(topStart = 11.dp, topEnd = 7.dp, bottomEnd = 12.dp, bottomStart = 8.dp)
+    val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val down by source.collectIsPressedAsState()
+    val sunk = pressed || down
     Box(
-        Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant).clickable(onClick = onClick),
+        modifier
+            .clickable(source, indication = null, onClick = onClick)
+            .padding(end = 3.dp, bottom = 3.dp)
+            .drawBehind {
+                if (!sunk) {
+                    val o = shape.createOutline(size, layoutDirection, this)
+                    translate(3.dp.toPx(), 3.dp.toPx()) { drawOutline(o, ink) }
+                }
+            }
+            .offset(x = if (sunk) 2.dp else 0.dp, y = if (sunk) 2.dp else 0.dp)
+            .background(face, shape)
+            .border(2.dp, ink, shape),
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.onSurface) }
+    ) { content() }
 }
 
 @Composable
@@ -160,23 +195,21 @@ private fun CalendarDay(
     dimmed: Boolean,
     onClick: () -> Unit,
 ) {
-    val night = isCadernoNight()
-    val primary = MaterialTheme.colorScheme.primary
+    val primary = CalInk
+    val lip = br.com.estudario.ui.brand.cutInk()
     val tile = when {
-        isSelected -> primary
-        isDone -> CalMint
-        else -> if (night) Color.White.copy(alpha = 0.05f) else Color.White.copy(alpha = 0.75f)
-    }
-    val lip = when {
-        isSelected -> primary.copy(alpha = 0.45f)
-        isDone -> CalMint.copy(alpha = 0.45f)
-        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+        isSelected -> CalInk
+        isDone -> Color(0xFF3BB273)
+        isToday -> Color(0xFFFFD23F)
+        else -> MaterialTheme.colorScheme.surface
     }
     val textColor = when {
-        isSelected -> MaterialTheme.colorScheme.onPrimary
-        isDone -> Color.White
+        isSelected -> Color.White
+        isDone -> Color(0xFF08240F)
+        isToday -> Color(0xFF2A2100)
         else -> MaterialTheme.colorScheme.onSurface
     }
+    val cut = RoundedCornerShape(topStart = 11.dp, topEnd = 7.dp, bottomEnd = 12.dp, bottomStart = 8.dp)
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.padding(vertical = 3.dp).clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(2.dp),
@@ -186,12 +219,15 @@ private fun CalendarDay(
             modifier = Modifier
                 .size(40.dp)
                 .drawBehind {
-                    // A "sombra de botão" do caderno: um degrau de cor embaixo do quadradinho.
-                    drawRoundRect(lip, topLeft = Offset(0f, 3.dp.toPx()), size = Size(size.width, size.height), cornerRadius = CornerRadius(12.dp.toPx()))
+                    // Papel recortado: sombra dura de tinta deslocada (some no dia escolhido, que "afunda").
+                    if (!isSelected) {
+                        val o = cut.createOutline(size, layoutDirection, this)
+                        translate(3.dp.toPx(), 3.dp.toPx()) { drawOutline(o, lip.copy(alpha = if (dimmed) 0.3f else 1f)) }
+                    }
                 }
-                .clip(RoundedCornerShape(12.dp))
-                .background(tile)
-                .then(if (isToday && !isSelected) Modifier.border(2.dp, CalGold, RoundedCornerShape(12.dp)) else Modifier),
+                .offset(x = if (isSelected) 2.dp else 0.dp, y = if (isSelected) 2.dp else 0.dp)
+                .background(tile.copy(alpha = if (dimmed) 0.5f else 1f), cut)
+                .border(2.dp, lip.copy(alpha = if (dimmed) 0.3f else 1f), cut),
         ) {
             Text(
                 text = if (isDone && !isSelected) "✓" else date.dayOfMonth.toString(),

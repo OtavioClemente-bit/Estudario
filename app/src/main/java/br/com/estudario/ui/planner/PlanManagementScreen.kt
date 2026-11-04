@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.TextButton
 import br.com.estudario.ui.brand.Surface
 import br.com.estudario.ui.brand.FilledTonalButton
 import br.com.estudario.ui.brand.OutlinedButton
