@@ -2,6 +2,7 @@ package br.com.estudario.ui.navigation
 
 import br.com.estudario.BuildConfig
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -101,18 +102,23 @@ fun EstudarioDrawerContent(
             .fillMaxHeight()
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .width(304.dp)
-            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .binderPaper()
             .verticalScroll(rememberScrollState())
-            .padding(vertical = EstudarioSpacing.large),
+            .padding(start = 26.dp, top = EstudarioSpacing.large, bottom = EstudarioSpacing.large),
     ) {
         DrawerHeader(profile, level, totalXp, onOpenProfile)
         Spacer(Modifier.height(EstudarioSpacing.large))
         sections.forEachIndexed { index, section ->
+            // O título da seção é a aba colorida do fichário, colada na margem.
+            val tab = BinderTabs[index % BinderTabs.size]
             Text(
                 section.title.uppercase(),
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = EstudarioSpacing.large, bottom = EstudarioSpacing.tight),
+                color = androidx.compose.ui.graphics.Color(0xFF1C1E25),
+                modifier = Modifier
+                    .padding(start = EstudarioSpacing.small, bottom = EstudarioSpacing.tight)
+                    .background(tab, RoundedCornerShape(topStart = 3.dp, topEnd = 10.dp, bottomEnd = 6.dp, bottomStart = 3.dp))
+                    .padding(horizontal = 10.dp, vertical = 3.dp),
             )
             section.entries.forEach { entry ->
                 DrawerRow(entry, selected = entry.route != null && entry.route == currentRoute)
@@ -172,21 +178,79 @@ private fun DrawerHeader(profile: UserProfile, level: Int?, totalXp: Int?, onOpe
 
 @Composable
 private fun DrawerRow(entry: DrawerEntry, selected: Boolean) {
-    val background = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow
-    val content = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+    // A aba escolhida é uma ficha de papel recortado (borda de tinta e sombra dura); as outras ficam
+    // escritas direto no papel do fichário.
+    val ink = br.com.estudario.ui.brand.cutInk()
+    val shape = RoundedCornerShape(topStart = 12.dp, topEnd = 6.dp, bottomEnd = 14.dp, bottomStart = 8.dp)
+    val content = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface
+    val primary = MaterialTheme.colorScheme.primary
+    val paper = MaterialTheme.colorScheme.surface
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = EstudarioSpacing.small, vertical = 2.dp)
-            .clip(EstudarioShapes.row)
-            .background(background)
+            .padding(start = EstudarioSpacing.small, end = EstudarioSpacing.medium, top = 2.dp, bottom = if (selected) 5.dp else 2.dp)
+            .then(
+                if (selected) Modifier
+                    .drawBehind {
+                        val r = androidx.compose.ui.geometry.CornerRadius(12.dp.toPx())
+                        drawRoundRect(ink, topLeft = androidx.compose.ui.geometry.Offset(3.dp.toPx(), 4.dp.toPx()), size = size, cornerRadius = r)
+                    }
+                    .background(paper, shape)
+                    .border(2.dp, ink, shape)
+                else Modifier,
+            )
+            .clip(shape)
             .clickable(onClick = entry.onClick)
             .padding(horizontal = EstudarioSpacing.small, vertical = EstudarioSpacing.small),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.small),
     ) {
-        Icon(entry.icon, contentDescription = null, tint = content, modifier = Modifier.size(30.dp))
-        Text(entry.label, style = MaterialTheme.typography.titleSmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), color = content)
+        Icon(entry.icon, contentDescription = null, tint = if (selected) primary else content, modifier = Modifier.size(30.dp))
+        Text(entry.label, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), color = content)
+        if (selected) Box(Modifier.size(9.dp).background(primary, androidx.compose.foundation.shape.CircleShape).border(1.5.dp, ink, androidx.compose.foundation.shape.CircleShape))
+    }
+}
+
+/** As cores das abas do fichário (marca-texto amarelo, azul, verde, rosa, laranja). */
+private val BinderTabs = listOf(
+    androidx.compose.ui.graphics.Color(0xFFFFD23F), androidx.compose.ui.graphics.Color(0xFF9DB8FF),
+    androidx.compose.ui.graphics.Color(0xFF8FDDB0), androidx.compose.ui.graphics.Color(0xFFFFB3C9),
+    androidx.compose.ui.graphics.Color(0xFFFFC27A),
+)
+
+/**
+ * O papel do fichário: pautado fino, a margem vermelha dupla e os furos das argolas na borda
+ * esquerda. No escuro vira a folha de planta azul, com linhas claras.
+ */
+@Composable
+private fun Modifier.binderPaper(): Modifier {
+    val bg = MaterialTheme.colorScheme.surfaceContainerLow
+    val dark = bg.luminance() < 0.4f
+    val line = if (dark) androidx.compose.ui.graphics.Color(0x268CBEFF) else androidx.compose.ui.graphics.Color(0x1F2F5BD3)
+    val margin = if (dark) androidx.compose.ui.graphics.Color(0x99FF8A8A) else androidx.compose.ui.graphics.Color(0x99E0484B)
+    val hole = MaterialTheme.colorScheme.background
+    val ink = br.com.estudario.ui.brand.cutInk()
+    return this.background(bg).drawBehind {
+        val step = 28.dp.toPx()
+        var y = step
+        while (y < size.height) {
+            drawLine(line, androidx.compose.ui.geometry.Offset(0f, y), androidx.compose.ui.geometry.Offset(size.width, y), 1.dp.toPx())
+            y += step
+        }
+        val mx = 22.dp.toPx()
+        drawLine(margin, androidx.compose.ui.geometry.Offset(mx, 0f), androidx.compose.ui.geometry.Offset(mx, size.height), 1.5.dp.toPx())
+        drawLine(margin, androidx.compose.ui.geometry.Offset(mx + 4.dp.toPx(), 0f), androidx.compose.ui.geometry.Offset(mx + 4.dp.toPx(), size.height), 1.dp.toPx())
+        // furos das argolas
+        val gap = 96.dp.toPx()
+        var hy = 60.dp.toPx()
+        while (hy < size.height) {
+            val c = androidx.compose.ui.geometry.Offset(10.dp.toPx(), hy)
+            drawCircle(hole, 5.dp.toPx(), c)
+            drawCircle(ink.copy(alpha = .55f), 5.dp.toPx(), c, style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
+            hy += gap
+        }
+        // a borda direita do fichário: traço de tinta
+        drawLine(ink, androidx.compose.ui.geometry.Offset(size.width - 1.dp.toPx(), 0f), androidx.compose.ui.geometry.Offset(size.width - 1.dp.toPx(), size.height), 2.5.dp.toPx())
     }
 }
 

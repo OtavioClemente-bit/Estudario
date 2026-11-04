@@ -46,29 +46,51 @@ fun Modifier.marker(): Modifier {
 @Composable
 fun Modifier.dottedPaper(): Modifier {
     val night = isCadernoNight()
+    androidx.compose.ui.platform.LocalContext.current.let { PaperStyle.load(it) }
+    val pattern = PaperStyle.pattern
     val ink = if (night) Color(0xFF8CBEFF) else Color(0xFF2F5BD3)
     val fine = ink.copy(alpha = if (night) 0.09f else 0.07f)
     val strong = ink.copy(alpha = if (night) 0.19f else 0.16f)
-    val glow = if (night) Color(0xFF5C86FF).copy(alpha = 0.22f) else Color(0xFFFFD23F).copy(alpha = 0.20f)
+    val glowBase = when (PaperStyle.light) {
+        "azul" -> Color(0xFF5C86FF); "por-do-sol" -> Color(0xFFFF7FA8); "menta" -> Color(0xFF4CD08A); "sem" -> Color.Transparent
+        else -> if (night) Color(0xFF5C86FF) else Color(0xFFFFD23F)
+    }
+    val glow = glowBase.copy(alpha = if (glowBase == Color.Transparent) 0f else if (night) 0.22f else 0.20f)
+    val margin = Color(0xFFE0484B).copy(alpha = if (night) 0.35f else 0.30f)
     val paper = MaterialTheme.colorScheme.background
-    // Os pontos viram uma pecinha desenhada uma vez e repetida pela GPU (antes eram ~1000 círculos a cada
+    // O padrão vira uma pecinha desenhada uma vez e repetida pela GPU (antes eram ~1000 círculos a cada
     // quadro, e qualquer animação de qualquer tela fazia redesenhar o fundo inteiro: o app travava).
     return this.drawWithCache {
-        val step = 40.dp.toPx().toInt().coerceAtLeast(5)
+        val step = (if (pattern == "pautado") 28.dp else if (pattern == "pontos") 20.dp else 40.dp).toPx().toInt().coerceAtLeast(5)
         val small = step / 5f
         val line = 1.dp.toPx().coerceAtLeast(1f)
         val tile = androidx.compose.ui.graphics.ImageBitmap(step, step)
         androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(this, layoutDirection, androidx.compose.ui.graphics.Canvas(tile), Size(step.toFloat(), step.toFloat())) {
             drawRect(paper)
-            for (i in 1 until 5) {
-                drawRect(fine, Offset(i * small, 0f), Size(line, step.toFloat()))
-                drawRect(fine, Offset(0f, i * small), Size(step.toFloat(), line))
+            when (pattern) {
+                "quadriculado" -> {
+                    drawRect(strong, Offset(0f, 0f), Size(line, step.toFloat()))
+                    drawRect(strong, Offset(0f, 0f), Size(step.toFloat(), line))
+                }
+                "pontos" -> drawCircle(strong.copy(alpha = strong.alpha * 1.6f), 1.3.dp.toPx(), Offset(step / 2f, step / 2f))
+                "pautado" -> drawRect(strong, Offset(0f, step - line), Size(step.toFloat(), line))
+                "liso" -> Unit
+                else -> {
+                    for (i in 1 until 5) {
+                        drawRect(fine, Offset(i * small, 0f), Size(line, step.toFloat()))
+                        drawRect(fine, Offset(0f, i * small), Size(step.toFloat(), line))
+                    }
+                    drawRect(strong, Offset(0f, 0f), Size(line, step.toFloat()))
+                    drawRect(strong, Offset(0f, 0f), Size(step.toFloat(), line))
+                }
             }
-            drawRect(strong, Offset(0f, 0f), Size(line, step.toFloat()))
-            drawRect(strong, Offset(0f, 0f), Size(step.toFloat(), line))
         }
         val brush = androidx.compose.ui.graphics.ShaderBrush(androidx.compose.ui.graphics.ImageShader(tile, androidx.compose.ui.graphics.TileMode.Repeated, androidx.compose.ui.graphics.TileMode.Repeated))
         val light = androidx.compose.ui.graphics.Brush.radialGradient(listOf(glow, Color.Transparent), center = Offset(size.width, 0f), radius = size.maxDimension * 0.7f)
-        onDrawBehind { drawRect(brush); drawRect(light) }
+        onDrawBehind {
+            drawRect(brush)
+            if (pattern == "pautado") drawRect(margin, Offset(28.dp.toPx(), 0f), Size(1.5.dp.toPx(), size.height))
+            drawRect(light)
+        }
     }.graphicsLayer()
 }

@@ -1,5 +1,7 @@
 package br.com.estudario.ui.screens
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import br.com.estudario.ui.theme.screenPadding
 import br.com.estudario.BuildConfig
 import androidx.compose.foundation.layout.Arrangement
@@ -116,6 +118,35 @@ fun MoreScreen(
                                 Text(label, style = MaterialTheme.typography.labelLarge)
                             }
                         }
+                    }
+                }
+                HorizontalDivider()
+                // O fundo do caderno, do jeito da pessoa: vale no claro e no escuro.
+                br.com.estudario.ui.brand.PaperStyle.load(ctx)
+                Text("Fundo do caderno", style = MaterialTheme.typography.titleSmall)
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    br.com.estudario.ui.brand.PaperStyle.patterns.forEach { (key, label) ->
+                        val on = br.com.estudario.ui.brand.PaperStyle.pattern == key
+                        Surface(
+                            onClick = { br.com.estudario.ui.brand.PaperStyle.set(ctx, pattern = key) },
+                            shape = EstudarioShapes.row,
+                            color = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+                            contentColor = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                            border = androidx.compose.foundation.BorderStroke(2.dp, br.com.estudario.ui.brand.cutInk()),
+                        ) { Text(label, Modifier.padding(horizontal = 12.dp, vertical = 8.dp), style = MaterialTheme.typography.labelLarge) }
+                    }
+                }
+                Text("Luz no canto", style = MaterialTheme.typography.titleSmall)
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    br.com.estudario.ui.brand.PaperStyle.lights.forEach { (key, label) ->
+                        val on = br.com.estudario.ui.brand.PaperStyle.light == key
+                        Surface(
+                            onClick = { br.com.estudario.ui.brand.PaperStyle.set(ctx, light = key) },
+                            shape = EstudarioShapes.row,
+                            color = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+                            contentColor = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                            border = androidx.compose.foundation.BorderStroke(2.dp, br.com.estudario.ui.brand.cutInk()),
+                        ) { Text(label, Modifier.padding(horizontal = 12.dp, vertical = 8.dp), style = MaterialTheme.typography.labelLarge) }
                     }
                 }
                 HorizontalDivider()
