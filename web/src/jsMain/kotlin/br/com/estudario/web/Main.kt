@@ -8,6 +8,7 @@ fun main() {
     // O mesmo motor roda no worker sem inicializar DOM, login ou sincronização.
     if (br.com.estudario.web.data.installForecastWorker()) return
     Theme.apply()
+    Paper.apply()
     if (kotlinx.browser.window.location.hash.startsWith("#demo") || kotlinx.browser.window.location.search.contains("demo")) Store.startDemo() else Store.start()
     // Tira o "Carregando…" do HTML antes de desenhar o app no mesmo lugar.
     kotlinx.browser.document.getElementById("root")?.innerHTML = ""
