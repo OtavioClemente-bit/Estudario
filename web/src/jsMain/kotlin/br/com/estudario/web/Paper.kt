@@ -41,10 +41,31 @@ object Paper {
         }
     }
 
-    fun set(pattern: String = this.pattern, ink: String = this.ink, light: String = this.light, strength: Double = this.strength, grain: Double = this.grain) {
+    /** As chaves da luz que vão para a conta (as mesmas do app, na mesma ordem de [lights]). */
+    private val lightKeys = listOf("luminaria", "azul", "por-do-sol", "menta", "sem")
+    private const val AT_KEY = "estudario.papel.em"
+    private fun localAt(): Long = runCatching { localStorage.getItem(AT_KEY)?.toLongOrNull() }.getOrNull() ?: 0L
+
+    fun set(pattern: String = this.pattern, ink: String = this.ink, light: String = this.light, strength: Double = this.strength, grain: Double = this.grain, fromAccount: Long? = null) {
         this.pattern = pattern; this.ink = ink; this.light = light; this.strength = strength; this.grain = grain
-        runCatching { localStorage.setItem(KEY, listOf(pattern, ink, light, strength, grain).joinToString("|")) }
+        val at = fromAccount ?: kotlin.js.Date.now().toLong()
+        runCatching { localStorage.setItem(KEY, listOf(pattern, ink, light, strength, grain).joinToString("|")); localStorage.setItem(AT_KEY, at.toString()) }
         apply()
+        // A escolha vai para a conta: o app usa o mesmo padrão e a mesma luz.
+        if (fromAccount == null) br.com.estudario.web.data.Prefs.setSyncedFields(mapOf(
+            "paperPattern" to kotlinx.serialization.json.JsonPrimitive(pattern),
+            "paperLight" to kotlinx.serialization.json.JsonPrimitive(lightKeys.getOrElse(lights.indexOfFirst { it.second == light }) { "luminaria" }),
+            "paperUpdatedAt" to kotlinx.serialization.json.JsonPrimitive(at),
+        ))
+    }
+
+    /** Veio da conta uma escolha mais nova (feita no app ou em outro navegador): usa ela aqui. */
+    fun adopt(synced: kotlinx.serialization.json.JsonObject) {
+        val at = (synced["paperUpdatedAt"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toLongOrNull() ?: return
+        if (at <= localAt()) return
+        val p = (synced["paperPattern"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.takeIf { v -> patterns.any { it.first == v } } ?: pattern
+        val l = (synced["paperLight"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.let { lightKeys.indexOf(it) }?.takeIf { it >= 0 }?.let { lights[it].second } ?: light
+        set(pattern = p, light = l, fromAccount = at)
     }
 
     fun reset() = set("milimetrado", inks.first().second, lights.first().second, 1.0, 1.0)

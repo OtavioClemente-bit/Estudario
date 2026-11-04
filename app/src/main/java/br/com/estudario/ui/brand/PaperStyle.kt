@@ -28,8 +28,20 @@ object PaperStyle {
         p.getOrNull(1)?.takeIf { v -> lights.any { it.first == v } }?.let { light = it }
     }
 
-    fun set(context: Context, pattern: String = this.pattern, light: String = this.light) {
+    /** Quando a escolha foi feita (vale a mais nova entre o app e o site). */
+    fun updatedAt(context: Context): Long = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(KEY + "_em", 0L)
+
+    fun set(context: Context, pattern: String = this.pattern, light: String = this.light, at: Long = System.currentTimeMillis()) {
         this.pattern = pattern; this.light = light
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, "$pattern|$light").apply()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, "$pattern|$light").putLong(KEY + "_em", at).apply()
+    }
+
+    /** Veio da conta uma escolha mais nova (feita no site): usa ela. O site tem o isométrico, que aqui vira milimetrado. */
+    fun adopt(context: Context, pattern: String?, light: String?, at: Long) {
+        load(context)
+        if (at <= updatedAt(context)) return
+        val p = pattern?.takeIf { v -> patterns.any { it.first == v } } ?: "milimetrado"
+        val l = light?.takeIf { v -> lights.any { it.first == v } } ?: this.light
+        set(context, p, l, at)
     }
 }
