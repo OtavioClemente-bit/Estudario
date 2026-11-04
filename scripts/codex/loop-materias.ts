@@ -159,7 +159,11 @@ Se os itens forem só números de atos sem assunto e você não achar o conteúd
     stdin: "null", stdout: "piped", stderr: "piped",
   }).output();
   const txt = new TextDecoder().decode(o.stdout) + new TextDecoder().decode(o.stderr);
-  Deno.writeTextFileSync(`${ROOT}conteudo/entrada/materias-codex-2-ultima-saida-${n}.txt`, txt.slice(0, 3000) + "\n...\n" + txt.slice(-8000));
+  // Um arquivo por conta (CODEX_ORDEM) e por trabalhador: com as três contas no mesmo nome, duas gravavam ao mesmo
+  // tempo, o Windows recusava e o loop inteiro caía (04/11). Falhar ao gravar este registro não para nada.
+  try {
+    Deno.writeTextFileSync(`${ROOT}conteudo/entrada/materias-codex-2-ultima-saida-${Deno.env.get("CODEX_ORDEM") ?? "c1"}-${n}.txt`, txt.slice(0, 3000) + "\n...\n" + txt.slice(-8000));
+  } catch { /* registro opcional */ }
   let ok = false;
   try { Deno.statSync(`${SAIDA}/${alvo.id}.json`); ok = aprovada(alvo.id); } catch { /* não gravou */ }
   emAndamento.delete(alvo.id);
