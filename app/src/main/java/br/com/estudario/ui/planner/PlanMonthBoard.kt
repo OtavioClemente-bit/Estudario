@@ -33,6 +33,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.translate
+import br.com.estudario.ui.brand.cutPanel
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -59,7 +63,7 @@ import kotlin.math.roundToInt
 
 /** A cor de cada tipo de estudo no mês (a mesma legenda embaixo do calendário). */
 internal fun taskTypeColor(type: PlanTaskType): Color = when (type) {
-    PlanTaskType.THEORY -> Color(0xFF7C6CF2)
+    PlanTaskType.THEORY -> Color(0xFF2F5BD3)
     PlanTaskType.QUESTIONS -> Color(0xFF22B07D)
     PlanTaskType.REVIEW, PlanTaskType.ACTIVE_RECALL, PlanTaskType.FLASHCARDS -> Color(0xFF3B9BE8)
     PlanTaskType.SIMULATION, PlanTaskType.DISCURSIVE -> Color(0xFFF2A93B)
@@ -75,6 +79,37 @@ private val pending = setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENT
  * estudo da lista e soltar num dia do calendário muda ele de dia (fica fixado lá e o resto do
  * plano se encaixa em volta). No Grátis, segurar mostra a oferta.
  */
+@Composable
+/** O nome curto da matéria, como no site ("Direito – Administrativo" vira "Administrativo"). */
+private fun monthSubject(name: String) = name.substringAfter(" – ").substringAfter(" - ").trim()
+
+/** Minutos curtos para caber no dia: 45m, 1h, 1h30. */
+private fun shortMin(minutes: Int): String = when {
+    minutes < 60 -> "${minutes}m"
+    minutes % 60 == 0 -> "${minutes / 60}h"
+    else -> "${minutes / 60}h${(minutes % 60).toString().padStart(2, '0')}"
+}
+
+/** Peça de papel recortado (setas do mês). */
+@Composable
+private fun MonthCut(modifier: Modifier, face: Color, onClick: () -> Unit, content: @Composable () -> Unit) {
+    val ink = br.com.estudario.ui.brand.cutInk()
+    val shape = RoundedCornerShape(11.dp, 7.dp, 12.dp, 8.dp)
+    Box(
+        modifier.clickable(onClick = onClick).padding(end = 3.dp, bottom = 3.dp)
+            .drawBehind { val o = shape.createOutline(size, layoutDirection, this); translate(3.dp.toPx(), 3.dp.toPx()) { drawOutline(o, ink) } }
+            .clip(shape).background(face).border(2.dp, ink, shape),
+        contentAlignment = Alignment.Center,
+    ) { content() }
+}
+
+/** O painel do dia: papel com borda de tinta e sombra dura. */
+@Composable
+private fun Modifier.br_cutPanel(): Modifier {
+    val shape = RoundedCornerShape(18.dp, 11.dp, 20.dp, 13.dp)
+    return this.cutPanel(shape).clip(shape).background(MaterialTheme.colorScheme.surface)
+}
+
 @Composable
 internal fun PlanMonthBoard(
     state: ActivePlanUiState,
@@ -147,140 +182,171 @@ internal fun PlanMonthBoard(
 
     Box(Modifier.fillMaxWidth().onGloballyPositioned { boardOrigin = it.positionInRoot() }) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            // cabeçalho do mês com as setas
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { month = month.minusMonths(1) }) { Text("‹", fontSize = 22.sp) }
+            // cabeçalho do mês: setas recortadas, o mês e "Hoje" quando estiver em outro mês (igual ao site)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MonthCut(Modifier.size(42.dp), face = MaterialTheme.colorScheme.surface, onClick = { month = month.minusMonths(1) }) { Text("‹", fontSize = 22.sp, fontWeight = FontWeight.Black) }
                 Text(
                     month.month.getDisplayName(TextStyle.FULL, Locale("pt", "BR")).replaceFirstChar { it.uppercase() } + " de ${month.year}",
-                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
-                TextButton(onClick = { month = month.plusMonths(1) }) { Text("›", fontSize = 22.sp) }
+                MonthCut(Modifier.size(42.dp), face = MaterialTheme.colorScheme.surface, onClick = { month = month.plusMonths(1) }) { Text("›", fontSize = 22.sp, fontWeight = FontWeight.Black) }
             }
-            Row(Modifier.fillMaxWidth()) {
-                listOf("D", "S", "T", "Q", "Q", "S", "S").forEach {
-                    Text(it, Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            if (month != YearMonth.from(state.today)) TextButton(onClick = { month = YearMonth.from(state.today); selected = state.today }, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Voltar para hoje") }
+            // legenda: as mesmas etiquetas do site
+            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("Teoria" to taskTypeColor(PlanTaskType.THEORY), "Questões" to taskTypeColor(PlanTaskType.QUESTIONS), "Revisão" to taskTypeColor(PlanTaskType.REVIEW), "Simulado" to taskTypeColor(PlanTaskType.SIMULATION), "Atrasado" to LateColor).forEach { (label, c) ->
+                    Text(label, Modifier.clip(RoundedCornerShape(8.dp, 5.dp, 9.dp, 6.dp)).background(c.copy(alpha = 0.16f)).border(1.5.dp, c, RoundedCornerShape(8.dp, 5.dp, 9.dp, 6.dp)).padding(horizontal = 8.dp, vertical = 3.dp),
+                        style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+                }
+            }
+            // a semana começa na segunda, como no site
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                listOf("Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom").forEach {
+                    Text(it.uppercase(), Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
             }
             val first = month.atDay(1)
-            val lead = first.dayOfWeek.value % 7
+            val lead = first.dayOfWeek.value - 1
             val total = lead + month.lengthOfMonth()
             val weeks = (total + 6) / 7
+            val ink = br.com.estudario.ui.brand.cutInk()
             for (w in 0 until weeks) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     for (d in 0 until 7) {
                         val index = w * 7 + d - lead
                         if (index < 0 || index >= month.lengthOfMonth()) { Spacer(Modifier.weight(1f)); continue }
                         val date = month.atDay(index + 1)
                         val epoch = date.toEpochDay()
-                        val tasks = byDay[epoch].orEmpty()
+                        val tasks = byDay[epoch].orEmpty().sortedWith(compareBy({ it.entity.status == PlanTaskStatus.CONCLUIDA }, { it.entity.type != PlanTaskType.THEORY }))
                         val isTarget = target == epoch
                         val isSelected = selected == date
+                        val past = epoch < today
+                        val limit = limitOf(epoch)
+                        val used = tasks.sumOf { it.entity.plannedMinutes }
+                        val doneCount = tasks.count { it.entity.status == PlanTaskStatus.CONCLUIDA }
+                        val cellShape = RoundedCornerShape(9.dp, 5.dp, 10.dp, 6.dp)
                         Column(
-                            Modifier.weight(1f).aspectRatio(0.62f).clip(RoundedCornerShape(10.dp))
+                            Modifier.weight(1f).aspectRatio(0.56f)
+                                .padding(end = 2.dp, bottom = 2.dp)
+                                .drawBehind {
+                                    if (!isSelected) {
+                                        val o = cellShape.createOutline(size, layoutDirection, this)
+                                        translate(2.dp.toPx(), 2.dp.toPx()) { drawOutline(o, ink.copy(alpha = if (past) 0.35f else 1f)) }
+                                    }
+                                }
+                                .clip(cellShape)
                                 .background(
                                     when {
-                                        isTarget -> MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
-                                        epoch in offDays -> MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f)
-                                        else -> MaterialTheme.colorScheme.surfaceContainerHigh
+                                        isTarget -> Color(0xFF2F5BD3).copy(alpha = 0.25f)
+                                        limit == 0 -> MaterialTheme.colorScheme.surfaceVariant
+                                        else -> MaterialTheme.colorScheme.surface
                                     },
                                 )
-                                .border(
-                                    if (isSelected || isTarget || epoch == today) 2.dp else 0.dp,
-                                    when { isTarget -> MaterialTheme.colorScheme.primary; epoch == today -> Color(0xFFFFC22E); isSelected -> MaterialTheme.colorScheme.primary; else -> Color.Transparent },
-                                    RoundedCornerShape(10.dp),
-                                )
+                                .border(if (isSelected || isTarget) 2.5.dp else 1.5.dp, if (isSelected || isTarget) Color(0xFF2F5BD3) else ink.copy(alpha = if (past) 0.35f else 1f), cellShape)
                                 .onGloballyPositioned { cells[epoch] = it.boundsInRoot() }
-                                .clickable { selected = date }
-                                .padding(3.dp),
+                                .clickable { selected = date },
                             verticalArrangement = Arrangement.spacedBy(2.dp),
                         ) {
-                            Text(
-                                "${date.dayOfMonth}", style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (epoch == today) FontWeight.Black else FontWeight.Medium,
-                                color = if (epoch < today) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                            )
-                            val limit = limitOf(epoch)
-                            if (limit == 0) Text("folga", fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            else {
-                                val used = tasks.sumOf { it.entity.plannedMinutes }
-                                Box(Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
-                                    Box(Modifier.fillMaxWidth((used.toFloat() / limit).coerceIn(0f, 1f)).height(3.dp).background(if (used > limit) LateColor else Color(0xFF4FB98A)))
-                                }
-                            }
-                            tasks.sortedBy { it.entity.sequence }.take(3).forEach { t ->
-                                val late = epoch < today && t.entity.status in pending
-                                val done = t.entity.status == PlanTaskStatus.CONCLUIDA
-                                val color = when { late -> LateColor; done -> DoneColor; else -> taskTypeColor(t.entity.type) }
+                            // a cabeça do dia: o número (hoje em amarelo) e o tempo ocupado
+                            Row(
+                                Modifier.fillMaxWidth().background(if (epoch == today) Color(0xFFFFD23F) else Color.Transparent).padding(horizontal = 3.dp, vertical = 1.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
                                 Text(
-                                    t.entity.topicNameSnapshot ?: t.entity.subjectNameSnapshot,
-                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)).background(color.copy(alpha = if (done) 0.25f else 0.85f)).padding(horizontal = 2.dp),
-                                    fontSize = 8.sp, lineHeight = 9.sp, maxLines = 1, overflow = TextOverflow.Clip,
-                                    color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else Color.White,
+                                    "${date.dayOfMonth}", style = MaterialTheme.typography.labelMedium, fontFamily = br.com.estudario.ui.theme.MonoNum,
+                                    fontWeight = FontWeight.Bold,
+                                    color = when { epoch == today -> Color(0xFF2A2100); past -> MaterialTheme.colorScheme.onSurfaceVariant; else -> MaterialTheme.colorScheme.onSurface },
                                 )
                             }
-                            if (tasks.size > 3) Text("+${tasks.size - 3}", fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Column(Modifier.padding(horizontal = 3.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                if (limit == 0) Text("folga", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                else if (used > 0) {
+                                    Text("${shortMin(used)}/${shortMin(limit)}", fontSize = 8.sp, lineHeight = 9.sp, fontFamily = br.com.estudario.ui.theme.MonoNum, color = if (used > limit) LateColor else MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                    Box(Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
+                                        Box(Modifier.fillMaxWidth((used.toFloat() / limit).coerceIn(0f, 1f)).height(3.dp).background(if (used > limit) LateColor else Color(0xFF3BB273)))
+                                    }
+                                }
+                                if (past && tasks.isNotEmpty()) {
+                                    // dia que passou: só o resumo, como no site
+                                    Text(if (doneCount == tasks.size) "✓ feito" else "$doneCount/${tasks.size}", fontSize = 8.sp, lineHeight = 9.sp, fontWeight = FontWeight.Black, color = if (doneCount == tasks.size) Color(0xFF3BB273) else LateColor)
+                                } else {
+                                    tasks.take(3).forEach { t ->
+                                        val done = t.entity.status == PlanTaskStatus.CONCLUIDA
+                                        val color = if (done) DoneColor else taskTypeColor(t.entity.type)
+                                        Text(
+                                            monthSubject(t.entity.subjectNameSnapshot),
+                                            Modifier.fillMaxWidth().clip(RoundedCornerShape(3.dp)).background(color.copy(alpha = if (done) 0.2f else 0.9f)).padding(horizontal = 2.dp),
+                                            fontSize = 8.sp, lineHeight = 9.sp, maxLines = 1, overflow = TextOverflow.Clip, fontWeight = FontWeight.Bold,
+                                            color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else Color.White,
+                                        )
+                                    }
+                                    if (tasks.size > 3) Text("+${tasks.size - 3}", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
                         }
                     }
                 }
             }
-            // legenda
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                listOf("Teoria" to taskTypeColor(PlanTaskType.THEORY), "Questões" to taskTypeColor(PlanTaskType.QUESTIONS), "Revisão" to taskTypeColor(PlanTaskType.REVIEW), "Atrasado" to LateColor).forEach { (label, c) ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(8.dp).clip(CircleShape).background(c))
-                        Spacer(Modifier.width(4.dp))
-                        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
-            // o dia escolhido
+            // o dia escolhido: painel de papel com o limite do dia e os estudos (igual ao painel do site)
             selected?.let { day ->
-                val list = byDay[day.toEpochDay()].orEmpty().sortedBy { it.entity.sequence }
+                val list = byDay[day.toEpochDay()].orEmpty().sortedWith(compareBy({ it.entity.status == PlanTaskStatus.CONCLUIDA }, { it.entity.type != PlanTaskType.THEORY }))
                 val dayLimit = limitOf(day.toEpochDay())
-                Text(
-                    dayLabelPtBr(day, state.today).replaceFirstChar { it.uppercase() } +
-                        if (dayLimit > 0) " · ${minutesLabel(list.sumOf { it.entity.plannedMinutes })} de ${minutesLabel(dayLimit)}" else " · folga",
-                    style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    if (canEdit) "Segure um estudo e solte num dia do calendário para mudar." else "Toque para começar. Segure para mudar de dia.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (list.isEmpty()) Text(if (limitOf(day.toEpochDay()) == 0) "Dia sem estudo." else "Nada planejado neste dia.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                list.forEach { t ->
-                    var rowOrigin by remember(t.entity.id) { mutableStateOf(Offset.Zero) }
-                    val movable = t.entity.status in pending
-                    TaskRow(
-                        t, today,
-                        Modifier
-                            .onGloballyPositioned { rowOrigin = it.positionInRoot() }
-                            .then(if (!movable) Modifier else Modifier.pointerInput(t.entity.id, canEdit) {
-                                detectDragGesturesAfterLongPress(
-                                    onDragStart = { at ->
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        if (!canEdit) { upgrade = true; return@detectDragGesturesAfterLongPress }
-                                        dragging = t; finger = rowOrigin + at
-                                    },
-                                    onDrag = { change, amount -> if (dragging != null) { change.consume(); finger += amount } },
-                                    onDragEnd = {
-                                        val to = target
-                                        val moving = dragging
-                                        dragging = null
-                                        if (moving != null && to != null && to != moving.entity.scheduledEpochDay) {
-                                            val date = LocalDate.ofEpochDay(to)
-                                            if (to < today) return@detectDragGesturesAfterLongPress
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            val load = byDay[to].orEmpty().sumOf { it.entity.plannedMinutes }
-                                            if (load + moving.entity.plannedMinutes > limitOf(to)) overflow = moving to to
-                                            else { onMove(moving, date); selected = date }
-                                        }
-                                    },
-                                    onDragCancel = { dragging = null },
-                                )
-                            })
-                            .clickable { onFocus(t) },
+                val load = list.sumOf { it.entity.plannedMinutes }
+                Column(
+                    Modifier.fillMaxWidth().padding(top = 6.dp).br_cutPanel().padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(dayLabelPtBr(day, state.today).replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.titleLarge)
+                    if (dayLimit == 0) Text("Folga no seu plano.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    else {
+                        Row(Modifier.fillMaxWidth()) {
+                            Text("${minutesLabel(load)} de ${minutesLabel(dayLimit)}", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black)
+                            Text(if (load > dayLimit) "passou do limite" else "${minutesLabel(dayLimit - load)} livres", style = MaterialTheme.typography.labelLarge, color = if (load > dayLimit) LateColor else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Box(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(6.dp, 4.dp, 6.dp, 4.dp)).background(MaterialTheme.colorScheme.surfaceVariant).border(1.5.dp, ink, RoundedCornerShape(6.dp, 4.dp, 6.dp, 4.dp))) {
+                            Box(Modifier.fillMaxWidth((load.toFloat() / dayLimit.coerceAtLeast(1)).coerceIn(0f, 1f)).height(10.dp).background(if (load > dayLimit) LateColor else Color(0xFF3BB273)))
+                        }
+                    }
+                    Text(
+                        if (canEdit) "Segure um estudo e solte num dia do calendário para mudar. Ele fica fixado lá." else "Toque para começar. Mudar de dia é dos planos Essencial e Pro.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    if (list.isEmpty()) Text(if (day.toEpochDay() < today) "Nada planejado neste dia." else "Nada planejado ainda.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    list.forEach { t ->
+                        var rowOrigin by remember(t.entity.id) { mutableStateOf(Offset.Zero) }
+                        val movable = t.entity.status in pending
+                        TaskRow(
+                            t, today,
+                            Modifier
+                                .onGloballyPositioned { rowOrigin = it.positionInRoot() }
+                                .then(if (!movable) Modifier else Modifier.pointerInput(t.entity.id, canEdit) {
+                                    detectDragGesturesAfterLongPress(
+                                        onDragStart = { at ->
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            if (!canEdit) { upgrade = true; return@detectDragGesturesAfterLongPress }
+                                            dragging = t; finger = rowOrigin + at
+                                        },
+                                        onDrag = { change, amount -> if (dragging != null) { change.consume(); finger += amount } },
+                                        onDragEnd = {
+                                            val to = target
+                                            val moving = dragging
+                                            dragging = null
+                                            if (moving != null && to != null && to != moving.entity.scheduledEpochDay) {
+                                                val date = LocalDate.ofEpochDay(to)
+                                                if (to < today) return@detectDragGesturesAfterLongPress
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                val dayLoad = byDay[to].orEmpty().sumOf { it.entity.plannedMinutes }
+                                                if (dayLoad + moving.entity.plannedMinutes > limitOf(to)) overflow = moving to to
+                                                else { onMove(moving, date); selected = date }
+                                            }
+                                        },
+                                        onDragCancel = { dragging = null },
+                                    )
+                                })
+                                .clickable { onFocus(t) },
+                        )
+                    }
                 }
             }
         }
@@ -302,8 +368,12 @@ private fun TaskRow(t: PlannerTaskUi, today: Long, modifier: Modifier) {
     val late = t.entity.scheduledEpochDay < today && t.entity.status in pending
     val done = t.entity.status == PlanTaskStatus.CONCLUIDA
     val color = when { late -> LateColor; done -> DoneColor; else -> taskTypeColor(t.entity.type) }
+    val ink = br.com.estudario.ui.brand.cutInk()
+    val shape = RoundedCornerShape(12.dp, 7.dp, 13.dp, 8.dp)
     Row(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(12.dp),
+        modifier.fillMaxWidth().padding(end = 3.dp, bottom = 3.dp)
+            .drawBehind { val o = shape.createOutline(size, layoutDirection, this); translate(3.dp.toPx(), 3.dp.toPx()) { drawOutline(o, ink) } }
+            .clip(shape).background(MaterialTheme.colorScheme.surface).border(2.dp, ink, shape).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Box(Modifier.width(4.dp).height(36.dp).clip(RoundedCornerShape(2.dp)).background(color))
