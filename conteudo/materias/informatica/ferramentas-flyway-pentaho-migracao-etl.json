@@ -1,0 +1,1863 @@
+{
+  "id": "informatica.ferramentas-flyway-pentaho-migracao-etl",
+  "subject": "Informática",
+  "title": "Ferramentas Flyway e Pentaho: migração e ETL",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Conhecimento das ferramentas Flyway e Pentaho",
+    "Pentaho (ferramenta ETL)",
+    "Flyway e Pentaho para migração e ETL",
+    "Ferramentas de migração Flyway e ETL Pentaho",
+    "Pentaho Data Integration e Flyway",
+    "Integração de dados com Pentaho PDI",
+    "Migração de banco com Flyway",
+    "Transformações e jobs do Pentaho",
+    "ETL com Pentaho Data Integration",
+    "Spoon e ferramentas Pentaho PDI"
+  ],
+  "scope": {
+    "covers": "Uso do Flyway para versionar e executar migrações de banco de dados; conceitos do Pentaho Data Integration (PDI), ETL, Spoon, transformações, etapas, hops, jobs, conexões, execução, logs e tratamento de erros; distinção entre migração de esquema e integração de dados.",
+    "excludes": "Administração específica de SGBD, sintaxe SQL avançada, instalação/licenciamento de versões particulares e demais produtos analíticos da suíte Pentaho."
+  },
+  "theoryTitle": "Flyway e Pentaho na evolução e integração de dados",
+  "chapters": [
+    {
+      "title": "1. Flyway: alterações de banco sob controle",
+      "markdown": "### O problema que este assunto resolve\n\nAplicar alterações manualmente em cada ambiente costuma produzir bancos diferentes. O Flyway registra mudanças como migrações, mantém seus arquivos no controle de versão e aplica as pendentes na ordem prevista. Cada ambiente recebe os mesmos scripts, o que torna a implantação reproduzível. Migração pode alterar esquema e também dados, por exemplo criando tabela ou inserindo dados de referência.\n\n> **Siglas e termos deste capítulo**\n> - **SGBD**: sistema gerenciador de banco de dados.\n> - **Migração**: script incremental que modifica esquema ou dados.\n> - **DDL/DML**: comandos de definição de estrutura e manipulação de dados.\n> - **Checksum**: resumo calculado do conteúdo de um arquivo para detectar alteração.\n\n### Tipos e nomes\n\n| Tipo | Forma usual | Comportamento |\n| --- | --- | --- |\n| Versionada | `V2__adicionar_indice.sql` | Executada uma vez, em ordem numérica de versão. |\n| Repetível | `R__criar_visao.sql` | Reexecutada quando seu conteúdo muda; processada após as versionadas pendentes. |\n| Undo | `U2__adicionar_indice.sql` | Script de reversão associado à versão, disponível em edições que oferecem esse recurso. |\n\nNa versionada, há prefixo, versão, dois sublinhados, descrição e extensão. Uma migração já aplicada deve ser tratada como imutável: uma correção posterior ganha novo arquivo versionado. A tabela `flyway_schema_history` registra as execuções, incluindo versão, descrição, checksum, momento e resultado.\n\n### Comandos e cuidados concretos\n\n`migrate` aplica pendências; `info` mostra o estado; `validate` compara arquivos disponíveis com o histórico; `repair` corrige metadados do histórico em situações controladas, mas não executa SQL de correção nem desfaz alterações no banco. `baseline` marca o ponto inicial de um banco preexistente. `clean` remove objetos do esquema e pode destruir dados, por isso deve ser bloqueado em produção. `outOfOrder` permite aplicar uma versão antiga que chegou atrasada, se habilitado. Placeholders substituem valores configurados no SQL; callbacks executam ações em eventos do ciclo de vida.\n\n### Como cai na prova\n\nA banca troca os papéis de `validate`, `repair` e `migrate`, ou diz que Flyway faz backup. Lembre que validar compara, reparar ajusta o histórico, migrar aplica scripts e backup é outra atividade. Também é comum perguntar o que fazer após editar uma versão já aplicada: restaurar o arquivo original e criar nova migração."
+    },
+    {
+      "title": "2. Pentaho Data Integration: fluxo de linhas e etapas",
+      "markdown": "### O problema que este assunto resolve\n\nPentaho Data Integration (PDI), também chamado Kettle, constrói processos de integração e transformação de dados. O cliente gráfico tradicional é o Spoon. Uma transformação descreve um fluxo de dados: lê registros, trata campos e linhas e grava o resultado. Arquivos tradicionais de transformação usam extensão `.ktr`.\n\n> **Siglas e termos deste capítulo**\n> - **ETL**: extração, transformação e carga de dados.\n> - **PDI**: Pentaho Data Integration.\n> - **Step (etapa)**: unidade de trabalho em uma transformação.\n> - **Hop**: conexão que conduz linhas entre etapas.\n> - **Metadados da linha**: nomes e tipos dos campos que circulam no fluxo.\n\n### Etapas e hops\n\nEtapas de entrada podem ler arquivo de texto ou tabela; etapas de transformação selecionam campos, filtram ou agregam; etapas de saída gravam em arquivo ou banco. Exemplos conhecidos incluem Text File Input, Table Input, Filter Rows, Select Values, Group By e Table Output. Hops ligam as etapas, indicam direção do fluxo e transmitem linhas e metadados. Quando uma etapa envia para mais de um destino, o fluxo pode ser copiado ou distribuído conforme a configuração.\n\nUma transformação não é necessariamente uma sequência em que cada step só começa depois do anterior: as etapas iniciam em paralelo, em threads próprias, e trocam linhas. Portanto, usar uma etapa inicial para definir variável e esperar que a seguinte a leia pode falhar por ordem de inicialização não garantida. O desenho do fluxo deve respeitar o esquema esperado das linhas; misturar formatos diferentes no mesmo caminho pode causar falha.\n\n### Projeto, execução e diagnóstico\n\nNo Spoon, o usuário monta etapas na área de desenho, configura conexões e hops e executa a transformação. Após a execução, logs e métricas por step ajudam a identificar erros e gargalos. Arquivos de conexão e credenciais devem ser administrados com cuidado; caminhos, codificação, tipos, precisão e nomes de campos precisam corresponder aos dados reais. Uma carga pode ser validada por contagens, rejeições e amostras de destino.\n\n### Como cai na prova\n\nSe a questão fala de linhas que passam por etapas, é transformação. Se fala de coordenação de tarefas, sequência e condição, é job. Hop de transformação conduz dados e pode paralelizar processamento; não confunda com hop de job, que controla o fluxo de execução."
+    },
+    {
+      "title": "3. Jobs, dependências e execução do ETL",
+      "markdown": "### O problema que este assunto resolve\n\nUma carga real costuma exigir mais que uma transformação: verificar se um arquivo chegou, preparar diretórios, carregar tabelas, executar validação e notificar uma falha. Um job coordena essas atividades e suas dependências. Seu arquivo tradicional usa extensão `.kjb`; cada unidade configurada é uma entrada de job.\n\n> **Siglas e termos deste capítulo**\n> - **Job**: fluxo de controle que organiza atividades e dependências.\n> - **Job entry**: atividade configurada dentro de um job.\n> - **Hop de job**: ligação que define próximo passo e condição.\n> - **Log**: registro de execução útil para auditoria e diagnóstico.\n\n### Hops de job e resultado\n\nDiferentemente do hop de transformação, o hop de job não transporta linhas como seu objetivo principal: ele determina qual entrada será executada em seguida. Pode ser incondicional ou condicionado ao resultado anterior, por exemplo seguir pelo caminho de sucesso se um arquivo existe e por uma rota de erro se a transformação falha. Entradas comuns executam transformação, verificam arquivo ou tabela e enviam notificação. Jobs podem conter laços; é preciso definir condição de saída para evitar repetição sem fim.\n\nUm job pode chamar uma transformação mais de uma vez com parâmetros diferentes. Separar orquestração de processamento facilita reuso: o job decide quando e em que ordem executar; a transformação trata linhas. Execução recorrente pode ser agendada pela infraestrutura disponível. Registros da execução, status de entradas e mensagens de erro permitem localizar a etapa que falhou.\n\n### Carga confiável\n\nPara reduzir cargas incompletas, defina comportamento para falha, destino de rejeitados e critérios de sucesso. Uma etapa que falha não deve ser mascarada por caminho incondicional que declare o processo bem-sucedido. Se a execução puder ser repetida, considere duplicidade: uma carga idempotente produz o mesmo estado sem duplicar linhas, usando chaves, validações ou estratégia de substituição apropriada ao caso. Transações e commits dependem da configuração e do conector usado.\n\n### Como cai na prova\n\nVerifique se o enunciado pede orquestração condicional ou transformação das linhas. O job encadeia atividades; a transformação define etapas de dados. Outra pegadinha é afirmar que os dois tipos de hop fazem a mesma coisa: um controla caminho de dados e outro controla execução do job."
+    },
+    {
+      "title": "4. Flyway e PDI: responsabilidades complementares",
+      "markdown": "### O problema que este assunto resolve\n\nFlyway e PDI podem participar da mesma entrega, mas atacam problemas diferentes. Flyway controla a evolução incremental do banco por scripts versionados. PDI extrai registros de fontes, transforma e carrega dados em destinos, podendo orquestrar uma rotina de integração. Um ETL pode depender de uma tabela criada por migração, mas isso não transforma as duas ferramentas em substitutas.\n\n> **Siglas e termos deste capítulo**\n> - **ETL**: extrair, transformar e carregar.\n> - **Migração de esquema**: evolução controlada da estrutura do banco.\n> - **Pipeline**: conjunto de etapas encadeadas para processar dados.\n> - **Idempotência**: propriedade de repetir operação sem gerar efeitos duplicados indesejados.\n\n### Exemplo integrado\n\nUma implantação pode primeiro executar migrações do Flyway que criam tabela de destino e índice. Em seguida, um job PDI verifica a chegada do arquivo diário, executa transformação que lê o arquivo, normaliza campos, filtra linhas inválidas e grava dados; por fim, valida contagem e envia resultado. O desenho precisa considerar dependências, permissões, transação, volume, codificação e tratamento de falhas. Se a tabela de destino mudar, a alteração estrutural fica em nova migração, e o mapeamento PDI é atualizado e testado para refletir o novo contrato.\n\nO Flyway não substitui a ferramenta ETL para movimentar e reconciliar grandes lotes; PDI não deve ser tratado como histórico de migrações do esquema. Scripts do Flyway são aplicados conforme seu estado registrado; transformações podem ser executadas repetidamente por rotina de negócio. Boas práticas incluem controle de versão dos arquivos `.sql`, `.ktr` e `.kjb`, parâmetros por ambiente sem credenciais embutidas, logs úteis e validação dos resultados.\n\n### Como cai na prova\n\nAo identificar o objetivo, associe DDL evolutivo e histórico a Flyway; fluxo de registros e transformação a PDI; coordenação condicional a job. Em cenário integrado, a migração prepara a estrutura e o ETL alimenta os dados."
+    }
+  ],
+  "summary": "Flyway aplica scripts incrementais versionados e registra estado na flyway_schema_history. Migrações versionadas usam V<versão>__<descrição>, repetíveis começam com R__ e podem ser reaplicadas quando mudam; arquivos já aplicados não devem ser editados. migrate aplica, info informa, validate compara e repair corrige metadados do histórico, sem alterar os dados de negócio. Baseline marca banco preexistente e clean apaga objetos do esquema. Pentaho Data Integration (PDI/Kettle), desenvolvido no Spoon, oferece transformações para fluxos ETL e jobs para orquestração. Etapas (steps) processam linhas; hops de transformação conduzem dados e metadados e as etapas podem executar em paralelo. Hops de job controlam sequência e condições entre entradas. Transformações usam normalmente .ktr e jobs .kjb. Logs, métricas, validações de contagem e tratamento de rejeições ajudam a controlar cargas. Flyway gerencia evolução do esquema; PDI integra e transforma dados; podem ser usados em etapas complementares de uma implantação.",
+  "flashcards": [
+    {
+      "front": "O que o Flyway controla?",
+      "back": "A aplicação ordenada de migrações versionadas de esquema ou dados, registrando o histórico no banco."
+    },
+    {
+      "front": "Qual o formato usual de uma migração versionada?",
+      "back": "V, versão, dois sublinhados, descrição e extensão, como V3__criar_tabela.sql."
+    },
+    {
+      "front": "Para que serve flyway_schema_history?",
+      "back": "Registrar migrações aplicadas e metadados como versão, checksum, momento e sucesso."
+    },
+    {
+      "front": "O que faz migrate?",
+      "back": "Aplica migrações pendentes encontradas para o banco."
+    },
+    {
+      "front": "O que faz info?",
+      "back": "Apresenta informações sobre migrações aplicadas, pendentes e estado do banco."
+    },
+    {
+      "front": "O que faz validate?",
+      "back": "Compara migrações disponíveis com o histórico, inclusive verificando checksums."
+    },
+    {
+      "front": "Repair executa o SQL corretivo?",
+      "back": "Não. Corrige metadados do histórico em situações controladas; não desfaz alterações de negócio."
+    },
+    {
+      "front": "Para que serve baseline?",
+      "back": "Marcar a versão inicial de um banco existente que passa a ser controlado pelo Flyway."
+    },
+    {
+      "front": "Qual o risco de clean?",
+      "back": "Apaga objetos do esquema; pode eliminar dados, devendo ser bloqueado em produção."
+    },
+    {
+      "front": "Quando uma migração repetível roda novamente?",
+      "back": "Quando seu checksum muda; ela é processada depois das versionadas pendentes."
+    },
+    {
+      "front": "O que é uma transformação PDI?",
+      "back": "Um fluxo de dados em que etapas leem, tratam e gravam linhas."
+    },
+    {
+      "front": "O que é um step?",
+      "back": "Uma etapa que realiza função como ler, filtrar, selecionar campos, agregar ou gravar."
+    },
+    {
+      "front": "O que faz um hop de transformação?",
+      "back": "Conecta etapas e conduz dados e metadados pelo fluxo."
+    },
+    {
+      "front": "As etapas de transformação executam sempre uma após outra?",
+      "back": "Não. Elas podem iniciar em paralelo e trocar linhas; a ordem de inicialização não é garantida."
+    },
+    {
+      "front": "O que é um job PDI?",
+      "back": "Um fluxo de controle que coordena atividades, dependências e condições de execução."
+    },
+    {
+      "front": "Como difere o hop de job?",
+      "back": "Controla qual entrada será executada e sob qual resultado, em vez de conduzir linhas."
+    },
+    {
+      "front": "Quais extensões tradicionais representam transformação e job?",
+      "back": ".ktr para transformação e .kjb para job."
+    },
+    {
+      "front": "Cite uma etapa de entrada e uma de saída do PDI.",
+      "back": "Text File Input é entrada; Table Output é saída."
+    },
+    {
+      "front": "Para que serve Filter Rows?",
+      "back": "Direcionar ou selecionar linhas conforme condição configurada."
+    },
+    {
+      "front": "Qual o propósito de Group By?",
+      "back": "Agrupar linhas e calcular agregações; a etapa requer entrada ordenada por campos de agrupamento."
+    },
+    {
+      "front": "Qual a diferença de responsabilidade entre Flyway e PDI?",
+      "back": "Flyway controla migrações do banco; PDI integra e transforma registros em processos ETL."
+    },
+    {
+      "front": "Como logs ajudam em PDI?",
+      "back": "Mostram status e erros por etapa/entrada para localizar falhas e avaliar execução."
+    },
+    {
+      "front": "Por que evitar misturar layouts de linha?",
+      "back": "Etapas esperam campos e tipos definidos; layouts divergentes podem causar campos ausentes ou tipos incompatíveis."
+    },
+    {
+      "front": "O que significa uma carga idempotente?",
+      "back": "Pode ser repetida sem produzir duplicações ou efeitos acumulados indesejados."
+    },
+    {
+      "front": "Qual sequência simples pode integrar Flyway e PDI?",
+      "back": "Flyway cria ou atualiza a estrutura; um job PDI depois extrai, transforma, carrega e valida os dados."
+    }
+  ],
+  "tips": [
+    "Associe V__ a migração versionada e R__ a repetível; observe os dois sublinhados do padrão de nome.",
+    "Lembre a função dos comandos: migrate aplica; info mostra; validate compara; repair corrige histórico.",
+    "Clean é destrutivo: não o confunda com limpeza de linhas rejeitadas de um ETL.",
+    "Em PDI, transformação processa linhas; job controla a execução de atividades.",
+    "Hop de transformação conduz linhas; hop de job condiciona o fluxo de controle.",
+    "Em questões de integração, pergunte se o problema é evoluir esquema ou mover dados: Flyway ou PDI, respectivamente."
+  ],
+  "traps": [
+    "Alterar arquivo versionado já aplicado gera divergência de checksum; a correção deve ser uma nova migração.",
+    "Repair não reaplica scripts nem recupera esquema parcialmente alterado.",
+    "Etapas de transformação podem rodar em paralelo; desenho visual sequencial não garante inicialização serial.",
+    "A ordem de execução de entradas em job não é a semântica de fluxo de linhas de uma transformação.",
+    "Afirmar que Flyway é ETL ou que PDI substitui o histórico de migrações troca as responsabilidades.",
+    "Saída marcada como sucesso sem tratar o caminho de erro pode esconder carga incompleta."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique como o Flyway sabe o que precisa aplicar.",
+      "answer": "Compara os arquivos de migração disponíveis com os registros da flyway_schema_history e aplica as pendências por migrate."
+    },
+    {
+      "question": "Descreva a estrutura de nome de uma migração versionada.",
+      "answer": "Prefixo V, versão, separador de dois sublinhados, descrição e extensão do arquivo."
+    },
+    {
+      "question": "Por que não se altera migração já aplicada?",
+      "answer": "O arquivo deixa de corresponder ao checksum armazenado e bancos que já o aplicaram não recebem a alteração; uma nova versão preserva o histórico."
+    },
+    {
+      "question": "Compare migrate, validate e repair.",
+      "answer": "Migrate aplica pendências; validate compara arquivos e histórico; repair corrige metadados do histórico em situação controlada."
+    },
+    {
+      "question": "Explique a diferença entre transformação e job no PDI.",
+      "answer": "Transformação processa linhas por steps conectados; job orquestra atividades e dependências usando entradas e hops condicionais."
+    },
+    {
+      "question": "O que um hop de transformação transporta?",
+      "answer": "Dados e metadados de linha entre steps; pode haver cópia ou distribuição do fluxo conforme a configuração."
+    },
+    {
+      "question": "Por que variável definida numa etapa inicial pode não estar pronta na seguinte?",
+      "answer": "As etapas de uma transformação podem iniciar em paralelo e a sequência de inicialização não é previsível."
+    },
+    {
+      "question": "Como Flyway e PDI podem compor uma implantação?",
+      "answer": "Flyway prepara a estrutura; um job PDI executa transformação para carregar e validar dados nessa estrutura."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Flyway aplicado como ferramenta ETL",
+      "summary": "Flyway gerencia migrações e histórico de esquema; extração, transformação e carga de registros são tarefas de PDI ou ferramenta ETL."
+    },
+    {
+      "key": "e2",
+      "title": "Comandos Flyway confundidos",
+      "summary": "Migrate aplica, info apresenta estado, validate compara e repair trata metadados do histórico; clean remove objetos do esquema."
+    },
+    {
+      "key": "e3",
+      "title": "Semântica de etapas e hops trocada",
+      "summary": "Steps executam tarefas sobre dados; hop de transformação conduz linhas; hop de job controla ordem e condição de entradas."
+    },
+    {
+      "key": "e4",
+      "title": "Paralelismo de transformação ignorado",
+      "summary": "Etapas de transformação podem ser iniciadas em paralelo; inicialização em ordem visual não deve ser pressuposta."
+    },
+    {
+      "key": "e5",
+      "title": "Falha e repetição da carga ignoradas",
+      "summary": "Jobs precisam tratar caminhos de erro e validação; cargas repetidas exigem estratégia contra duplicidade e logs para diagnóstico."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Qual é a função principal do comando migrate no Flyway?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar ao banco as migrações pendentes reconhecidas pela ferramenta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Gerar cópia integral de segurança antes de cada script executado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter automaticamente qualquer transformação PDI em SQL versionado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar migrações antigas do histórico e preservar só a versão atual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Comparar os arquivos sem aplicar mudanças nem registrar execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Migrate compara migrações disponíveis com as já registradas e aplica as pendentes. Backup é responsabilidade separada; comparação sem execução se aproxima de validação, e o comando não converte fluxos ETL nem limpa o histórico.",
+      "section": "1. Flyway: alterações de banco sob controle",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma migração SQL versionada foi aplicada em produção e agora precisa de uma alteração adicional. Qual abordagem preserva o histórico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Editar o arquivo já aplicado e executar validate para incorporar a diferença.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover sua linha do histórico para que o Flyway a execute de novo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar uma nova migração versionada com a alteração complementar.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Renomear a migração aplicada sem mudar seu conteúdo nem sua versão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar repair, que aplica no esquema a edição feita no arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Migrações versionadas aplicadas são tratadas como imutáveis. A mudança posterior deve entrar em nova versão; editar o arquivo muda checksum, remover histórico arrisca reaplicação, e validate/repair não executam a alteração de esquema.",
+      "section": "1. Flyway: alterações de banco sob controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No padrão de nome V4__criar_indice.sql, o que indicam os dois sublinhados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Separação entre a versão e a descrição da migração.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Indicação de que o arquivo é uma migração repetível sem versão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Indicação de que o script só pode rodar em ambiente de teste.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Separação entre o SQL de origem e o SQL de rollback.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sinal de que a migração deve aguardar a aprovação de um job.",
+          "correct": false
+        }
+      ],
+      "explanation": "O nome versionado inclui prefixo, versão, dois sublinhados, descrição e extensão. O padrão não identifica repetível, ambiente, rollback nem dependência de um job.",
+      "section": "1. Flyway: alterações de banco sob controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual tabela o Flyway usa por padrão para registrar as migrações aplicadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DATABASECHANGELOG, usada para qualquer ferramenta de migração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "flyway_schema_history, com dados do histórico de execução.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "PDI_TRANSFORMATION_LOG, criada pelo cliente Spoon.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SCHEMA_VERSION, que contém somente o SQL mais recente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ETL_JOB_HISTORY, compartilhada por todas as cargas do Pentaho.",
+          "correct": false
+        }
+      ],
+      "explanation": "A tabela padrão do Flyway chama-se flyway_schema_history e registra execuções e metadados das migrações. DATABASECHANGELOG é associada ao Liquibase; nomes de logs PDI não são a tabela de histórico Flyway.",
+      "section": "1. Flyway: alterações de banco sob controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer verificar se arquivos de migração correspondem ao histórico registrado, sem pedir que a ferramenta aplique as pendências. Qual comando atende ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "migrate, pois ele só calcula checksum e nunca aplica scripts.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "clean, que compara o histórico antes de remover tabelas divergentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "baseline, que valida todos os arquivos e executa os faltantes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "validate, que confere a consistência entre arquivos e histórico.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "repair, que executa novamente cada migração para comparar o resultado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Validate verifica consistência, inclusive divergências de checksum. Migrate pode aplicar alterações, clean remove objetos, baseline marca o início do controle e repair ajusta metadados em circunstâncias específicas.",
+      "section": "1. Flyway: alterações de banco sob controle",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente uma migração repetível do Flyway?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É identificada por versão numérica e nunca roda após sua primeira execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usa prefixo R__, não tem versão e pode rodar novamente quando seu conteúdo muda.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "É um arquivo de rollback que remove os objetos da versão anterior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executa sempre antes de qualquer migração versionada pendente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substitui a tabela de histórico por um registro guardado no arquivo SQL.",
+          "correct": false
+        }
+      ],
+      "explanation": "A repetível não carrega versão numérica; a mudança de checksum sinaliza reaplicação, e repetíveis são executadas após versionadas pendentes. Undo é outro tipo e o histórico continua sendo mantido no banco.",
+      "section": "1. Flyway: alterações de banco sob controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe está adotando Flyway em banco existente que já contém objetos e dados válidos. Para que serve baseline nesse cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Marcar uma versão inicial para começar a controlar o banco existente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Duplicar o banco em outro servidor antes de executar a primeira carga.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Recriar todas as tabelas por meio dos scripts desde a versão inicial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover o histórico antigo e desfazer alterações no esquema atual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transformar arquivos SQL em steps de uma transformação PDI.",
+          "correct": false
+        }
+      ],
+      "explanation": "Baseline registra o ponto de partida de um banco preexistente para que o Flyway passe a controlar migrações posteriores sem recriar o que já existe. Não é backup, restauração nem conversão para ETL.",
+      "section": "1. Flyway: alterações de banco sob controle",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em ambiente de produção, por que o comando clean exige cuidado especial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele troca a ordem de execução das migrações versionadas automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele interrompe jobs PDI ativos e apaga seus arquivos de log.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele remove os objetos do esquema e pode causar perda de dados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ele corrige qualquer falha de conexão sem alterar o banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele executa migrações repetíveis sem conferir seus checksums.",
+          "correct": false
+        }
+      ],
+      "explanation": "Clean remove os objetos do esquema configurado, podendo destruir dados e estrutura. Não é limpeza de logs, ajuste de ordem nem ferramenta de correção de conexão; deve ficar indisponível em produção.",
+      "section": "1. Flyway: alterações de banco sob controle",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a finalidade do checksum no histórico do Flyway?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardar cópia integral de todas as linhas alteradas pela migração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Medir o volume de dados carregados pelo job Pentaho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir a necessidade de controlar arquivos no repositório.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Detectar alteração posterior no conteúdo de migração versionada aplicada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Indicar em que máquina física o banco foi instalado originalmente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Flyway armazena checksum para conferir se o conteúdo do arquivo ainda corresponde à versão aplicada. Não é backup, contador ETL nem substituto do controle de versão.",
+      "section": "1. Flyway: alterações de banco sob controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a unidade básica de trabalho numa transformação PDI?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma entrada de job que decide o próximo caminho de execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um step, como leitura, filtro, seleção de campos ou gravação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um checksum armazenado na tabela do Flyway.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um changelog com operações declarativas de banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um hop de job que sempre transfere linhas entre tabelas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Steps são blocos funcionais da transformação e realizam tarefas sobre os dados. Entrada de job e hop de job pertencem à orquestração; checksum e changelog têm outros papéis.",
+      "section": "2. Pentaho Data Integration: fluxo de linhas e etapas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PDI, qual descrição melhor corresponde a um hop dentro de uma transformação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conexão que conduz linhas e metadados de uma etapa para outra.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Comando que compara checksums e remove o histórico divergente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Arquivo de texto que armazena a definição completa de um job.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tabela temporária usada para guardar rejeições de uma carga.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Agendador externo que define o horário de execução recorrente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Hops conectam steps e definem a direção do fluxo de linhas com seus metadados. O registro de rejeições, o agendamento e o histórico de migração são mecanismos distintos.",
+      "section": "2. Pentaho Data Integration: fluxo de linhas e etapas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual extensão é tradicionalmente associada a um arquivo de transformação do Pentaho Data Integration?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": ".kjb, formato usado para definir o fluxo de transformação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": ".sql, formato padrão que contém a topologia gráfica de steps.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": ".ktr, arquivo que representa uma transformação PDI.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": ".flyway, arquivo que descreve a conexão entre steps e hops.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": ".xml, extensão obrigatória para todos os jobs do Spoon.",
+          "correct": false
+        }
+      ],
+      "explanation": "Transformações PDI são tradicionalmente salvas em arquivos .ktr; jobs usam .kjb. SQL pode ser usado em migrações ou etapas, mas não é a extensão do arquivo de transformação.",
+      "section": "2. Pentaho Data Integration: fluxo de linhas e etapas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transformação contém uma etapa que lê CSV, outra que filtra registros e uma terceira que grava tabela. Como se classifica esse artefato?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um job, porque qualquer conexão entre atividades é um hop de controle.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um baseline, pois parte de uma estrutura de banco já existente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma migração versionada que o Flyway executa por ordem numérica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma transformação, que descreve fluxo de dados por steps conectados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um callback, acionado apenas depois de validate concluir sem erros.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ler, filtrar e gravar linhas caracteriza uma transformação de ETL. Jobs coordenam atividades; baseline, migração e callback pertencem a outros conceitos.",
+      "section": "2. Pentaho Data Integration: fluxo de linhas e etapas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comportamento deve ser considerado ao desenhar steps de uma transformação PDI?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A execução inicia sempre em série, seguindo a posição visual do canvas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os steps podem iniciar em paralelo, sem ordem de inicialização garantida.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Somente o primeiro step executa; os demais são processados pelo job.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Spoon transforma todos os hops em chamadas SQL sequenciais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ordem de execução depende do nome alfabético de cada etapa.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação do PDI descreve steps de transformação iniciados em paralelo, cada um em sua thread. O fluxo de dados é conduzido pelos hops; não se deve presumir ordem serial de inicialização com base no desenho.",
+      "section": "2. Pentaho Data Integration: fluxo de linhas e etapas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma etapa precisa agrupar registros por campos e calcular agregações. Qual recurso corresponde a essa necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Table Output, que agrega valores enquanto insere cada linha no destino.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Text File Input, que agrupa linhas por nome de coluna do CSV.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Group By, que agrega entrada ordenada pelos campos de agrupamento.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Filter Rows, que soma automaticamente todos os campos numéricos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Job hop, que agrupa linhas conforme resultado verdadeiro ou falso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Group By produz agregações e requer que a entrada esteja ordenada pelos campos de agrupamento para resultados corretos. Filter Rows seleciona caminhos, enquanto Table Output grava e job hop controla execução.",
+      "section": "2. Pentaho Data Integration: fluxo de linhas e etapas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao configurar um step de leitura de arquivo, qual validação ajuda a prevenir falhas posteriores no fluxo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conferir codificação, separadores, nomes e tipos dos campos de entrada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desativar logs para que os dados sejam inferidos pelo job seguinte.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar a versão do Flyway para coincidir com o número de linhas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Enviar layouts diferentes no mesmo caminho e esperar que se conciliem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Marcar o hop como incondicional para ignorar erros de conversão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A estrutura de entrada determina metadados que steps seguintes esperam. Codificação, delimitadores, nomes e tipos precisam ser conferidos; layouts incompatíveis podem causar erros de campo ou tipo.",
+      "section": "2. Pentaho Data Integration: fluxo de linhas e etapas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação diferencia corretamente transformação e job no PDI?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Transformação controla dependências; job transporta linhas entre steps em paralelo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ambos descrevem apenas operações SQL e não podem verificar arquivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Job e transformação são sinônimos, mudando somente a extensão do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformação processa dados; job coordena tarefas e suas dependências.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Job transforma campos; transformação decide caminhos de sucesso ou falha.",
+          "correct": false
+        }
+      ],
+      "explanation": "A transformação define o processamento do fluxo de dados; o job coordena atividades, recursos e dependências, como verificar arquivo e chamar transformação. Os papéis e hops são distintos.",
+      "section": "3. Jobs, dependências e execução do ETL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual extensão é tradicionalmente usada para salvar um job no PDI?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": ".ktr, arquivo que armazena as entradas e condições do job.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": ".kjb, arquivo que representa um job PDI.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": ".sql, formato obrigatório para qualquer fluxo de controle.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": ".csv, arquivo que contém hops e credenciais de conexão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": ".etl, extensão fixa compartilhada por migrações e jobs.",
+          "correct": false
+        }
+      ],
+      "explanation": "O arquivo tradicional de job usa extensão .kjb; .ktr identifica transformação. CSV pode ser fonte ou destino de dados, mas não é o formato de definição de job.",
+      "section": "3. Jobs, dependências e execução do ETL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num job, um hop condicionado ao sucesso da entrada anterior serve para quê?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enviar as linhas produzidas pelo step anterior para um filtro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Recalcular o checksum da transformação antes de cada execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar a próxima entrada somente quando o resultado anterior for verdadeiro.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Forçar a próxima entrada mesmo que a anterior tenha falhado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar uma tabela no esquema a partir do nome do arquivo de job.",
+          "correct": false
+        }
+      ],
+      "explanation": "Hops de job determinam a próxima entrada e podem depender do resultado anterior. Condição de sucesso encaminha o controle quando a atividade terminou corretamente, sem transportar linhas como hop de transformação.",
+      "section": "3. Jobs, dependências e execução do ETL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um job verifica a existência de arquivo, chama transformação de carga e envia e-mail em caso de erro. Qual conceito explica esse desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Migração repetível, que controla o fluxo de dados por checksum.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Transformação única, pois steps podem verificar qualquer dependência externa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Baseline, que marca o primeiro arquivo recebido pelo processo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Job, que orquestra tarefas e caminhos condicionados de execução.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Hop de transformação, que agenda e-mail após a tabela ser criada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Verificar pré-condição, executar transformação e tratar falha são tarefas típicas de orquestração de job. O job organiza entradas e condições, enquanto steps processam linhas dentro da transformação.",
+      "section": "3. Jobs, dependências e execução do ETL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ação melhora o diagnóstico de uma transformação que falhou durante uma carga?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar todos os registros e executar novamente sem observar resultados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Revisar logs e métricas por etapa para localizar erro e volume processado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apagar o arquivo .ktr, pois o Spoon reconstrói o fluxo pelo histórico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar clean no banco para identificar em qual step ocorreu a falha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar os nomes dos hops até que o job reporte sucesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Logs e métricas ajudam a apontar qual step falhou e quantas linhas processou. Apagar artefatos ou limpar esquema não diagnostica a causa e pode aumentar o impacto da falha.",
+      "section": "3. Jobs, dependências e execução do ETL",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um job permite caminhos de repetição. O que deve ser definido para evitar uma execução interminável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma condição de saída verificável para encerrar o laço.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma migração repetível que remova o hop no banco de destino.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um step inicial que defina variável antes de todos os outros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um arquivo .ktr com nome igual ao arquivo .kjb.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um hop incondicional após cada entrada para perpetuar a execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Jobs podem conter loops; a condição deve permitir que o fluxo termine quando o objetivo for atingido. Um caminho incondicional repetido não estabelece saída e pode criar ciclo infinito.",
+      "section": "3. Jobs, dependências e execução do ETL",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que a repetição de um job de carga deve ser planejada com atenção a duplicidades?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque cada execução altera automaticamente a versão da migração SQL.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque steps do PDI não podem ser executados mais de uma vez.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque uma nova execução pode inserir novamente registros já carregados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Porque hops de job apagam sempre os dados da origem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque o Spoon converte arquivos .kjb em backups do banco.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se uma carga for repetida sem controle, pode inserir novamente dados já processados. Chaves, validações ou estratégia de substituição podem tornar a rotina idempotente conforme a regra de negócio.",
+      "section": "3. Jobs, dependências e execução do ETL",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração estrutural deve ser aplicada antes do PDI gravar numa nova coluna de destino. Qual divisão de responsabilidade é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O job PDI cria o histórico de migrações e o Flyway transforma os registros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Flyway versiona a alteração do esquema; PDI carrega o campo correspondente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O step Table Output altera a versão do arquivo SQL já aplicado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Flyway e PDI concorrem para decidir qual campo deve ser removido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Baseline converte a coluna para uma etapa de transformação automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Flyway deve registrar a mudança de estrutura como nova migração. O fluxo PDI precisa ser atualizado para fornecer o novo campo e carregar os dados; nenhuma ferramenta converte automaticamente o trabalho da outra.",
+      "section": "4. Flyway e PDI: responsabilidades complementares",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Numa implantação integrada, qual ordem de tarefas é coerente quando o ETL depende de uma tabela recém-criada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar a migração que cria a tabela e depois rodar o job de carga PDI.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Rodar a carga PDI e depois criar a tabela com validate do Flyway.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar clean para criar a tabela e usar info para inserir as linhas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar o job antes da estrutura e confiar que o hop ajuste o esquema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar repair para criar a tabela e migrate para validar contagens ETL.",
+          "correct": false
+        }
+      ],
+      "explanation": "A dependência exige que a estrutura exista antes da gravação. Flyway aplica a migração; então o job PDI executa o ETL. Info, validate, repair e clean não desempenham a carga ou criação como descrito nas alternativas erradas.",
+      "section": "4. Flyway e PDI: responsabilidades complementares",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual artefato deve conter a regra que lê um arquivo, normaliza campos e grava linhas no destino?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Migração versionada Flyway, pois executa steps e encaminha linhas em lote.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tabela flyway_schema_history, pois armazena toda a lógica de transformação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Transformação PDI, que liga steps para processar o fluxo de dados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Baseline do Flyway, pois converte arquivos em destino relacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Hop de job, que define o mapeamento de cada campo recebido.",
+          "correct": false
+        }
+      ],
+      "explanation": "A transformação é o artefato PDI que descreve o fluxo de etapas aplicado aos registros. Flyway controla migrações de banco; seu histórico e baseline não armazenam mapeamentos ETL.",
+      "section": "4. Flyway e PDI: responsabilidades complementares",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática ajuda a manter coerentes as mudanças de banco e os processos PDI em ambientes diferentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar alterações manuais distintas em cada ambiente para evitar scripts comuns.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Versionar migrações e artefatos PDI e validar implantação com os mesmos fluxos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Excluir logs após cada execução e guardar somente a versão do Spoon.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter a tabela de destino diferente em cada ambiente e adaptar o job em produção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Editar migrações antigas sempre que a transformação receber um campo novo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Controle de versão dos SQL, .ktr e .kjb, uso coerente entre ambientes e validação da implantação reduzem divergências. Alterações manuais e edição de migrações aplicadas comprometem rastreabilidade e reprodutibilidade.",
+      "section": "4. Flyway e PDI: responsabilidades complementares",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? O Flyway pode aplicar scripts de alteração de esquema em ordem e guardar registro das migrações executadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O Flyway compara migrações disponíveis com o histórico do banco, aplica as pendentes e registra sua execução na tabela de histórico.",
+      "section": "1. Flyway: alterações de banco sob controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? O comando validate executa no banco todas as migrações que ainda não constam no histórico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Validate confere se os arquivos disponíveis e os registros do histórico são consistentes, inclusive quanto aos checksums; ele não executa scripts pendentes. O comando que aplica as migrações reconhecidas como pendentes é migrate.",
+      "section": "1. Flyway: alterações de banco sob controle",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Uma alteração necessária em migração versionada já aplicada deve, em regra, ser registrada em novo arquivo de migração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Editar arquivo já aplicado pode divergir do checksum do histórico e não altera bancos que o executaram. Nova versão mantém a sequência auditável.",
+      "section": "1. Flyway: alterações de banco sob controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? A tabela flyway_schema_history é o local padrão em que o Flyway registra as migrações aplicadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A tabela padrão flyway_schema_history registra cada migração reconhecida pelo Flyway. Seus metadados permitem acompanhar versão, descrição, checksum, momento e sucesso da execução, servindo de referência para comparar o estado do banco com os arquivos disponíveis.",
+      "section": "1. Flyway: alterações de banco sob controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Executar clean em produção é uma forma segura de conferir se as tabelas de destino do ETL podem ser recriadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Clean remove objetos do esquema e pode destruir dados. Não é um ensaio seguro de carga nem substitui teste em ambiente controlado.",
+      "section": "1. Flyway: alterações de banco sob controle",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Steps de uma transformação PDI podem executar em paralelo, por isso a ordem visual não garante sequência de inicialização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação descreve steps iniciados em threads próprias; hops determinam fluxo de dados, mas a inicialização não segue necessariamente uma ordem serial previsível.",
+      "section": "2. Pentaho Data Integration: fluxo de linhas e etapas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Em uma transformação, hops são caminhos de controle que escolhem a próxima entrada conforme o resultado de uma atividade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Essa descrição corresponde aos hops de job. Em transformação, hops conectam etapas e conduzem dados e metadados; a semântica de controle condicional é própria do job.",
+      "section": "2. Pentaho Data Integration: fluxo de linhas e etapas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Um arquivo .ktr representa tradicionalmente uma transformação PDI, enquanto .kjb representa um job.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essas extensões tradicionais distinguem os dois artefatos: fluxo de dados da transformação e fluxo de controle do job.",
+      "section": "2. Pentaho Data Integration: fluxo de linhas e etapas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Um job PDI pode verificar a existência de arquivo, executar transformação e encaminhar a execução conforme sucesso ou falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Jobs coordenam atividades e dependências; seus hops podem ser incondicionais ou condicionados ao resultado da entrada anterior.",
+      "section": "3. Jobs, dependências e execução do ETL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Group By é adequado para agregar por campos quando a entrada está ordenada pelos campos de agrupamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A etapa Group By faz agregações e pressupõe entrada ordenada pelos campos usados para agrupar; entrada desordenada pode produzir grupos incorretos.",
+      "section": "2. Pentaho Data Integration: fluxo de linhas e etapas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Uma carga PDI repetida sem controle de chaves ou duplicidade pode inserir novamente linhas já processadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A repetição do processo pode duplicar dados se a carga não for desenhada para ser idempotente ou não verificar o que já foi carregado.",
+      "section": "3. Jobs, dependências e execução do ETL",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Uma migração de esquema Flyway pode ser tratada como substituta completa de um processo ETL que lê, transforma e carrega lotes de arquivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Flyway controla scripts incrementais de banco; a movimentação e transformação de registros de arquivos para destinos é atividade de ETL, como a realizada pelo PDI.",
+      "section": "4. Flyway e PDI: responsabilidades complementares",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Placeholders do Flyway substituem valores configurados, mas não convertem automaticamente o SQL para dialetos diferentes de SGBD.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Placeholders substituem textos configurados na migração; não são mecanismo de tradução de sintaxe entre bancos nem gerador de SQL abstrato.",
+      "section": "1. Flyway: alterações de banco sob controle",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? O resultado de sucesso ou falha de uma entrada pode condicionar qual caminho de um job PDI será executado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Hops de job podem encaminhar para a próxima entrada conforme o resultado da anterior, permitindo caminhos de sucesso e tratamento de falha.",
+      "section": "3. Jobs, dependências e execução do ETL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Se o arquivo de origem não está disponível, um job pode verificar essa condição antes de chamar a transformação de carga.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Jobs podem verificar pré-condições como disponibilidade de arquivo e decidir se chamam a transformação ou seguem um caminho alternativo.",
+      "section": "3. Jobs, dependências e execução do ETL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Misturar linhas com layouts ou tipos incompatíveis pode fazer uma etapa PDI procurar campos que não existem ou receber tipos inesperados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Steps dependem de metadados coerentes. Layouts diferentes no mesmo fluxo podem causar ausência de campo ou mudança inesperada de tipo, levando a erro de processamento.",
+      "section": "2. Pentaho Data Integration: fluxo de linhas e etapas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Repair do Flyway executa o script SQL que faltou para completar uma migração interrompida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Repair ajusta metadados do histórico, não aplica SQL nem desfaz alterações parciais. A situação do banco deve ser corrigida conforme o caso antes de reparar e migrar novamente.",
+      "section": "1. Flyway: alterações de banco sob controle",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Para uma tabela que será populada por PDI, é possível usar Flyway para versionar a criação da estrutura e depois executar o ETL.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As responsabilidades são complementares: Flyway altera a estrutura sob histórico de versões, enquanto o job/transformação PDI carrega e valida os registros.",
+      "section": "4. Flyway e PDI: responsabilidades complementares",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Logs e métricas de etapas podem ajudar a encontrar o ponto de falha e avaliar o resultado de uma transformação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Logs e métricas permitem observar execução, erros e processamento por step, sendo úteis para diagnóstico e validação da rotina.",
+      "section": "3. Jobs, dependências e execução do ETL",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? Uma migração U de undo faz parte do conjunto usual disponível em qualquer edição do Flyway, sem depender do produto contratado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Migrações undo são recurso associado às edições pagas do Flyway; não se deve presumir disponibilidade em qualquer distribuição ou edição.",
+      "section": "1. Flyway: alterações de banco sob controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado? No Flyway, a migração versionada V10 é comparada numericamente depois de V9, não como texto lexicográfico simples.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Versões são interpretadas numericamente por partes; por isso a ordem acompanha o valor da versão e não a comparação textual de caracteres.",
+      "section": "1. Flyway: alterações de banco sob controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Flyway — Migrations",
+      "publisher": "Redgate",
+      "reference": "Tipos de migração, execução pelo migrate e implantação consistente",
+      "url": "https://documentation.red-gate.com/flyway/flyway-concepts/migrations",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Pentaho Data Integration — Basic concepts of ETL in PDI",
+      "publisher": "Pentaho",
+      "reference": "Transformações, steps, hops, jobs, extensões e semântica de execução",
+      "url": "https://docs.pentaho.com/pdia-data-integration/basic-concepts-of-pdi",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Pentaho Data Integration — PDI transformation steps",
+      "publisher": "Pentaho",
+      "reference": "Referência oficial de steps e funções de entrada, transformação e saída",
+      "url": "https://docs.pentaho.com/pdia-data-integration/10.2-data-integration/pdi-transformation-steps-reference-overview",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Work with transformations — 9.3 Data Integration",
+      "publisher": "Pentaho",
+      "reference": "Desenvolvimento de transformações no PDI client (Spoon) e arquivos KTR",
+      "url": "https://docs.pentaho.com/pdia-data-integration/9.3-data-integration/data-integration-perspective-in-the-pdi-client/work-with-transformations-cp",
+      "accessedAt": "2026-11-04"
+    }
+  ]
+}

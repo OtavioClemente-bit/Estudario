@@ -1,0 +1,1698 @@
+{
+  "id": "informatica.rede-tor-anonimato",
+  "subject": "Informática",
+  "title": "Redes Tor e anonimato na navegação",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Rede Tor: circuitos e anonimato",
+    "Rede Tor e anonimato na internet",
+    "Rede de anonimização Tor",
+    "Navegação anônima com Tor Browser",
+    "Roteamento em camadas da rede Tor",
+    "Relés de entrada e saída do Tor",
+    "Circuitos e nós da rede Tor",
+    "Pontes e transportes obfuscados Tor",
+    "Serviços onion da rede Tor",
+    "Privacidade e segurança no Tor Browser"
+  ],
+  "scope": {
+    "covers": "Rede Tor: roteamento em camadas, circuitos e relés guard, middle e exit; limites de observação e de anonimato; relação entre Tor e HTTPS; Tor Browser, identidade e impressões digitais; pontes e transportes obfuscados para contornar bloqueios; serviços onion e seus circuitos; usos e limitações de segurança.",
+    "excludes": "Instalação avançada de relés, configuração de servidores onion, análise criptográfica dos protocolos, investigação de crimes e garantias absolutas de anonimato."
+  },
+  "theoryTitle": "Como funciona a rede Tor",
+  "chapters": [
+    {
+      "title": "1. Objetivo e arquitetura da rede Tor",
+      "markdown": "### O problema que este assunto resolve\n\nAo navegar diretamente, o provedor de acesso pode associar a conexão do usuário aos destinos consultados, e o site recebe o endereço IP público da conexão. A rede **Tor** procura reduzir essa ligação encaminhando o tráfego por uma sequência de relés voluntários. O nome vem de *The Onion Router*: as camadas de criptografia são retiradas progressivamente ao longo do caminho.\n\n> **Siglas e termos deste capítulo**\n> - **Tor**: rede de sobreposição que encaminha conexões por relés.\n> - **Relé (relay)**: computador voluntário que participa do encaminhamento.\n> - **Circuito**: caminho temporário entre cliente e destino, formado por relés.\n> - **Guard (entrada)**: primeiro relé do circuito, conhecido pelo cliente.\n> - **Middle (intermediário)**: relé que encaminha tráfego entre os extremos do circuito.\n> - **Exit (saída)**: último relé, que abre conexão com um destino da internet pública.\n\n### Como o tráfego percorre a rede\n\nNo uso comum do Tor Browser, o cliente constrói um circuito com três posições: guard, middle e exit. O cliente estabelece camadas criptográficas para o caminho. Cada relé conhece apenas o necessário para encaminhar o tráfego ao próximo salto: o guard conhece a origem da conexão e o próximo relé; o middle conhece o salto anterior e o seguinte; o exit conecta ao servidor de destino e vê o destino de rede. Nenhum relé isolado recebe, por essa arquitetura, a lista completa que liga diretamente usuário e destino.\n\n| Observador | O que tende a observar | O que não recebe diretamente pelo circuito |\n| --- | --- | --- |\n| Provedor local | Conexão do usuário com um relé Tor; sem Tor, poderia ver os destinos diretamente | Conteúdo protegido por HTTPS; a lista de sites acessados dentro do circuito |\n| Guard | Endereço de rede do cliente e próximo salto | Destino final da conexão |\n| Middle | Relé anterior e próximo salto | Identidade de rede do usuário e destino final em conjunto |\n| Exit | Destino de rede e tráfego que não esteja protegido ponta a ponta | Endereço IP original do usuário |\n| Site público | Conexão originada de um exit Tor | Endereço IP original do usuário, salvo identificação por outros meios |\n\nO encaminhamento Tor é voltado a conexões TCP. Ele não transforma qualquer aplicativo ou protocolo em tráfego anônimo automaticamente. O Tor Browser foi preparado para usar a rede de modo mais seguro; configurar outro navegador ou aplicativo de maneira improvisada pode permitir vazamentos.\n\n### O que Tor protege e o que não promete\n\nTor ajuda a separar o endereço IP do usuário do destino visitado e dificulta que um observador local veja diretamente os sites acessados. Não torna impossível correlacionar tráfego em cenários de vigilância ampla, não impede que o usuário revele o próprio nome ao entrar em uma conta pessoal e não protege um dispositivo já comprometido. O anonimato depende também do comportamento e do software usado.\n\n### Como cai na prova\n\n- O exit faz a conexão final com o site público; não é o primeiro relé.\n- Um site público vê o endereço do exit, enquanto o provedor local vê conexão à rede Tor.\n- Tor reduz a possibilidade de associação direta entre origem e destino; não garante anonimato absoluto.\n- Uma conexão Tor não é sinônimo de HTTPS: são camadas de proteção com funções diferentes."
+    },
+    {
+      "title": "2. Circuitos, observadores e HTTPS",
+      "markdown": "### O problema que este assunto resolve\n\nUma questão recorrente é saber quem consegue observar cada trecho e o que a criptografia protege. A resposta depende da posição do observador e de haver ou não HTTPS entre o navegador e o site.\n\n> **Siglas e termos deste capítulo**\n> - **HTTPS**: HTTP protegido por TLS entre cliente e servidor.\n> - **TLS**: protocolo que protege confidencialidade e integridade de uma sessão.\n> - **Correlação de tráfego**: comparação de padrões e horários observados em pontos diferentes da comunicação.\n> - **Impressão digital do navegador**: combinação de características que pode ajudar a distinguir um navegador.\n> - **Nova identidade**: recurso do Tor Browser para reduzir a associação entre a atividade seguinte e a anterior.\n\n### As camadas não fazem o mesmo trabalho\n\nA criptografia interna do Tor protege o encaminhamento dentro da rede e é removida salto a salto para que os relés consigam encaminhar os dados. No acesso a um site comum, o trecho entre o exit e o servidor público não fica protegido pelo Tor como um túnel criptografado ponta a ponta. Se o endereço usa **HTTP sem TLS**, o operador do exit ou um observador desse trecho pode ler ou alterar conteúdo transmitido. Com **HTTPS**, a conexão TLS do navegador ao site mantém o conteúdo protegido até o servidor, inclusive através do exit.\n\n| Situação | O que a combinação oferece |\n| --- | --- |\n| Tor sem HTTPS | Oculta o IP de origem perante o site, mas o tráfego HTTP pode ficar legível no trecho de saída |\n| HTTPS sem Tor | Criptografa conteúdo até o site, mas o site recebe o IP público do usuário |\n| Tor com HTTPS | Separa o IP de origem do destino e protege o conteúdo até o site |\n\nHTTPS não oculta do site os dados que o próprio usuário envia, como credenciais e informações do formulário. Tampouco impede que o site associe visitas quando o usuário entra na mesma conta. Tor Browser inclui modo HTTPS-Only, que tenta usar HTTPS quando disponível; se um site só oferecer HTTP, continuar implica aceitar a conexão sem essa proteção.\n\n### Circuitos e identidade de navegação\n\nTor Browser tende a usar circuitos diferentes para domínios distintos e preservar o mesmo circuito para conexões ao mesmo domínio durante a sessão, evitando algumas associações entre sites sem quebrar o funcionamento de páginas relacionadas. O guard é escolhido para reduzir a exposição repetida a relés de entrada maliciosos e permanece estável por um período, em vez de mudar a cada conexão. O comando **Nova identidade** encerra as janelas e sessões pertinentes e cria uma nova sessão de navegação; recarregar uma página com outro circuito tem escopo menor e não apaga automaticamente todas as pistas da sessão anterior.\n\nO navegador também procura reduzir a singularidade da configuração apresentada aos sites. Instalar extensões, alterar fontes ou dimensões de forma incomum e usar outro navegador pode tornar a impressão digital mais distinta. Tor não apaga automaticamente a identidade declarada: acessar uma conta identificada continua permitindo ao serviço reconhecer o titular.\n\n### Como cai na prova\n\n- Tor protege o caminho por relés; HTTPS protege o conteúdo entre navegador e servidor.\n- O exit pode observar tráfego de saída sem TLS, mas não decifra uma sessão HTTPS válida.\n- Entrar em uma conta pessoal identifica o usuário para aquele serviço mesmo com Tor.\n- Um circuito novo não equivale a apagar todas as informações reveladas voluntariamente."
+    },
+    {
+      "title": "3. Pontes, censura e transportes obfuscados",
+      "markdown": "### O problema que este assunto resolve\n\nEm redes que bloqueiam endereços conhecidos de relés ou identificam conexões Tor, o cliente pode não conseguir alcançar a rede por uma conexão direta. Pontes e transportes obfuscados ajudam a contornar esse bloqueio.\n\n> **Siglas e termos deste capítulo**\n> - **Ponte (bridge)**: relé Tor não listado publicamente no diretório público de relés.\n> - **Transporte obfuscado (pluggable transport)**: componente que transforma ou mascara características do tráfego Tor.\n> - **obfs4**: transporte que faz o tráfego parecer aleatório e dificulta localizar pontes por varredura.\n> - **Snowflake**: transporte que encaminha a conexão por proxies voluntários, simulando tráfego de chamada de vídeo.\n> - **WebTunnel**: transporte que mascara a conexão para fazê-la se parecer com acesso HTTPS a um site.\n> - **meek**: transporte que usa técnicas de domínio/CDN para se parecer com acesso a um serviço web conhecido.\n\n### Como funcionam pontes e transportes\n\nPontes são relés cujos endereços não aparecem na lista pública de relés. Como são menos fáceis de enumerar, podem ajudar quando o bloqueio se baseia em uma lista de relés conhecidos. A ponte é um ponto de entrada alternativo à rede; ela não substitui toda a arquitetura de circuitos Tor nem é, por si só, um mecanismo de criptografia ponta a ponta até o site.\n\nTransportes obfuscados atuam na forma como a conexão com Tor aparece para um observador de rede. O **obfs4** procura produzir tráfego com aparência aleatória e também dificulta a descoberta de pontes por sondagem. **Snowflake** utiliza proxies operados por voluntários; sua conexão pode parecer uma chamada de vídeo. **WebTunnel** se apresenta de modo semelhante a uma conexão HTTPS. **meek** utiliza técnicas para que o acesso se pareça com tráfego destinado a um provedor de nuvem ou CDN. A disponibilidade e eficácia variam conforme a rede e o tipo de bloqueio.\n\nEssas técnicas tratam de conectividade e resistência à censura, não garantem que um site seja confiável nem removem os riscos de malware, identificação voluntária ou correlação por um adversário capaz de observar vários pontos. A documentação do Tor Browser permite escolher transportes integrados ou solicitar endereços de pontes por canais do Projeto Tor.\n\n| Recurso | Função principal | Característica que pode cair em prova |\n| --- | --- | --- |\n| Ponte | Ponto de entrada não publicado no diretório público | Endereço menos fácil de bloquear por lista pública |\n| obfs4 | Obfuscar a conexão e dificultar sondagem | Aparência de tráfego aleatório |\n| Snowflake | Ajudar a alcançar Tor por proxies voluntários | Aparência semelhante a chamada de vídeo |\n| WebTunnel | Camuflar a conexão Tor | Aparência de acesso HTTPS |\n| meek | Camuflar o destino aparente da conexão | Aparência de acesso por CDN ou nuvem |\n\n### Como cai na prova\n\n- Ponte é um relé não anunciado publicamente; não é um exit especial.\n- Transporte obfuscado busca contornar bloqueios e disfarçar padrões, não criptografar conteúdo do site por si só.\n- Snowflake usa proxies voluntários; obfs4 tende a parecer tráfego aleatório.\n- O recurso adequado depende do bloqueio; não há garantia de que um transporte sempre conectará."
+    },
+    {
+      "title": "4. Serviços onion e uso responsável",
+      "markdown": "### O problema que este assunto resolve\n\nO Tor também permite que um serviço receba conexões sem publicar seu endereço IP de servidor. Esses serviços, chamados **serviços onion**, são acessíveis pela rede Tor e oferecem anonimato do lado do serviço, além do lado do cliente.\n\n> **Siglas e termos deste capítulo**\n> - **Serviço onion**: serviço acessível por Tor, identificado por endereço terminado em `.onion`.\n> - **Ponto de introdução**: relé ao qual o serviço mantém circuito para receber pedidos de conexão.\n> - **Descritor**: informação assinada que permite ao cliente localizar pontos de introdução do serviço.\n> - **Ponto de rendezvous**: relé de encontro usado para encaminhar mensagens entre cliente e serviço.\n> - **Anonimato do respondente**: ocultação da localização de rede do servidor que responde.\n\n### O caminho de um serviço onion\n\nO serviço constrói circuitos Tor até pontos de introdução e publica um descritor assinado, que contém informações para encontrá-los. O cliente obtém o descritor e escolhe um ponto de rendezvous. Por meio de circuitos separados, cliente e serviço chegam a esse ponto e estabelecem a comunicação. O rendezvous encaminha mensagens cifradas entre os dois; não precisa conhecer os endereços IP reais de cliente e serviço. Em uma conexão onion típica há três relés no lado do cliente e três no lado do serviço, contando o rendezvous, totalizando seis posições de relé no caminho combinado.\n\nO circuito onion não usa exit: a comunicação permanece dentro da rede Tor até o serviço onion. Isso distingue a conexão onion do acesso a um site público, que normalmente sai da rede por um exit. A autenticação criptográfica do endereço onion ajuda o cliente a saber que chegou ao serviço correspondente àquele endereço; isso não garante que o conteúdo publicado seja lícito, verdadeiro ou livre de vulnerabilidades.\n\n### Boas práticas e limites\n\nUse Tor Browser atualizado e evite instalar extensões que alterem a impressão digital ou exponham dados. Prefira HTTPS em sites públicos, mesmo ao usar Tor. Não abra arquivos baixados em aplicativos externos enquanto estiver conectado se isso puder fazer o aplicativo acessar a internet fora do Tor. Evite compartilhar dados pessoais quando o objetivo for separar identidades. A rede não impede phishing, falhas do sistema operacional ou identificação decorrente do conteúdo que o usuário fornece.\n\n| Acesso | Último trecho | O que fica oculto pela arquitetura Tor |\n| --- | --- | --- |\n| Site público | Exit até servidor público | IP do cliente perante o site; o exit não é ocultado do destino |\n| Serviço onion | Rendezvous até serviço, dentro da rede Tor | Localização IP do cliente e do serviço perante os relés do caminho |\n\n### Como cai na prova\n\n- Serviço onion oculta a localização do servidor e não usa exit.\n- Ponto de rendezvous encaminha a conexão; não é o servidor do conteúdo.\n- Endereço onion fornece autenticação criptográfica do serviço, não atestado de confiabilidade editorial.\n- Tor é uma ferramenta de privacidade e resistência à censura, com limites técnicos e comportamentais."
+    }
+  ],
+  "summary": "Tor encaminha conexões por circuitos de relés, separando o endereço IP de origem do destino visitado. Em um circuito comum, o guard conhece a origem, o middle encaminha o tráfego e o exit conecta ao site público. A criptografia do Tor protege os saltos da rede; HTTPS protege o conteúdo até o servidor. Pontes e transportes como obfs4, Snowflake, WebTunnel e meek ajudam a contornar bloqueios. Serviços onion recebem conexões sem revelar o IP do servidor e usam pontos de introdução e rendezvous, sem exit. Tor reduz riscos de vigilância e rastreamento, mas não elimina identificação voluntária, malware ou correlação de tráfego.",
+  "flashcards": [
+    {
+      "front": "Qual é o objetivo básico da rede Tor?",
+      "back": "Encaminhar conexões por relés para dificultar a associação direta entre o IP de origem e o destino visitado."
+    },
+    {
+      "front": "Quantas posições de relé costuma ter um circuito Tor para um site público?",
+      "back": "Três: guard, middle e exit."
+    },
+    {
+      "front": "Qual é a função do guard?",
+      "back": "Ser o primeiro relé do circuito e receber a conexão do cliente."
+    },
+    {
+      "front": "Qual é a função do relé middle?",
+      "back": "Encaminhar o tráfego entre o relé anterior e o próximo salto."
+    },
+    {
+      "front": "Qual é a função do exit?",
+      "back": "Abrir a conexão de saída para o destino na internet pública."
+    },
+    {
+      "front": "Que endereço IP um site público costuma ver ao ser acessado via Tor?",
+      "back": "O endereço do relé exit, não o IP público original do cliente."
+    },
+    {
+      "front": "O que o provedor local tende a observar quando se usa Tor?",
+      "back": "Uma conexão do cliente com a rede Tor; o provedor não recebe diretamente a lista de sites visitados pelo circuito."
+    },
+    {
+      "front": "O que a criptografia do Tor protege?",
+      "back": "As conexões entre cliente e relés ao longo do circuito; cada salto remove a camada necessária para encaminhar o tráfego."
+    },
+    {
+      "front": "O que HTTPS acrescenta ao uso de Tor?",
+      "back": "Protege a confidencialidade e integridade do conteúdo entre navegador e servidor do site."
+    },
+    {
+      "front": "Um exit pode ler dados enviados por HTTP sem TLS?",
+      "back": "Pode observar ou alterar o tráfego não criptografado no trecho de saída."
+    },
+    {
+      "front": "Tor com HTTPS oculta do site os dados de login que o usuário envia?",
+      "back": "Não. HTTPS protege o transporte, mas o próprio site recebe os dados enviados."
+    },
+    {
+      "front": "O que é uma ponte Tor?",
+      "back": "Um relé não listado no diretório público de relés, usado como ponto alternativo de acesso."
+    },
+    {
+      "front": "Qual o propósito de um transporte obfuscado?",
+      "back": "Alterar a aparência do tráfego Tor para ajudar a contornar bloqueios e identificação da conexão."
+    },
+    {
+      "front": "Como obfs4 busca disfarçar o tráfego?",
+      "back": "Faz a conexão parecer aleatória e dificulta a descoberta de pontes por sondagem."
+    },
+    {
+      "front": "Que estratégia o Snowflake usa?",
+      "back": "Encaminha a conexão por proxies voluntários e procura se parecer com uma chamada de vídeo."
+    },
+    {
+      "front": "O que o WebTunnel tenta imitar?",
+      "back": "Uma conexão de acesso a um site via HTTPS."
+    },
+    {
+      "front": "O que caracteriza um serviço onion?",
+      "back": "É acessível pelo Tor e pode ocultar a localização de rede do servidor."
+    },
+    {
+      "front": "O que faz um ponto de rendezvous?",
+      "back": "Encaminha mensagens entre cliente e serviço onion usando circuitos separados."
+    },
+    {
+      "front": "Serviços onion usam relé exit?",
+      "back": "Não. A conexão permanece na rede Tor até o serviço onion."
+    },
+    {
+      "front": "Quantos relés podem compor a conexão onion típica combinada?",
+      "back": "Seis posições: três no lado do cliente e três no lado do serviço, com o rendezvous compartilhado na junção."
+    },
+    {
+      "front": "Tor garante anonimato absoluto contra qualquer adversário?",
+      "back": "Não. Correlação de tráfego, comprometimento do dispositivo e identificação voluntária podem revelar ou associar atividade."
+    },
+    {
+      "front": "O que a função Nova identidade procura fazer no Tor Browser?",
+      "back": "Reduzir a associação entre a atividade futura e a sessão de navegação anterior."
+    }
+  ],
+  "tips": [
+    "Associe guard à entrada e exit à saída para a internet pública.",
+    "Separe as funções: Tor oculta a origem perante o destino; HTTPS protege o conteúdo até o destino.",
+    "Lembre-se de que o site público vê o IP do exit, mas o login pessoal ainda identifica o usuário.",
+    "Ponte é relé não listado; transporte obfuscado muda a aparência do tráfego.",
+    "Snowflake usa proxies voluntários; obfs4 busca aparência aleatória.",
+    "Serviço onion não usa exit: o circuito combinado termina no rendezvous e no serviço."
+  ],
+  "traps": [
+    "Achar que o exit conhece o IP original do cliente: no circuito, ele recebe o tráfego do relé anterior.",
+    "Confundir a criptografia entre relés do Tor com HTTPS ponta a ponta.",
+    "Supor que Tor impede um site de identificar alguém que entrou em uma conta pessoal.",
+    "Tratar pontes como relés públicos comuns anunciados no diretório.",
+    "Afirmar que serviços onion saem para a internet pública por um exit.",
+    "Tomar anonimato como garantia contra malware, correlação de tráfego ou erros do usuário."
+  ],
+  "activeRecall": [
+    "Descreva a ordem guard, middle e exit em uma navegação para um site público.",
+    "Compare o que o provedor, o guard e o site de destino conseguem observar.",
+    "Explique por que Tor e HTTPS protegem trechos e informações diferentes.",
+    "O que pode acontecer com dados HTTP sem TLS no trecho entre exit e site?",
+    "Como uma ponte pode ajudar em um local que bloqueia endereços públicos de relés?",
+    "Diferencie a aparência de tráfego associada a obfs4 e Snowflake.",
+    "Descreva como cliente e serviço onion se encontram sem revelar seus IPs aos relés.",
+    "Cite três limites práticos do anonimato oferecido por Tor."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre posições dos relés",
+      "description": "Inverter guard, middle e exit leva a atribuir ao primeiro relé a conexão final com o site.",
+      "summary": "O guard é a entrada do circuito, o middle encaminha entre saltos e o exit conecta ao destino público."
+    },
+    {
+      "key": "e2",
+      "title": "Confusão entre Tor e HTTPS",
+      "description": "Tor protege o encaminhamento pela rede; HTTPS protege os dados entre navegador e servidor.",
+      "summary": "Tor separa a origem do destino pelo circuito; HTTPS protege o conteúdo até o servidor do site."
+    },
+    {
+      "key": "e3",
+      "title": "Anonimato entendido como garantia total",
+      "description": "Tor não apaga informações que o usuário entrega, não neutraliza malware e não impede toda correlação.",
+      "summary": "A rede reduz associações diretas, mas não impede identificação voluntária, malware ou toda correlação de tráfego."
+    },
+    {
+      "key": "e4",
+      "title": "Confusão entre ponte, transporte e exit",
+      "description": "Ponte é um relé não público usado para acesso; transporte ofusca a conexão; exit conecta a destino público.",
+      "summary": "A ponte facilita a entrada sob bloqueio, o transporte disfarça a conexão e o exit alcança sites públicos."
+    },
+    {
+      "key": "e5",
+      "title": "Serviço onion tratado como site público",
+      "description": "A conexão onion permanece dentro da rede Tor, usando rendezvous e sem relé de saída.",
+      "summary": "Cliente e serviço onion se encontram por circuitos e rendezvous, sem sair da rede por um relé exit."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um circuito comum do Tor Browser para um site público, qual sequência de funções é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O exit recebe o cliente, o guard encaminha e o middle conecta ao site.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O guard recebe o cliente, o middle encaminha e o exit conecta ao site.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O middle recebe o cliente, o exit encaminha e o guard conecta ao site.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O guard conecta ao site, o exit encaminha e o middle recebe o cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O middle recebe o cliente, o guard conecta ao site e o exit mantém o circuito interno.",
+          "correct": false
+        }
+      ],
+      "explanation": "O circuito típico tem guard como entrada, middle como salto intermediário e exit como saída para a internet pública. As demais opções trocam as posições e atribuem a conexão final ao relé errado.",
+      "section": "1. Objetivo e arquitetura da rede Tor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao visitar um site público por Tor, qual endereço IP o site normalmente observa como origem da conexão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O endereço do guard, porque ele recebe a conexão inicial do cliente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O endereço do relé exit, que abre a conexão até o destino público.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O endereço do middle, pois ele é o salto que encaminha os dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O endereço IP original do cliente, encaminhado intacto pelos três relés.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O endereço de um servidor DNS do Tor, que substitui o endereço de saída.",
+          "correct": false
+        }
+      ],
+      "explanation": "O exit faz a conexão final com o site público, que normalmente vê o endereço desse relé. O guard recebe a conexão do cliente; o middle apenas encaminha e o DNS não substitui o endereço da conexão TCP de saída.",
+      "section": "1. Objetivo e arquitetura da rede Tor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O provedor de acesso do usuário tende a ver uma conexão com a rede Tor, mas não recebe diretamente pelo circuito a lista dos sites visitados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O provedor observa que o cliente se conecta a um relé Tor ou a uma ponte. A arquitetura separa essa observação do destino acessado, embora um observador com capacidade de correlação possa inferir relações em certos cenários.",
+      "section": "1. Objetivo e arquitetura da rede Tor",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação descreve melhor a função do relé middle em um circuito Tor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele recebe a origem do cliente e escolhe diretamente o site público final.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele cifra o conteúdo HTTPS e autentica o certificado do site visitado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele encaminha dados entre o relé anterior e o próximo salto do circuito.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ele publica a identidade do usuário para que o exit possa validar a conexão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele armazena todo o histórico do navegador e o descritor onion do cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O middle é um salto de encaminhamento entre os outros relés. Não decide o destino final nem termina HTTPS; a autenticação TLS ocorre entre navegador e servidor, não por uma função especial do middle.",
+      "section": "1. Objetivo e arquitetura da rede Tor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de Tor impede que um serviço reconheça o titular quando ele entra em uma conta cadastrada com seu nome real.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Tor separa o endereço IP de origem do destino, mas não oculta a identidade que o usuário informa ou usa ao autenticar-se. A conta pode associar a sessão ao titular independentemente do circuito.",
+      "section": "1. Objetivo e arquitetura da rede Tor",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em que sentido o nome The Onion Router se relaciona à arquitetura do Tor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada relé recebe a senha pessoal do usuário dentro de uma camada distinta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "As conexões usam camadas de criptografia retiradas progressivamente nos relés.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O navegador divide os arquivos em camadas físicas de discos voluntários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A rede substitui os protocolos de internet por um formato sem roteamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os sites públicos são organizados em diretórios chamados camadas onion.",
+          "correct": false
+        }
+      ],
+      "explanation": "O tráfego recebe camadas criptográficas para os saltos do circuito, que são processadas sucessivamente para encaminhar os dados. Isso não significa que senhas sejam distribuídas pelos relés nem que a rede deixe de usar protocolos de internet.",
+      "section": "1. Objetivo e arquitetura da rede Tor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Tor torna impossível que um adversário correlacione o horário e o volume de tráfego observados em diferentes pontos da rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Tor dificulta ligar origem e destino, mas não oferece proteção absoluta contra um observador capaz de comparar padrões de tempo e volume em pontos distintos. Essa possibilidade é chamada correlação de tráfego.",
+      "section": "1. Objetivo e arquitetura da rede Tor",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual observação é compatível com o funcionamento de um relé guard?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele recebe conexões de todos os sites e conhece cada destino final.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele substitui o servidor público e entrega o conteúdo web ao cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele recebe a conexão inicial do cliente e encaminha ao próximo salto.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ele termina a sessão HTTPS e envia ao cliente uma cópia do certificado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele registra no navegador o histórico completo de páginas visitadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O guard é o primeiro relé e, portanto, recebe a conexão originada pelo cliente. Ele encaminha para o circuito, sem por isso conhecer o destino final ou terminar a sessão HTTPS do site.",
+      "section": "1. Objetivo e arquitetura da rede Tor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O tráfego encaminhado por Tor pode usar conexões TCP, mas isso não transforma automaticamente qualquer aplicativo em um cliente seguro e anônimo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Aplicações precisam ser configuradas para usar Tor e podem vazar dados por canais fora do proxy ou expor identificadores próprios. Tor Browser incorpora proteções para navegação que não decorrem apenas do roteamento TCP.",
+      "section": "1. Objetivo e arquitetura da rede Tor",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa resume o efeito principal da rede Tor sobre a conexão com um site público?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O site recebe a conexão do cliente diretamente, mas sem o cabeçalho HTTP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O site vê o exit como origem da conexão, enquanto o caminho separa os relés.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O site deixa de receber dados enviados pelo navegador durante a sessão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O site só pode responder se operar seu próprio relé guard público.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O site recebe um endereço IP falso escolhido pelo servidor DNS local.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conexão ao destino público é aberta pelo exit, que aparece como origem para o site. O site ainda recebe as requisições e os dados que o navegador envia; Tor não modifica isso para apagá-los.",
+      "section": "1. Objetivo e arquitetura da rede Tor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um circuito Tor, o relé exit costuma conhecer o destino público da conexão, mas não recebe diretamente o IP original do cliente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O exit precisa saber para qual servidor público abrir a conexão. A origem imediata recebida por ele é o relé anterior, não o endereço original do cliente, que se conecta ao guard.",
+      "section": "1. Objetivo e arquitetura da rede Tor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso da arquitetura reduz a exposição a relés de entrada diferentes em cada nova conexão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A conversão do guard em servidor DNS durante toda a sessão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A troca obrigatória do exit a cada pacote transmitido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A seleção de um guard que permanece estável por um período.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A remoção do middle para reduzir a quantidade de observadores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A transmissão do IP original ao site para autenticar o circuito.",
+          "correct": false
+        }
+      ],
+      "explanation": "O guard é mantido por um período em vez de ser trocado em cada circuito. Isso evita expor o cliente repetidamente a novos relés de entrada; os outros elementos descrevem funções que não pertencem ao guard.",
+      "section": "1. Objetivo e arquitetura da rede Tor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao usar Tor sem HTTPS em um site público, o exit pode observar o conteúdo transmitido sem criptografia no trecho de saída.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O Tor não substitui a criptografia TLS do site. Se o trecho entre exit e servidor usa HTTP sem TLS, o conteúdo pode ser lido ou alterado por quem o observa.",
+      "section": "2. Circuitos, observadores e HTTPS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual proteção é acrescentada por HTTPS quando o navegador acessa um site por Tor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Oculta do servidor os dados de formulário que o usuário envia.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mantém o conteúdo protegido entre o navegador e o servidor do site.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Impede que o site veja o endereço IP do relé exit usado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substitui todos os relés do circuito por servidores do site visitado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remove a necessidade de autenticação do certificado do servidor remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "HTTPS protege confidencialidade e integridade entre o navegador e o servidor. O servidor ainda recebe os dados enviados, e o site continua vendo a conexão originada pelo exit.",
+      "section": "2. Circuitos, observadores e HTTPS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Tor e HTTPS são mecanismos equivalentes, pois ambos ocultam o endereço IP original e criptografam exatamente o mesmo trecho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Tor separa a origem do destino pelo encaminhamento entre relés; HTTPS protege o conteúdo entre navegador e servidor. As funções são complementares e os trechos protegidos não são equivalentes.",
+      "section": "2. Circuitos, observadores e HTTPS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conexão HTTPS por Tor impede que o site associe a visita a uma conta pessoal autenticada pelo usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. HTTPS protege os dados em trânsito, mas o serviço recebe o login e pode associar a navegação à conta. Tor oculta o IP de origem, não as credenciais que o usuário fornece ao site.",
+      "section": "2. Circuitos, observadores e HTTPS",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual consequência pode ocorrer ao continuar em um site que só oferece HTTP, mesmo usando o Tor Browser?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A conexão passa a usar automaticamente seis relés de saída distintos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O conteúdo pode seguir sem proteção TLS no trecho de saída da rede.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O navegador deixa de encaminhar os pacotes pelo circuito Tor atual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O servidor recebe o IP do guard, pois HTTP desativa o roteamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O modo HTTPS-Only cria um certificado válido no servidor remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sem HTTPS, o conteúdo não recebe a proteção TLS entre navegador e servidor e pode ficar exposto no trecho de saída. O uso de HTTP não desativa o circuito Tor nem cria certificados no servidor.",
+      "section": "2. Circuitos, observadores e HTTPS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O modo HTTPS-Only do Tor Browser tenta usar conexões seguras quando o site oferece HTTPS, mas um site somente HTTP pode exigir uma decisão explícita de continuar sem essa proteção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O modo força HTTPS sempre que possível. Se não houver versão HTTPS, o navegador apresenta aviso e continuar em HTTP aceita o risco do trecho sem TLS.",
+      "section": "2. Circuitos, observadores e HTTPS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que prática pode tornar a impressão digital do navegador mais distinta e facilitar o reconhecimento entre visitas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter a configuração padrão e evitar personalizações incomuns, o que tende a reduzir a singularidade do navegador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Instalar extensões e alterar fontes e configurações de modo singular.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar HTTPS em páginas que oferecem esse protocolo de conexão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escolher um circuito diferente ao iniciar a navegação pelo Tor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Acessar um endereço onion pelo Tor Browser atualizado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Extensões e ajustes incomuns podem produzir uma combinação rara de características do navegador, distinguindo-o de outros. Manter as proteções e configurações padronizadas procura reduzir essa singularidade.",
+      "section": "2. Circuitos, observadores e HTTPS",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O recurso Nova identidade foi projetado para reduzir a associação da atividade futura com a sessão anterior, e não para apagar tudo que o usuário já revelou a um site.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Nova identidade inicia uma nova sessão de navegação e circuitos, mas não pode retirar do servidor as informações que já foram transmitidas, como dados de conta ou formulário.",
+      "section": "2. Circuitos, observadores e HTTPS",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação oferece separação do IP de origem e proteção do conteúdo até o site?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tor com HTTPS, cada mecanismo protegendo uma dimensão distinta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "HTTP com relé middle, pois esse salto encerra a sessão TLS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "HTTPS sem Tor, que esconde o IP público perante o servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tor sem HTTPS, que mantém o conteúdo cifrado até o servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apenas um guard, que substitui a criptografia ponta a ponta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tor oculta o IP de origem perante o site ao fazer a saída por um relé; HTTPS cifra o conteúdo até o servidor. Usados em conjunto, complementam as proteções.",
+      "section": "2. Circuitos, observadores e HTTPS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Tor Browser usa circuitos separados para diferentes domínios, preservando o mesmo circuito para conexões ao mesmo site durante uma sessão em condições normais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esse isolamento de circuitos reduz a possibilidade de um rastreador comum correlacionar atividades em domínios distintos, ao mesmo tempo em que mantém conexões do mesmo site no circuito para preservar funcionalidade.",
+      "section": "2. Circuitos, observadores e HTTPS",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre HTTPS e os dados enviados pelo usuário é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "HTTPS impede que o servidor de destino leia o formulário recebido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "HTTPS protege o transporte, mas o servidor recebe o conteúdo enviado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "HTTPS esconde o endereço do servidor de todos os relés do circuito.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "HTTPS elimina a necessidade de um exit para sites públicos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "HTTPS impede autenticação por senha em uma conta pessoal.",
+          "correct": false
+        }
+      ],
+      "explanation": "TLS protege o tráfego durante o percurso, mas o servidor precisa receber e processar os dados enviados ao final da sessão. Assim, HTTPS não impede o site de ler credenciais destinadas a ele.",
+      "section": "2. Circuitos, observadores e HTTPS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ponte é um relé Tor cujo endereço não é listado publicamente no diretório de relés, o que pode dificultar bloqueios baseados nessa lista.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Pontes são relés não anunciados no diretório público e podem ajudar usuários cuja rede bloqueia endereços conhecidos de relés Tor.",
+      "section": "3. Pontes, censura e transportes obfuscados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso ajuda quando uma rede bloqueia conexões diretas a endereços conhecidos de relés Tor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um relé exit adicional que publica todos os guards da rede e passa a ser a entrada inicial do cliente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um servidor HTTP que substitui o circuito por navegação direta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma conta pessoal no site, usada para autenticar o endereço do cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma ponte com endereço não publicado no diretório público.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um certificado TLS instalado no provedor de acesso local.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pontes são relés cujos endereços não estão no diretório público, tornando menos simples bloqueá-los por uma lista pública de relés. Elas oferecem um caminho de entrada alternativo à rede.",
+      "section": "3. Pontes, censura e transportes obfuscados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde ao transporte obfuscado obfs4?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substitui a rede Tor por uma conexão direta criptografada ao site público.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Faz cada página onion ser resolvida pelo DNS aberto do provedor local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converte automaticamente todo HTTP do site em dados HTTPS no servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Distribui o histórico do navegador por relés middle e converte automaticamente HTTP em HTTPS no servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Faz o tráfego parecer aleatório e dificulta sondagens para localizar pontes.",
+          "correct": true
+        }
+      ],
+      "explanation": "obfs4 busca disfarçar o tráfego Tor como aleatório e dificulta a descoberta de pontes por varredura. Não substitui Tor por acesso direto nem converte HTTP em HTTPS.",
+      "section": "3. Pontes, censura e transportes obfuscados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Snowflake encaminha conexões por proxies voluntários e tenta fazer o tráfego parecer uma chamada de vídeo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Snowflake utiliza proxies voluntários como parte de sua estratégia de conexão e procura disfarçar o tráfego como uma chamada de vídeo, ajudando a contornar censura.",
+      "section": "3. Pontes, censura e transportes obfuscados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual objetivo é associado ao WebTunnel na documentação do Tor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar uma saída permanente da rede para cada serviço onion.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar o DNS do provedor local para acessar serviços onion sem circuitos ou relés Tor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fazer a conexão Tor parecer uma navegação por HTTPS a um site.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Transformar o relé middle em servidor de conteúdo web público.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Proteger com TLS os dados armazenados no disco do computador.",
+          "correct": false
+        }
+      ],
+      "explanation": "WebTunnel mascara características da conexão Tor para que um observador a confunda com acesso HTTPS a um site. É uma técnica de contorno de bloqueio; não cria uma saída permanente para serviços onion nem protege arquivos armazenados no disco.",
+      "section": "3. Pontes, censura e transportes obfuscados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Transportes obfuscados eliminam todo risco de vigilância e asseguram conexão Tor funcional em qualquer rede censurada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Transportes ajudam a disfarçar ou contornar determinados bloqueios, mas sua eficácia depende da rede e do método de censura. Não impedem toda vigilância ou correlação de tráfego.",
+      "section": "3. Pontes, censura e transportes obfuscados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual distinção entre ponte e transporte obfuscado está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ponte funciona como exit para abrir conexões à web pública; transporte escolhe o destino final.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ponte é um servidor onion acessado por DNS público; transporte substitui o HTTPS entre navegador e site.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ponte é um serviço onion; transporte é o ponto de rendezvous do serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ponte é uma entrada não publicada; transporte altera a aparência do tráfego.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Ponte remove o exit do circuito; transporte transforma o exit em guard.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ponte é um relé não anunciado publicamente que serve como ponto de entrada alternativo à rede Tor. O transporte obfuscado modifica a aparência do tráfego para reduzir sua detectabilidade ou facilitar a conexão sob censura; nenhum dos dois assume as funções descritas nos distratores.",
+      "section": "3. Pontes, censura e transportes obfuscados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O transporte meek procura fazer a conexão parecer tráfego dirigido a um serviço web conhecido, como uma CDN ou um provedor de nuvem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. meek usa técnicas de camuflagem associadas a serviços web e CDNs para dificultar a identificação e o bloqueio direto da conexão Tor.",
+      "section": "3. Pontes, censura e transportes obfuscados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ponte é necessariamente o último relé que conecta o navegador ao servidor público de destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Ponte é um ponto de entrada não listado publicamente, não um exit. O circuito ainda pode seguir por relés intermediários e, para site público, por um relé exit.",
+      "section": "3. Pontes, censura e transportes obfuscados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual escolha se relaciona a uma conexão que se parece com uma chamada de vídeo ao contornar bloqueios?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Snowflake, que utiliza proxies voluntários para intermediar a conexão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "WebTunnel, que mantém o conteúdo de arquivos no disco criptografado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um exit, que publica pontes para a rede local do cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um middle, que troca HTTPS por DNS para esconder o servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um guard estável, que remove qualquer bloqueio sem mudar o tráfego.",
+          "correct": false
+        }
+      ],
+      "explanation": "Snowflake usa proxies voluntários e busca fazer a conexão parecer uma chamada de vídeo. WebTunnel se parece com HTTPS, enquanto guard, middle e exit são posições de relés no circuito.",
+      "section": "3. Pontes, censura e transportes obfuscados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço onion pode ocultar o endereço IP do servidor e é acessado por meio da rede Tor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Serviços onion são acessíveis pela rede Tor e não precisam expor o endereço IP do servidor ao cliente ou aos relés como um site público comum.",
+      "section": "4. Serviços onion e uso responsável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência geral permite que um cliente encontre e alcance um serviço onion?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cliente consulta DNS público; o exit revela o endereço físico do serviço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O cliente pede ao provedor de internet que publique o endereço IP real do serviço onion e então conecta diretamente, sem descritor, pontos de introdução ou circuitos Tor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O guard hospeda o serviço; o middle substitui o certificado do endereço onion.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O rendezvous publica o IP do cliente; o serviço conecta diretamente ao provedor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Descritor assinado; cliente e serviço alcançam rendezvous por circuitos separados.",
+          "correct": true
+        }
+      ],
+      "explanation": "O serviço cria pontos de introdução e publica um descritor assinado que permite ao cliente localizar esses pontos. Depois, o cliente escolhe um rendezvous e ambos chegam a ele por circuitos separados; não há consulta a DNS público nem divulgação do IP real do serviço.",
+      "section": "4. Serviços onion e uso responsável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conexão típica com serviço onion usa circuitos separados do cliente e do serviço, com um rendezvous para encaminhar as mensagens.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O cliente chega ao rendezvous por um circuito, e o serviço estabelece outro circuito até o mesmo ponto. O rendezvous retransmite mensagens cifradas entre eles.",
+      "section": "4. Serviços onion e uso responsável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o papel do ponto de rendezvous em uma conexão onion?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Encaminhar mensagens entre cliente e serviço sem precisar ser o servidor de conteúdo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Publicar em texto claro os endereços IP dos dois extremos da conexão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atuar como exit para abrir conexão do serviço onion à web pública.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenar toda a página e entregá-la sem participação do serviço remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Escolher o nome de usuário que o cliente deve usar no serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "O rendezvous é o ponto de encontro lógico por onde passam mensagens entre circuitos do cliente e do serviço. Ele não precisa conhecer os IPs reais nem hospedar o conteúdo servido.",
+      "section": "4. Serviços onion e uso responsável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O acesso a serviço onion permanece dentro da rede Tor e não depende de um relé exit para entregar a conexão ao serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A conexão onion é estabelecida por circuitos Tor e rendezvous até o serviço. Diferentemente do acesso a um site público, não há um exit abrindo a conexão para fora da rede.",
+      "section": "4. Serviços onion e uso responsável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O endereço onion autentica criptograficamente o serviço correspondente, mas isso não atesta que o conteúdo publicado seja verdadeiro ou confiável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A associação criptográfica do endereço onion ajuda a evitar que outro serviço se passe por aquele endereço. Ela não avalia a veracidade, legalidade ou segurança do conteúdo oferecido pelo operador.",
+      "section": "4. Serviços onion e uso responsável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual diferença distingue o caminho típico para site público do caminho para serviço onion?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Site público usa exit; serviço onion mantém a comunicação dentro da rede Tor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Site público não usa circuito; serviço onion usa somente um guard local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Site público exige ponte; serviço onion exige transporte Snowflake.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Site público oculta seu IP; serviço onion anuncia o IP ao exit.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Site público usa rendezvous; serviço onion consulta o DNS do provedor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para um destino público, o exit abre a conexão fora da rede Tor. Em serviço onion, circuitos do cliente e do serviço se encontram por rendezvous dentro da rede, sem exit.",
+      "section": "4. Serviços onion e uso responsável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A conexão onion combinada típica pode envolver seis posições de relé, três no circuito do cliente e três no circuito do serviço, incluindo o rendezvous na junção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O caminho tem três relés escolhidos pelo cliente, com rendezvous na terceira posição, e outros três escolhidos pelo serviço. Assim, a conexão combinada tem seis posições de relé.",
+      "section": "4. Serviços onion e uso responsável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que prática reduz o risco de um arquivo baixado revelar o endereço de rede fora do Tor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Evitar abrir o arquivo em aplicativo externo enquanto conectado se ele acessar a internet.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Abrir o arquivo em qualquer leitor, pois Tor intercepta todo tráfego do sistema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar HTTPS para que o navegador esconda chamadas feitas pelo aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Compartilhar a conta pessoal com o serviço para validar o circuito usado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desligar o circuito onion para forçar o aplicativo a usar o exit.",
+          "correct": false
+        }
+      ],
+      "explanation": "Aplicativos externos podem iniciar conexões fora da configuração do Tor Browser e revelar o IP real. Evitar abrir arquivos enquanto conectado, ou usar um ambiente cuidadosamente isolado, reduz esse risco.",
+      "section": "4. Serviços onion e uso responsável",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Tor impede que malware instalado no sistema operacional observe a atividade antes de ela ser encaminhada pelos relés.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Tor protege o encaminhamento de rede, mas não neutraliza software malicioso no dispositivo. Um sistema comprometido pode capturar dados antes da criptografia ou controlar o navegador.",
+      "section": "4. Serviços onion e uso responsável",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual medida ajuda a preservar as proteções esperadas do Tor Browser?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter o navegador atualizado e evitar extensões que alterem sua configuração.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desativar atualizações para conservar a impressão digital antiga do navegador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar qualquer navegador e presumir que ele herda todas as proteções Tor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Instalar extensões variadas para que cada aba tenha identidade aleatória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Abrir arquivos baixados com acesso livre à internet durante a sessão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Manter Tor Browser atualizado e reduzir alterações incomuns preserva correções e diminui a singularidade do navegador. Outro navegador pode vazar dados ou não aplicar as proteções específicas do Tor Browser.",
+      "section": "4. Serviços onion e uso responsável",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de Tor reduz a exposição do endereço IP, mas não impede phishing nem garante que um serviço onion seja seguro ou confiável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Tor trata do encaminhamento e da privacidade da conexão. A rede não verifica a honestidade do operador nem impede que uma página induza o usuário a fornecer dados ou baixar conteúdo nocivo.",
+      "section": "4. Serviços onion e uso responsável",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "About Tor Browser",
+      "publisher": "Tor Project",
+      "reference": "Funcionamento dos circuitos, relé exit, benefícios e limites do Tor Browser",
+      "url": "https://support.torproject.org/tor-browser/getting-started/about-tor-browser/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "A short introduction to Tor",
+      "publisher": "Tor Project",
+      "reference": "Introdução aos circuitos, pontes e transportes obfuscados",
+      "url": "https://spec.torproject.org/intro/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "How do Onion Services work?",
+      "publisher": "Tor Project",
+      "reference": "Descritores, pontos de introdução, rendezvous e ocultação de localização",
+      "url": "https://community.torproject.org/onion-services/overview/index.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Unblocking Tor",
+      "publisher": "Tor Project",
+      "reference": "Pontes e características de obfs4, meek, Snowflake e WebTunnel",
+      "url": "https://support.torproject.org/tor-browser/circumvention/unblocking-tor/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "HTTPS encryption and Tor",
+      "publisher": "Tor Project",
+      "reference": "Diferenças de proteção entre Tor e HTTPS",
+      "url": "https://support.torproject.org/about-tor/security/https-encryption-and-tor/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Managing identities",
+      "publisher": "Tor Project",
+      "reference": "Isolamento de circuitos, guard, domínios e identidade no Tor Browser",
+      "url": "https://support.torproject.org/tor-browser/features/managing-identities/",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

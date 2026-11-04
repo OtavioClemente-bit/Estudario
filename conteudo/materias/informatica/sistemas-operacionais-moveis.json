@@ -1,0 +1,1881 @@
+{
+  "id": "informatica.sistemas-operacionais-moveis",
+  "subject": "Informática",
+  "title": "Sistemas operacionais móveis: arquitetura, segurança e sistemas de arquivos",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Arquitetura dos sistemas operacionais móveis",
+    "Segurança de sistemas operacionais móveis",
+    "Android e iOS: arquitetura e segurança",
+    "Permissões e sandbox em dispositivos móveis",
+    "Criptografia de dados em celulares",
+    "Armazenamento de arquivos em dispositivos móveis",
+    "Segurança e armazenamento móvel",
+    "Sistemas operacionais de smartphones e tablets"
+  ],
+  "scope": {
+    "covers": "Arquitetura em camadas de sistemas operacionais móveis, com foco em Android e iOS: kernel, drivers, HAL, bibliotecas, runtime, serviços e frameworks; comunicação entre componentes, gerenciamento de recursos, inicialização e interface com hardware. Segurança: identidade e isolamento por aplicativo, sandbox, permissões declaradas e concedidas em tempo de execução, privilégios, assinatura e acesso mediado a recursos; criptografia de dados armazenados e proteção condicionada ao desbloqueio. Sistemas de arquivos: hierarquia e diretórios, armazenamento privado por aplicativo, compartilhamento mediado, APFS nos dispositivos Apple, Ext4/F2FS e criptografia baseada em arquivos no Android, áreas CE e DE e acesso durante inicialização direta.",
+    "excludes": "Configuração detalhada de versões específicas, comandos de administração, desenvolvimento de aplicativos, procedimentos de jailbreak/root, forense móvel, redes sem fio e comparação de desempenho de aparelhos."
+  },
+  "theoryTitle": "Como os sistemas móveis organizam, isolam e protegem os dados",
+  "chapters": [
+    {
+      "title": "1. Arquitetura em camadas: do aplicativo ao hardware",
+      "markdown": "### O problema que este assunto resolve\n\nUm telefone reúne processador, tela, sensores, rádio, armazenamento e muitos aplicativos concorrentes. O sistema operacional coordena esse conjunto, oferece serviços comuns e impede que cada aplicativo precise controlar diretamente o hardware. Em prova, a arquitetura costuma aparecer como uma pilha: a solicitação começa no aplicativo, atravessa APIs e serviços do sistema, chega às camadas de suporte ao hardware e, por fim, ao kernel e aos dispositivos.\n\n> **Siglas e termos deste capítulo**\n> - **Kernel**: núcleo privilegiado que gerencia processos, memória, dispositivos e chamadas de sistema.\n> - **Driver**: componente que controla um dispositivo ou controlador específico.\n> - **HAL**: camada de abstração de hardware; padroniza interfaces entre serviços e implementações dos fabricantes.\n> - **API**: interface que permite a um programa solicitar funções sem conhecer sua implementação interna.\n> - **Runtime**: ambiente que executa código de aplicativos e oferece bibliotecas de execução.\n> - **IPC**: comunicação entre processos, como a troca de mensagens mediada pelo sistema.\n\n### Android: camadas e caminho de uma operação\n\nO Android de código aberto (AOSP) tem por base um kernel Linux, acrescido de adaptações para Android. Acima dele há bibliotecas nativas e serviços de baixo nível; a HAL define interfaces padronizadas para funções como câmera, áudio e sensores, permitindo que a implementação do fabricante varie sem exigir que as camadas superiores conheçam cada driver. O Android Runtime (ART) executa o bytecode dos aplicativos Java/Kotlin, convertendo-o para instruções adequadas ao dispositivo. O framework Android oferece APIs e serviços do sistema; no topo ficam os aplicativos.\n\nUm aplicativo que pede uma fotografia chama uma API da plataforma. O framework encaminha a operação ao serviço de câmera, que usa a interface HAL apropriada; a implementação do fabricante conversa com o driver e o hardware. A permissão de câmera é uma decisão de segurança que condiciona o acesso; a HAL, por sua vez, é uma camada arquitetural que abstrai o hardware. São conceitos relacionados, mas não intercambiáveis.\n\n| Camada Android | Função principal | Exemplo concreto |\n| --- | --- | --- |\n| Aplicativos | Funções voltadas ao usuário | Câmera, mapas, mensageria |\n| Framework e serviços | APIs e coordenação de atividades, pacotes, localização e janelas | Serviço de localização |\n| ART e bibliotecas nativas | Execução de bytecode e funções compartilhadas | Runtime ART, bibliotecas gráficas |\n| HAL | Interface uniforme para implementação do fabricante | HAL de câmera ou áudio |\n| Kernel Linux e drivers | Processos, memória, segurança de baixo nível e controle dos dispositivos | Driver de tela, USB ou Wi-Fi |\n\n### iOS: integração de frameworks, serviços e núcleo\n\nNo iOS, aplicativos usam frameworks e serviços fornecidos pela plataforma, em vez de controlar diretamente os dispositivos. O núcleo do sistema, baseado na família Darwin/XNU, sustenta processos, memória, segurança e interação com hardware. Frameworks como UIKit e Foundation fornecem abstrações de interface e serviços comuns. O projeto e a nomenclatura de camadas não são idênticos aos do Android; não se deve transpor literalmente a HAL Android para o desenho do iOS. Em ambas as plataformas, porém, APIs e serviços mediados preservam a separação entre aplicativos e detalhes de hardware.\n\n### Serviços, processos e recursos\n\nAplicativos não precisam permanecer ativos para toda tarefa. O sistema administra ciclo de vida, uso de CPU, memória, energia e execução em segundo plano. Serviços privilegiados realizam tarefas comuns, e mecanismos de IPC transportam pedidos entre processos com checagens de identidade e autorização. Essa mediação favorece economia de bateria e limita o impacto de uma falha: um processo comum não recebe automaticamente o poder de um serviço do sistema.\n\n### Como cai na prova\n\n- A HAL é a abstração de interfaces de hardware do Android; não é o kernel nem o conjunto de permissões do usuário.\n- ART executa aplicativos Android; o framework expõe serviços e APIs usados por eles.\n- O acesso ao hardware normalmente percorre APIs e serviços do sistema, não uma conversa irrestrita do app com o driver.\n- Camadas conceituais são comparáveis entre plataformas, mas nomes e implementações específicas diferem."
+    },
+    {
+      "title": "2. Permissões, sandbox e limites de confiança",
+      "markdown": "### O problema que este assunto resolve\n\nUm aplicativo de lanterna precisa da luz, mas não deveria ler mensagens de outro aplicativo nem alterar arquivos do sistema. O modelo de segurança combina isolamento por processo, identidade do aplicativo, permissões e interfaces controladas. A sandbox reduz o alcance inicial de cada app; uma permissão específica libera somente determinadas capacidades e não equivale a uma autorização geral para todo o aparelho.\n\n> **Siglas e termos deste capítulo**\n> - **Sandbox**: conjunto de limites de execução e acesso que contém cada aplicativo.\n> - **UID**: identificador de usuário/processo usado pelo sistema para aplicar controles de acesso.\n> - **Manifesto**: arquivo de metadados do pacote Android, no qual o app declara componentes e permissões necessárias.\n> - **Permissão em tempo de execução**: autorização que o sistema pode solicitar ao usuário quando um app precisa de certos dados ou recursos.\n> - **Entitlement**: capacidade ou autorização declarada e assinada que habilita certos serviços no ecossistema Apple.\n> - **Princípio do menor privilégio**: conceder apenas os acessos necessários à tarefa.\n\n### Android: isolamento e concessão de permissões\n\nCada aplicativo Android recebe uma identidade própria no sistema e executa dentro de um sandbox obrigatório. Os controles do kernel e do sistema isolam seus arquivos privados e processos dos demais. O AndroidManifest.xml declara componentes e permissões solicitadas. Para permissões consideradas perigosas, a declaração não basta: o usuário pode ser consultado durante a execução, e a concessão pode ser recusada ou posteriormente revogada. A chamada a uma API protegida sem autorização pode resultar em falha de segurança.\n\nNem toda capacidade usa a mesma interação. Algumas permissões são concedidas na instalação, outras exigem confirmação em tempo de execução, e permissões de assinatura podem ser restritas a aplicativos assinados com a mesma chave. A classificação e o fluxo concreto variam com a plataforma e a versão. Uma permissão não rompe a sandbox inteira: concede uma capacidade delimitada, enquanto a identidade e o isolamento do processo continuam relevantes.\n\n### iOS: contêiner e acesso mediado\n\nAplicativos de terceiros no iOS ficam em sandboxes com diretórios próprios. Um app não deve percorrer livremente os documentos privados de outro. Para fotos, contatos ou outros recursos protegidos, a plataforma oferece APIs específicas e fluxos de autorização. Assinatura de código, entitlements e serviços do sistema fazem parte do controle de execução e das capacidades disponíveis. Um diálogo de permissão para fotos não transforma o aplicativo em administrador nem libera todo o sistema de arquivos.\n\n| Mecanismo | O que limita ou autoriza | O que não significa |\n| --- | --- | --- |\n| Sandbox | Acesso do processo a dados e recursos fora de seu domínio | Criptografia automática de todo arquivo em qualquer circunstância |\n| Permissão | Uso de uma capacidade protegida, como câmera ou localização | Acesso irrestrito a todos os dados do usuário |\n| Identidade/UID e controles de acesso | Separação entre processos e arquivos | Uma aprovação explícita para cada leitura de arquivo privado do próprio app |\n| API mediadora | Compartilhamento deliberado de recurso pelo sistema | Abertura geral dos contêineres de outros apps |\n| Assinatura/entitlement | Identidade do código e capacidades reconhecidas pela plataforma | Prova de que o aplicativo é inofensivo |\n\n### Defesa em profundidade\n\nO isolamento por processo não é a única barreira. Sistemas móveis também usam privilégios reduzidos para processos comuns, validação de código e comunicação mediada. No Android, políticas como SELinux reforçam controles obrigatórios; no ecossistema Apple, sandbox e direitos declarados restringem recursos. Se um app tiver uma vulnerabilidade, essas barreiras procuram limitar o que o invasor consegue alcançar. Uma permissão concedida pode ampliar o impacto, razão pela qual o menor privilégio continua importante.\n\n### Como cai na prova\n\n- Declarar uma permissão no manifesto Android não garante, para toda categoria, que o usuário já a concedeu.\n- Sandbox isola por padrão; permissão autoriza uma capacidade pontual e controlada.\n- O compartilhamento mediado por seletor ou API do sistema não equivale a acesso geral ao armazenamento privado de outros aplicativos.\n- Assinatura identifica e valida a origem/integridade do pacote, mas não certifica que seu comportamento seja benigno."
+    },
+    {
+      "title": "3. Criptografia e disponibilidade dos dados",
+      "markdown": "### O problema que este assunto resolve\n\nSe alguém retirar o armazenamento de um aparelho desligado, as permissões de processo já não estão executando para proteger os arquivos. A criptografia em repouso protege o conteúdo gravado, enquanto chaves e condições de desbloqueio determinam quando o sistema pode decifrá-lo. Ela não substitui sandbox, autenticação ou cópias de segurança: cada mecanismo enfrenta uma ameaça diferente.\n\n> **Siglas e termos deste capítulo**\n> - **Criptografia em repouso**: proteção de dados armazenados em mídia, e não apenas durante a transmissão.\n> - **FBE**: File-Based Encryption, criptografia baseada em arquivos, com chaves que podem variar por arquivo ou grupo.\n> - **CE**: Credential Encrypted, armazenamento cuja chave depende do desbloqueio/autenticação do usuário.\n> - **DE**: Device Encrypted, armazenamento disponível antes do primeiro desbloqueio após a inicialização, para dados que precisam desse acesso.\n> - **Direct Boot**: inicialização do Android até a tela bloqueada, permitindo funções limitadas que dependem de dados DE.\n> - **APFS**: Apple File System, sistema de arquivos moderno usado na maioria dos dispositivos Apple.\n\n### Android: FBE, CE e DE\n\nA criptografia baseada em arquivos permite chaves distintas para dados diferentes. No armazenamento de cada usuário há áreas CE e DE. CE é o local padrão de dados privados do usuário e só fica acessível depois que ele desbloqueia o aparelho. DE fica disponível durante Direct Boot, antes desse desbloqueio, para informações limitadas necessárias nessa fase. Um despertador pode precisar funcionar logo após a reinicialização; mensagens privadas, em regra, devem aguardar o desbloqueio. A separação permite conciliar disponibilidade limitada e confidencialidade.\n\nNa implementação Android documentada, FBE é usado em conjunto com criptografia de metadados: esta complementa a proteção de blocos da partição de dados que não estejam cobertos pela criptografia baseada em arquivo. Dispositivos e versões antigas podem ter diferenças; evite concluir que todo aparelho Android histórico usa o mesmo formato ou política. A senha, PIN ou padrão da tela de bloqueio pode proteger o acesso às chaves CE, mas a criptografia e o bloqueio de tela são componentes relacionados, não sinônimos.\n\n### Apple: proteção por arquivo e classes de proteção\n\nO recurso Data Protection do iOS cifra arquivos e controla sua disponibilidade segundo classes de proteção. A aplicação escolhe a classe apropriada ao criar o arquivo; o sistema cifra e decifra de forma transparente, usando chaves protegidas pelo hardware e pelo estado de autenticação. Um arquivo configurado para proteção completa fica inacessível enquanto o dispositivo está bloqueado; outras classes permitem disponibilidade em condições diferentes, inclusive após o primeiro desbloqueio. Isso afeta tarefas em segundo plano: o app deve lidar com o arquivo temporariamente indisponível.\n\nA proteção por arquivo dá granularidade: arquivos com sensibilidade e necessidades operacionais diferentes podem receber tratamentos distintos. Um app que precisa registrar uma atividade em segundo plano não deve supor que um arquivo de proteção completa estará sempre legível depois que a tela for bloqueada. Credenciais pequenas, como tokens, têm armazenamento próprio mais apropriado, como o Keychain, em vez de texto simples em preferências.\n\n| Situação | Android FBE | Proteção de dados Apple |\n| --- | --- | --- |\n| Dado privado após reiniciar, antes de desbloquear | CE permanece bloqueado | Disponibilidade depende da classe e do estado das chaves |\n| Função limitada antes do desbloqueio | Dados DE podem apoiar Direct Boot | Classes configuradas determinam se o arquivo está acessível |\n| Granularidade | Chaves e diretórios protegidos por classes/usuários | Nível de proteção definido por arquivo |\n| Responsabilidade do app | Separar dados necessários no boot dos dados pessoais | Tratar erros quando arquivo protegido fica indisponível |\n\n### Criptografia não é sinônimo de autorização\n\nUm aplicativo autorizado pode ler seu próprio arquivo depois da descriptografia; a chave não decide se cada ação do app é legítima. A sandbox controla quais processos alcançam arquivos, permissões controlam capacidades e criptografia reduz a exposição dos dados na mídia. Uma falha em app já aberto pode permitir uso dos dados que o próprio processo consegue ler. Também não se deve confundir criptografia local em repouso com TLS, que protege dados em trânsito pela rede.\n\n### Como cai na prova\n\n- CE exige que o usuário tenha desbloqueado; DE atende a dados necessários no Direct Boot.\n- Proteção completa em iOS aumenta confidencialidade quando bloqueado, mas pode tornar o arquivo indisponível ao app em segundo plano.\n- Criptografia em repouso protege a mídia; sandbox e permissões restringem processos; TLS protege comunicação em trânsito."
+    },
+    {
+      "title": "4. Sistemas de arquivos, contêineres e compartilhamento",
+      "markdown": "### O problema que este assunto resolve\n\nO sistema de arquivos organiza nomes, diretórios e metadados em uma hierarquia e oferece operações para criar, ler, atualizar e excluir dados. Em celulares, essa estrutura é associada a políticas de privacidade: cada app tem espaço privado, arquivos temporários podem ser removíveis, e documentos que o usuário quer compartilhar passam por mecanismos explícitos do sistema.\n\n> **Siglas e termos deste capítulo**\n> - **Sistema de arquivos**: organização lógica de arquivos, diretórios e metadados sobre um volume.\n> - **Contêiner**: diretório ou conjunto de diretórios associados ao espaço de um aplicativo.\n> - **Ext4**: sistema de arquivos com journaling amplamente usado no ecossistema Linux e suportado no Android.\n> - **F2FS**: sistema de arquivos projetado para armazenamento baseado em flash e também suportado no Android.\n> - **Journaling**: registro de operações para ajudar a manter consistência após interrupções.\n> - **APFS**: formato moderno da Apple que oferece, entre outros recursos, snapshots e compartilhamento de espaço.\n\n### Contêineres de aplicativo\n\nNo Android, os dados internos de um app ficam em diretórios privados associados à sua identidade. Outros aplicativos não recebem acesso direto por padrão. Espaços externos compartilhados têm regras próprias; para compartilhar um documento, o app pode usar APIs e provedores que entregam acesso limitado ao item escolhido. No iOS, cada app de terceiros possui um diretório doméstico próprio; fotos e documentos de outros domínios são acessados por APIs ou seletores mediados. Assim, “o arquivo está no mesmo telefone” não implica “qualquer aplicativo pode abri-lo”.\n\nO contêiner contém dados persistentes, bancos locais, preferências e arquivos de suporte; caches e arquivos temporários podem ser tratados como descartáveis pelo sistema. Documentos que o usuário cria e espera conservar devem ser guardados na localização adequada, não em cache. Ao desinstalar o app, seus dados privados associados normalmente são removidos, enquanto dados exportados ou armazenados em local compartilhado seguem regras distintas.\n\n### Formatos e características\n\nAndroid pode usar Ext4 ou F2FS, conforme o dispositivo e a partição. Ext4 é um sistema de arquivos de propósito geral com journaling; F2FS foi desenhado para características de memória flash. A criptografia baseada em arquivos é implementada sobre sistemas como Ext4 e F2FS no AOSP. APFS é o sistema de arquivos da Apple usado na maioria dos dispositivos Apple; oferece clones, snapshots, compartilhamento de espaço e gravações atômicas seguras. Aplicativos devem usar APIs de arquivos da plataforma, pois o formato e detalhes da hierarquia não devem ser presumidos como idênticos em todos os dispositivos.\n\n| Aspecto | Android | iOS / dispositivos Apple |\n| --- | --- | --- |\n| Dados privados do app | Diretório protegido pela identidade do app | Contêiner próprio criado pelo sistema |\n| Sistemas de arquivos comuns | Ext4 ou F2FS, conforme o dispositivo | APFS na maioria dos dispositivos Apple |\n| Compartilhamento | Interfaces e provedores com acesso mediado | APIs e seletores do sistema |\n| Proteção granular | FBE com áreas CE/DE e metadados | Data Protection por classe de arquivo |\n\n### Metadados, diretórios e consistência\n\nUm arquivo tem conteúdo e metadados: nome, localização, permissões e outros atributos. Diretórios organizam referências a arquivos. Journaling pode ajudar na recuperação de consistência estrutural após desligamento inesperado, mas não é backup nem substitui criptografia. Snapshots preservam estados do sistema de arquivos para certos usos, mas também não são, por si só, cópia externa protegida contra perda do dispositivo.\n\n### Como cai na prova\n\n- APFS, Ext4 e F2FS são sistemas de arquivos; sandbox e FBE são mecanismos de segurança, embora possam atuar em conjunto.\n- Um contêiner de app isola seus dados privados; compartilhamento requer uma interface autorizada ou área compartilhada apropriada.\n- Journaling trata de consistência após falhas; não cifra dados nem substitui backup.\n- Não infira que o usuário pode navegar livremente em todos os diretórios do aparelho só porque existe uma hierarquia de arquivos."
+    }
+  ],
+  "summary": "Sistemas móveis organizam software em camadas que mediam o acesso ao hardware. No Android, kernel Linux, HAL, bibliotecas, ART, framework e aplicativos têm funções distintas; no iOS, frameworks e serviços intermedeiam o uso do núcleo e dos dispositivos. Sandboxes isolam os apps, enquanto permissões e APIs autorizam capacidades específicas. Criptografia em repouso protege dados armazenados: Android usa FBE com áreas CE, acessíveis após desbloqueio, e DE, disponíveis em Direct Boot; iOS oferece Data Protection por classe de arquivo. Contêineres privados e sistemas como Ext4/F2FS e APFS organizam o armazenamento, e o compartilhamento ocorre por meios mediados pela plataforma.",
+  "flashcards": [
+    {
+      "front": "Qual é o papel do kernel em um sistema móvel?",
+      "back": "Gerenciar processos, memória, dispositivos e chamadas de sistema, fornecendo o núcleo privilegiado do sistema operacional."
+    },
+    {
+      "front": "O que faz a HAL do Android?",
+      "back": "Define interfaces padronizadas para que serviços do Android usem implementações de hardware dos fabricantes sem conhecer cada driver."
+    },
+    {
+      "front": "Qual é a função do ART?",
+      "back": "Executar o bytecode dos aplicativos Android, traduzindo-o para instruções adequadas ao dispositivo."
+    },
+    {
+      "front": "O framework Android é igual ao kernel?",
+      "back": "Não. O framework oferece APIs e serviços de alto nível; o kernel gerencia recursos fundamentais e dispositivos."
+    },
+    {
+      "front": "Como costuma ocorrer o acesso de um app Android à câmera?",
+      "back": "O app usa APIs; framework e serviço de câmera encaminham a solicitação pela HAL à implementação do fabricante e ao hardware."
+    },
+    {
+      "front": "O que é sandbox de aplicativo?",
+      "back": "Limite de execução e acesso destinado a isolar um app e conter o alcance de falhas ou abusos."
+    },
+    {
+      "front": "O que identifica um app Android para aplicar isolamento?",
+      "back": "Uma identidade de sistema própria, associada ao processo e aos controles de acesso, incluindo UID."
+    },
+    {
+      "front": "Declarar uma permissão Android sempre significa que ela foi concedida?",
+      "back": "Não. Certas permissões precisam ser concedidas pelo usuário durante a execução e podem ser recusadas ou revogadas."
+    },
+    {
+      "front": "O que é uma permissão em tempo de execução?",
+      "back": "Autorização solicitada quando o app precisa usar uma capacidade protegida, sujeita à decisão do usuário."
+    },
+    {
+      "front": "Como apps iOS acessam dados de outros domínios?",
+      "back": "Por APIs e serviços mediados, como seletores e fluxos de autorização, sem acesso geral aos contêineres alheios."
+    },
+    {
+      "front": "Uma assinatura de código prova que o app é seguro?",
+      "back": "Não. Ela apoia a identificação e validação da origem e integridade do código, mas não garante comportamento benigno."
+    },
+    {
+      "front": "O que significa menor privilégio?",
+      "back": "Conceder ao aplicativo somente as capacidades necessárias à sua função."
+    },
+    {
+      "front": "O que protege criptografia em repouso?",
+      "back": "Reduz a possibilidade de ler os dados armazenados diretamente na mídia sem as chaves necessárias."
+    },
+    {
+      "front": "O que significa FBE no Android?",
+      "back": "File-Based Encryption: criptografia baseada em arquivos, com chaves distintas para diferentes dados ou diretórios."
+    },
+    {
+      "front": "Quando o armazenamento CE fica disponível?",
+      "back": "Após o usuário desbloquear o dispositivo e as chaves protegidas por sua credencial ficarem disponíveis."
+    },
+    {
+      "front": "Para que serve armazenamento DE?",
+      "back": "Disponibiliza dados limitados necessários antes do primeiro desbloqueio, durante Direct Boot."
+    },
+    {
+      "front": "O que é Direct Boot?",
+      "back": "Modo em que o Android inicializa até a tela bloqueada e permite funções limitadas com dados DE."
+    },
+    {
+      "front": "Como funciona Data Protection no iOS?",
+      "back": "Cifra arquivos e regula sua disponibilidade segundo a classe de proteção atribuída a cada arquivo."
+    },
+    {
+      "front": "O que pode ocorrer com arquivo de proteção completa no iOS após bloquear?",
+      "back": "Ele pode ficar indisponível ao aplicativo até o dispositivo ser desbloqueado."
+    },
+    {
+      "front": "O que é APFS?",
+      "back": "Apple File System, formato usado na maioria dos dispositivos Apple, com recursos como snapshots, clones e compartilhamento de espaço."
+    },
+    {
+      "front": "Quais sistemas de arquivos o Android pode usar?",
+      "back": "Entre outros, Ext4 e F2FS, conforme o dispositivo e a partição."
+    },
+    {
+      "front": "Para que serve journaling?",
+      "back": "Ajuda a manter a consistência estrutural do sistema de arquivos depois de uma interrupção."
+    },
+    {
+      "front": "Journaling é uma forma de backup?",
+      "back": "Não. É um recurso de consistência, não uma cópia independente dos dados."
+    },
+    {
+      "front": "O que é contêiner de aplicativo?",
+      "back": "Espaço de arquivos associado ao app para dados privados e arquivos de suporte, isolado de outros apps."
+    },
+    {
+      "front": "Cache e documento do usuário têm o mesmo tratamento?",
+      "back": "Não. Cache pode ser descartável; documentos que o usuário espera conservar devem ficar na localização apropriada."
+    }
+  ],
+  "tips": [
+    "Associe cada camada à sua tarefa: kernel gerencia recursos; HAL abstrai hardware; ART executa bytecode; framework oferece APIs e serviços.",
+    "Ao ler uma questão de segurança, pergunte se ela trata de isolamento, autorização, criptografia ou proteção em trânsito.",
+    "No Android, memorize a diferença funcional: CE depende do desbloqueio; DE existe para a fase de Direct Boot.",
+    "No iOS, classe de proteção afeta a disponibilidade de cada arquivo; arquivo cifrado pode estar temporariamente inacessível ao app.",
+    "APFS, Ext4 e F2FS são sistemas de arquivos; sandbox, permissão e criptografia são controles que podem atuar sobre os arquivos.",
+    "A permissão de câmera permite uma capacidade delimitada; não concede acesso geral ao aparelho nem elimina a sandbox."
+  ],
+  "traps": [
+    "A questão chama a HAL de kernel. Errado: HAL padroniza a interface entre serviços e o hardware do fabricante; kernel é o núcleo do sistema.",
+    "O enunciado diz que declarar uma permissão Android basta para acessar a câmera. Para permissões sensíveis, pode ser necessária concessão do usuário em tempo de execução.",
+    "A questão trata a sandbox como criptografia. Sandbox restringe acesso de processos; criptografia protege dados armazenados mediante chaves.",
+    "A questão afirma que CE fica disponível antes do desbloqueio. No FBE, a área CE depende do desbloqueio; DE atende o Direct Boot.",
+    "A questão conclui que arquivo iOS protegido estará sempre acessível a um app de segundo plano. A classe pode torná-lo indisponível com o aparelho bloqueado.",
+    "A questão diz que journaling substitui backup. O registro ajuda a consistência do sistema de arquivos, mas não preserva uma cópia independente dos dados."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva a sequência típica entre um aplicativo Android e o hardware da câmera.",
+      "answer": "O app chama uma API do framework; um serviço do sistema encaminha a operação pela HAL à implementação do fabricante e ao driver/hardware, respeitadas as autorizações aplicáveis."
+    },
+    {
+      "question": "Diferencie kernel, HAL e framework Android.",
+      "answer": "Kernel gerencia recursos e dispositivos; HAL padroniza a interface para implementações de hardware; framework expõe APIs e serviços usados pelos aplicativos."
+    },
+    {
+      "question": "Explique como sandbox e permissão se complementam.",
+      "answer": "A sandbox isola o app e limita seu acesso por padrão; uma permissão autoriza uma capacidade protegida específica, sem eliminar o restante do isolamento."
+    },
+    {
+      "question": "Por que declaração no manifesto não é sempre uma concessão de acesso?",
+      "answer": "O manifesto registra a necessidade do app, mas algumas permissões dependem de autorização do usuário em tempo de execução e podem ser negadas ou revogadas."
+    },
+    {
+      "question": "Compare CE e DE no Android.",
+      "answer": "CE guarda dados protegidos pela credencial e só fica acessível após desbloqueio; DE guarda dados limitados acessíveis em Direct Boot, antes desse desbloqueio."
+    },
+    {
+      "question": "Como o Direct Boot concilia disponibilidade e privacidade?",
+      "answer": "Permite iniciar serviços limitados usando dados DE, enquanto os dados pessoais CE seguem indisponíveis até a autenticação do usuário."
+    },
+    {
+      "question": "O que muda quando um arquivo iOS recebe proteção completa?",
+      "answer": "O conteúdo fica cifrado e pode ficar inacessível ao app enquanto o aparelho está bloqueado, exigindo tratamento de indisponibilidade."
+    },
+    {
+      "question": "Diferencie journaling, snapshot e backup.",
+      "answer": "Journaling ajuda a consistência após interrupções; snapshot registra um estado do volume; backup é uma cópia independente destinada à recuperação, idealmente em outro local."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Camadas arquiteturais confundidas",
+      "summary": "Kernel, HAL, ART e framework fazem trabalhos diferentes. No fluxo Android, as APIs e serviços mediam a solicitação antes da interface de hardware e do kernel."
+    },
+    {
+      "key": "e2",
+      "title": "Permissão tratada como isolamento total",
+      "summary": "Sandbox restringe o processo por padrão; permissões autorizam capacidades determinadas. Uma concessão não transforma o app em administrador nem libera todos os arquivos."
+    },
+    {
+      "key": "e3",
+      "title": "CE e DE invertidos",
+      "summary": "CE depende do primeiro desbloqueio do usuário; DE existe para os dados limitados necessários durante Direct Boot."
+    },
+    {
+      "key": "e4",
+      "title": "Criptografia confundida com disponibilidade",
+      "summary": "Criptografia protege dados armazenados, mas a classe de chave também pode tornar um arquivo indisponível enquanto o aparelho está bloqueado."
+    },
+    {
+      "key": "e5",
+      "title": "Sistema de arquivos confundido com mecanismo de segurança",
+      "summary": "APFS, Ext4 e F2FS organizam dados; sandbox, permissões e criptografia controlam acesso ou confidencialidade e podem atuar sobre esses sistemas."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No Android, que camada oferece interfaces padronizadas para que serviços usem implementações de câmera e áudio fornecidas pelo fabricante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O framework, que incorpora o firmware de cada fabricante no aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O ART, que converte diretamente chamadas do app em sinais elétricos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O manifesto, que substitui os drivers dos dispositivos físicos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A HAL, que separa a interface comum do código específico do hardware.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O sandbox, que implementa o protocolo físico da câmera e do áudio.",
+          "correct": false
+        }
+      ],
+      "explanation": "A HAL estabelece interfaces padronizadas para os serviços Android alcançarem implementações de hardware específicas do fabricante. ART executa código de apps; manifesto descreve o pacote; framework oferece APIs; sandbox isola processos.",
+      "section": "1. Arquitetura em camadas: do aplicativo ao hardware",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao organizar as camadas Android, qual descrição corresponde ao ART?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É o kernel que agenda processos e administra diretamente os drivers.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É a camada que concede ao usuário permissões para câmera e contatos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É o runtime que executa bytecode de aplicativos no dispositivo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "É o sistema de arquivos usado para gravar partições de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É o serviço responsável por traduzir toda API Android em SQL.",
+          "correct": false
+        }
+      ],
+      "explanation": "Android Runtime (ART) é o ambiente de execução que traduz bytecode para instruções executadas no dispositivo. Kernel, gerenciamento de permissões, sistema de arquivos e bancos de dados são funções distintas.",
+      "section": "1. Arquitetura em camadas: do aplicativo ao hardware",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aplicativo solicita uma imagem à câmera Android. Qual percurso arquitetural é o mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O app usa APIs e serviços, que encaminham a solicitação pela HAL ao suporte do dispositivo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O app acessa o driver; depois a HAL solicita ao framework que salve a imagem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O kernel consulta o manifesto e concede ao app acesso direto ao sensor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O ART autoriza a câmera e substitui o serviço de sistema durante a captura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sistema de arquivos executa a chamada da câmera e a permissão depois grava o arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O aplicativo chama APIs do framework, que medeiam o pedido por serviços do sistema e pela HAL até a implementação do fabricante e o hardware. A autorização é verificada, mas não altera essa separação arquitetural.",
+      "section": "1. Arquitetura em camadas: do aplicativo ao hardware",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação compara corretamente Android e iOS quanto à arquitetura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambos exigem que cada app controle diretamente os drivers para economizar bateria.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "iOS implementa literalmente a HAL Android e usa ART para executar seus apps.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Android não contém serviços de sistema entre aplicativos e dispositivos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ambos oferecem APIs e serviços mediados, embora os nomes e desenhos internos difiram.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O kernel é uma camada de interface visual presente somente no iOS.",
+          "correct": false
+        }
+      ],
+      "explanation": "As plataformas oferecem abstrações e serviços para que apps usem recursos sem controlar diretamente cada dispositivo. Android e iOS têm desenhos e nomes próprios; não se deve transportar literalmente HAL e ART para o iOS.",
+      "section": "1. Arquitetura em camadas: do aplicativo ao hardware",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema interrompe atividades em segundo plano para conter consumo de bateria e memória. Que função do sistema está em jogo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A camada HAL, que escolhe as permissões individuais de cada contato.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O sistema de arquivos, que assina os pacotes instalados pelo usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O framework visual, que substitui os serviços de gerenciamento de processos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O driver, que concede acesso aos dados privados de todos os apps.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Serviços gerenciam ciclo de vida, CPU, memória e energia.",
+          "correct": true
+        }
+      ],
+      "explanation": "Sistemas móveis administram ciclo de vida, CPU, memória e energia e podem limitar tarefas em segundo plano. HAL, sistema de arquivos e drivers cuidam de outros aspectos e não concedem acesso generalizado a dados.",
+      "section": "1. Arquitetura em camadas: do aplicativo ao hardware",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Android, que arquivo registra componentes de alto nível e declara permissões solicitadas pelo aplicativo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O diário Ext4, que contém as opções de interface gráfica do app.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A tabela de diretórios APFS, mantida pelo kernel do aparelho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A classe de proteção CE, configurada em cada arquivo de câmera.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A interface HAL de sensores, gerada pelo usuário no primeiro boot.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O arquivo de manifesto AndroidManifest.xml do pacote.",
+          "correct": true
+        }
+      ],
+      "explanation": "AndroidManifest.xml descreve componentes como atividades e serviços e inclui permissões solicitadas. Não é uma estrutura de sistema de arquivos nem concede automaticamente todas as permissões declaradas.",
+      "section": "2. Permissões, sandbox e limites de confiança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o efeito principal da sandbox de aplicativo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir que o app ignore as decisões de autorização do usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criptografar automaticamente toda comunicação de rede do dispositivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conter o app em limites de acesso e reduzir interferência em outros domínios.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Substituir o kernel e executar o sistema operacional inteiro no app.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dar a cada aplicativo controle administrativo sobre os drivers instalados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sandbox limita o alcance de processos e protege recursos do sistema e dados de outros apps. Não é um mecanismo de TLS, não substitui o kernel e não concede privilégios administrativos.",
+      "section": "2. Permissões, sandbox e limites de confiança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um app Android declara que precisa da câmera, mas o usuário nega a solicitação apresentada durante o uso. O que ocorre?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O manifesto passa a valer como concessão automática na próxima chamada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A instalação converte a sandbox inteira em acesso administrativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O app continua sem essa autorização e deve lidar com a chamada protegida negada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A HAL remove a permissão e libera o driver diretamente ao usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sistema desinstala todos os aplicativos que pedem recursos de câmera.",
+          "correct": false
+        }
+      ],
+      "explanation": "A declaração informa a necessidade, mas uma permissão perigosa pode exigir concessão em tempo de execução. Se o usuário negar, o app não deve presumir acesso e precisa tratar a falha de autorização.",
+      "section": "2. Permissões, sandbox e limites de confiança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação exemplifica compartilhamento mediado de um documento em vez de acesso irrestrito ao armazenamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um app percorre silenciosamente as pastas privadas de todos os outros apps.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O usuário escolhe um arquivo num seletor do sistema, que entrega acesso ao item.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O app altera a política do kernel para remover os sandboxes concorrentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A permissão de localização transforma arquivos criptografados em arquivos públicos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O runtime concede acesso completo ao disco após carregar o primeiro bytecode.",
+          "correct": false
+        }
+      ],
+      "explanation": "Seletores e APIs do sistema permitem que o usuário escolha conteúdo e conceda acesso delimitado. A escolha não abre os contêineres privados dos demais aplicativos nem remove a sandbox.",
+      "section": "2. Permissões, sandbox e limites de confiança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que a assinatura de código permite verificar no processo de instalação e execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Que o aplicativo não contém falhas nem pode agir de forma maliciosa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Que todo usuário concedeu todas as permissões solicitadas pelo pacote.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que os arquivos do app estão copiados para um backup independente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A identidade/origem do código e se ele foi alterado desde a assinatura.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Que o app recebeu permissão automática para acessar qualquer sensor.",
+          "correct": false
+        }
+      ],
+      "explanation": "A assinatura apoia a identificação do publicador e a verificação da integridade do pacote. Não certifica comportamento seguro, não substitui concessões de permissão e não faz backup.",
+      "section": "2. Permissões, sandbox e limites de confiança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que conceder apenas a permissão necessária é uma boa prática?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque permite que o processo ignore o isolamento por UID.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque remove a necessidade de manter o aplicativo atualizado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque converte automaticamente os dados do app em cópias externas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque reduz a quantidade de capacidades disponíveis caso o app seja comprometido.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Porque elimina a necessidade de criptografia em dados sensíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "O menor privilégio reduz a superfície de acesso e o impacto potencial de abuso ou comprometimento. Não substitui atualização, sandbox, backup ou criptografia.",
+      "section": "2. Permissões, sandbox e limites de confiança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um iPhone, um aplicativo de terceiros tenta ler diretamente a pasta privada de outro aplicativo. Qual barreira normalmente impede isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A área DE, que dá acesso global a todos os diretórios iOS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A HAL, que traduz permissões de Android para formatos Apple.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O ART, que executa os aplicativos Apple dentro do kernel Linux.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O journaling APFS, que converte cada arquivo em uma permissão de câmera.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sandbox, com contêiner próprio e serviços de acesso explicitamente mediados.",
+          "correct": true
+        }
+      ],
+      "explanation": "Apps de terceiros são isolados em sandboxes e contêineres próprios; acesso a dados de outros domínios deve ocorrer por APIs e serviços fornecidos pela plataforma. DE, HAL e ART são conceitos Android, e journaling não concede acesso.",
+      "section": "2. Permissões, sandbox e limites de confiança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que acontece com a área Credential Encrypted (CE) do Android antes de o usuário desbloquear o dispositivo após a inicialização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fica acessível a qualquer app porque o kernel ainda não foi iniciado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Permanece indisponível até a credencial do usuário liberar o acesso.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "É convertida em cache descartável e removida ao iniciar o Direct Boot.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Passa a ser lida sem chave assim que o aparelho exibe a tela bloqueada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É uma partição pública usada para guardar somente aplicativos pré-instalados.",
+          "correct": false
+        }
+      ],
+      "explanation": "O armazenamento CE depende do desbloqueio do usuário para disponibilizar suas chaves. Antes disso, o Android pode oferecer acesso limitado à área DE, sem tornar os dados CE públicos.",
+      "section": "3. Criptografia e disponibilidade dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual dado é mais apropriado para a área Device Encrypted (DE) quando uma função precisa operar antes do primeiro desbloqueio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O conteúdo integral de conversas privadas, para qualquer app consultar no boot.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A senha em texto simples usada para derivar todas as chaves CE.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Informação limitada necessária a uma função como alarmes durante Direct Boot.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma cópia pública de todos os arquivos de cada perfil de usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O conjunto de dados de autenticação que deve aguardar o desbloqueio CE.",
+          "correct": false
+        }
+      ],
+      "explanation": "DE apoia funções limitadas durante Direct Boot, por exemplo dados de alarmes necessários após reiniciar. Informações pessoais e segredos devem permanecer em armazenamento protegido por credencial sempre que possível.",
+      "section": "3. Criptografia e disponibilidade dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como o iOS determina se um arquivo protegido fica acessível enquanto o dispositivo está bloqueado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pela classe de proteção escolhida para o arquivo e pelo estado das chaves.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Pelo sistema de arquivos Ext4, que remove a senha de bloqueio do aparelho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pelo manifesto Android, que concede acesso a todo processo em segundo plano.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pelo runtime ART, que consulta uma lista pública de arquivos liberados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pela HAL de câmera, que controla a descriptografia dos documentos do usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Data Protection usa classes de proteção e chaves para regular a disponibilidade dos arquivos. Ext4, manifesto Android, ART e HAL de câmera não definem essa política no iOS.",
+      "section": "3. Criptografia e disponibilidade dos dados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual proteção atua principalmente quando um invasor tenta ler a mídia de armazenamento sem as chaves do dispositivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A interface gráfica de bloqueio, que oculta os ícones dos aplicativos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O journaling, que replica arquivos para um servidor remoto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A HAL, que impede qualquer programa de abrir uma conexão de rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A criptografia em repouso, que protege dados armazenados na mídia.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O ciclo de vida, que elimina arquivos sempre que a tela se apaga.",
+          "correct": false
+        }
+      ],
+      "explanation": "Criptografia em repouso torna o conteúdo da mídia ininteligível sem as chaves apropriadas. Interface, journaling, HAL e ciclo de vida não substituem essa proteção.",
+      "section": "3. Criptografia e disponibilidade dos dados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual distinção entre criptografia em repouso e proteção de tráfego é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criptografia em repouso protege apenas a senha da loja de aplicativos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "TLS cifra arquivos locais, enquanto FBE protege somente mensagens em trânsito.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sandbox cifra a rede, e a permissão de câmera cifra os blocos do disco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ambas são sinônimos porque usam necessariamente a mesma chave e protocolo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A primeira protege dados armazenados; TLS protege comunicação na rede.",
+          "correct": true
+        }
+      ],
+      "explanation": "Criptografia em repouso protege dados gravados no aparelho; TLS protege conexões de rede. São controles diferentes e complementares, não sinônimos nem funções da sandbox ou das permissões de câmera.",
+      "section": "3. Criptografia e disponibilidade dos dados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um app iOS de atividade física precisa registrar dados em segundo plano quando o telefone está bloqueado. Qual cuidado é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar proteção completa para todo arquivo, pois ela garante acesso contínuo após o bloqueio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escolher uma classe compatível com a tarefa e tratar o arquivo como indisponível quando necessário.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desativar o sandbox para manter aberta a chave de qualquer arquivo do usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Guardar as informações em texto simples no cache do sistema para evitar autorização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Migrar o arquivo ao sistema CE Android, que é a opção nativa para apps iOS.",
+          "correct": false
+        }
+      ],
+      "explanation": "A classe de proteção precisa equilibrar confidencialidade e necessidade de acesso em segundo plano. O app deve fechar/reabrir ou tratar falhas de acesso quando a classe torna o arquivo indisponível; desativar isolamento ou armazenar em texto simples não é solução.",
+      "section": "3. Criptografia e disponibilidade dos dados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aplicativo grava no cache arquivos que o usuário espera conservar mesmo depois de limpar dados temporários. Qual conclusão é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cache é a localização adequada porque o sistema promete preservá-lo indefinidamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O sistema de arquivos transforma qualquer cache em backup externo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar documentos persistentes fora do cache descartável.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A área DE garante que todo documento fique público e permanente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A assinatura do app impede que o usuário remova arquivos temporários.",
+          "correct": false
+        }
+      ],
+      "explanation": "Caches são dados potencialmente descartáveis e podem ser limpos pelo sistema. Conteúdo que o usuário espera conservar precisa ser salvo em localização persistente adequada; nenhum dos outros mecanismos promete backup eterno.",
+      "section": "4. Sistemas de arquivos, contêineres e compartilhamento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual formato é usado na maioria dos dispositivos Apple e oferece recursos como snapshots e compartilhamento de espaço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "F2FS, formato exclusivo de contêineres privados dos aplicativos iOS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ext4, formato Apple para executar os serviços UIKit e Foundation.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "FBE, formato de arquivos que substitui completamente o APFS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "APFS, sistema de arquivos moderno da plataforma Apple.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "ART, formato de diretório que mantém os dados de aplicativos móveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "APFS é o sistema de arquivos da Apple na maioria de seus dispositivos e oferece recursos como snapshots e compartilhamento de espaço. FBE é uma técnica de criptografia; ART é runtime Android; Ext4 e F2FS são usados no ecossistema Android/Linux.",
+      "section": "4. Sistemas de arquivos, contêineres e compartilhamento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que característica distingue F2FS de Ext4 no contexto móvel?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "F2FS considera armazenamento flash; Ext4 é geral e tem journaling.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ext4 cifra automaticamente cada arquivo com a senha do usuário e dispensa o Android.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "F2FS é o formato da Apple e contém o mecanismo de permissão do iOS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ext4 é a interface de hardware Android que comunica sensores com ART.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "F2FS significa File-Based Encryption e substitui a sandbox de aplicativos.",
+          "correct": false
+        }
+      ],
+      "explanation": "F2FS foi projetado para características de armazenamento flash; Ext4 é um sistema de arquivos de propósito geral que inclui journaling. Nenhum dos dois equivale a FBE, sandbox, HAL ou ao formato APFS.",
+      "section": "4. Sistemas de arquivos, contêineres e compartilhamento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a finalidade mais direta do journaling em um sistema de arquivos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conceder acesso às fotos quando o usuário nega a permissão do aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ajudar na consistência após interrupções.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Cifrar automaticamente todo tráfego enviado pela rede celular.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter cópia externa dos arquivos em caso de perda do telefone.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Identificar o desenvolvedor que assinou o pacote de instalação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Journaling registra operações para apoiar a recuperação de consistência do sistema de arquivos após uma falha. Não concede permissões, cifra tráfego, constitui backup remoto ou assina aplicativos.",
+      "section": "4. Sistemas de arquivos, contêineres e compartilhamento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Android, como um aplicativo deve acessar um documento que o usuário escolheu em vez de percorrer pastas privadas de outros apps?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usando um seletor ou provedor do sistema que entregue acesso mediado ao item escolhido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desativando o UID próprio e assumindo a identidade do kernel Linux.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Convertendo o arquivo para DE, que sempre é compartilhado entre aplicativos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Solicitando permissão de localização, que libera a árvore inteira de diretórios.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usando ART para abrir contêineres de apps sem consultar serviços do sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "Seletores e provedores fornecem acesso mediado ao documento escolhido, sem remover o isolamento dos outros diretórios privados. UID, DE, localização e ART não oferecem acesso global ao armazenamento.",
+      "section": "4. Sistemas de arquivos, contêineres e compartilhamento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente o papel de contêineres de aplicativos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "São partições de rede que substituem a autenticação biométrica do usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Contêineres guardam dados privados associados ao app.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "São cópias de segurança externas que sobrevivem à perda do dispositivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "São camadas de driver que convertem chamadas da câmera em permissões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "São interfaces gráficas onde o kernel armazena apenas arquivos do sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "O contêiner guarda dados privados e de suporte do app sob controle da plataforma, contribuindo para o isolamento. Não é backup externo, driver, autenticação ou interface visual.",
+      "section": "4. Sistemas de arquivos, contêineres e compartilhamento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Android atual documentado pelo AOSP, qual relação entre FBE e metadados está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "FBE converte todos os arquivos em APFS e os torna disponíveis sem autenticação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "FBE protege somente conexões de rede e metadados substituem todos os sandboxes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A criptografia de metadados concede CE antes do desbloqueio e remove as chaves DE.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ext4 e F2FS são protocolos de permissão e dispensam chaves de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "FBE protege arquivos e a criptografia de metadados complementa a proteção de blocos ainda não cobertos por ela.",
+          "correct": true
+        }
+      ],
+      "explanation": "A documentação Android descreve FBE combinado com criptografia de metadados, que protege blocos da partição de dados não cobertos pela criptografia baseada em arquivos. Essa proteção não substitui sandbox ou regras CE/DE.",
+      "section": "3. Criptografia e disponibilidade dos dados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um técnico precisa explicar por que a câmera pode mudar de fornecedor sem que cada aplicativo seja reescrito. Qual propriedade arquitetural permite isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O manifesto mantém uma cópia universal do driver dentro de cada pacote instalado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A HAL oferece interface comum para implementações do fabricante.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O ART converte automaticamente drivers incompatíveis em permissões de runtime.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O sandbox substitui o serviço da câmera e fala diretamente com o sensor físico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O kernel remove toda variação de hardware ao executar os aplicativos em bytecode.",
+          "correct": false
+        }
+      ],
+      "explanation": "A HAL desacopla interfaces usadas pelas camadas superiores da implementação de hardware específica do fabricante. Isso reduz a necessidade de os aplicativos conhecerem diferenças de drivers.",
+      "section": "1. Arquitetura em camadas: do aplicativo ao hardware",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um app tem permissão para selecionar uma foto, mas não deve ler toda a biblioteca de imagens. Qual desenho melhor respeita o menor privilégio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar a sandbox para que o app encontre arquivos por busca recursiva.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conceder acesso administrativo permanente e filtrar as imagens na interface.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar o seletor do sistema para receber acesso ao item que a pessoa escolheu.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Armazenar a biblioteca em DE e permitir que todo app a leia no boot.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Assinar o app com uma chave própria e dispensar autorização do usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "O seletor do sistema medeia a escolha e entrega acesso delimitado ao recurso selecionado. Isso evita conceder acesso amplo à biblioteca e mantém sandbox e demais controles ativos.",
+      "section": "2. Permissões, sandbox e limites de confiança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após reiniciar um Android bloqueado, um app de alarmes deve funcionar antes de a pessoa digitar sua credencial. Qual organização de dados é compatível com esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardar os dados mínimos necessários em armazenamento DE e manter conteúdo pessoal em CE.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Colocar todos os arquivos em CE, que fica livre antes do primeiro desbloqueio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar a credencial em texto simples dentro do cache do aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar criptografia para que o kernel acesse diretamente qualquer dado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar o journaling como chave criptográfica para abrir os arquivos do perfil.",
+          "correct": false
+        }
+      ],
+      "explanation": "DE pode disponibilizar informação limitada para Direct Boot, enquanto CE mantém dados pessoais protegidos até o desbloqueio. Não se deve armazenar credenciais em texto simples nem desativar a criptografia.",
+      "section": "3. Criptografia e disponibilidade dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa separa corretamente a função do sistema de arquivos daquela da sandbox?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sistema organiza arquivos; sandbox limita processos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A sandbox organiza diretórios e o sistema de arquivos decide as permissões de câmera.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ambos são formatos de disco, mas somente a sandbox cria snapshots de volume.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O sistema de arquivos assina o app, e a sandbox cifra todo tráfego de rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A sandbox substitui APFS, Ext4 e F2FS como padrão universal de armazenamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "O sistema de arquivos organiza arquivos, diretórios e metadados. A sandbox aplica limites de acesso ao processo. Eles cooperam, mas não são categorias equivalentes nem substitutos um do outro.",
+      "section": "4. Sistemas de arquivos, contêineres e compartilhamento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A arquitetura Android inclui um kernel baseado em Linux, adaptado para as necessidades da plataforma.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O AOSP usa kernel Linux acrescido de adaptações específicas do Android. Esse núcleo conversa com hardware e dá suporte a processos, memória e mecanismos de segurança.",
+      "section": "1. Arquitetura em camadas: do aplicativo ao hardware",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A HAL Android executa bytecode Java/Kotlin dos aplicativos no lugar do ART.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. ART é o runtime que executa bytecode de aplicativos. HAL padroniza interfaces para implementações de hardware dos fabricantes.",
+      "section": "1. Arquitetura em camadas: do aplicativo ao hardware",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada de API do aplicativo pode ser encaminhada por serviços do sistema antes de alcançar a interface HAL e o dispositivo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A separação permite que framework e serviços validem e coordenem pedidos, usando depois interfaces de hardware sem expor diretamente cada driver ao aplicativo.",
+      "section": "1. Arquitetura em camadas: do aplicativo ao hardware",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O framework Android é o núcleo privilegiado que controla diretamente a agenda de processos do kernel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O kernel é o núcleo privilegiado que gerencia processos e recursos fundamentais. O framework fornece APIs e serviços de nível superior para os aplicativos.",
+      "section": "1. Arquitetura em camadas: do aplicativo ao hardware",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Android, a declaração de uma permissão no manifesto significa que qualquer usuário já a concedeu ao aplicativo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A declaração registra a necessidade, mas permissões sensíveis podem exigir concessão explícita durante o uso. O usuário pode negar ou revogar a autorização.",
+      "section": "2. Permissões, sandbox e limites de confiança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sandbox procura limitar o alcance de um processo mesmo quando ele apresenta comportamento inesperado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O isolamento contém processos e reduz o acesso a recursos do sistema e dados de outros apps, diminuindo o impacto potencial de falhas ou abusos.",
+      "section": "2. Permissões, sandbox e limites de confiança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Conceder permissão de câmera a um app remove automaticamente sua identidade própria e o isolamento dos arquivos privados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A permissão autoriza uma capacidade determinada, como usar a câmera. A identidade e o isolamento do aplicativo continuam aplicáveis às demais operações.",
+      "section": "2. Permissões, sandbox e limites de confiança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A assinatura de código garante que o aplicativo assinado não contém vulnerabilidades nem coleta dados indevidamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Assinatura ajuda a identificar a origem e detectar alteração do código; não é auditoria que assegure comportamento benigno ou ausência de falhas.",
+      "section": "2. Permissões, sandbox e limites de confiança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No FBE Android, armazenamento CE normalmente só se torna acessível depois que o usuário desbloqueia o aparelho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. CE (Credential Encrypted) depende da credencial do usuário para disponibilizar suas chaves; por isso os dados permanecem protegidos antes do desbloqueio.",
+      "section": "3. Criptografia e disponibilidade dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A área DE existe para dados limitados que podem ser necessários durante Direct Boot, antes do desbloqueio do usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Device Encrypted permanece disponível durante a fase anterior ao desbloqueio, permitindo funções limitadas. Dados pessoais que exigem a credencial devem ficar em CE.",
+      "section": "3. Criptografia e disponibilidade dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Criptografia em repouso e autorização de acesso são o mesmo controle, pois ambas verificam a permissão de cada aplicativo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Criptografia protege a confidencialidade do conteúdo armazenado sem as chaves; autorização e sandbox controlam quais processos podem acessar recursos. Os mecanismos se complementam.",
+      "section": "3. Criptografia e disponibilidade dos dados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo iOS com proteção completa pode ficar indisponível para o app enquanto o aparelho está bloqueado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A classe de proteção regula a disponibilidade. Com proteção completa, o app deve prever a indisponibilidade durante bloqueio e tratar adequadamente as operações pendentes.",
+      "section": "3. Criptografia e disponibilidade dos dados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A criptografia de armazenamento substitui TLS e protege automaticamente todos os dados durante uma transmissão pela internet.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Criptografia em repouso protege dados armazenados no dispositivo; TLS é usado para proteger conexões de rede. São controles diferentes.",
+      "section": "3. Criptografia e disponibilidade dos dados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ext4 e F2FS são sistemas de arquivos que podem ser usados no Android; FBE é um mecanismo de criptografia, não um formato concorrente de sistema de arquivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Android suporta Ext4 e F2FS em dispositivos compatíveis, e a criptografia baseada em arquivos pode ser implementada sobre esses sistemas. FBE não é um sistema de arquivos.",
+      "section": "4. Sistemas de arquivos, contêineres e compartilhamento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O APFS é o sistema de arquivos usado na maioria dos dispositivos Apple e oferece recursos como snapshots e compartilhamento de espaço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. APFS é o formato moderno da Apple usado na maioria de seus dispositivos. A documentação destaca snapshots, clones e compartilhamento de espaço entre seus recursos.",
+      "section": "4. Sistemas de arquivos, contêineres e compartilhamento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Journaling mantém automaticamente uma cópia externa dos dados para recuperação após a perda do telefone.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Journaling ajuda a consistência do sistema de arquivos após falhas, mas não cria uma cópia independente nem protege contra perda física do aparelho.",
+      "section": "4. Sistemas de arquivos, contêineres e compartilhamento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A existência de diretórios no dispositivo significa que qualquer aplicativo instalado pode listar e abrir todas as pastas privadas dos demais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A hierarquia de arquivos não elimina isolamento por identidade e sandbox. O compartilhamento de documentos é mediado por APIs e mecanismos de acesso apropriados.",
+      "section": "4. Sistemas de arquivos, contêineres e compartilhamento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Android OS: Architecture overview",
+      "publisher": "Android Open Source Project",
+      "reference": "Pilha AOSP, ART, HAL, framework e kernel",
+      "url": "https://source.android.com/docs/core/architecture",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Android OS: Kernel overview",
+      "publisher": "Android Open Source Project",
+      "reference": "Base Linux, Android Common Kernel e separação de módulos",
+      "url": "https://source.android.com/docs/core/architecture/kernel",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Android Security: App security",
+      "publisher": "Android Open Source Project",
+      "reference": "Manifesto, sandbox e permissões de aplicativos",
+      "url": "https://source.android.com/docs/security/overview/app-security",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Secure an Android device",
+      "publisher": "Android Open Source Project",
+      "reference": "Arquitetura de segurança, sandbox de apps e isolamento",
+      "url": "https://source.android.com/docs/security/overview",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "File-based encryption",
+      "publisher": "Android Open Source Project",
+      "reference": "FBE, áreas CE/DE e Direct Boot",
+      "url": "https://source.android.com/docs/security/features/encryption/file-based",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "System and kernel security",
+      "publisher": "Android Open Source Project",
+      "reference": "Criptografia de armazenamento por arquivos e metadados",
+      "url": "https://source.android.com/docs/security/overview/kernel-security",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Security of runtime process in iOS, iPadOS, and visionOS",
+      "publisher": "Apple Support",
+      "reference": "Sandbox, diretório próprio de apps e serviços de acesso",
+      "url": "https://support.apple.com/guide/security/security-of-runtime-process-sec15bfe098e/web",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Encrypting Your App’s Files",
+      "publisher": "Apple Developer Documentation",
+      "reference": "Data Protection e classes de proteção por arquivo",
+      "url": "https://developer.apple.com/documentation/uikit/encrypting-your-app-s-files",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Files and directories",
+      "publisher": "Apple Developer Documentation",
+      "reference": "Contêineres, hierarquia e APFS",
+      "url": "https://developer.apple.com/documentation/technologyoverviews/files-and-directories",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

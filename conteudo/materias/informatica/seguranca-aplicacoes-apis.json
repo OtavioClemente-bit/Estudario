@@ -1,0 +1,1980 @@
+{
+  "id": "informatica.seguranca-aplicacoes-apis",
+  "subject": "Informática",
+  "title": "Segurança de aplicações e APIs",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Segurança de aplicações e APIs",
+    "Segurança em aplicações web e APIs",
+    "Proteção de interfaces de programação",
+    "DNS, endereços IP e portas de rede",
+    "Comunicação cliente-servidor e latência",
+    "Autenticação, autorização e OAuth 2.0",
+    "JSON Web Token e controle de acesso",
+    "Criptografia TLS e navegação HTTPS",
+    "OWASP Top 10 e falhas de aplicações",
+    "Vulnerabilidades comuns em serviços web",
+    "Segurança de interfaces REST e APIs",
+    "Controle de acesso a dados pessoais",
+    "LGPD aplicada à segurança de aplicações"
+  ],
+  "scope": {
+    "covers": "Fundamentos de rede necessários a aplicações: DNS, endereços IP, portas, comunicação cliente-servidor, latência, throughput e escalabilidade; autenticação e autorização, OAuth 2.0 e JWT; criptografia em trânsito com TLS e HTTPS; vulnerabilidades do OWASP Top 10 e OWASP API Security Top 10; proteção de APIs, controle de acesso a objetos e propriedades, validação, limites de consumo e inventário; segurança e proteção de dados pessoais conforme princípios e deveres da LGPD.",
+    "excludes": "Configuração detalhada de sistemas operacionais e firewalls, administração de roteadores, implementação completa de provedores OAuth, criptografia matemática avançada, resposta forense a incidentes e interpretação jurídica exaustiva da LGPD."
+  },
+  "theoryTitle": "Como aplicações e APIs trocam dados com segurança",
+  "chapters": [
+    {
+      "title": "1. Rede, nomes e comunicação entre cliente e servidor",
+      "markdown": "### O problema que este assunto resolve\n\nQuando um aplicativo abre `https://api.exemplo.br/contas`, ele precisa descobrir onde está o serviço, estabelecer uma conexão e enviar uma solicitação. DNS, IP e portas resolvem partes diferentes dessa tarefa.\n\n> **Siglas e termos deste capítulo**\n> - **DNS**: sistema distribuído que associa nomes de domínio a dados, como endereços IP.\n> - **IP**: protocolo de endereçamento e encaminhamento de pacotes entre redes.\n> - **Porta**: identificador numérico de um ponto de comunicação de transporte em um host.\n> - **Cliente**: componente que inicia uma requisição, como navegador ou aplicativo móvel.\n> - **Servidor**: componente que aguarda requisições e oferece um recurso ou serviço.\n\n### Do nome até a resposta\n\nO cliente consulta um resolvedor DNS para obter registros associados ao nome. Um registro A fornece endereço IPv4; AAAA fornece IPv6; CNAME aponta para outro nome canônico. DNS não transporta a página nem escolhe permissões: resolve nomes. A resposta pode estar em cache pelo tempo de vida (TTL) do registro.\n\nO endereço IP identifica a interface de rede para encaminhamento. IPv4 usa endereços de 32 bits; IPv6 usa 128 bits. O IP entrega datagramas sem prometer, por si só, que chegarão, em ordem ou sem duplicação. TCP oferece um fluxo confiável e ordenado sobre IP; UDP envia datagramas sem a mesma garantia de entrega.\n\nA porta distingue serviços ou processos de transporte no mesmo host. HTTP usa convencionalmente TCP 80 e HTTPS TCP 443; DNS usa normalmente UDP 53 e também TCP 53 em situações como respostas maiores e transferência de zona. Esses são padrões convencionais, não uma garantia de que todo servidor esteja configurado assim. A IANA mantém o registro de portas.\n\n| Elemento | Pergunta que responde | Exemplo |\n| --- | --- | --- |\n| DNS | Qual endereço está associado ao nome? | `api.exemplo.br` → endereço IP |\n| IP | Para qual interface encaminhar? | IPv4 ou IPv6 do servidor |\n| Porta | Qual serviço/processo recebe? | HTTPS convencionalmente em 443 |\n| TCP/UDP | Como os dados são transportados? | TCP ordenado; UDP datagramas |\n\n### Requisição, latência e capacidade\n\nEm um padrão cliente-servidor, o cliente envia uma requisição com método, caminho, cabeçalhos e, às vezes, corpo. O servidor processa e responde com status, cabeçalhos e conteúdo. Uma API pode validar a identidade, conferir a permissão, consultar um banco e devolver apenas os dados autorizados.\n\n**Latência** é o tempo de espera para uma operação ou resposta; depende, entre outros fatores, de ida e volta pela rede, filas, processamento e acesso a dependências. **Throughput** é a quantidade de trabalho ou dados concluídos por unidade de tempo, por exemplo requisições por segundo. Baixa latência não implica throughput alto: uma API pode responder rápido a poucos clientes e saturar sob carga.\n\n**Escalabilidade** é a capacidade de manter ou melhorar o serviço quando a carga cresce, adicionando recursos. Escala vertical aumenta recursos de uma máquina; escala horizontal adiciona instâncias. Balanceamento distribui requisições, mas estado de sessão local, banco saturado e dependências compartilhadas podem continuar sendo gargalos. Cache reduz trabalho repetido, com cuidado para não servir dados privados a outro usuário.\n\n### Como cai na prova\n\n- DNS resolve nomes; IP viabiliza endereçamento e encaminhamento; porta seleciona o serviço de transporte no host.\n- Latência mede demora; throughput mede volume por tempo.\n- Escalar servidores de aplicação não resolve automaticamente um banco de dados saturado."
+    },
+    {
+      "title": "2. Identidade, autorização, OAuth 2.0 e JWT",
+      "markdown": "### O problema que este assunto resolve\n\nUma API precisa saber quem ou o que está fazendo a chamada e decidir o que essa identidade pode fazer. **Autenticação** verifica identidade; **autorização** decide se a ação sobre um recurso é permitida. Uma pessoa autenticada ainda pode não ter acesso a determinada conta ou operação.\n\n> **Siglas e termos deste capítulo**\n> - **OAuth 2.0**: estrutura de autorização delegada para obter acesso limitado a serviços HTTP.\n> - **AS**: authorization server, emite tokens após validar a concessão.\n> - **RS**: resource server, API que recebe e valida o token para proteger recursos.\n> - **Access token**: credencial que representa autorização e escopos concedidos.\n> - **JWT**: JSON Web Token, formato compacto de representação de declarações.\n> - **Scope**: permissão delimitada, como leitura de determinado tipo de recurso.\n\n### OAuth 2.0 é autorização delegada\n\nNo fluxo Authorization Code, o cliente direciona o usuário ao servidor de autorização; após autenticação e consentimento aplicável, recebe um código de autorização por redirecionamento. O cliente troca o código por um access token. O servidor de recursos aceita o token conforme validade, audiência, escopos e regras próprias. O código não é o token e a API de recursos não deve tratar o simples fato de haver token como autorização irrestrita.\n\nClientes **confidenciais** conseguem manter credenciais em ambiente protegido, como um serviço de backend. Clientes **públicos**, como aplicações instaladas no dispositivo do usuário, não conseguem manter um segredo estático confidencial. O segredo embutido em um aplicativo distribuído não se torna seguro por estar ofuscado. Para clientes nativos, a prática atual usa Authorization Code com PKCE; fluxos legados devem ser avaliados conforme orientação de segurança atual do OAuth.\n\nUm access token pode ser opaco ou conter dados verificáveis. OAuth 2.0 não determina que todo token seja JWT. O escopo deve ser mínimo. Tokens bearer devem ser protegidos em trânsito por TLS e mantidos fora de logs e URLs; quem obtém um bearer token pode conseguir usá-lo.\n\n### JWT: formato não é sigilo\n\nUm JWT compacto assinado costuma ter três partes codificadas em Base64url: cabeçalho, payload e assinatura. O payload contém claims, por exemplo `iss` (emissor), `sub` (sujeito), `aud` (destinatário) e `exp` (expiração). Base64url é codificação, não criptografia: quem obtém o token geralmente consegue ler seu conteúdo. A assinatura permite verificar integridade e origem conforme algoritmo e chave; não esconde as claims. JWE é o formato de JWT cifrado.\n\nO verificador deve aceitar apenas algoritmos e chaves previstos, verificar assinatura, emissor, audiência, expiração e demais claims exigidas. Não basta decodificar. Um JWT válido não substitui a verificação de autorização em cada recurso e operação. Tokens de vida curta, armazenamento cuidadoso, rotação/revogação adequada e proteção contra roubo reduzem riscos; logout não revoga automaticamente todo JWT stateless.\n\n| Conceito | Exemplo de pergunta |\n| --- | --- |\n| Autenticação | Quem apresenta esta credencial? |\n| Autorização | Pode ler este objeto ou executar esta ação? |\n| OAuth | Como o cliente recebe acesso delegado e limitado? |\n| JWT | Como transportar claims verificáveis em formato compacto? |\n\n### Como cai na prova\n\n- OAuth é estrutura de autorização; autenticação do usuário pode fazer parte do fluxo, mas não define sozinha a autorização na API.\n- JWT assinado não significa JWT cifrado; claims podem ser legíveis.\n- Conferir apenas a assinatura sem validar `aud`, `iss`, expiração e permissão deixa falhas."
+    },
+    {
+      "title": "3. TLS, HTTPS e proteção do canal",
+      "markdown": "### O problema que este assunto resolve\n\nSe uma aplicação envia credenciais por uma rede sem proteção, alguém no caminho pode ler ou modificar o tráfego. TLS cria um canal protegido entre pares; HTTPS é HTTP transportado sobre TLS.\n\n> **Siglas e termos deste capítulo**\n> - **TLS**: Transport Layer Security, protocolo que protege comunicação em trânsito.\n> - **HTTPS**: HTTP sobre uma conexão protegida por TLS.\n> - **Certificado**: associação assinada entre uma identidade de servidor e uma chave pública.\n> - **CA**: autoridade certificadora confiada na cadeia de validação.\n> - **Handshake**: negociação inicial de parâmetros e estabelecimento de chaves de sessão.\n\n### O que TLS protege\n\nTLS negocia parâmetros criptográficos e estabelece chaves simétricas para proteger os dados da sessão. Com validação correta do certificado, o cliente verifica a identidade do servidor e dificulta ataques de intermediário. A proteção de registros oferece confidencialidade e integridade em trânsito. HTTPS não cifra os dados armazenados no banco nem corrige falhas de autorização ou validação no código.\n\nO cliente deve validar cadeia, validade e nome do certificado; ignorar erros de certificado elimina uma parte essencial da autenticação do servidor. Certificado não prova que o conteúdo da aplicação é correto, nem que o servidor está livre de malware. TLS protege o canal entre os pontos que negociaram TLS; terminação em proxy significa que o trecho posterior precisa de sua própria proteção se também cruzar rede não confiável.\n\nUma configuração atual deve preferir versões e conjuntos criptográficos considerados seguros, desabilitar protocolos obsoletos e renovar certificados antes do vencimento. Não se deve escolher um número de versão por cópia de material antigo: as recomendações evoluem. TLS 1.3 está especificado em RFC própria; TLS 1.0 e 1.1 foram formalmente descontinuados.\n\n### Limites e operação\n\nHTTPS protege conteúdo de requisições e respostas contra leitura e alteração no caminho, mas metadados de conexão, como endereços IP e alguns aspectos de nome/roteamento, podem continuar visíveis. Chaves privadas do servidor precisam de controle de acesso e armazenamento seguro. Segredos, senhas e tokens não devem aparecer em logs, URLs ou mensagens de erro.\n\n### Como cai na prova\n\n- TLS protege o tráfego em trânsito e autentica o servidor quando o certificado é validado.\n- HTTPS não substitui autorização, proteção no armazenamento nem segurança da aplicação.\n- Aceitar certificado inválido torna possível conectar-se ao servidor errado sem detectar o problema."
+    },
+    {
+      "title": "4. Vulnerabilidades web e riscos de APIs",
+      "markdown": "### O problema que este assunto resolve\n\nUma API expõe ações e dados por uma interface que pode ser chamada diretamente, em grande volume e com parâmetros escolhidos pelo cliente. Ocultar um botão na interface não impede que alguém invoque o endpoint. A segurança precisa ser aplicada no servidor, em cada objeto e propriedade.\n\n> **Siglas e termos deste capítulo**\n> - **OWASP Top 10**: documento de conscientização sobre riscos frequentes em aplicações web.\n> - **BOLA**: Broken Object Level Authorization, falha de autorização por objeto.\n> - **BFLA**: Broken Function Level Authorization, falha de autorização por função.\n> - **SSRF**: Server-Side Request Forgery, indução do servidor a fazer requisição indevida.\n> - **SQLi**: injeção de SQL por dados tratados como comando.\n> - **XSS**: execução de script no contexto do navegador de outra pessoa.\n\n### OWASP Top 10 para aplicações web\n\nA edição 2021 do OWASP Top 10 agrupa riscos como controle de acesso quebrado, falhas criptográficas, injeção, projeto inseguro, configuração de segurança incorreta, componentes vulneráveis ou desatualizados, falhas de identificação e autenticação, falhas de integridade de software e dados, falhas de registro e monitoramento e SSRF. É uma lista de conscientização, não uma certificação de que um sistema está seguro.\n\nExemplos concretos: SQLi ocorre quando entrada altera a estrutura de uma consulta; consultas parametrizadas separam dados de comandos. XSS ocorre quando conteúdo controlado por atacante é interpretado como código no navegador; codificação de saída conforme o contexto e políticas de segurança reduzem risco. Controle de acesso quebrado surge quando a API não verifica permissão para a ação e o recurso. Configuração incorreta inclui depuração exposta, permissões padrão e cabeçalhos/configurações inseguros. Componentes desatualizados podem conter vulnerabilidades conhecidas.\n\n### OWASP API Security Top 10 (2023)\n\nA lista específica para APIs inclui: API1 autorização quebrada em nível de objeto; API2 autenticação quebrada; API3 autorização quebrada em nível de propriedade de objeto; API4 consumo irrestrito de recursos; API5 autorização quebrada em nível de função; API6 acesso irrestrito a fluxos de negócio sensíveis; API7 SSRF; API8 configuração de segurança incorreta; API9 inventário inadequado de APIs; API10 consumo inseguro de APIs de terceiros.\n\n**BOLA**: trocar `/pedidos/123` por `/pedidos/124` não pode revelar pedido alheio; a API verifica a relação do usuário com cada objeto. **BFLA**: usuário comum não pode chamar função administrativa alterando método ou caminho. API3 exige controlar propriedades: um cliente pode ter permissão para ver um perfil, mas não para alterar `isAdmin` ou acessar campos internos.\n\nConsumo irrestrito inclui ausência de limites de tamanho, frequência, paginação, tempo ou custo que permite negação de serviço ou despesas abusivas. Fluxos de negócio exigem limites e detecção contextual (por exemplo, repetição de compra promocional), sem confundir isso com simples autenticação. SSRF exige restringir destinos alcançáveis pelo servidor, validar endereços após resolução e bloquear redes internas/metadados de nuvem; uma lista superficial de nomes não basta contra redirecionamentos e mudanças DNS. Inventário inclui APIs antigas, versões e ambientes esquecidos. Consumo inseguro de API terceira ocorre quando se confia em resposta externa sem validação e tratamento apropriados.\n\n### Controles de defesa\n\nAplique negação por padrão e menor privilégio, valide entradas por esquema e contexto, use consultas parametrizadas, limite taxa e tamanho, pagine resultados, aplique timeouts, registre eventos sem segredos, inventarie endpoints e teste autorização com identidades diferentes. CORS controla quais origens de navegador podem ler respostas; não é autenticação nem bloqueio geral de clientes fora do navegador.\n\n### Como cai na prova\n\n- BOLA trata de acesso indevido a objetos; BFLA, a funções; API3, às propriedades do objeto.\n- Token válido não dispensa autorização por registro e campo.\n- CORS não substitui autenticação, autorização ou validação de entrada."
+    },
+    {
+      "title": "5. Dados pessoais, controle de acesso e LGPD",
+      "markdown": "### O problema que este assunto resolve\n\nUma API pode expor dados pessoais em respostas, logs, métricas, exportações e integrações. Segurança técnica deve impedir acesso indevido e limitar coleta e divulgação ao necessário. A Lei Geral de Proteção de Dados Pessoais aplica-se ao tratamento de dados pessoais inclusive em meios digitais, por agentes públicos ou privados, respeitadas suas hipóteses e alcance.\n\n> **Siglas e termos deste capítulo**\n> - **Dado pessoal**: informação relacionada a pessoa natural identificada ou identificável.\n> - **Dado pessoal sensível**: categoria legal que inclui, por exemplo, dados de saúde, biométricos vinculados a pessoa e origem racial ou étnica.\n> - **Controlador**: decide sobre o tratamento.\n> - **Operador**: trata dados em nome do controlador.\n> - **Titular**: pessoa natural a quem os dados se referem.\n> - **ANPD**: Autoridade Nacional de Proteção de Dados, autoridade responsável por zelar, implementar e fiscalizar o cumprimento da LGPD.\n\n### Princípios traduzidos para uma API\n\nFinalidade exige propósito legítimo, específico e informado; adequação relaciona o tratamento ao propósito; necessidade limita dados ao mínimo pertinente; transparência informa o titular de modo claro; segurança e prevenção orientam medidas contra acesso, perda e tratamento indevido; responsabilização exige demonstrar medidas eficazes. O tratamento precisa de uma hipótese legal aplicável: consentimento é uma delas, não a única.\n\nNa prática: uma rota de perfil devolve apenas os campos necessários à finalidade; um usuário consulta registros autorizados por vínculo e não apenas por saber o identificador; campos de saúde recebem proteção compatível com sua sensibilidade; tokens e registros não guardam dados excessivos; ambientes de teste usam dados anonimizados ou adequadamente protegidos. Pseudonimização reduz associação direta, mas não transforma automaticamente dado pessoal em dado anônimo.\n\n### Deveres de segurança e incidente\n\nA LGPD determina que agentes de tratamento adotem medidas técnicas e administrativas para proteger dados pessoais contra acesso não autorizado e situações acidentais ou ilícitas, como destruição, perda, alteração e comunicação indevida. Essas medidas devem ser observadas desde a concepção do produto ou serviço até sua execução. O dever de segurança alcança também quem intervém no tratamento e permanece após seu término.\n\nQuando incidente puder acarretar risco ou dano relevante aos titulares, cabe ao controlador comunicar a ANPD e os titulares. A comunicação deve trazer, entre outros pontos previstos na lei, natureza dos dados afetados, informações sobre titulares envolvidos e medidas de segurança utilizadas. A regulamentação da ANPD disciplina prazo e conteúdo operacional; não invente prazo sem consultar a regra vigente.\n\nControles úteis incluem autenticação robusta, autorização por recurso e propriedade, criptografia adequada, segregação de funções, revisão de privilégios, trilhas de auditoria com minimização, retenção limitada e processo de resposta a incidentes. Segurança não é apenas criptografar banco: uma resposta de API que entrega dados a usuário sem permissão continua sendo divulgação indevida.\n\n### Como cai na prova\n\n- Controlador decide finalidades e meios essenciais; operador trata dados em nome do controlador.\n- Necessidade significa limitar o tratamento ao mínimo pertinente, não coletar tudo para uso futuro indefinido.\n- A obrigação de segurança começa na concepção e inclui proteção contra acesso não autorizado e perda."
+    }
+  ],
+  "summary": "Aplicações dependem de DNS para localizar serviços, IP para encaminhar pacotes e portas para selecionar pontos de comunicação. Clientes fazem requisições a servidores; latência mede demora, throughput mede volume por tempo e escalabilidade trata crescimento de carga. Autenticação verifica identidade; autorização decide acesso. OAuth 2.0 concede acesso delegado e limitado, enquanto JWT é um formato de token cujas claims assinadas não ficam secretas por isso. TLS protege a comunicação em trânsito e HTTPS transporta HTTP sobre TLS, mas nenhum dos dois corrige permissões erradas. OWASP lista riscos gerais de aplicações e riscos específicos de APIs, com destaque para autorização por objeto, função e propriedade, consumo de recursos, SSRF, configurações e inventário. A LGPD exige tratamento com finalidade e necessidade, medidas técnicas e administrativas de segurança desde a concepção, e comunicação de incidentes relevantes conforme disciplina aplicável.",
+  "flashcards": [
+    {
+      "front": "Qual é a função principal do DNS?",
+      "back": "Resolver nomes em registros, como endereços IP; não transporta a aplicação nem concede acesso."
+    },
+    {
+      "front": "O que diferencia IP de porta?",
+      "back": "IP auxilia o encaminhamento até uma interface; porta identifica um ponto de comunicação de transporte no host."
+    },
+    {
+      "front": "O que o registro A e o AAAA associam?",
+      "back": "A associa nome a endereço IPv4; AAAA associa nome a endereço IPv6."
+    },
+    {
+      "front": "Para que serve o TTL de uma resposta DNS?",
+      "back": "Indica por quanto tempo a informação pode ser mantida em cache."
+    },
+    {
+      "front": "Que garantia o TCP oferece que o IP isoladamente não promete?",
+      "back": "Fluxo de bytes confiável e ordenado entre aplicações conectadas."
+    },
+    {
+      "front": "O que é latência?",
+      "back": "Tempo de espera ou demora de uma operação/resposta."
+    },
+    {
+      "front": "O que é throughput?",
+      "back": "Volume de trabalho ou dados concluídos por unidade de tempo."
+    },
+    {
+      "front": "Qual é a diferença entre autenticação e autorização?",
+      "back": "Autenticação verifica identidade; autorização decide se uma ação sobre recurso é permitida."
+    },
+    {
+      "front": "OAuth 2.0 é principalmente um protocolo de quê?",
+      "back": "Uma estrutura de autorização delegada e acesso limitado a serviços HTTP."
+    },
+    {
+      "front": "Um access token OAuth precisa ser JWT?",
+      "back": "Não. O formato do token não é determinado pelo OAuth 2.0."
+    },
+    {
+      "front": "Quais são as partes usuais de um JWT compacto assinado?",
+      "back": "Cabeçalho, payload e assinatura, codificados em Base64url e separados por pontos."
+    },
+    {
+      "front": "Base64url cifra as claims de um JWT?",
+      "back": "Não. É codificação; as claims podem ser lidas por quem obtém o token."
+    },
+    {
+      "front": "O que significa a claim aud?",
+      "back": "Destinatário ou audiência para a qual o token foi emitido."
+    },
+    {
+      "front": "O que HTTPS protege?",
+      "back": "A comunicação HTTP em trânsito sobre TLS, se a conexão e o certificado forem validados corretamente."
+    },
+    {
+      "front": "TLS elimina falhas de autorização?",
+      "back": "Não. Protege o canal; a aplicação ainda precisa decidir o acesso a cada recurso."
+    },
+    {
+      "front": "O que caracteriza BOLA?",
+      "back": "A API não verifica se o usuário pode acessar o objeto indicado por um identificador."
+    },
+    {
+      "front": "O que caracteriza BFLA?",
+      "back": "A API permite função ou operação a usuário sem a permissão correspondente."
+    },
+    {
+      "front": "Qual risco API3:2023 aborda?",
+      "back": "Autorização quebrada em nível de propriedade de objeto."
+    },
+    {
+      "front": "O que é SSRF?",
+      "back": "Induzir o servidor a fazer requisições a destinos que o atacante escolhe ou influencia."
+    },
+    {
+      "front": "CORS substitui autenticação?",
+      "back": "Não; é política de compartilhamento de recursos entre origens em navegadores."
+    },
+    {
+      "front": "O que exige o princípio da necessidade?",
+      "back": "Limitar dados ao mínimo pertinente, proporcional e não excessivo para a finalidade."
+    },
+    {
+      "front": "Quem é controlador na LGPD?",
+      "back": "Agente a quem competem decisões referentes ao tratamento de dados pessoais."
+    },
+    {
+      "front": "Quem é operador na LGPD?",
+      "back": "Agente que trata dados pessoais em nome do controlador."
+    },
+    {
+      "front": "Quais sujeitos recebem comunicação de incidente relevante nos termos da LGPD?",
+      "back": "ANPD e titulares, quando o incidente puder acarretar risco ou dano relevante."
+    }
+  ],
+  "tips": [
+    "Para separar DNS, IP e porta, pense em nome, endereço e serviço de destino, respectivamente.",
+    "Quando a questão menciona demora, é latência; quando menciona volume por segundo, é throughput.",
+    "Em autorização, sempre pergunte: este usuário pode fazer esta ação neste objeto e nestas propriedades?",
+    "JWT assinado continua legível; não coloque segredo ou dado sensível no payload sem proteção apropriada.",
+    "TLS protege o canal. Confira separadamente identidade do servidor, autorização na aplicação e proteção no armazenamento.",
+    "Na LGPD, associe necessidade a minimização e segurança a medidas técnicas e administrativas desde a concepção."
+  ],
+  "traps": [
+    "Tratar DNS como mecanismo de segurança ou de autorização: sua função é resolver nomes.",
+    "Confundir porta com endereço IP ou afirmar que o padrão da porta prova qual serviço está realmente escutando.",
+    "Dizer que OAuth autentica necessariamente o usuário ou que todo access token OAuth é JWT.",
+    "Supor que assinatura JWT torna claims confidenciais ou que token válido autoriza qualquer objeto.",
+    "Afirmar que HTTPS torna seguro o sistema inteiro ou corrige SQL injection e controle de acesso quebrado.",
+    "Confundir BOLA, BFLA e autorização de propriedades; ou atribuir ao CORS a função de autenticar clientes."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o caminho de uma chamada HTTPS desde o nome DNS até o processo do servidor.",
+      "answer": "O cliente resolve o nome, obtém endereço IP, conecta ao endereço e à porta do serviço, negocia TLS e envia a requisição HTTP ao servidor."
+    },
+    {
+      "question": "Dê um exemplo de latência baixa com throughput baixo.",
+      "answer": "Um serviço responde em poucos milissegundos a cada requisição, mas processa poucas requisições simultâneas por limitação de capacidade."
+    },
+    {
+      "question": "Por que esconder uma opção administrativa no front-end não protege a operação?",
+      "answer": "O usuário pode chamar diretamente o endpoint; o servidor deve verificar a autorização da função em cada requisição."
+    },
+    {
+      "question": "Como prevenir BOLA em uma consulta de pedido?",
+      "answer": "Além de validar a identidade, verificar no servidor se o usuário tem relação autorizada com aquele pedido antes de retornar seus dados."
+    },
+    {
+      "question": "O que precisa ser verificado ao validar JWT?",
+      "answer": "Assinatura usando algoritmo e chave permitidos, emissor, audiência, expiração e claims e permissões exigidas pelo contexto."
+    },
+    {
+      "question": "Por que TLS não evita vazamento por resposta excessiva?",
+      "answer": "TLS protege o tráfego no caminho; a API ainda pode entregar dados desnecessários a um cliente autorizado ou não autorizado."
+    },
+    {
+      "question": "Dê dois controles contra consumo irrestrito de recursos em API.",
+      "answer": "Limites de frequência e tamanho, paginação, timeouts, cotas e controles contra automação abusiva."
+    },
+    {
+      "question": "Como necessidade da LGPD altera o desenho de um endpoint?",
+      "answer": "O endpoint retorna e coleta somente os campos necessários à finalidade definida, com acesso limitado ao usuário autorizado."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Identificação na rede",
+      "summary": "Confunde resolução de nome, endereçamento IP e seleção de porta, que são etapas e informações diferentes."
+    },
+    {
+      "key": "e2",
+      "title": "Métricas de desempenho",
+      "summary": "Troca tempo de resposta/latência por volume de operações/throughput e supõe que escalar a aplicação elimina todo gargalo."
+    },
+    {
+      "key": "e3",
+      "title": "Credenciais e autorização",
+      "summary": "Toma token ou autenticação válida como permissão ampla, sem verificar usuário, ação, objeto, propriedade e audiência."
+    },
+    {
+      "key": "e4",
+      "title": "Proteção criptográfica",
+      "summary": "Confunde codificação com criptografia e presume que TLS ou assinatura JWT garante sigilo e segurança integral."
+    },
+    {
+      "key": "e5",
+      "title": "Proteção de dados pessoais",
+      "summary": "Ignora minimização, finalidade, controle de acesso, medidas de segurança desde a concepção e deveres diante de incidente."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Ao acessar um serviço pelo nome de domínio, o DNS pode fornecer ao cliente o endereço IP associado ao nome consultado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O DNS é um sistema de nomes distribuído que responde consultas com registros associados ao nome, entre eles A para IPv4 e AAAA para IPv6. Ele não transporta por si só a requisição HTTP.",
+      "section": "1. Rede, nomes e comunicação entre cliente e servidor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma porta TCP identifica o endereço IP da máquina remota, enquanto o endereço IP seleciona o processo que receberá os dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O endereço IP auxilia a identificar a interface de destino para encaminhamento; a porta identifica um ponto de comunicação de transporte associado ao serviço ou processo no host.",
+      "section": "1. Rede, nomes e comunicação entre cliente e servidor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma API conclui uma operação em 40 milissegundos, esse número é uma medida de latência, mesmo que ela processe poucas solicitações por segundo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Latência mede demora de uma operação; throughput mede volume de trabalho por unidade de tempo. Uma métrica não determina automaticamente a outra.",
+      "section": "1. Rede, nomes e comunicação entre cliente e servidor",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Adicionar instâncias de aplicação sempre resolve saturação, ainda que todas continuem dependendo de um banco de dados sobrecarregado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Escala horizontal pode aumentar capacidade da camada de aplicação, mas um banco compartilhado saturado permanece gargalo e pode piorar com mais concorrência. A arquitetura e as dependências precisam ser medidas e dimensionadas.",
+      "section": "1. Rede, nomes e comunicação entre cliente e servidor",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Autenticar um usuário prova sua identidade, mas não concede automaticamente permissão para consultar qualquer registro da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A autenticação verifica identidade. A autorização precisa avaliar a ação e o recurso solicitado, inclusive o vínculo do usuário com o objeto.",
+      "section": "2. Identidade, autorização, OAuth 2.0 e JWT",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "OAuth 2.0 exige que todo access token seja um JWT com dados legíveis pelo cliente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. OAuth 2.0 não determina formato específico para access tokens; eles podem ser opacos ou conter informação verificável, como em token autoportante. JWT é apenas um formato possível.",
+      "section": "2. Identidade, autorização, OAuth 2.0 e JWT",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As três partes de um JWT compacto assinado incluem cabeçalho, payload e assinatura, e a codificação Base64url não cifra o payload.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O formato JWS compacto possui cabeçalho protegido, payload e assinatura separados por pontos. Base64url é codificação reversível; confidencialidade exige criptografia, como no formato JWE.",
+      "section": "2. Identidade, autorização, OAuth 2.0 e JWT",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um JWT cuja assinatura foi validada ainda precisa ser conferido quanto à audiência, expiração e autorização requerida para a ação solicitada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Assinatura válida não prova que o token se destina àquela API nem que continua válido ou concede a operação pedida. O serviço valida claims relevantes e aplica autorização contextual ao recurso.",
+      "section": "2. Identidade, autorização, OAuth 2.0 e JWT",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conexão HTTPS protege dados em trânsito, mas não cifra automaticamente as informações armazenadas no banco da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. HTTPS transporta HTTP sobre TLS, protegendo a conexão. Criptografia em repouso, controles de banco e autorização são medidas separadas.",
+      "section": "3. TLS, HTTPS e proteção do canal",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o cliente ignora alertas de certificado inválido, a validação da identidade do servidor continua assegurada pelo TLS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A validação da cadeia e do nome do certificado é parte importante da autenticação do servidor. Ignorar falhas permite que uma conexão seja estabelecida com um servidor impostor sem a proteção esperada.",
+      "section": "3. TLS, HTTPS e proteção do canal",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "CORS é um mecanismo de autenticação que impede qualquer cliente fora de um navegador de chamar a API.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. CORS orienta navegadores sobre compartilhamento de respostas entre origens. Não autentica usuários nem bloqueia, em geral, chamadas feitas por clientes que não aplicam a política de navegador.",
+      "section": "4. Vulnerabilidades web e riscos de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A API pode apresentar BOLA mesmo quando o usuário está autenticado, se ela não conferir se ele tem acesso ao objeto indicado no caminho da requisição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. BOLA é falha de autorização em nível de objeto. Autenticação identifica o chamador, mas a API deve verificar sua permissão para cada objeto acessado por identificador.",
+      "section": "4. Vulnerabilidades web e riscos de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na LGPD, medidas de segurança devem ser consideradas desde a concepção do produto ou serviço até sua execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A LGPD prevê que as medidas técnicas e administrativas de proteção sejam observadas desde a fase de concepção até a execução do produto ou serviço, e protege contra acesso não autorizado e outras formas de tratamento inadequado ou ilícito.",
+      "section": "5. Dados pessoais, controle de acesso e LGPD",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O consentimento é a única hipótese legal que pode autorizar tratamento de dados pessoais no Brasil.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A LGPD prevê diversas hipóteses legais para tratamento. Consentimento é uma delas, e cada operação deve ser amparada pela hipótese adequada e respeitar os princípios aplicáveis.",
+      "section": "5. Dados pessoais, controle de acesso e LGPD",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando um incidente de segurança puder acarretar risco ou dano relevante aos titulares, a LGPD atribui ao controlador comunicação à ANPD e aos titulares.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A lei determina que o controlador comunique a ocorrência à autoridade nacional e ao titular quando puder acarretar risco ou dano relevante; o conteúdo e o prazo operacional devem observar a disciplina vigente da ANPD.",
+      "section": "5. Dados pessoais, controle de acesso e LGPD",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência descreve melhor o papel de DNS, IP e porta ao acessar uma API por nome?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DNS autentica cada usuário por certificado, IP decide suas permissões e a porta cifra a requisição sem qualquer protocolo criptográfico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DNS resolve o nome, IP auxilia a chegar ao host e a porta identifica o serviço de transporte no host.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "DNS seleciona o processo local, IP traduz o domínio e a porta determina a rota entre redes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DNS cifra o endereço, IP escolhe o protocolo HTTP e a porta guarda o nome canônico do servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "DNS impede conexões não autorizadas, IP identifica a conta e a porta substitui o certificado TLS.",
+          "correct": false
+        }
+      ],
+      "explanation": "DNS resolve nomes em registros, IP auxilia o encaminhamento entre redes e a porta distingue o ponto de comunicação de transporte no host. Autenticação, criptografia e permissões são funções distintas.",
+      "section": "1. Rede, nomes e comunicação entre cliente e servidor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um navegador consulta o nome de uma API e recebe um registro AAAA. O que esse registro informa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Que a API exige autenticação multifator antes de responder.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Que o nome está associado a um endereço IPv6.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Que o servidor usa exclusivamente o transporte UDP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que a resposta HTTP será armazenada sem prazo de expiração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Que o certificado TLS do servidor foi aprovado por uma autoridade.",
+          "correct": false
+        }
+      ],
+      "explanation": "O tipo AAAA associa um nome a endereço IPv6. DNS não confirma autenticação, protocolo de transporte ou validade de certificado TLS.",
+      "section": "1. Rede, nomes e comunicação entre cliente e servidor",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer reduzir o tempo que usuários aguardam pela resposta de uma operação. Qual métrica descreve diretamente esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O número de endereços IPv6 atribuídos aos servidores, que mede diretamente o tempo de espera dos usuários pela resposta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A latência observada da operação, incluindo rede, filas e processamento.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O tamanho do payload JWT que a API devolve ao navegador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A quantidade de registros DNS armazenados por um resolvedor local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O total de portas registradas para protocolos de aplicação na IANA.",
+          "correct": false
+        }
+      ],
+      "explanation": "Latência descreve o tempo de espera por uma operação. Throughput mede quantidade de trabalho por tempo e pode ser acompanhado em paralelo, mas responde a outra pergunta de desempenho.",
+      "section": "1. Rede, nomes e comunicação entre cliente e servidor",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A API responde cada solicitação rapidamente, mas completa poucas chamadas por segundo. Qual conclusão é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O serviço necessariamente tem baixa latência e alto throughput, pois são a mesma medida e variam sempre em proporção idêntica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O DNS está impedindo todas as chamadas concorrentes de chegar ao host.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A latência pode ser baixa enquanto o throughput permanece limitado por capacidade ou concorrência.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A assinatura dos tokens aumenta automaticamente a quantidade de respostas por segundo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O HTTPS força o banco de dados a processar operações em paralelo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Latência e throughput medem dimensões diferentes. Um serviço pode concluir cada chamada rapidamente em baixa concorrência, mas não sustentar alto volume por limitação de trabalhadores, filas ou dependências.",
+      "section": "1. Rede, nomes e comunicação entre cliente e servidor",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação vai crescer de poucos usuários para milhares de sessões simultâneas. Qual medida ajuda a planejar escalabilidade de forma fundamentada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar servidores antes de medir, supondo que todas as dependências sejam ilimitadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Adicionar instâncias sem medir a carga, ignorando gargalos e supondo que banco de dados e serviços externos têm capacidade ilimitada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Medir carga e gargalos, dimensionar instâncias e dependências e testar a distribuição da carga.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Armazenar cada sessão apenas na memória de uma instância e remover o balanceador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o TTL DNS para transformar latência de banco em throughput de rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Escalabilidade exige observar o sistema sob carga e identificar gargalos em aplicação, banco, filas e serviços externos. Balanceamento e instâncias adicionais ajudam quando compatíveis com o estado e as dependências; não tornam todo componente ilimitado.",
+      "section": "1. Rede, nomes e comunicação entre cliente e servidor",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa diferencia autenticação de autorização em uma API?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autenticação identifica o chamador; autorização concede automaticamente acesso irrestrito a todo recurso, sem avaliar a ação pedida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Autenticação identifica o chamador; autorização verifica se ele pode realizar aquela ação sobre o recurso.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Autenticação limita o throughput; autorização negocia a versão do TLS em cada resposta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Autenticação é feita apenas por CORS; autorização é feita apenas pelo navegador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Autenticação verifica o tamanho dos pacotes; autorização escolhe a porta HTTP do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Autenticação trata da identidade apresentada; autorização avalia a permissão contextual para operação e recurso. Ambas devem ser aplicadas no lado servidor.",
+      "section": "2. Identidade, autorização, OAuth 2.0 e JWT",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aplicativo móvel distribuído a usuários contém um client_secret fixo dentro do pacote. Qual análise está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O segredo é confidencial, pois o pacote pode ser assinado pelo fornecedor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O segredo deixa de ser credencial quando recebe codificação Base64url.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O aplicativo é cliente público e não consegue guardar com segurança um segredo estático compartilhado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O servidor de recursos pode confiar no segredo sem validar qualquer token emitido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O segredo se torna certificado TLS após o primeiro acesso do usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um aplicativo instalado fica sob controle do usuário e pode ser inspecionado, portanto não mantém confidencial um segredo embutido. OAuth distingue clientes públicos e confidenciais pela capacidade real de proteger credenciais.",
+      "section": "2. Identidade, autorização, OAuth 2.0 e JWT",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em fluxo Authorization Code com PKCE, qual função melhor descreve o código de autorização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É uma credencial de longa duração que substitui a senha do usuário em todas as APIs.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É um artefato intermediário trocado por tokens no endpoint de token, com proteção apropriada do fluxo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "É a chave privada do certificado TLS usada para criptografar o banco do cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É a autorização final para ler qualquer recurso, sem validação no servidor de recursos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É um registro DNS que redireciona a conexão do navegador para o servidor de autorização.",
+          "correct": false
+        }
+      ],
+      "explanation": "No Authorization Code, o cliente recebe um código intermediário e o troca por token. PKCE vincula a troca ao cliente que iniciou o fluxo, mitigando interceptação do código em clientes públicos.",
+      "section": "2. Identidade, autorização, OAuth 2.0 e JWT",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API recebe token bearer válido para consultar uma conta. O que deve fazer antes de retornar os dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retornar todas as contas ao usuário autenticado, pois possuir um token válido comprova a titularidade de cada registro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Retornar todas as contas, pois a validade do token transfere a titularidade dos registros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar a audiência do token, pois o nome do usuário basta para qualquer serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar o identificador da conta como prova de que a chamada veio do seu titular.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Verificar que a conta pedida pertence ao escopo e às permissões daquele usuário e daquela operação.",
+          "correct": true
+        }
+      ],
+      "explanation": "Token válido autentica ou representa uma autorização, mas a API precisa aplicar autorização para o recurso e ação específicos. Identificador, interface e autenticação isolada não comprovam permissão sobre o registro.",
+      "section": "2. Identidade, autorização, OAuth 2.0 e JWT",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual validação é essencial ao aceitar JWT de um emissor confiável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Decodificar o payload e confiar em qualquer claim sem conferir a assinatura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aceitar o algoritmo informado pelo token sem política local ou seleção controlada de chave.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Validar assinatura e claims pertinentes, como emissor, audiência e expiração, além da permissão exigida.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Confirmar apenas que o token tem três segmentos e termina com caracteres Base64url.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Verificar o registro DNS do usuário em lugar de validar o destinatário do token.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um token não é confiável só por ter formato correto. A API verifica assinatura com algoritmo e chave aceitos, valida claims relevantes e ainda aplica controle de acesso próprio.",
+      "section": "2. Identidade, autorização, OAuth 2.0 e JWT",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que HTTPS acrescenta ao HTTP quando o TLS está configurado e validado corretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autorização automática para que qualquer usuário autenticado leia todos os registros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Confidencialidade e integridade do tráfego em trânsito; com certificado validado, autenticação do servidor.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Criptografia automática dos bancos e backups em repouso, mesmo sem configurar qualquer proteção de armazenamento, apenas por habilitar HTTPS no serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remoção de vulnerabilidades de injeção e validação de entrada do código da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Garantia de que todos os dados enviados pelo cliente são verdadeiros e não maliciosos.",
+          "correct": false
+        }
+      ],
+      "explanation": "TLS protege o canal, e a validação do certificado permite autenticar o servidor. HTTPS não corrige lógica da aplicação, não define permissões nem protege automaticamente dados em repouso.",
+      "section": "3. TLS, HTTPS e proteção do canal",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço termina TLS em um proxy e encaminha dados a outro servidor por uma rede não confiável sem nova proteção. Qual é o problema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A terminação TLS desativa a necessidade de validar autorização por objeto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O certificado do proxy torna criptografadas todas as conexões internas futuras.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O trecho após a terminação pode ficar sem confidencialidade e integridade em trânsito.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O endereço DNS interno passa a substituir a chave privada do servidor final.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A conexão permanece protegida mesmo depois que o proxy remove TLS e encaminha o conteúdo em texto claro por uma rede pública.",
+          "correct": false
+        }
+      ],
+      "explanation": "TLS protege a conexão negociada entre seus pares. Se o proxy termina TLS e cria um trecho em claro, esse trecho precisa ser protegido conforme o risco da rede e dos dados transportados.",
+      "section": "3. TLS, HTTPS e proteção do canal",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta SQL concatena diretamente texto recebido em parâmetro da API. Qual medida reduz especificamente o risco de SQL injection?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar Base64url na entrada e concatenar o resultado à consulta, pois a codificação impede a alteração da sintaxe SQL.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Codificar todos os parâmetros em Base64url antes de concatená-los na consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Exigir HTTPS e manter a concatenação, pois TLS transforma entrada em dado seguro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar consultas parametrizadas para manter valores de entrada separados da estrutura do comando SQL.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o timeout do banco para que comandos malformados não sejam executados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Consultas parametrizadas separam valores de entrada da sintaxe SQL, reduzindo a possibilidade de a entrada alterar o comando. Codificação, HTTPS e ocultação de interface não substituem esse controle.",
+      "section": "4. Vulnerabilidades web e riscos de APIs",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação exibe comentário enviado por usuário como HTML executável para todos que visitam a página. Qual risco é mais diretamente sugerido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Exposição de XSS, pois qualquer comentário permite ao autor assumir controle administrativo permanente da API e de todos os servidores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "BOLA, pois qualquer comentário tem necessariamente um identificador numérico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Falha TLS, pois scripts do navegador sempre quebram certificados válidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SSRF, pois o navegador sempre transforma HTML em requisição do servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exposição de XSS, pois conteúdo controlado pelo usuário pode executar script no navegador de terceiros.",
+          "correct": true
+        }
+      ],
+      "explanation": "XSS surge quando entrada controlada por atacante é interpretada como código no navegador. Codificação de saída adequada ao contexto e outras defesas reduzem esse risco; o enunciado não descreve acesso a objeto ou requisição originada pelo servidor.",
+      "section": "4. Vulnerabilidades web e riscos de APIs",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API permite que o usuário troque o identificador do pedido e receba pedido pertencente a outra pessoa. Como classificar a falha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "API1:2023, autorização quebrada em nível de objeto, que permite a qualquer pessoa administrar todos os servidores e alterar qualquer dado da API.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "API4:2023, consumo irrestrito, pois o número do identificador pode aumentar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "API1:2023: autorização por objeto, quando a API não verifica se aquele usuário pode acessar o recurso identificado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "API9:2023, inventário inadequado, pois o pedido existe no banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "API10:2023, consumo inseguro de API, pois o cliente conhece um caminho REST.",
+          "correct": false
+        }
+      ],
+      "explanation": "A falha é autorização em nível de objeto: a API usa um identificador informado pelo usuário sem conferir se aquele usuário pode acessar aquele pedido. A OWASP identifica esse risco como API1:2023.",
+      "section": "4. Vulnerabilidades web e riscos de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário comum altera o método HTTP e chama uma rota administrativa que a interface não mostra. Qual controle foi insuficiente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autorização em nível de função para restringir operações administrativas a perfis permitidos; qualquer pessoa, ainda que sem privilégio, pode executá-las mesmo assim.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Resolução DNS, que deveria remover métodos HTTP enviados por usuários comuns.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Codificação Base64url de tokens, que torna toda função administrativa invisível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Throughput de saída, que impede o servidor de reconhecer a identidade do chamador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Autorização em nível de função: o servidor deve restringir operações administrativas a perfis autorizados.",
+          "correct": true
+        }
+      ],
+      "explanation": "É uma falha de autorização em nível de função (BFLA): a API não restringiu a operação privilegiada no servidor. Esconder rota ou botão no front-end não impede chamada direta.",
+      "section": "4. Vulnerabilidades web e riscos de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O cliente pode ler o próprio perfil, mas também alterar a propriedade `isAdmin` ao enviar JSON adicional. Qual risco de API é o mais direto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autorização quebrada em nível de propriedade, pois qualquer campo JSON vira uma chave de criptografia TLS e altera a identidade de rede do usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Consumo irrestrito, pois qualquer propriedade JSON aumenta o número de conexões TCP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Autorização quebrada em nível de propriedade: a API precisa limitar os campos que esse usuário pode ler ou alterar.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Falha DNS, pois o nome da propriedade não corresponde ao endereço IPv6 do usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "TLS obsoleto, pois todos os atributos JSON são interpretados como chaves criptográficas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A API deve controlar propriedades que cada usuário pode consultar ou modificar. Permitir atualização em massa de campos privilegiados é autorização quebrada em nível de propriedade, API3:2023.",
+      "section": "4. Vulnerabilidades web e riscos de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint aceita consultas sem limite de tamanho ou frequência e pode disparar operações muito caras. Qual defesa é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover autenticação e limites, supondo que qualquer requisição custosa terminará rápido e não consumirá recursos relevantes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar limites de frequência, tamanho, paginação, tempo e custo compatíveis com o serviço.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aumentar indefinidamente os recursos do servidor sem medir ou controlar consumo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir todas as consultas e ocultar as respostas quando o navegador detectar lentidão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar um registro CNAME para converter consultas grandes em consultas de menor custo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A OWASP API4 trata consumo irrestrito de recursos. Limites e validações de custo reduzem abuso e negação de serviço; apenas escalar recursos transfere o custo e pode ampliar o impacto.",
+      "section": "4. Vulnerabilidades web e riscos de APIs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço busca uma URL fornecida pelo usuário e consegue acessar painel administrativo interno. Qual risco deve ser investigado primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SSRF, porque toda URL informada pelo usuário sempre revela todos os destinos internos, sem depender de validação ou alcance de rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "BFLA, pois qualquer URL externa é necessariamente uma função administrativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "XSS, pois respostas obtidas pelo servidor sempre executam JavaScript no navegador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SSRF: o servidor pode fazer requisições a destinos internos escolhidos ou influenciados pelo usuário.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "CORS, pois cabeçalhos de navegador impedem o servidor de acessar redes privadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "SSRF ocorre quando o servidor busca destinos controlados ou influenciados pelo atacante e pode alcançar rede interna ou metadados. A defesa restringe destinos e valida o destino efetivo, incluindo efeitos de redirecionamento e resolução DNS.",
+      "section": "4. Vulnerabilidades web e riscos de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa mantém uma versão antiga da API ativa, desconhecida pela equipe e sem correções. Qual risco específico da OWASP API Top 10 melhor se relaciona?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Inventário inadequado de APIs e versões, embora endpoints esquecidos sejam sempre removidos automaticamente e nunca fiquem expostos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Autorização em nível de objeto, mesmo que nenhum usuário consulte objetos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Consumo irrestrito, ainda que a versão antiga não aceite requisições externas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Inventário inadequado de APIs: versões e endpoints esquecidos podem permanecer expostos sem governança.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Latência excessiva, pois toda API antiga responde necessariamente mais devagar.",
+          "correct": false
+        }
+      ],
+      "explanation": "API9:2023 cobre inventário inadequado, incluindo versões, ambientes e endpoints que a organização não acompanha e que podem permanecer expostos sem controles atuais.",
+      "section": "4. Vulnerabilidades web e riscos de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa apresenta vulnerabilidades incluídas no OWASP Top 10 de aplicações web de 2021?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Controle de acesso quebrado, falhas criptográficas, injeção e configuração insegura.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente endereços IPv4 privados, portas efêmeras e nomes DNS sem registro AAAA.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas throughput reduzido, aumento de latência e indisponibilidade de resolvedor local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exclusivamente erro de sintaxe JavaScript, falta de compressão e certificados vencidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somente falhas em aplicativos móveis, sem riscos de software web ou APIs.",
+          "correct": false
+        }
+      ],
+      "explanation": "A edição 2021 lista, entre outras categorias, controle de acesso quebrado, falhas criptográficas, injeção e configuração de segurança incorreta. A lista é de conscientização e não uma taxonomia completa de todo defeito possível.",
+      "section": "4. Vulnerabilidades web e riscos de APIs",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para evitar BOLA numa rota `/clientes/{id}`, qual verificação deve ocorrer no servidor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar que o cliente autenticado tem permissão para o objeto identificado antes de expor ou alterar seus dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Confirmar apenas que `{id}` é um número positivo e aceitar qualquer objeto encontrado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Comparar o identificador com o endereço IP do navegador e liberar em caso de igualdade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Consultar se o usuário recebeu qualquer token, sem validar titularidade ou escopo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Deixar a tela ocultar IDs de terceiros, mas manter a rota sem autorização no backend.",
+          "correct": false
+        }
+      ],
+      "explanation": "A validação de formato impede entradas malformadas, mas não comprova autorização. O servidor precisa verificar a relação de acesso entre o usuário autenticado e cada objeto solicitado.",
+      "section": "4. Vulnerabilidades web e riscos de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API recebe perfil e devolve campos internos que o cliente não precisa, embora o usuário tenha acesso ao perfil. Qual desenho reduz exposição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Selecionar no servidor campos permitidos e necessários à finalidade, evitando serializar atributos internos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Devolver todos os campos e confiar que a interface não os exibirá ao usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Codificar os campos em Base64 e considerar que isso os tornou confidenciais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Incluir campos extras apenas quando a resposta usar HTTPS, pois TLS define a finalidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenar os campos no DNS para que não apareçam no corpo JSON da resposta.",
+          "correct": false
+        }
+      ],
+      "explanation": "A API deve filtrar a resposta no servidor, aplicando autorização de propriedade e minimização. Dados enviados ao cliente podem ser inspecionados mesmo que a interface os esconda; codificação não fornece sigilo.",
+      "section": "4. Vulnerabilidades web e riscos de APIs",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma integração consome API de terceiro e confia cegamente em campos e URLs retornados. Que prática melhora a segurança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Validar e tratar a resposta externa conforme esquema, limites, contexto e confiança atribuída ao fornecedor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Tratar toda resposta como confiável, pois HTTPS garante que o conteúdo não é malicioso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar validação de certificados para reduzir falhas em serviços terceirizados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir que URLs retornadas pela API acessem qualquer recurso interno sem filtro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar os dados externos como comandos SQL para evitar armazenar cópias locais.",
+          "correct": false
+        }
+      ],
+      "explanation": "API10:2023 trata consumo inseguro de APIs. Uma conexão protegida não torna o fornecedor ou os dados infalíveis; a aplicação valida esquema, limites e conteúdo e restringe ações derivadas das respostas.",
+      "section": "4. Vulnerabilidades web e riscos de APIs",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API aceita centenas de compras promocionais em sequência de uma mesma conta apesar de cada chamada estar autenticada. Qual controle é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Regras de negócio e limites contextuais para restringir abuso do fluxo sensível, além da autenticação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o tamanho do JWT para registrar todas as compras já feitas pelo usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ativar CORS para permitir que o navegador rejeite compras repetidas no servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o DNS do endpoint após cada compra para invalidar automaticamente a promoção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar autorização, pois a conta autenticada já pode executar qualquer fluxo de negócio.",
+          "correct": false
+        }
+      ],
+      "explanation": "API6:2023 aborda acesso irrestrito a fluxos de negócio sensíveis. Fluxos legítimos podem ser automatizados para abuso, exigindo regras de negócio, limites e detecção contextual além de autenticar o usuário.",
+      "section": "4. Vulnerabilidades web e riscos de APIs",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário exemplifica configuração de segurança incorreta em uma API?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Console de depuração e mensagens detalhadas permanecem expostos em ambiente de produção.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O servidor exige autorização por objeto em todas as rotas que recebem identificador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A API limita o tamanho da página e registra falhas sem incluir tokens secretos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A equipe inventaria e desativa versões antigas que não são mais utilizadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O cliente valida a cadeia e o nome do certificado TLS apresentado pelo servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Configuração incorreta pode incluir depuração exposta, padrões permissivos ou recursos de segurança mal ajustados. As outras alternativas descrevem práticas defensivas.",
+      "section": "4. Vulnerabilidades web e riscos de APIs",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API grava o token bearer completo em log de acesso para facilitar depuração. Qual é o principal problema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O log pode expor uma credencial reutilizável a quem consiga consultá-lo ou copiá-lo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O token deixa de ser válido porque logs alteram a audiência assinada no JWT.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A gravação do token torna automaticamente a conexão HTTP mais lenta que DNS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O log converte o token em dado anônimo sem necessidade de controle de acesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O bearer token só pode ser usado por quem conhece o endereço IP em que foi registrado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bearer tokens funcionam como credenciais para quem os possui. Logs precisam minimizar ou mascarar segredos e ter acesso e retenção controlados, evitando transformar registros operacionais em fonte de roubo de credenciais.",
+      "section": "2. Identidade, autorização, OAuth 2.0 e JWT",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual exemplo aplica melhor o princípio da necessidade da LGPD ao desenho de uma API?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retornar apenas os campos pertinentes à finalidade da consulta, omitindo dados sem necessidade para a operação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Coletar todo dado disponível agora para talvez usá-lo em finalidade futura ainda indefinida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permitir que qualquer usuário consulte todos os perfis e confiar na boa-fé dos clientes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter dados indefinidamente porque armazenamento em nuvem não tem limite físico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Solicitar consentimento genérico para não avaliar a finalidade de cada operação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Necessidade limita o tratamento ao mínimo pertinente, proporcional e não excessivo em relação às finalidades. Retornar ou coletar tudo por conveniência contraria a minimização.",
+      "section": "5. Dados pessoais, controle de acesso e LGPD",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma prestadora processa dados pessoais segundo instruções de outra organização, que decide a finalidade do tratamento. Como a LGPD caracteriza normalmente esses papéis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A organização que decide é controladora; a prestadora que trata em seu nome é operadora.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A prestadora é titular; a organização que decide é autoridade certificadora.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ambas são titulares, pois qualquer pessoa jurídica pode ser titular de dado pessoal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A organização é operadora e a prestadora é ANPD sempre que acessa o banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A prestadora é controladora só por armazenar dados, independentemente de decisões e contexto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Controlador é quem decide sobre o tratamento; operador trata dados em nome do controlador. O enquadramento depende das atividades e decisões reais, não apenas do local em que os dados estão armazenados.",
+      "section": "5. Dados pessoais, controle de acesso e LGPD",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe de desenvolvimento quer testar exportação de dados pessoais em ambiente não produtivo. Qual prática é mais coerente com minimização e segurança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar dados sintéticos ou adequadamente anonimizados quando suficientes e restringir acessos ao conjunto necessário.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Copiar toda a produção sem controles, pois o ambiente de teste não atende usuários externos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Publicar a base em repositório interno amplo, desde que o nome do arquivo não identifique pessoas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar somente o endereço DNS, mantendo dados, credenciais e permissões de produção disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Codificar identificadores em Base64 e considerar os dados anônimos e sem restrição de acesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Dados pessoais em teste mantêm riscos. Dados sintéticos ou efetivamente anonimizados podem reduzir exposição; quando dados reais forem necessários, o conjunto deve ser limitado e protegido. Pseudonimização ou codificação não equivalem automaticamente a anonimização.",
+      "section": "5. Dados pessoais, controle de acesso e LGPD",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um controlador identifica vazamento que pode acarretar risco relevante aos titulares. Qual ação corresponde ao dever previsto na LGPD?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Avaliar e comunicar à ANPD e aos titulares nos termos aplicáveis, informando natureza dos dados e medidas adotadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aguardar solicitação individual de cada titular antes de registrar ou tratar o incidente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Comunicar somente o operador e encerrar o assunto, pois a ANPD não atua em incidentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar os logs imediatamente para evitar que a autoridade examine a ocorrência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Publicar credenciais e dados completos para provar que o incidente foi investigado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A LGPD prevê comunicação pelo controlador à ANPD e aos titulares quando o incidente puder acarretar risco ou dano relevante. A comunicação inclui informações legalmente previstas, e prazo e procedimentos devem seguir a regulamentação aplicável da ANPD.",
+      "section": "5. Dados pessoais, controle de acesso e LGPD",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A LGPD exige medidas técnicas e administrativas para proteger dados pessoais contra acesso não autorizado, perda e tratamento inadequado. Qual arquitetura traduz melhor esse dever?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autenticação, autorização por objeto e propriedade, minimização, proteção de credenciais e revisão de acessos desde o desenho.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "TLS na borda, mas respostas irrestritas, tokens em logs e acesso administrativo compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Consentimento genérico, sem controles técnicos, pois a base legal elimina riscos de segurança.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um firewall de rede como único controle, sem validação de identidade dentro da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ocultar botões na interface, dispensando controles no servidor e proteção de dados armazenados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A proteção exige medidas técnicas e administrativas apropriadas ao tratamento, incorporadas desde a concepção e mantidas na execução. TLS ou firewall isolado não impede exposição por autorização incorreta, excesso de dados ou credenciais mal protegidas.",
+      "section": "5. Dados pessoais, controle de acesso e LGPD",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "OWASP Top 10:2021",
+      "publisher": "OWASP Foundation",
+      "reference": "Categorias de riscos de segurança em aplicações web",
+      "url": "https://owasp.org/Top10/2021/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OWASP API Security Top 10:2023",
+      "publisher": "OWASP Foundation",
+      "reference": "Riscos API1 a API10, incluindo autorização quebrada, consumo, SSRF e inventário",
+      "url": "https://api-security.owasp.org/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 1034: Domain Names - Concepts and Facilities",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Conceitos DNS, nomes e resolução",
+      "url": "https://www.rfc-editor.org/rfc/rfc1034",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 791: Internet Protocol",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Endereçamento e encaminhamento IPv4",
+      "url": "https://www.rfc-editor.org/rfc/rfc791",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 9293: Transmission Control Protocol",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Protocolo TCP e serviço de transporte confiável",
+      "url": "https://www.rfc-editor.org/rfc/rfc9293",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "IANA Service Name and Transport Protocol Port Number Registry",
+      "publisher": "IANA",
+      "reference": "Registro de portas de serviços e protocolos de transporte",
+      "url": "https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 6749: The OAuth 2.0 Authorization Framework",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Papéis, clientes, concessões e tokens de acesso OAuth 2.0",
+      "url": "https://www.rfc-editor.org/rfc/rfc6749",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 9700: Best Current Practice for OAuth 2.0 Security",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Recomendações atuais de segurança para implementações OAuth 2.0",
+      "url": "https://www.rfc-editor.org/rfc/rfc9700",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 7519: JSON Web Token (JWT)",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Estrutura compacta de JWT e claims",
+      "url": "https://www.rfc-editor.org/rfc/rfc7519",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 8446: The Transport Layer Security (TLS) Protocol Version 1.3",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Handshake, proteção e funcionamento de TLS 1.3",
+      "url": "https://www.rfc-editor.org/rfc/rfc8446",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Lei Geral de Proteção de Dados Pessoais — texto compilado",
+      "publisher": "Presidência da República / Governo Federal",
+      "reference": "Conceitos, princípios, agentes, segurança e comunicação de incidentes",
+      "url": "https://www.gov.br/mj/pt-br/assuntos/sua-protecao/sedigi/Lei13709.pdf",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Perguntas Frequentes sobre a LGPD",
+      "publisher": "Autoridade Nacional de Proteção de Dados",
+      "reference": "Esclarecimentos institucionais sobre alcance da lei e proteção de dados",
+      "url": "https://www.gov.br/anpd/pt-br/acesso-a-informacao/perguntas-frequentes",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

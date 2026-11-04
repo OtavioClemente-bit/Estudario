@@ -1,0 +1,1966 @@
+{
+  "id": "informatica.processamento-imagens-computacao-grafica-visao",
+  "subject": "Informática",
+  "title": "Processamento de imagens, computação gráfica e visão computacional",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Processamento Digital de Imagens e Computação Gráfica",
+    "Computação gráfica e processamento de imagens",
+    "Transformações geométricas em imagens 2D e 3D",
+    "Coordenadas homogêneas e projeções gráficas",
+    "Recorte e antialiasing em computação gráfica",
+    "Filtragem espacial em processamento de imagens",
+    "Restauração e reconstrução de imagens",
+    "Domínio do tempo e da frequência em imagens",
+    "Imagem raster e pipeline gráfico",
+    "Sombreamento e mapeamento de texturas",
+    "Traçado de raios e renderização baseada em física",
+    "Neural Radiance Field e NeRF",
+    "Animação computacional e hardware gráfico",
+    "Cor e percepção visual em computação gráfica",
+    "Modelagem implícita e visualização computacional"
+  ],
+  "scope": {
+    "covers": "Imagens raster e amostragem; pipeline gráfico; transformações 2D/3D com coordenadas homogêneas e projeções; recorte, rasterização e antialiasing; filtragem espacial, restauração e reconstrução no domínio espacial e da frequência; sombreamento, ray tracing, texturas, renderização baseada em física, NeRF, animação, hardware gráfico, cor, percepção, modelagem implícita, jogos e visualização.",
+    "excludes": "Implementação de APIs gráficas específicas além dos conceitos de pipeline e hardware, álgebra linear avançada, treinamento detalhado de redes neurais e algoritmos particulares de visão computacional fora do processamento de imagens descrito."
+  },
+  "theoryTitle": "Da imagem digital à cena renderizada",
+  "chapters": [
+    {
+      "title": "1. Imagens digitais, filtros e reconstrução",
+      "markdown": "### O problema que este assunto resolve\n\nUma imagem digital não é a cena contínua: é uma grade de amostras. Em uma imagem raster, cada posição da grade (pixel) armazena um ou mais valores, como intensidade em tons de cinza ou componentes de cor. A resolução informa quantas amostras há; profundidade de bits limita quantos níveis cada canal representa. Aumentar a imagem por interpolação não recupera detalhe que nunca foi amostrado.\n\n> **Siglas e termos deste capítulo**\n> - **Raster**: representação por uma matriz de pixels.\n> - **Kernel**: pequena matriz de coeficientes aplicada à vizinhança de cada pixel.\n> - **Convolução**: soma ponderada das amostras vizinhas por um kernel deslocado pela imagem.\n> - **DFT/FFT**: transformada discreta de Fourier e algoritmo rápido para calculá-la.\n> - **PSF**: função de espalhamento pontual; descreve como o sistema óptico transforma um ponto.\n> - **Ruído**: variação indesejada dos valores observados.\n\n### Filtragem no domínio espacial\n\nUm filtro linear espacial calcula cada saída a partir dos pixels de uma vizinhança. Um kernel de média, com pesos positivos que somam um, suaviza flutuações e reduz ruído de alta frequência, mas também borra bordas. Um kernel gaussiano dá maior peso ao centro e reduz componentes de alta frequência de modo gradual. Filtros passa-altas, como operadores de derivada, realçam mudanças locais e ajudam a localizar bordas, mas também amplificam ruído.\n\nA mediana é não linear: ordena os valores na janela e escolhe o central. Ela costuma remover ruído impulsivo (pontos muito claros ou escuros) preservando bordas melhor que uma média simples. O filtro bilateral também é não linear: combina proximidade espacial e semelhança de intensidade, suavizando regiões sem misturar tanto lados diferentes de uma borda.\n\n### Domínio da frequência, restauração e reconstrução\n\nA transformada de Fourier representa a imagem como soma de componentes espaciais de frequências diferentes. Frequências baixas descrevem variações lentas e estruturas amplas; frequências altas aparecem em bordas, detalhes finos e ruído. Filtrar na frequência significa multiplicar o espectro por uma função de transferência; isso corresponde a uma operação de convolução no domínio espacial. Uma máscara passa-baixas atenua detalhes rápidos; uma passa-altas atenua variações lentas.\n\nA degradação pode ser modelada como imagem observada igual à imagem verdadeira convolvida com a PSF, mais ruído. **Restauração** tenta estimar a imagem original a partir de um modelo de degradação: por exemplo, deconvolução de uma imagem borrada. A inversão direta pode amplificar ruído quando a resposta do sistema é pequena; métodos como Wiener equilibram a inversão com a informação sobre ruído. **Reconstrução** estima uma imagem ou volume a partir de medições incompletas, como projeções tomográficas ou quadros observados; não é sinônimo de simplesmente ampliar pixels.\n\nEm processamento de vídeo, a dimensão temporal também importa: filtrar entre quadros pode reduzir ruído, mas uma média temporal simples borra objetos em movimento. Métodos de reconstrução temporal precisam alinhar movimento ou usar modelos para combinar observações de instantes diferentes.\n\n### Como cai na prova\n\n- Média espacial suaviza, mas pode borrar bordas; mediana é indicada para ruído impulsivo.\n- No espectro, bordas e detalhes correspondem principalmente a frequências altas.\n- Restaurar é compensar degradação conhecida ou modelada; reconstruir é inferir a imagem a partir de medições parciais ou indiretas.\n- Filtrar quadros sem tratar movimento pode criar borramento temporal."
+    },
+    {
+      "title": "2. Geometria, projeção, recorte e amostragem",
+      "markdown": "### O problema que este assunto resolve\n\nA computação gráfica transforma objetos descritos em coordenadas matemáticas em amostras de uma tela. Em 2D, translação, rotação e escala movem pontos no plano. Coordenadas homogêneas acrescentam uma coordenada extra: um ponto (x,y) é representado como (x,y,1), o que permite escrever translação como multiplicação por matriz e concatenar operações. Em 3D, o ponto (x,y,z) vira (x,y,z,1). Vetores de direção usam componente homogênea zero, pois translação não deve mudar uma direção.\n\n> **Siglas e termos deste capítulo**\n> - **Matriz modelo**: leva coordenadas locais do objeto ao espaço do mundo.\n> - **Matriz de visão**: leva coordenadas do mundo ao referencial da câmera.\n> - **Matriz de projeção**: leva a cena ao volume de recorte da câmera.\n> - **Divisão perspectiva**: divide coordenadas x, y e z por w após projeção.\n> - **Viewport**: retângulo da janela onde coordenadas normalizadas viram coordenadas de tela.\n> - **Aliasing**: artefato por amostragem insuficiente, como serrilhado ou padrões moiré.\n\n### Transformações e projeções\n\nA ordem das transformações importa: escalar e depois transladar não produz em geral o mesmo resultado que transladar e depois escalar. Com vetores-coluna, a matriz mais à direita atua primeiro. A sequência comum é modelo, visão e projeção. A projeção perspectiva faz objetos distantes parecerem menores; após a divisão por w, linhas paralelas que apontam na direção da câmera podem convergir para pontos de fuga. Na projeção ortográfica, o tamanho projetado não diminui com a distância, útil em desenho técnico e interfaces.\n\nO volume de recorte elimina primitivas ou partes de primitivas fora da região visível. O recorte de um triângulo que atravessa um plano não consiste em descartar o triângulo inteiro: o polígono pode ser dividido e preservada a porção interna. Depois vem a transformação para viewport e a rasterização, que determina quais amostras de pixel são cobertas.\n\n### Amostragem e antialiasing\n\nUma borda geométrica contínua raramente coincide com os limites da grade de pixels. Atribuir a cobertura a um único ponto de amostra produz degraus. O antialiasing aproxima a média da cobertura ou da radiância dentro de cada pixel, por supersampling (várias amostras e redução), multisampling (múltiplas amostras de cobertura e, em geral, uma avaliação de sombreamento por fragmento) ou filtragem adequada. Aumentar a resolução reduz alguns artefatos, mas custa memória e processamento.\n\nTexturas também sofrem aliasing quando uma área grande da imagem é comprimida em poucos pixels. Mipmaps guardam versões pré-filtradas em escalas menores; a amostragem escolhe níveis apropriados. Filtragem bilinear interpola texels vizinhos num nível; trilinear interpola também entre dois níveis.\n\n### Como cai na prova\n\n- Coordenadas homogêneas tornam a translação representável por matriz e permitem combinar transformações.\n- Perspectiva altera o tamanho aparente com a distância; ortográfica não.\n- Recorte preserva a parte da primitiva que está dentro do volume visível.\n- Antialiasing trata a insuficiência de amostras, não aumenta a resolução real do sensor ou da textura."
+    },
+    {
+      "title": "3. Pipeline gráfico, materiais e síntese de cena",
+      "markdown": "### O problema que este assunto resolve\n\nO pipeline gráfico converte dados da cena em uma imagem. Um fluxo típico recebe vértices e atributos, transforma posições, recorta primitivas, converte triângulos em fragmentos, executa testes como profundidade, calcula a aparência e grava o resultado no framebuffer. Em GPUs programáveis, shaders executam etapas do fluxo; a GPU oferece muitos núcleos para operações paralelas, alta largura de banda e unidades especializadas para textura, rasterização e, em hardware compatível, traçado de raios. A CPU costuma organizar a cena e enviar comandos; ela não deixa de participar só porque há uma GPU.\n\n> **Siglas e termos deste capítulo**\n> - **Vértice**: ponto geométrico com posição e atributos, como normal e coordenada de textura.\n> - **Fragmento**: candidato a amostra de pixel produzido pela rasterização.\n> - **Framebuffer**: destino de cor, profundidade e outros resultados da renderização.\n> - **Z-buffer**: armazenamento de profundidade usado para resolver visibilidade.\n> - **BRDF**: função que descreve como uma superfície reflete luz entre direções.\n> - **PBR**: renderização baseada em física, com parâmetros de materiais e iluminação coerentes.\n\n### Sombreamento, textura e ray tracing\n\nA normal da superfície e a direção da luz influenciam o sombreamento. No modelo Lambertiano difuso, a contribuição diminui conforme a luz fica mais oblíqua à normal; componentes especulares acrescentam reflexos dependentes do ponto de vista. A interpolação de normais por pixel produz transições suaves sem subdividir tanto a geometria. Uma textura associa coordenadas (u,v) a cada vértice ou superfície e consulta uma imagem durante o sombreamento; coordenadas fora do intervalo podem repetir, espelhar ou limitar-se à borda conforme o modo configurado.\n\nA rasterização projeta primitivas e resolve cobertura em tela, sendo eficiente para cenas interativas. O traçado de raios percorre a cena com raios (por exemplo, da câmera aos objetos e, em seguida, rumo às fontes de luz) para calcular visibilidade, sombras, reflexos ou refração. Estruturas de aceleração como BVH reduzem interseções testadas. Ray tracing pode oferecer efeitos de iluminação global convincentes, mas o custo depende da quantidade de raios e amostras; técnicas híbridas combinam rasterização e raios.\n\nRenderização baseada em física usa modelos de reflexão e parâmetros como rugosidade e metalicidade para manter materiais plausíveis sob diferentes iluminações. Isso não significa que cada imagem seja uma simulação física perfeita: amostras, aproximações e limites computacionais continuam presentes.\n\n### NeRF, modelagem e animação\n\nNeRF representa uma cena como campo contínuo parametrizado por uma rede: recebe posição 3D e direção de observação e estima densidade volumétrica e cor dependente do ponto de vista. Durante a renderização, são amostrados pontos ao longo dos raios e as contribuições são acumuladas por renderização volumétrica. O método original ajusta a representação usando imagens de entrada com poses de câmera conhecidas e consegue sintetizar vistas novas; não é uma malha poligonal convencional nem exige que a saída seja uma textura.\n\nModelagem implícita define uma forma por uma função, como campo de distância assinado: o conjunto de pontos em que a função é zero forma a superfície. É útil para operações de união e deformação, embora gerar malha ou renderizar o campo possa exigir amostragem e extração de superfície. Animação computacional pode ser feita por quadros-chave e interpolação, hierarquias articuladas, skinning (deformar uma malha conforme ossos) ou simulação de partículas e corpos.\n\n### Como cai na prova\n\n- Rasterização responde cobertura e visibilidade de primitivas projetadas; ray tracing calcula interseções de raios com a cena.\n- Textura fornece atributos de superfície amostrados por coordenadas, não substitui a geometria da cena.\n- NeRF estima densidade e radiância em coordenadas espaciais e direção; a cor é acumulada ao longo do raio.\n- Campo implícito define superfície por uma função; skinning vincula deformação de malha a esqueleto."
+    },
+    {
+      "title": "4. Cor, percepção, jogos e visualização",
+      "markdown": "### O problema que este assunto resolve\n\nA imagem calculada precisa ser representada e interpretada por dispositivos e pessoas. RGB é um modelo aditivo: combina luz vermelha, verde e azul; CMYK é subtrativo e descreve tintas que absorvem parte da luz. Valores RGB codificados para exibição muitas vezes usam uma curva não linear (como sRGB), então operações de luz e mistura física devem considerar o espaço linear, não tratar diretamente valores codificados como energia. Espaços como HSV separam matiz, saturação e valor para certas tarefas de seleção; não são modelos físicos de emissão.\n\n> **Siglas e termos deste capítulo**\n> - **RGB**: componentes vermelho, verde e azul; mistura aditiva de luz.\n> - **sRGB**: espaço de cor comum em telas e imagens digitais, com primárias e curva de transferência definidas.\n> - **Gama**: relação não linear entre valor codificado e intensidade luminosa.\n> - **Luminância**: medida fotométrica ponderada da luz percebida, distinta da luma codificada em vídeo.\n> - **Frame time**: tempo disponível para produzir cada quadro em uma aplicação interativa.\n> - **Visualização**: mapeamento de dados para representações visuais que ajudam a perceber estrutura e relações.\n\n### Cor e percepção visual\n\nA percepção humana não responde igualmente a todas as frequências espaciais: contraste e escala importam, e pequenas diferenças podem ser mais visíveis em bordas que em áreas uniformes. A visão também se adapta à iluminação, de modo que a aparência depende do contexto e do entorno. Em telas, gamut limitado, brilho, calibração e ambiente alteram a cor percebida. Para operações corretas de composição e iluminação, converte-se valor sRGB para luz linear, faz-se o cálculo e codifica-se novamente para exibição.\n\n### Aplicações em tempo real e visualização\n\nEm jogos, a GPU precisa manter tempo de quadro estável: reduzir objetos invisíveis (culling), usar níveis de detalhe (LOD), agrupar chamadas e controlar resolução ou efeitos são formas de equilibrar qualidade e desempenho. O z-buffer permite que superfícies próximas substituam as distantes, embora precisão limitada de profundidade possa causar z-fighting em superfícies quase coplanares. Mipmaps e filtragem reduzem cintilação de texturas em movimento.\n\nVisualização científica e de dados usa cor, forma, posição, transparência e movimento para comunicar grandezas. Uma escala de cor deve preservar ordem e contraste de modo apropriado ao dado; mapas com luminância monotônica tendem a indicar melhor a ordem de valores do que paletas arco-íris, nas quais mudanças de matiz podem sugerir limites inexistentes. A visualização não é apenas decoração: escolha de projeção, escala e codificação pode revelar ou ocultar padrões.\n\n### Como cai na prova\n\n- RGB é aditivo; CMYK é subtrativo.\n- Para somar luz ou compor corretamente, use valores lineares e só depois codifique para sRGB.\n- Frame time, culling e LOD são decisões práticas de desempenho em gráficos interativos.\n- Uma paleta inadequada pode induzir fronteiras visuais que não existem nos dados."
+    }
+  ],
+  "summary": "Uma imagem raster é uma grade de amostras; filtros espaciais combinam vizinhos e filtros no domínio de Fourier controlam frequências. Média/gaussiano suavizam e podem borrar bordas; mediana combate ruído impulsivo; passa-altas realçam detalhes e ruído. Restauração compensa uma degradação modelada, como borramento pela PSF, e reconstrução estima imagens a partir de medições incompletas. Coordenadas homogêneas permitem expressar translação por matriz; em 3D, a cadeia modelo-visão-projeção leva a cena ao espaço de tela. Perspectiva inclui divisão por w e redução aparente com distância; ortográfica preserva escala. Recorte remove apenas porções fora do volume visível. Rasterização determina cobertura de amostras e antialiasing reduz serrilhado por amostragem. O pipeline transforma vértices, recorta, rasteriza, testa profundidade, sombreia e grava no framebuffer. Texturas são consultadas por coordenadas; mipmaps ajudam na minificação. Ray tracing calcula interseções de raios; rasterização é eficiente para cobertura em tela. PBR usa modelos de reflexão coerentes; NeRF aprende um campo contínuo de densidade e cor direcional e integra contribuições ao longo de raios. Modelos implícitos descrevem superfícies por funções; animação inclui quadros-chave, hierarquias e skinning. RGB mistura luz, CMYK mistura tintas; operações de iluminação devem ocorrer em espaço linear antes da codificação sRGB. Jogos equilibram qualidade e tempo de quadro, e visualizações precisam escolher projeções e escalas de cor que não distorçam os dados.",
+  "flashcards": [
+    {
+      "front": "O que representa uma imagem raster?",
+      "back": "Uma grade finita de pixels, cada qual contendo uma ou mais amostras de intensidade ou cor."
+    },
+    {
+      "front": "Qual efeito tem um filtro de média espacial?",
+      "back": "Suaviza variações locais e ruído, mas mistura lados de bordas e pode borrar detalhes."
+    },
+    {
+      "front": "Por que a mediana ajuda contra ruído impulsivo?",
+      "back": "Valores extremos isolados pouco alteram o valor central após ordenar a janela."
+    },
+    {
+      "front": "O que são frequências altas em uma imagem?",
+      "back": "Variações espaciais rápidas, como bordas, texturas finas e também parte do ruído."
+    },
+    {
+      "front": "Que relação liga convolução e frequência?",
+      "back": "Convolução espacial corresponde à multiplicação dos espectros de Fourier."
+    },
+    {
+      "front": "O que descreve uma PSF?",
+      "back": "Como um sistema de imagem espalha a resposta de um ponto ideal pela imagem observada."
+    },
+    {
+      "front": "Diferencie restauração e reconstrução.",
+      "back": "Restauração compensa degradação modelada; reconstrução infere uma imagem de medições incompletas ou indiretas."
+    },
+    {
+      "front": "O que acrescentam coordenadas homogêneas?",
+      "back": "Uma componente extra que permite representar translação por multiplicação matricial e concatenar transformações."
+    },
+    {
+      "front": "Por que a ordem das matrizes importa?",
+      "back": "Transformações matriciais em geral não comutam: trocar a ordem muda o resultado geométrico."
+    },
+    {
+      "front": "Como a perspectiva altera a aparência?",
+      "back": "Após a divisão por w, objetos mais distantes tendem a ocupar menor área na imagem."
+    },
+    {
+      "front": "O que distingue projeção ortográfica?",
+      "back": "O tamanho projetado não varia com a distância à câmera."
+    },
+    {
+      "front": "Qual é o objetivo do recorte (clipping)?",
+      "back": "Eliminar o que está fora do volume visível e preservar as partes internas das primitivas que o atravessam."
+    },
+    {
+      "front": "O que causa aliasing?",
+      "back": "Amostragem insuficiente de sinais ou geometrias que variam mais rápido do que a grade consegue representar."
+    },
+    {
+      "front": "Como o multisampling reduz serrilhado?",
+      "back": "Registra cobertura em múltiplas posições amostrais dentro do pixel e combina as contribuições."
+    },
+    {
+      "front": "Para que servem mipmaps?",
+      "back": "Versões pré-filtradas da textura em escalas menores reduzem aliasing quando a textura é minificada."
+    },
+    {
+      "front": "Quais etapas compõem um pipeline raster típico?",
+      "back": "Transformação de vértices, recorte, viewport, rasterização, testes e sombreamento até gravar no framebuffer."
+    },
+    {
+      "front": "O que armazena o z-buffer?",
+      "back": "Profundidade por amostra para decidir qual superfície visível deve prevalecer."
+    },
+    {
+      "front": "Como textura é associada à superfície?",
+      "back": "Coordenadas de textura consultam texels durante o sombreamento de cada fragmento."
+    },
+    {
+      "front": "O que calcula ray tracing?",
+      "back": "Interseções de raios com geometria para avaliar visibilidade, sombras, reflexos e outros efeitos."
+    },
+    {
+      "front": "O que significa PBR?",
+      "back": "Renderização baseada em física: materiais e iluminação usam modelos de reflexão com parâmetros coerentes."
+    },
+    {
+      "front": "Qual é a entrada e saída típica do NeRF original?",
+      "back": "Posição 3D e direção de observação entram; densidade volumétrica e cor RGB dependente da vista saem."
+    },
+    {
+      "front": "Como NeRF produz a cor de um raio?",
+      "back": "Amostra pontos ao longo dele e acumula as cores ponderadas pela densidade/ opacidade volumétrica."
+    },
+    {
+      "front": "O que é uma superfície implícita?",
+      "back": "Conjunto de pontos que satisfaz uma função, frequentemente o nível zero de um campo escalar."
+    },
+    {
+      "front": "O que é skinning em animação?",
+      "back": "Deformação de vértices da malha de acordo com influências de ossos de um esqueleto."
+    },
+    {
+      "front": "RGB e CMYK são aditivos ou subtrativos?",
+      "back": "RGB é aditivo (luz); CMYK é subtrativo (tintas)."
+    },
+    {
+      "front": "Por que converter sRGB para linear antes de iluminar?",
+      "back": "Valores sRGB são não lineares; cálculos de energia luminosa e composição devem usar intensidades lineares."
+    },
+    {
+      "front": "O que são culling e LOD em jogos?",
+      "back": "Culling evita desenhar elementos não visíveis; LOD troca detalhes conforme distância ou importância."
+    },
+    {
+      "front": "Como uma escala de cor pode distorcer uma visualização?",
+      "back": "Mudanças não uniformes de luminância ou matiz podem criar limites aparentes ou esconder variações reais."
+    }
+  ],
+  "tips": [
+    "Janela pequena de média reduz ruído, mas tende a espalhar uma borda; para pontos extremos isolados, lembre da mediana.",
+    "Na frequência, variações lentas ocupam baixas frequências e detalhes abruptos ocupam altas frequências.",
+    "Em coordenadas homogêneas, (x,y,1) é ponto 2D e (dx,dy,0) é direção: a translação não altera a direção.",
+    "A sequência modelo, visão, projeção separa objeto, câmera e lente; perspectiva e ortográfica têm comportamentos distintos de escala.",
+    "Texturas minificadas pedem pré-filtragem e níveis de mipmap; ampliar textura não recupera detalhes originais.",
+    "Em perguntas de cor, diferencie mistura de luz RGB, mistura de pigmento CMYK e valores sRGB codificados de intensidades lineares."
+  ],
+  "traps": [
+    "Dizer que a média remove ruído sem afetar detalhes: ela também atenua altas frequências e pode borrar bordas.",
+    "Tratar restauração, reconstrução e ampliação como sinônimos: são problemas distintos.",
+    "Afirmar que a projeção ortográfica encolhe objetos com a distância: essa redução é característica da perspectiva.",
+    "Supor que recortar uma primitiva que cruza o plano exige descartar a primitiva inteira: a parte interna pode ser mantida.",
+    "Confundir fragmento com pixel final: fragmento é candidato produzido pela rasterização e pode falhar em testes.",
+    "Dizer que ray tracing e rasterização são a mesma etapa: ambos sintetizam imagens, mas percorrem a cena de maneiras diferentes."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique por que uma imagem é uma amostragem e por que zoom não cria detalhe real.",
+      "answer": "O sensor ou processo digital registra valores em posições discretas. Interpolação estima valores entre amostras existentes, mas não recupera frequências que foram perdidas ou não amostradas."
+    },
+    {
+      "question": "Compare média, mediana e filtro passa-altas.",
+      "answer": "A média é linear e suaviza variações; a mediana é não linear e resiste a extremos impulsivos; passa-altas destaca mudanças rápidas, incluindo bordas e ruído."
+    },
+    {
+      "question": "Como uma operação espacial é interpretada no domínio da frequência?",
+      "answer": "A convolução com um kernel corresponde a multiplicar a transformada da imagem pela resposta em frequência desse kernel."
+    },
+    {
+      "question": "Dê um exemplo que distingue restauração de reconstrução.",
+      "answer": "Deconvolver borramento com PSF conhecida é restauração; estimar um volume a partir de projeções parciais é reconstrução."
+    },
+    {
+      "question": "Para que servem coordenadas homogêneas em transformações 2D e 3D?",
+      "answer": "Elas incorporam translações em matrizes e permitem concatenar translação, rotação, escala e projeção numa cadeia matricial."
+    },
+    {
+      "question": "Descreva a diferença visual entre projeção perspectiva e ortográfica.",
+      "answer": "Na perspectiva a escala aparente diminui com distância e paralelas podem convergir; na ortográfica a escala não depende da distância."
+    },
+    {
+      "question": "Resuma o caminho de um triângulo pelo pipeline gráfico.",
+      "answer": "Vértices são transformados, a primitiva é recortada, mapeada ao viewport e rasterizada; fragmentos passam por testes e sombreamento antes do framebuffer."
+    },
+    {
+      "question": "Como antialiasing de geometria difere de apenas aumentar a resolução?",
+      "answer": "Antialiasing estima cobertura/radiância do pixel por várias amostras ou filtros; resolução maior aumenta o número de pixels e o custo, mas ambos tratam amostragem de modos diferentes."
+    },
+    {
+      "question": "Diferencie rasterização e ray tracing por seus mecanismos.",
+      "answer": "Rasterização projeta primitivas e calcula cobertura de amostras; ray tracing lança raios e calcula interseções com a cena."
+    },
+    {
+      "question": "Explique o campo aprendido pelo NeRF e como ele vira imagem.",
+      "answer": "Uma rede recebe posição e direção, prevê densidade e cor direcional; pontos amostrados em raios são integrados por renderização volumétrica."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Filtragem e inversão confundidas",
+      "summary": "Filtros espaciais operam sobre vizinhanças; filtros de frequência atuam no espectro. Restauração compensa degradação e reconstrução estima imagem a partir de dados incompletos."
+    },
+    {
+      "key": "e2",
+      "title": "Matrizes e projeções trocadas",
+      "summary": "A ordem de transformação muda o resultado. Perspectiva reduz escala aparente com distância; ortográfica mantém a escala."
+    },
+    {
+      "key": "e3",
+      "title": "Recorte, rasterização e antialiasing misturados",
+      "summary": "Recorte preserva a porção visível; rasterização determina cobertura; antialiasing reduz artefatos da amostragem."
+    },
+    {
+      "key": "e4",
+      "title": "Métodos de renderização confundidos",
+      "summary": "Rasterização projeta primitivas; ray tracing testa interseções de raios. PBR trata materiais e reflexão; NeRF aprende densidade e radiância volumétricas."
+    },
+    {
+      "key": "e5",
+      "title": "Representação e aparência da cor confundidas",
+      "summary": "RGB é aditivo, CMYK é subtrativo e sRGB é codificado de forma não linear. Iluminação e composição devem ocorrer em espaço linear."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma imagem raster de 640 por 480 pixels tem mais amostras espaciais do que uma imagem de 320 por 240 pixels do mesmo enquadramento. O que a interpolação ao ampliar a menor imagem pode fazer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Estimar valores intermediários, sem recuperar detalhes que não foram amostrados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Recuperar sempre as altas frequências originais a partir dos pixels vizinhos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar a profundidade de bits e criar novas cores medidas pela câmera.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter a representação raster em superfície geométrica contínua sem perda.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eliminar todo aliasing, mesmo quando a imagem original sofreu subamostragem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Interpolação estima amostras entre pixels conhecidos, por exemplo por vizinho mais próximo ou interpolação bilinear. Frequências que foram perdidas na aquisição não podem ser reconstruídas apenas aumentando a matriz.",
+      "section": "1. Imagens digitais, filtros e reconstrução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual filtro é geralmente apropriado para retirar pontos isolados muito claros ou escuros preservando melhor as bordas que uma média?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Filtro passa-altas ideal aplicado com corte abrupto no espectro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Filtro mediana, que escolhe o valor central ordenado da janela.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Filtro média, que substitui cada pixel pela média aritmética local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Filtro de derivada, que soma os gradientes horizontais da imagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Filtro de reconstrução temporal, que combina quadros sem alinhamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "A mediana não deixa um valor extremo isolado dominar a saída e, por ser não linear, costuma preservar contornos melhor que a média em ruído impulsivo. Média e derivadas têm outros efeitos e podem borrar ou realçar o ponto de ruído.",
+      "section": "1. Imagens digitais, filtros e reconstrução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao aplicar um filtro passa-baixas a uma imagem, qual efeito é esperado no espectro e na aparência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentam as frequências altas e as bordas ficam mais contrastadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Todas as frequências mudam de fase, mas a amplitude permanece fixa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As variações rápidas são atenuadas e a imagem tende a suavizar.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "As frequências baixas desaparecem e apenas ruído fino permanece.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A imagem deixa de ser raster e passa a ser um campo vetorial contínuo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um passa-baixas atenua componentes de variação espacial rápida. O resultado costuma ser suavização, com perda potencial de detalhe fino e borramento de bordas.",
+      "section": "1. Imagens digitais, filtros e reconstrução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fotografia sofre borramento descrito por uma PSF estimada e recebe ruído aditivo. Qual tarefa caracteriza restauração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Interpolar a fotografia para o dobro da largura sem usar o modelo óptico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Segmentar objetos por cor, sem considerar a degradação da captura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar um limiar global para transformar tons em pixels binários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Estimar a imagem original compensando o borramento e ponderando o ruído.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Projetar a fotografia em uma superfície 3D usando apenas coordenadas UV.",
+          "correct": false
+        }
+      ],
+      "explanation": "Restauração usa um modelo de degradação como a convolução pela PSF e estima a fonte. Como inversão direta amplifica ruído, métodos regularizados ou de Wiener equilibram a compensação e o ruído.",
+      "section": "1. Imagens digitais, filtros e reconstrução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma sequência de vídeo, uma média simples entre quadros consecutivos reduz ruído, mas objetos em movimento aparecem borrados. Qual é a causa mais direta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O filtro troca automaticamente a projeção perspectiva pela ortográfica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A média temporal combina posições diferentes do objeto sem compensar seu movimento.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A transformada de Fourier remove os componentes de cor do objeto móvel.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A mediana espacial soma quadros em instantes diferentes em toda a imagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O antialiasing converte movimento em ruído impulsivo de alta amplitude.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sem alinhamento ou estimativa de movimento, o mesmo objeto ocupa posições distintas nos quadros somados e sua energia se espalha no tempo. Filtros temporais precisam lidar com correspondência de movimento para evitar esse borramento.",
+      "section": "1. Imagens digitais, filtros e reconstrução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma imagem, bordas nítidas e detalhes finos contribuem principalmente para as altas frequências espaciais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma borda representa mudança rápida de intensidade ao longo do espaço, por isso contribui com componentes de frequência alta. Áreas uniformes e variações amplas se concentram nas frequências baixas.",
+      "section": "1. Imagens digitais, filtros e reconstrução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A convolução de uma imagem com um kernel espacial equivale, no domínio de Fourier, a somar diretamente os espectros da imagem e do kernel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Pelo teorema da convolução, convolução no domínio espacial corresponde a multiplicação dos espectros. Soma de espectros se relaciona a soma de sinais espaciais, não à operação descrita.",
+      "section": "1. Imagens digitais, filtros e reconstrução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A mediana de uma janela é um filtro linear porque cada saída é uma soma ponderada fixa dos valores de entrada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A mediana ordena os valores e seleciona o central; essa seleção depende dos próprios dados e não pode ser escrita como uma combinação linear fixa dos pixels.",
+      "section": "1. Imagens digitais, filtros e reconstrução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Estimar uma imagem tomográfica a partir de projeções medidas em diferentes ângulos é exemplo de reconstrução, e não apenas de aumento de resolução por interpolação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A reconstrução infere a imagem ou volume a partir de medições indiretas e incompletas. Interpolação apenas estima valores entre amostras já disponíveis.",
+      "section": "1. Imagens digitais, filtros e reconstrução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A coordenada homogênea (x,y,1) permite escrever uma translação 2D como multiplicação por matriz, junto a rotação e escala.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A componente adicional permite representar translação por uma matriz 3×3 em coordenadas homogêneas e compor essa transformação com outras por produto matricial.",
+      "section": "2. Geometria, projeção, recorte e amostragem",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em coordenadas homogêneas 3D, um vetor de direção usa componente w igual a um para não sofrer deslocamento por uma translação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A componente w=1 caracteriza um ponto e faz a matriz aplicar a translação. Uma direção usa w=0, anulando a contribuição translacional.",
+      "section": "2. Geometria, projeção, recorte e amostragem",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma escala aplicada antes da translação sempre produz o mesmo resultado que a translação aplicada antes da escala.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Transformações matriciais em geral não comutam. Escalar em torno da origem antes de transladar pode levar a uma posição diferente de transladar o ponto antes da escala.",
+      "section": "2. Geometria, projeção, recorte e amostragem",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na projeção ortográfica, a escala aparente de um objeto não diminui apenas porque ele está mais distante da câmera.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A projeção ortográfica não inclui a redução de escala com a distância que caracteriza a perspectiva. É por isso que é útil em desenhos técnicos e vistas de interface.",
+      "section": "2. Geometria, projeção, recorte e amostragem",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando um triângulo atravessa um plano de recorte, o pipeline necessariamente descarta o triângulo inteiro, inclusive sua parte que está dentro da região visível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O recorte pode gerar um novo polígono que conserva a porção interna do triângulo. Descartar toda a primitiva perderia geometria que deveria aparecer na imagem.",
+      "section": "2. Geometria, projeção, recorte e amostragem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A divisão perspectiva normaliza coordenadas projetadas usando w, contribuindo para que objetos distantes pareçam menores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Após a projeção, x, y e z são divididos pela coordenada homogênea w. A dependência com a profundidade produz a redução de tamanho aparente característica da perspectiva.",
+      "section": "2. Geometria, projeção, recorte e amostragem",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um objeto com linhas paralelas pode exibir convergência para pontos de fuga sob projeção perspectiva, enquanto a projeção ortográfica preserva o paralelismo na imagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A projeção perspectiva faz raios visuais convergirem no centro de projeção, produzindo pontos de fuga para direções paralelas à imagem. Na ortográfica, as linhas paralelas permanecem paralelas.",
+      "section": "2. Geometria, projeção, recorte e amostragem",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto descreve corretamente o sentido da cadeia de transformações de um objeto até a imagem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Projeção, modelo, visão e depois coordenadas locais do objeto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Visão, textura, iluminação e em seguida coordenadas do mundo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Modelo leva do local ao mundo; visão ao referencial da câmera; projeção ao volume de recorte.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Rasterização leva o mundo à câmera; modelo converte pixels em vértices.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Viewport converte coordenadas locais em coordenadas de câmera antes do modelo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A matriz modelo posiciona o objeto no mundo, a matriz de visão expressa o mundo no referencial da câmera e a projeção define como esse espaço chega ao volume de recorte. Depois ocorre viewport e rasterização.",
+      "section": "2. Geometria, projeção, recorte e amostragem",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma diagonal fina pode parecer serrilhada em uma tela de resolução limitada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O espaço RGB transforma todas as linhas inclinadas em degraus geométricos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A grade discreta representa insuficientemente a cobertura contínua da borda.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O z-buffer arredonda as coordenadas de cor para tons inteiros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O recorte repete os pixels da linha em intervalos regulares de frequência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A matriz de visão troca cada vértice por uma amostra de textura próxima.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma borda contínua não costuma coincidir com as células da grade. Uma amostra binária por pixel aproxima mal a cobertura parcial, gerando degraus; antialiasing estima melhor essa cobertura com amostras ou filtros.",
+      "section": "2. Geometria, projeção, recorte e amostragem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao reduzir uma textura grande para cobrir poucos pixels, qual recurso reduz cintilação e aliasing por minificação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar coordenadas UV e usar somente a posição mundial do fragmento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar uma matriz modelo adicional a cada texel da imagem original.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar mipmaps com versões da textura pré-filtradas em escalas menores.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Substituir a projeção perspectiva por um teste de profundidade ampliado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Repetir o nível de maior resolução para cada pixel da tela.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mipmaps armazenam níveis menores obtidos por filtragem. Selecionar níveis adequados à escala da projeção evita agregar detalhes de alta frequência numa quantidade insuficiente de pixels.",
+      "section": "2. Geometria, projeção, recorte e amostragem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação diferencia corretamente multisampling de supersampling?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Multisampling usa várias posições de cobertura por pixel e pode sombrear o fragmento uma vez.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Multisampling aumenta obrigatoriamente a resolução completa da imagem final.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Supersampling calcula apenas profundidade e nunca combina amostras de cor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Supersampling atua no espectro da textura sem avaliar geometria de tela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os dois nomes designam a interpolação bilinear de texels em mipmaps.",
+          "correct": false
+        }
+      ],
+      "explanation": "Multisampling registra várias amostras de cobertura dentro do pixel, em geral compartilhando o resultado de sombreamento de um fragmento. Supersampling renderiza múltiplas amostras/posições e as reduz, com custo maior de processamento e armazenamento.",
+      "section": "2. Geometria, projeção, recorte e amostragem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No pipeline gráfico, qual papel cabe ao z-buffer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardar a cor linear antes de codificar a imagem para sRGB.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Armazenar coordenadas UV para repetir texturas no fragment shader.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenar normais e interpolá-las para calcular a projeção da câmera.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformar pontos locais diretamente em pontos de fuga.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Resolver a ordem de profundidade comparando amostras concorrentes.",
+          "correct": true
+        }
+      ],
+      "explanation": "O z-buffer guarda profundidade por amostra e permite que a superfície mais próxima prevaleça quando várias primitivas cobrem o mesmo pixel. Não substitui buffers de cor, textura ou normal.",
+      "section": "3. Pipeline gráfico, materiais e síntese de cena",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A rasterização determina quais amostras de tela são cobertas por primitivas projetadas; ela não transforma por si só todo fragmento em pixel final garantidamente visível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Fragmentos gerados podem falhar em teste de profundidade, stencil ou outras operações. Apenas os que sobrevivem e são gravados contribuem ao framebuffer final.",
+      "section": "3. Pipeline gráfico, materiais e síntese de cena",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A textura substitui necessariamente a geometria 3D, pois coordenadas UV determinam a posição dos vértices no espaço da cena.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Coordenadas UV indicam como consultar uma textura associada à superfície. A geometria e suas posições são representadas separadamente; mapas especiais podem afetar aparência ou deslocamento, mas UV não é a posição do vértice no mundo.",
+      "section": "3. Pipeline gráfico, materiais e síntese de cena",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A interpolação bilinear combina amostras de dois níveis de mipmap; a trilinear faz a filtragem espacial apenas em um nível selecionado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Bilinear interpola texels vizinhos no nível selecionado. Trilinear aplica filtragem espacial em níveis próximos e também combina os resultados entre esses níveis.",
+      "section": "3. Pipeline gráfico, materiais e síntese de cena",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma BVH só acelera ray tracing se o algoritmo ainda testar cada primitiva, inclusive quando o raio não cruza o volume delimitador que a contém.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A BVH reduz testes: quando um raio não cruza um volume delimitador, o algoritmo pode descartar o grupo de primitivas abaixo dele sem testar cada geometria individual.",
+      "section": "3. Pipeline gráfico, materiais e síntese de cena",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um modelo Lambertiano ideal prevê que a contribuição difusa diminui quando a luz incide mais obliquamente em relação à normal da superfície.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. No modelo difuso Lambertiano, a resposta é proporcional ao cosseno do ângulo entre normal e direção da luz, com contribuição nula para iluminação pela face oposta.",
+      "section": "3. Pipeline gráfico, materiais e síntese de cena",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "PBR garante uma simulação física exata de toda a luz da cena, independente de amostragem, aproximações e capacidade computacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. PBR utiliza modelos e parâmetros inspirados na física para manter respostas de materiais coerentes, mas renderizadores usam aproximações, amostragem finita e limites de desempenho.",
+      "section": "3. Pipeline gráfico, materiais e síntese de cena",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma cena, qual distinção entre rasterização e ray tracing está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Rasterização projeta primitivas e calcula cobertura; ray tracing calcula interseções de raios.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Rasterização integra densidades em volume; ray tracing desenha apenas linhas 2D.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Rasterização consulta somente texturas; ray tracing consulta apenas o z-buffer.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Rasterização serve a imagens estáticas; ray tracing somente anima objetos articulados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Rasterização percorre raios na cena; ray tracing enumera triângulos em ordem de tela.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na rasterização, primitivas são projetadas para a tela e coberturas de amostras são calculadas. No ray tracing, raios são testados contra a cena para determinar interseções e efeitos de iluminação.",
+      "section": "3. Pipeline gráfico, materiais e síntese de cena",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde ao NeRF original?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma malha rígida com cor fixa por face, interpolada por coordenadas UV.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma rede recebe posição 3D e direção, e prevê densidade e radiância dependente da vista.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um banco de imagens guarda uma textura plana para cada posição de câmera conhecida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um classificador recebe cada pixel renderizado e devolve apenas seu rótulo semântico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma técnica de recorte constrói polígonos a partir de profundidades do z-buffer.",
+          "correct": false
+        }
+      ],
+      "explanation": "O artigo original representa a cena como campo volumétrico contínuo parametrizado por rede. Cada consulta usa localização e direção; os resultados de densidade e cor são integrados ao longo de raios para sintetizar vistas novas.",
+      "section": "3. Pipeline gráfico, materiais e síntese de cena",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual técnica de animação faz vértices de uma malha acompanharem influências de ossos de uma hierarquia articulada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mipmapping, que combina textura com a escala dos ossos da cena.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Recorte homogêneo, que elimina vértices fora de cada articulação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Skinning, que pondera deformações da malha pelas articulações.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ray tracing, que reconstrói a posição dos ossos por interseção de raios.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Filtro mediana, que suaviza quadros-chave retirando poses extremas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Skinning associa vértices a um ou mais ossos e combina as transformações correspondentes. Isso permite deformar uma malha acompanhando um esqueleto animado.",
+      "section": "3. Pipeline gráfico, materiais e síntese de cena",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma superfície definida implicitamente por uma função escalar pode ser extraída como o conjunto de pontos em que a função assume um nível especificado, como zero.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma superfície de nível é formada pelos pontos que satisfazem f(x,y,z)=c. No caso de campo de distância assinado, a superfície costuma ser o nível zero que separa interior e exterior.",
+      "section": "3. Pipeline gráfico, materiais e síntese de cena",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma GPU é útil em gráficos porque executa operações paralelas em grande escala e possui recursos especializados para etapas como texturização e rasterização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. GPUs combinam paralelismo de dados e unidades especializadas para processar muitos vértices, fragmentos e amostras. A CPU continua organizando tarefas e submetendo comandos.",
+      "section": "3. Pipeline gráfico, materiais e síntese de cena",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No NeRF original, a densidade prevista varia com a direção de observação, enquanto a cor depende somente da posição espacial.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O modelo restringe a densidade à posição e permite que a cor RGB dependa da posição e da direção de observação, o que representa efeitos como reflexos especulares.",
+      "section": "3. Pipeline gráfico, materiais e síntese de cena",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A CPU deixa de ter qualquer função em uma aplicação gráfica assim que a GPU está disponível para desenhar a cena.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A CPU normalmente executa lógica da aplicação, organiza recursos, atualiza cena e submete comandos. A GPU processa em paralelo grande parte do trabalho gráfico, mas não substitui integralmente a CPU.",
+      "section": "3. Pipeline gráfico, materiais e síntese de cena",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma aplicação de jogos, culling de objetos fora da visão pode reduzir chamadas e processamento sem alterar a geometria dos objetos visíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Culling evita processar elementos que não podem contribuir para a imagem atual. O conteúdo da geometria visível não precisa mudar; diminui o trabalho de renderização e submissão.",
+      "section": "4. Cor, percepção, jogos e visualização",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "RGB é um modelo subtrativo, pois cada canal representa pigmento que remove luz branca refletida pelo monitor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. RGB é aditivo e descreve combinações de luz vermelha, verde e azul, como em telas. CMYK é o modelo subtrativo associado a tintas e impressão.",
+      "section": "4. Cor, percepção, jogos e visualização",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em composição e iluminação, somar diretamente valores RGB codificados em sRGB não corresponde, em geral, a somar intensidades luminosas lineares.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. sRGB usa curva de transferência não linear. Para operações que modelam energia luminosa, valores devem ser decodificados para espaço linear, processados e então codificados para exibição.",
+      "section": "4. Cor, percepção, jogos e visualização",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma paleta arco-íris com variações irregulares de luminância pode fazer certos valores parecerem limites importantes, mesmo quando os dados variam continuamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Mudanças abruptas de luminância ou matiz podem criar fronteiras perceptivas artificiais. A escolha de escala de cor afeta a leitura e pode sugerir estrutura que não existe nos dados.",
+      "section": "4. Cor, percepção, jogos e visualização",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente modelos de cor comuns em gráficos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RGB combina luz de modo aditivo; CMYK combina tintas de modo subtrativo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "RGB subtrai luz branca; CMYK emite luz por três primárias de tela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RGB codifica somente luminância; CMYK representa direção de observação da câmera.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RGB é linear por definição; CMYK é sempre uma medida fotométrica absoluta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RGB e CMYK são ambos modelos geométricos de projeção de objetos 3D.",
+          "correct": false
+        }
+      ],
+      "explanation": "RGB modela a soma de luzes primárias, característica de telas. CMYK modela a absorção de luz por tintas ciano, magenta, amarelo e preto, portanto é subtrativo.",
+      "section": "4. Cor, percepção, jogos e visualização",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual procedimento é adequado para uma composição de luz destinada à exibição em sRGB?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Compor os valores sRGB diretamente e interpretar a soma como energia física.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Codificar cada textura em CMYK e somar canais como componentes vetoriais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter para intensidades lineares, compor a luz e codificar o resultado para sRGB.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Aplicar uma curva gama antes de cada multiplicação e manter os dados sem conversão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ordenar os canais por matiz e aplicar o z-buffer para recuperar luminância.",
+          "correct": false
+        }
+      ],
+      "explanation": "A curva sRGB é não linear; os cálculos de luz devem ser feitos em intensidades lineares. Ao final, a transferência sRGB pode codificar os valores para exibição e armazenamento compatíveis.",
+      "section": "4. Cor, percepção, jogos e visualização",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para manter uma taxa de quadros estável em jogo, qual combinação reduz trabalho gráfico com decisões coerentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar o z-buffer, aumentar todos os modelos e desenhar objetos ocultos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar culling, níveis de detalhe e ajustar resolução ou efeitos ao orçamento.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar ray tracing em cada amostra sem limite e remover todos os mipmaps.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar chamadas individuais e trocar filtros por texturas de resolução máxima.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter todo objeto em campo implícito e refazer a cena a cada pixel.",
+          "correct": false
+        }
+      ],
+      "explanation": "Culling, LOD e controle de resolução/efeitos permitem reduzir trabalho quando elementos são invisíveis, distantes ou caros. A meta é equilibrar qualidade e orçamento de tempo de quadro.",
+      "section": "4. Cor, percepção, jogos e visualização",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual problema pode produzir z-fighting entre duas superfícies quase coplanares?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O sistema de textura arredonda coordenadas UV para cores do canal verde.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A interpolação trilinear apaga todos os níveis de profundidade do quadro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A mediana troca a ordem dos vértices ao filtrar as normais da superfície.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Precisão limitada do armazenamento de profundidade torna a ordem instável.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A projeção ortográfica transforma superfícies planas em polígonos côncavos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com profundidades quase iguais, a precisão finita do z-buffer pode não distinguir consistentemente qual superfície está à frente, causando alternância ou padrões visíveis. Ajustes na faixa de profundidade e afastamento geométrico ajudam a reduzir o problema.",
+      "section": "4. Cor, percepção, jogos e visualização",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao visualizar uma grandeza ordenada, uma escala com luminância que progride de forma perceptualmente coerente tende a comunicar a ordem melhor que uma paleta com variações abruptas e não monotônicas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Progressão de luminância ajuda o observador a perceber a ordem dos valores. Mudanças irregulares podem introduzir contornos visuais artificiais e dificultar a comparação quantitativa.",
+      "section": "4. Cor, percepção, jogos e visualização",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma paleta de cores é apenas decorativa, pois não pode alterar a interpretação de tendências ou fronteiras em uma visualização de dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O sistema visual interpreta contraste, luminância, matiz e contexto. Uma paleta inadequada pode esconder variações reais ou criar fronteiras aparentes; escolha de codificação visual influencia a leitura dos dados.",
+      "section": "4. Cor, percepção, jogos e visualização",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa girar e depois deslocar um objeto em torno da origem. Qual afirmação ajuda a prever o resultado de compor as matrizes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A ordem deve ser definida, pois multiplicar as matrizes em ordem diferente pode mudar a posição final.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "As matrizes podem ser trocadas sem efeito, desde que usem coordenadas homogêneas para os vértices.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A projeção ortográfica força a translação a ocorrer antes de qualquer rotação ou escala aplicada ao objeto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A rasterização reordena as matrizes para que toda rotação aconteça depois da translação na tela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O z-buffer armazena a ordem das transformações e corrige automaticamente diferenças entre as composições.",
+          "correct": false
+        }
+      ],
+      "explanation": "Transformações matriciais em geral não comutam. Rotacionar em torno da origem e depois deslocar resulta em posição diferente de deslocar antes de girar, salvo casos particulares.",
+      "section": "2. Geometria, projeção, recorte e amostragem",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto descreve melhor a função de uma máscara passa-altas aplicada a uma imagem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remove variações rápidas e mantém apenas grandes áreas uniformes da imagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Estima os valores de pixels ausentes a partir de projeções indiretas de sensores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Calcula cobertura de primitivas em tela e grava a profundidade de cada amostra.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Atenua componentes de variação lenta e realça mudanças espaciais rápidas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Converte intensidades codificadas em sRGB para valores lineares antes da iluminação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma máscara passa-altas favorece frequências espaciais altas e atenua as baixas. Assim, bordas e detalhes abruptos ficam realçados, mas ruído de alta frequência também pode ser enfatizado.",
+      "section": "1. Imagens digitais, filtros e reconstrução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao aplicar um kernel em cada posição de uma imagem, o valor de saída é calculado usando pesos associados a quais dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas ao ponto central, sem considerar qualquer valor de pixel vizinho.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "À posição global da câmera e à distância da superfície na cena 3D.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aos vértices de todos os polígonos que cobrem o viewport inteiro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aos pixels de uma vizinhança local coberta pelo kernel deslocado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Às amostras de cor de cada quadro futuro da sequência temporal completa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na filtragem espacial por kernel, os coeficientes são aplicados a valores de uma vizinhança da posição corrente. A janela desliza pela imagem e produz uma saída por posição, com tratamento de borda definido pela implementação.",
+      "section": "1. Imagens digitais, filtros e reconstrução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que informação é associada a cada saída possível de um fragment shader para que a etapa de exibição possa compor a imagem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente uma lista de triângulos em coordenadas do mundo ainda sem projeção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A descrição completa da hierarquia de ossos e quadros-chave da animação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A sequência de nomes de arquivos dos mipmaps usados pela textura do objeto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A matriz de projeção em formato textual para que o monitor redesenhe os vértices.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dados de saída como cor e, conforme o pipeline, valores destinados aos buffers.",
+          "correct": true
+        }
+      ],
+      "explanation": "O fragment shader calcula atributos de saída, normalmente uma cor (ou múltiplas saídas) que será submetida a testes e operações antes de gravar no framebuffer. Ele não devolve a cena geométrica inteira ao monitor.",
+      "section": "3. Pipeline gráfico, materiais e síntese de cena",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa explica o papel do filtro bilateral ao suavizar uma região com uma borda?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele soma todos os valores da imagem sem distinguir a posição de cada pixel.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele substitui a imagem por sua transformada inversa e elimina o modelo de ruído.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele converte cada intensidade em uma coordenada homogênea de dimensão adicional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele faz uma média entre quadros adjacentes sem estimar deslocamentos do objeto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele combina proximidade espacial com semelhança de intensidade entre amostras.",
+          "correct": true
+        }
+      ],
+      "explanation": "O filtro bilateral pondera tanto distância espacial quanto diferença de intensidade. Pixels próximos, mas em lados diferentes de uma borda, podem receber peso menor entre si, reduzindo a mistura que borraria o contorno.",
+      "section": "1. Imagens digitais, filtros e reconstrução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma superfície metálica com reflexo brilhante, por que um modelo de cor que depende da direção de observação pode ser necessário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque os raios de luz deixam de obedecer às coordenadas homogêneas da câmera.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque mipmaps removem toda variação angular armazenada na geometria do objeto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque o recorte calcula brilho especular pela distância dos vértices ao viewport.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque a refletância especular pode mudar com a direção em que a superfície é vista.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Porque toda superfície metálica apresenta cor difusa igual em qualquer condição de luz.",
+          "correct": false
+        }
+      ],
+      "explanation": "Reflexos especulares variam com as direções da luz, da normal e do observador. Modelos dependentes de vista, como o ramo de cor do NeRF ou funções de reflexão, conseguem representar variação angular que um RGB fixo por ponto não captura.",
+      "section": "3. Pipeline gráfico, materiais e síntese de cena",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um NeRF, qual procedimento transforma previsões em uma cor para um pixel da imagem renderizada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Selecionar a primeira cor prevista e ignorar a densidade dos pontos seguintes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somar densidades como coordenadas UV e amostrar um mipmap de tela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar um limiar binário ao vetor de direção e gravar o resultado como profundidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ordenar os pixels em torno da câmera e interpolar as coordenadas de textura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Acumular contribuições de cor ao longo do raio, ponderadas pela opacidade volumétrica.",
+          "correct": true
+        }
+      ],
+      "explanation": "A renderização volumétrica agrega as cores previstas em amostras ao longo do raio, ponderando cada uma pela transmissão acumulada e pela opacidade local. Assim, densidade determina quanto cada ponto contribui para o pixel.",
+      "section": "3. Pipeline gráfico, materiais e síntese de cena",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na animação por quadros-chave, qual tarefa cabe à interpolação entre poses definidas pelo animador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter cada textura em uma hierarquia de volumes delimitadores para a GPU.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover as posições intermediárias e exibir apenas a primeira pose da sequência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Calcular visibilidade de superfícies pela distância entre raios e triângulos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformar os quadros-chave em coordenadas de cor independentes da geometria.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Estimar poses intermediárias para produzir movimento contínuo entre os quadros definidos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Quadros-chave especificam estados importantes da animação. A interpolação calcula valores intermediários de posição, rotação ou outros parâmetros para produzir uma transição temporal contínua.",
+      "section": "3. Pipeline gráfico, materiais e síntese de cena",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "MIT OpenCourseWare — Computer Graphics: Lecture Notes",
+      "publisher": "Massachusetts Institute of Technology",
+      "reference": "Notas sobre transformações, pipeline e rasterização, ray tracing, cor, animação, sampling e texturas.",
+      "url": "https://ocw.mit.edu/courses/6-837-computer-graphics-fall-2012/resources/lecture-notes/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenGL 4.6 Core Profile Specification",
+      "publisher": "Khronos Group",
+      "reference": "Especificação da API gráfica, processamento de primitivas, texturas, amostragem e shaders.",
+      "url": "https://registry.khronos.org/OpenGL/specs/gl/glspec46.core.pdf",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenCV — Smoothing Images",
+      "publisher": "OpenCV",
+      "reference": "Convolução 2D, filtros passa-baixas e passa-altas, kernels de suavização.",
+      "url": "https://docs.opencv.org/4.x/d4/d13/tutorial_py_filtering.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenCV — Sobel Derivatives",
+      "publisher": "OpenCV",
+      "reference": "Derivadas, gradientes e detecção de variações espaciais em imagens.",
+      "url": "https://docs.opencv.org/4.x/d2/d2c/tutorial_sobel_derivatives.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NeRF: Representing Scenes as Neural Radiance Fields for View Synthesis",
+      "publisher": "arXiv / ECCV 2020",
+      "reference": "Artigo original: representação contínua 5D, densidade, radiância dependente da vista e renderização volumétrica diferenciável.",
+      "url": "https://arxiv.org/abs/2003.08934",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

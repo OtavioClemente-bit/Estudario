@@ -1,0 +1,2151 @@
+{
+  "id": "informatica.sistemas-embarcados-veiculos-terrestres",
+  "subject": "Informática",
+  "title": "Sistemas embarcados em veículos terrestres e barramento CAN",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Sistemas embarcados em veículos terrestres",
+    "Sistemas embarcados automotivos e CAN",
+    "Barramento de comunicação serial CAN",
+    "Controller Area Network em veículos",
+    "Redes de comunicação de veículos terrestres",
+    "Eletrônica embarcada automotiva",
+    "Unidades de controle eletrônico veicular",
+    "ECUs e barramento CAN automotivo",
+    "Comunicação entre módulos de veículos",
+    "CAN clássico e CAN FD em automóveis",
+    "Arquitetura eletrônica de veículos terrestres",
+    "Protocolos CAN em sistemas automotivos"
+  ],
+  "scope": {
+    "covers": "Sistemas embarcados em veículos terrestres: sensores, atuadores, unidades de controle eletrônico (ECUs), requisitos de tempo real, integração e diagnóstico. Barramento serial CAN: topologia e camada física diferencial, mensagens difundidas, identificadores, arbitragem não destrutiva, formatos de quadro, campos, stuffing, CRC, ACK, sinalização e confinamento de erros, estados de nó, terminações, limites práticos de velocidade e comprimento, CAN clássico e CAN FD, usos e limitações em redes veiculares.",
+    "excludes": "Projeto detalhado de circuitos e firmware, pinagens específicas de fabricantes, decodificação de sinais proprietários, protocolos de diagnóstico de aplicação, configuração de redes específicas de modelos de veículos e requisitos legais de homologação."
+  },
+  "theoryTitle": "Computadores distribuídos sobre rodas",
+  "chapters": [
+    {
+      "title": "1. O sistema embarcado dentro do veículo",
+      "markdown": "### O problema que este assunto resolve\n\nUm veículo moderno precisa medir grandezas, decidir o que fazer e acionar componentes em prazos previsíveis. A unidade que controla o motor recebe sinais de rotação e temperatura; a unidade de freios acompanha rodas e pressão; a carroceria comanda travas e iluminação. Em vez de ligar cada sensor a cada atuador por um fio dedicado, módulos especializados trocam informações por redes internas.\n\nUm **sistema embarcado** é um computador integrado a um equipamento maior para cumprir funções determinadas. No veículo, cada **unidade de controle eletrônico (ECU)** combina processador, memória, entradas e saídas, firmware e circuitos de comunicação. O sistema total é distribuído: diversas ECUs cooperam, cada uma com responsabilidade delimitada.\n\n> **Siglas e termos deste capítulo**\n> - **ECU**: unidade eletrônica de controle que lê entradas, executa lógica e comanda saídas.\n> - **Sensor**: converte uma grandeza física, como velocidade da roda, em sinal mensurável.\n> - **Atuador**: executa uma ação física, como abrir uma válvula ou acender uma lâmpada.\n> - **Firmware**: software armazenado no equipamento embarcado.\n> - **Tempo real**: requisito de produzir uma resposta correta dentro de um prazo; rapidez média, sozinha, não basta.\n\n### Do sinal à ação\n\nO ciclo básico é **medir, processar, comunicar e atuar**. Um sensor de roda fornece pulsos; a ECU de freios estima a rotação; ela compara as rodas e pode comandar válvulas hidráulicas. Uma mensagem de velocidade do veículo pode ser útil também ao painel ou ao controle de tração. O dado é publicado na rede, e cada destinatário interessado o recebe e decide se deve utilizá-lo.\n\n| Elemento | Exemplo veicular | Papel no ciclo |\n| --- | --- | --- |\n| Sensor | Sensor de rotação da roda | Fornece observação do veículo |\n| ECU | Módulo de freios | Interpreta entradas e calcula a resposta |\n| Rede | CAN do conjunto de propulsão | Transporta mensagens entre módulos |\n| Atuador | Válvula ou motor elétrico | Produz a ação física comandada |\n\nAs funções variam em criticidade. Uma mensagem atrasada do sistema de propulsão pode afetar dirigibilidade; a atualização de um recurso de conforto pode tolerar atraso maior. Por isso, arquitetura, prioridade, redundância e comportamento em falha são definidos segundo o risco da função. Comunicação por CAN não torna uma função automaticamente segura: o projeto precisa considerar falhas de sensores, módulos, alimentação, fiação e software.\n\n### Por que há redes no veículo\n\nA rede reduz a necessidade de cabos ponto a ponto entre todos os pares de módulos e permite que várias ECUs observem uma mesma mensagem. Isso reduz peso e complexidade de chicote e facilita a integração. Em contrapartida, módulos compartilham um meio: capacidade e tempo de acesso são recursos finitos; uma falha elétrica ou excesso de tráfego pode afetar mais de uma função.\n\nUm veículo costuma ter mais de uma rede ou segmento. Funções com necessidades diferentes podem usar barramentos, velocidades e gateways distintos. O gateway encaminha informações selecionadas entre redes; não é o próprio barramento nem substitui a decisão funcional das ECUs. A separação ajuda a organizar tráfego e domínios, mas mensagens atravessando o gateway ainda precisam de regras de filtragem e prioridade.\n\n### Como cai na prova\n\n- Sensor mede; ECU processa; atuador executa. A rede transporta dados entre módulos, mas não é sensor nem unidade de decisão.\n- A vantagem do compartilhamento de mensagens vem com disputa pelo meio, limites de capacidade e necessidade de tratar erros.\n- Tempo real significa respeitar prazo previsível, não simplesmente ter alta taxa média de processamento.\n- Um gateway conecta segmentos e filtra ou encaminha tráfego; não converte automaticamente qualquer mensagem em ordem segura para um atuador."
+    },
+    {
+      "title": "2. Como funciona a rede serial CAN",
+      "markdown": "### O problema que este assunto resolve\n\nA Controller Area Network (CAN) foi concebida para permitir que controladores troquem mensagens de forma robusta sem exigir uma linha exclusiva entre cada par de módulos. É uma comunicação serial: os bits de uma mensagem são transmitidos sequencialmente. No CAN clássico, as unidades conectadas compartilham o barramento e observam os quadros transmitidos. A mensagem é difundida; o identificador descreve o conteúdo e sua prioridade, e não um endereço de destino individual.\n\n> **Siglas e termos deste capítulo**\n> - **CAN**: Controller Area Network, rede serial de controladores.\n> - **CAN CC**: CAN clássico, também chamado Classical CAN.\n> - **CAN FD**: CAN Flexible Data-Rate, formato que amplia a carga útil e permite fase de dados mais rápida.\n> - **Transceptor**: circuito que adapta sinais lógicos do controlador aos níveis elétricos do barramento e vice-versa.\n> - **Dominante/recessivo**: estados lógicos do CAN; dominante prevalece eletricamente sobre recessivo.\n\n### Barramento e sinal diferencial\n\nEm uma implementação de alta velocidade comum, os módulos se ligam a um par trançado, CAN_H e CAN_L. O transceptor codifica os estados como diferença de tensão entre os fios, o que ajuda a rejeitar ruído que se acopla de modo parecido aos dois condutores. O controlador CAN trata os quadros; o transceptor cuida da interface elétrica. Não se deve confundir o par físico com duas linhas independentes de transmissão de dados.\n\nA topologia usual é um tronco linear compartilhado com derivações curtas. As duas extremidades do tronco recebem terminações compatíveis com a impedância característica do cabo, normalmente resistores de 120 ohms em uma rede HS-CAN. Terminar cada derivação longa ou omitir as terminações provoca reflexões e degrada as formas de onda. O valor e a instalação devem corresponder ao segmento e à especificação adotada.\n\nA velocidade possível depende do comprimento do segmento, do cabo, das derivações, dos transceptores e da temporização. Em CAN clássico de alta velocidade são comuns taxas até 1 Mbit/s em segmentos curtos; não é uma garantia de que qualquer chicote veicular possa operar nessa taxa. Em geral, quanto maior o comprimento elétrico, menor a taxa que pode ser sustentada com margens de temporização adequadas.\n\n### Quadros e identificadores\n\nNo CAN clássico, o formato base usa identificador de 11 bits e o estendido usa identificador de 29 bits. O identificador funciona como rótulo semântico e prioridade de acesso. Todos os nós observam a transmissão; filtros locais fazem com que um controlador aceite para processamento os identificadores relevantes. A difusão da camada de enlace não impede que camadas superiores implementem conversas ponto a ponto, produtor-consumidor ou cliente-servidor.\n\nO quadro de dados clássico tem início, campo de arbitragem, controle, dados, CRC, ACK e fim. O campo de dados leva de zero a oito bytes. O quadro remoto clássico solicita dados sem transportar carga útil, mas não é usado pelo CAN FD. O CAN FD mantém a arbitragem compatível em conceito, mas pode transportar até 64 bytes por quadro e usar taxa maior na fase de dados quando os nós e a rede oferecem suporte. Um nó CAN clássico legado não interpreta com segurança um quadro FD e pode sinalizar erro; portanto, coexistência requer projeto compatível.\n\n### Como cai na prova\n\n- CAN difunde quadros; o identificador informa tipo/prioridade, e filtros de recepção selecionam o que cada ECU entrega ao software.\n- A taxa de 1 Mbit/s é associada a segmentos curtos de CAN clássico, não a qualquer comprimento de cabo.\n- CAN FD amplia carga útil e pode acelerar a fase de dados; a compatibilidade de uma rede mista não deve ser presumida.\n- O controlador forma e interpreta quadros; o transceptor converte os estados lógicos para o meio elétrico."
+    },
+    {
+      "title": "3. Arbitragem, sincronização e integridade",
+      "markdown": "### O problema que este assunto resolve\n\nVárias ECUs podem ter mensagens prontas ao mesmo tempo. O barramento precisa escolher quem transmite sem corromper a mensagem vencedora. CAN faz arbitragem bit a bit: cada nó que começa a transmitir também observa o barramento. Como o bit dominante prevalece sobre o recessivo, os nós com bit recessivo que observam dominante percebem que perderam e param de disputar. O quadro de maior prioridade segue sem ser destruído por colisão.\n\n> **Siglas e termos deste capítulo**\n> - **SOF**: Start of Frame, início do quadro.\n> - **CRC**: Cyclic Redundancy Check, verificação calculada sobre bits do quadro.\n> - **ACK**: acknowledgment, reconhecimento de recepção.\n> - **Stuff bit**: bit complementar inserido para criar transições e auxiliar sincronização.\n> - **NRZ**: codificação Non-Return-to-Zero, em que cada bit mantém seu nível durante o tempo de bit.\n\n### Arbitragem não destrutiva\n\nQuando dois nós iniciam simultaneamente, comparam seus bits de arbitragem. O identificador numericamente menor costuma ter maior prioridade porque seu padrão apresenta dominante antes do identificador concorrente. O nó que perde a arbitragem não gera erro: ele interrompe a transmissão e passa a receber o quadro vencedor; tenta novamente quando o barramento ficar livre. Assim, não há destruição da mensagem vencedora. Um identificador de alta prioridade pode reduzir latência, mas tráfego prioritário contínuo pode atrasar mensagens menos prioritárias; o projeto de carga e prioridades continua necessário.\n\n### Campos que ajudam a verificar a mensagem\n\nO CRC permite ao receptor recalcular a sequência de verificação e compará-la com a recebida. A verificação de formato confere bits que devem ocupar posições fixas. No slot de ACK, receptores que receberam corretamente sinalizam reconhecimento com um dominante; o transmissor detecta erro de ACK se não observar esse nível. ACK confirma recepção correta por pelo menos um nó, não prova que a aplicação destinatária processou ou aceitou semanticamente o conteúdo.\n\nNos segmentos sujeitos a stuffing, após cinco bits consecutivos iguais o transmissor insere um bit complementar. O receptor remove o bit inserido. As transições ajudam a sincronização dos controladores e a violação da regra pode ser detectada como erro de stuffing. O stuffing não é aplicado indistintamente a cada campo do quadro: campos de formato fixo, como ACK e fim, seguem regras próprias.\n\n### Detecção, sinalização e confinamento de erros\n\nEntre as verificações estão CRC, formato, ACK, monitoramento do bit transmitido e regra de stuffing. Ao detectar erro, um nó sinaliza a condição com um quadro de erro; a transmissão em curso é abortada e o quadro pode ser retransmitido automaticamente. Isso melhora a consistência, mas repetição de erros consome largura de banda e pode indicar problema físico, de temporização ou de nó.\n\nControladores acompanham contadores de erros de transmissão e recepção e mudam de estado para limitar o impacto de participantes defeituosos. Um nó **error-active** participa normalmente e pode sinalizar erro ativo; um **error-passive** continua participando, mas sinaliza erro passivo e observa restrições adicionais; um nó **bus-off** deixa de influenciar o barramento. Esses mecanismos não identificam, por si, a causa raiz nem garantem que os dados da aplicação sejam plausíveis.\n\n### Como cai na prova\n\n- Na arbitragem, dominante vence recessivo; perder o acesso é comportamento esperado, não erro de bit.\n- CRC verifica integridade de bits; ACK indica reconhecimento no nível do enlace, não confirmação da ação final.\n- Stuffing insere um bit complementar após cinco bits consecutivos iguais nas regiões aplicáveis.\n- Error-active, error-passive e bus-off são estados de confinamento de falha, não níveis de prioridade."
+    },
+    {
+      "title": "4. Projeto e uso de CAN em veículos",
+      "markdown": "### O problema que este assunto resolve\n\nConhecer o protocolo não basta para projetar uma rede embarcada confiável. É preciso planejar quais mensagens existem, com que frequência, qual atraso máximo toleram, quem as consome e o que ocorre se deixarem de chegar. Também se consideram compatibilidade dos controladores, distribuição física, interferência eletromagnética, alimentação, diagnóstico e consequências de falha.\n\n> **Siglas e termos deste capítulo**\n> - **HS-CAN**: CAN de alta velocidade em camada física diferencial.\n> - **Gateway**: módulo que liga segmentos e encaminha mensagens selecionadas.\n> - **Carga do barramento**: fração do tempo de transmissão ocupada por quadros e intervalos associados.\n> - **Timeout**: limite de espera após o qual a ausência de uma mensagem é tratada como falha.\n> - **CANopen**: protocolo de aplicação construído sobre CAN, distinto do protocolo básico de enlace CAN.\n\n### Planejamento de mensagens e tráfego\n\nCada mensagem deve ter identificador definido no projeto, significado conhecido, periodicidade ou condição de disparo, tamanho e consumidores. Mensagens de controle com prazo curto recebem prioridade compatível; telemetria menos urgente não deve ocupar o canal de forma que prejudique o controle. A análise considera quadros periódicos e eventos que podem ocorrer juntos, além do custo de arbitragem, campos de controle, stuffing e intervalos. Taxa nominal não equivale à capacidade integral para dados da aplicação.\n\nFiltros de aceitação reduzem o trabalho de software ao ignorar identificadores não pertinentes, mas não criam sigilo: quadros CAN são difundidos e podem ser observados por nós conectados ao segmento. Tampouco os mecanismos de CRC e ACK autenticam o emissor, autorizam comandos ou cifram o conteúdo. Segurança de acesso exige controles de arquitetura e camadas apropriadas.\n\n### Falhas, diagnóstico e manutenção\n\nAusência de uma mensagem esperada pode indicar módulo desligado, fio rompido, congestionamento, falha de gateway ou temporização incompatível. A ECU consumidora deve detectar timeout e escolher uma resposta segura definida para a função, em vez de assumir que o valor anterior continua válido indefinidamente. Um quadro eletricamente válido ainda pode carregar informação desatualizada ou incoerente; contadores, sequências, plausibilidade e diagnósticos de aplicação são recursos complementares.\n\nPara investigar uma rede, técnicos verificam alimentação e aterramento dos módulos, continuidade e curto entre condutores, terminações, forma de onda, taxa, erros registrados e tráfego esperado. Duas terminações de 120 ohms em paralelo podem ser medidas como aproximadamente 60 ohms no barramento desenergizado, desde que a topologia e o acesso aos dois terminadores permitam essa medida. Não se deve adicionar terminador em cada ECU.\n\nCAN é uma tecnologia de enlace e acesso ao meio; perfis como CANopen acrescentam convenções de aplicação, objetos e serviços. Em veículos, muitas mensagens usam definições específicas do fabricante. Conhecer CAN básico não revela automaticamente o significado de cada identificador ou byte.\n\n### Como cai na prova\n\n- O identificador participa da arbitragem e da seleção de mensagens, mas não é autenticação nem endereço exclusivo do destinatário.\n- Integridade do quadro não prova validade semântica, atualidade ou autorização do dado.\n- Timeout e estratégia de falha devem ser tratados pela aplicação conforme a função controlada.\n- A camada física, o enlace CAN e um protocolo de aplicação são níveis distintos; CANopen é uma camada superior construída sobre CAN."
+    }
+  ],
+  "summary": "Em veículos terrestres, ECUs embarcadas leem sensores, processam dados e comandam atuadores, cooperando por redes internas. CAN é um barramento serial difundido e prioritário: identificadores organizam conteúdo e arbitragem; o dominante vence o recessivo sem destruir o quadro vencedor. O CAN clássico admite identificadores base de 11 bits ou estendidos de 29 bits e até oito bytes de dados. O CAN FD amplia a carga útil e pode acelerar a fase de dados, exigindo compatibilidade apropriada. CRC, formato, ACK, monitoramento e stuffing detectam erros; contadores confinam nós defeituosos. Projeto também requer topologia e terminações corretas, controle de tráfego, tratamento de timeout e mecanismos de segurança e plausibilidade acima do enlace.",
+  "flashcards": [
+    {
+      "front": "O que caracteriza um sistema embarcado veicular?",
+      "back": "Computador integrado ao veículo para uma função determinada, com hardware e firmware ligados a entradas, saídas e comunicação."
+    },
+    {
+      "front": "Qual é o papel de uma ECU?",
+      "back": "Ler entradas, executar lógica de controle, comunicar-se com outros módulos e comandar saídas."
+    },
+    {
+      "front": "Sensor, ECU e atuador fazem o quê?",
+      "back": "Sensor mede; ECU interpreta e decide; atuador produz a ação física."
+    },
+    {
+      "front": "O que quer dizer requisito de tempo real?",
+      "back": "A resposta precisa ser produzida dentro de um prazo definido, com previsibilidade."
+    },
+    {
+      "front": "O que significa CAN?",
+      "back": "Controller Area Network, rede serial de controladores."
+    },
+    {
+      "front": "O CAN básico envia mensagens para um único destinatário?",
+      "back": "Não. O quadro é difundido; cada nó pode filtrar identificadores relevantes."
+    },
+    {
+      "front": "O que representa o identificador CAN?",
+      "back": "Identifica o conteúdo/mensagem e participa da prioridade de arbitragem, não é autenticação."
+    },
+    {
+      "front": "Qual estado lógico prevalece no barramento CAN?",
+      "back": "Dominante prevalece sobre recessivo."
+    },
+    {
+      "front": "Por que a arbitragem CAN é não destrutiva?",
+      "back": "Nós que perdem interrompem a disputa e o quadro vencedor continua sem colisão destrutiva."
+    },
+    {
+      "front": "Quantos bits tem o identificador base do CAN clássico?",
+      "back": "11 bits."
+    },
+    {
+      "front": "Quantos bits tem o identificador estendido do CAN clássico?",
+      "back": "29 bits."
+    },
+    {
+      "front": "Qual é a carga útil máxima de um quadro de dados CAN clássico?",
+      "back": "Oito bytes."
+    },
+    {
+      "front": "O que amplia o CAN FD?",
+      "back": "A carga útil pode chegar a 64 bytes e a fase de dados pode usar taxa maior, conforme a rede."
+    },
+    {
+      "front": "O que faz o transceptor CAN?",
+      "back": "Converte níveis lógicos do controlador em sinais elétricos do barramento e vice-versa."
+    },
+    {
+      "front": "Como HS-CAN resiste melhor a ruído comum aos dois fios?",
+      "back": "Usa sinalização diferencial no par CAN_H/CAN_L."
+    },
+    {
+      "front": "Para que servem terminações nas extremidades do tronco?",
+      "back": "Reduzem reflexões e preservam a integridade do sinal."
+    },
+    {
+      "front": "Em que taxa e comprimento se associa o limite usual do CAN clássico HS?",
+      "back": "Até cerca de 1 Mbit/s em segmentos curtos, da ordem de 25 m; o limite depende da rede."
+    },
+    {
+      "front": "O que a arbitragem prioriza?",
+      "back": "O quadro cujo identificador ganha a comparação bit a bit, em geral o numericamente menor."
+    },
+    {
+      "front": "O que um nó que perde arbitragem faz?",
+      "back": "Para de transmitir, recebe o quadro vencedor e tenta novamente quando o meio estiver livre."
+    },
+    {
+      "front": "Qual é a função do CRC?",
+      "back": "Permitir detectar discrepância entre a verificação calculada e a recebida."
+    },
+    {
+      "front": "O que sinaliza o ACK?",
+      "back": "Que ao menos um receptor reconheceu corretamente o quadro no nível de enlace."
+    },
+    {
+      "front": "ACK comprova que a aplicação executou a ordem?",
+      "back": "Não; indica reconhecimento do quadro, não processamento semântico ou atuação."
+    },
+    {
+      "front": "Como funciona o bit stuffing no CAN clássico?",
+      "back": "Após cinco bits iguais consecutivos em campos aplicáveis, insere-se um bit complementar."
+    },
+    {
+      "front": "Quais são as três condições de confinamento de erro do nó?",
+      "back": "Error-active, error-passive e bus-off."
+    },
+    {
+      "front": "O que ocorre com nó bus-off?",
+      "back": "Ele deixa de influenciar o barramento."
+    },
+    {
+      "front": "O que é gateway automotivo?",
+      "back": "Módulo que conecta segmentos e encaminha mensagens selecionadas entre eles."
+    },
+    {
+      "front": "O que um timeout de mensagem indica?",
+      "back": "Que uma mensagem esperada não chegou dentro do limite definido; a aplicação deve tratar a falha."
+    },
+    {
+      "front": "CAN fornece criptografia ou autenticação por padrão?",
+      "back": "Não; CRC e ACK não autenticam nem cifram mensagens."
+    },
+    {
+      "front": "CANopen é o mesmo que a camada de enlace CAN?",
+      "back": "Não. CANopen acrescenta serviços e convenções de aplicação sobre CAN."
+    },
+    {
+      "front": "O que significa difusão na rede CAN?",
+      "back": "Os nós no segmento observam a transmissão, embora filtros locais decidam quais quadros aceitar."
+    }
+  ],
+  "tips": [
+    "Separe as funções: sensor mede, ECU decide, transceptor adapta eletricamente e barramento transporta bits.",
+    "Na arbitragem, pense em dominante vencendo recessivo; identificador numérico menor costuma ter prioridade maior.",
+    "Lembre os limites do CAN clássico: 11 ou 29 bits de identificador e até oito bytes de dados.",
+    "CAN FD amplia a carga útil até 64 bytes; não presuma que todo controlador clássico aceite seus quadros.",
+    "ACK, CRC e stuffing são mecanismos de enlace; nenhum deles autentica o emissor ou prova significado correto.",
+    "Em topologia HS-CAN, pense em tronco com terminações nas duas pontas e derivações curtas."
+  ],
+  "traps": [
+    "Tratar o identificador como endereço de destino: em CAN ele identifica mensagem e participa da prioridade.",
+    "Afirmar que o nó que perde arbitragem provoca colisão ou quadro de erro: a arbitragem é não destrutiva.",
+    "Confundir ACK com confirmação de que a ECU destinatária executou uma ação.",
+    "Atribuir oito bytes ao CAN FD ou 64 bytes ao CAN clássico.",
+    "Supor que CRC impeça adulteração intencional, autentique o emissor ou cifre dados.",
+    "Instalar terminadores em cada módulo ou presumir que a taxa máxima independe do comprimento do segmento."
+  ],
+  "activeRecall": [
+    "Descreva o caminho desde a grandeza física medida até a ação executada por um atuador.",
+    "Explique por que a arquitetura de ECUs é distribuída e quais custos de comunicação ela introduz.",
+    "Compare identificadores base e estendidos do CAN clássico e relacione-os à arbitragem.",
+    "Narre o que acontece quando duas ECUs tentam iniciar quadros simultaneamente.",
+    "Diferencie função de controlador CAN e transceptor CAN.",
+    "Explique a finalidade das terminações e como o comprimento do segmento afeta a taxa possível.",
+    "Compare CAN clássico e CAN FD quanto a dados por quadro e compatibilidade.",
+    "Liste os mecanismos de detecção de erro e diga o que o ACK não garante."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Identificador como destino",
+      "summary": "O identificador não endereça exclusivamente um módulo: descreve a mensagem e participa de sua prioridade.",
+      "description": "O identificador CAN define conteúdo e prioridade de acesso; os quadros são difundidos e filtros locais selecionam o que cada módulo processa."
+    },
+    {
+      "key": "e2",
+      "title": "Arbitragem destrutiva",
+      "summary": "Perder a arbitragem é normal: o quadro de maior prioridade prossegue sem corrupção.",
+      "description": "O nó que perde ao transmitir recessivo e observar dominante interrompe a disputa; a mensagem vencedora segue intacta."
+    },
+    {
+      "key": "e3",
+      "title": "ACK como confirmação de aplicação",
+      "summary": "O reconhecimento no enlace não confirma a interpretação nem a execução da mensagem.",
+      "description": "O ACK reconhece a recepção no enlace por algum nó, sem demonstrar que o consumidor interpretou ou executou a mensagem."
+    },
+    {
+      "key": "e4",
+      "title": "Mistura de CAN clássico e FD",
+      "summary": "CAN FD transporta mais dados e demanda compatibilidade que controladores clássicos antigos não oferecem.",
+      "description": "CAN clássico leva até oito bytes; CAN FD aumenta a carga útil e pode usar fase de dados rápida, exigindo controladores compatíveis."
+    },
+    {
+      "key": "e5",
+      "title": "Integridade confundida com segurança",
+      "summary": "CRC detecta erros acidentais, mas não atesta identidade, autorização ou sigilo do emissor.",
+      "description": "CRC detecta corrupção acidental, mas CAN básico não autentica remetentes, não autoriza comandos e não cifra o conteúdo."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Num veículo, um sensor de rotação fornece pulsos à ECU de freios, que calcula a resposta e comanda uma válvula. Qual descrição separa corretamente esses papéis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O sensor mede, a ECU processa e o atuador executa a ação física.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O sensor decide a pressão, a ECU só retransmite dados e a válvula calcula a rotação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A ECU mede a roda sem entrada, o sensor aciona a válvula e o atuador registra o quadro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A válvula funciona como sensor, o barramento decide a frenagem e a ECU fornece energia mecânica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sensor e o atuador são nomes para o mesmo componente; a ECU apenas armazena a medição.",
+          "correct": false
+        }
+      ],
+      "explanation": "O sensor converte uma grandeza física em sinal; a ECU interpreta entradas e calcula o comando; o atuador transforma o comando em ação física. O barramento pode transportar informações, mas não assume a decisão de controle.",
+      "section": "1. O sistema embarcado dentro do veículo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem periódica de velocidade deve chegar antes do prazo para apoiar uma função de controle. O que torna esse requisito um requisito de tempo real?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A mensagem precisa sempre ocupar toda a capacidade do canal disponível.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A resposta correta precisa ser produzida dentro de um prazo previsível.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A ECU deve concluir a tarefa com a maior velocidade média possível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A função deve ser executada por hardware sem qualquer firmware embarcado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O quadro deve receber confirmação de todos os módulos existentes no veículo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tempo real associa correção ao cumprimento de um prazo. Uma média de processamento alta não basta se atrasos imprevisíveis fizerem uma resposta chegar depois do momento em que ainda é útil.",
+      "section": "1. O sistema embarcado dentro do veículo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual benefício decorre de várias ECUs poderem observar uma mesma mensagem CAN, em vez de manter linhas dedicadas entre cada par de módulos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada ECU passa a ter uma conexão privada e imune a falhas dos demais módulos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A rede passa a executar diretamente todas as decisões dos módulos conectados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A arquitetura reduz cabos ponto a ponto e permite compartilhar informações.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A comunicação dispensa planejamento de tráfego e de prioridade entre mensagens.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os atuadores conseguem operar sem sensores ou lógica de controle associada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O compartilhamento reduz a quantidade de ligações dedicadas e permite que diferentes consumidores observem dados publicados. Ainda há meio compartilhado, capacidade limitada e necessidade de lógica nas ECUs.",
+      "section": "1. O sistema embarcado dentro do veículo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas redes veiculares usam requisitos distintos e são conectadas por um módulo que encaminha apenas parte das mensagens. Qual é a função desse módulo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter qualquer quadro recebido em comando diretamente aplicado aos atuadores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir o controlador de cada ECU e tomar as decisões funcionais do veículo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Terminador elétrico que deve ser instalado em todas as derivações da rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gateway que conecta segmentos e encaminha tráfego selecionado entre eles.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Sensor físico que mede a taxa do barramento e altera a prioridade dos quadros.",
+          "correct": false
+        }
+      ],
+      "explanation": "O gateway interliga segmentos e pode filtrar ou encaminhar mensagens escolhidas. A ECU destinatária continua responsável pela interpretação e pela decisão funcional; o gateway não é apenas um terminador ou sensor.",
+      "section": "1. O sistema embarcado dentro do veículo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A rede CAN de um automóvel transmite um quadro sobre velocidade. Como os demais módulos conectados recebem essa transmissão no nível básico do CAN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O quadro é enviado em difusão, e filtros locais selecionam os identificadores relevantes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O identificador contém sempre o endereço exclusivo de uma ECU destinatária.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O transmissor cria uma conexão física separada para cada módulo consumidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O gateway precisa duplicar o quadro antes que qualquer outro nó o enxergue.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somente o módulo que possui a menor prioridade pode escutar a transmissão.",
+          "correct": false
+        }
+      ],
+      "explanation": "O meio é compartilhado e os quadros são difundidos no segmento. Controladores podem aplicar filtros de aceitação para entregar ao software os identificadores pertinentes; o identificador não funciona como endereço exclusivo de destino.",
+      "section": "2. Como funciona a rede serial CAN",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que expressa o identificador de uma mensagem CAN no uso básico do barramento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O endereço de rede do transceptor que deve retirar o quadro do barramento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A senha compartilhada que autoriza a ECU emissora a comandar freios.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A posição do terminador que define a taxa de transmissão do segmento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número de série físico do módulo que publicou os dados da mensagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O tipo de mensagem e sua prioridade de acesso ao meio compartilhado.",
+          "correct": true
+        }
+      ],
+      "explanation": "O identificador informa o significado convencionado para o quadro e participa da prioridade de arbitragem. Ele não autentica o emissor nem indica necessariamente um destinatário exclusivo.",
+      "section": "2. Como funciona a rede serial CAN",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação de sinais descreve uma camada física comum de CAN de alta velocidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um fio dedicado por emissor, com transmissão óptica e endereçamento em estrela.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Par CAN_H/CAN_L com sinalização diferencial realizada pelo transceptor.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Dois fios unidirecionais independentes, um para cada direção de comunicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um cabo coaxial por ECU, ligado a um comutador central que arbitra quadros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um único condutor de dados cuja tensão representa somente valores analógicos contínuos.",
+          "correct": false
+        }
+      ],
+      "explanation": "HS-CAN comumente usa um par diferencial, CAN_H e CAN_L. O transceptor converte os estados lógicos do controlador em sinais elétricos e ajuda a rejeitar ruído comum aos condutores.",
+      "section": "2. Como funciona a rede serial CAN",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual topologia e terminação correspondem a uma rede HS-CAN convencional bem instalada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Estrela longa com um resistor de terminação em cada ECU ligada ao centro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Anel fechado em que todos os módulos inserem resistores em série no percurso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tronco compartilhado, derivações curtas e terminações nas duas extremidades.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Duas linhas abertas sem resistência, para refletir o sinal de volta ao controlador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Barramento com derivação mais longa no centro e terminador em cada ponta dessa derivação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A prática comum usa tronco linear, derivações curtas e terminação adequada nas duas extremidades. Derivações longas ou ausência e excesso de terminações podem criar reflexões e degradar a comunicação.",
+      "section": "2. Como funciona a rede serial CAN",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto especifica CAN clássico de alta velocidade a 1 Mbit/s em um chicote muito mais longo que um segmento curto típico. Qual avaliação é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A taxa é garantida porque CAN mantém a mesma temporização para qualquer comprimento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O comprimento só afeta o ACK, sem alterar a possibilidade de sincronização dos nós.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A taxa máxima aumenta com o comprimento porque o sinal diferencial cancela todo atraso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A viabilidade deve ser reavaliada, pois taxa possível depende do comprimento e da rede física.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Basta instalar mais terminadores, já que cada resistor compensa o atraso de propagação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A taxa possível depende do comprimento, cabo, derivações, transceptores e temporização. Valores próximos de 1 Mbit/s são associados a segmentos curtos; a especificação não garante essa taxa para qualquer chicote.",
+      "section": "2. Como funciona a rede serial CAN",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente o campo de dados do CAN clássico e a ampliação introduzida pelo CAN FD?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CAN clássico leva até oito bytes por quadro, enquanto CAN FD pode levar até 64.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "CAN clássico leva até 64 bytes, enquanto CAN FD foi limitado a oito para manter o enlace.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ambos transportam sempre oito bytes e diferem somente no par elétrico utilizado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CAN FD remove a arbitragem e passa a usar uma linha dedicada por quadro transmitido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CAN FD muda o identificador para endereço de destinatário e elimina o campo de CRC.",
+          "correct": false
+        }
+      ],
+      "explanation": "O quadro de dados do CAN clássico transporta de zero a oito bytes. CAN FD amplia a carga útil até 64 bytes e pode usar uma taxa maior durante a fase de dados, mantida a arbitragem compartilhada.",
+      "section": "2. Como funciona a rede serial CAN",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como se distinguem os formatos base e estendido do identificador CAN clássico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O formato base usa 29 bits e o estendido usa 11 bits de identificador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O formato base usa 11 bits e o estendido usa 29 bits de identificador.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ambos usam 11 bits, mas o estendido adiciona 18 bytes à carga de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O formato base não tem identificador e o estendido usa um endereço de 64 bits.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O formato base identifica o emissor e o estendido identifica apenas a velocidade do nó.",
+          "correct": false
+        }
+      ],
+      "explanation": "CAN clássico oferece identificador base de 11 bits e identificador estendido de 29 bits. A extensão aumenta o espaço de identificadores, não o campo de dados em bytes.",
+      "section": "2. Como funciona a rede serial CAN",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ECU equipada apenas com controlador CAN clássico recebe um quadro CAN FD. Qual cuidado de compatibilidade deve orientar o projeto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela interpreta automaticamente a carga ampliada e reduz a mensagem ao campo clássico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela ignora o quadro FD sem efeito, pois todos os formatos compartilham sinalização idêntica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O quadro exige compatibilidade de nós; controlador clássico legado pode sinalizar erro ao recebê-lo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O transmissor FD altera o identificador para endereço do controlador legado antes do envio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ECU clássica reconhece FD somente se o gateway duplicar os resistores de terminação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um nó FD reconhece quadros clássicos, mas um controlador clássico legado não interpreta CAN FD e pode acusar erro. Redes mistas precisam de compatibilidade e segmentação planejadas, não de presumir que o nó antigo descarte silenciosamente o quadro.",
+      "section": "2. Como funciona a rede serial CAN",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao transmitir bits de arbitragem, uma ECU envia recessivo e observa dominante no barramento. O que ocorre normalmente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela perde a arbitragem, interrompe o envio e recebe o quadro que venceu.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ela força o quadro dominante a ser retransmitido com um novo identificador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela interpreta a diferença como falha física e passa imediatamente a bus-off.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela mantém a transmissão e soma seu bit ao dominante para preservar os dois quadros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela envia um quadro de erro porque qualquer diferença entre bit enviado e lido é inválida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Durante a arbitragem, observar dominante ao enviar recessivo significa perder a disputa, não detectar um erro de bit. O nó para de transmitir e torna-se receptor do quadro vencedor.",
+      "section": "3. Arbitragem, sincronização e integridade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois quadros CAN base começam juntos. Os identificadores são 0x120 e 0x180, sem diferenças anteriores nos bits de arbitragem. Qual tendência ocorre?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O identificador 0x180 vence por ter maior valor e reservar mais capacidade ao transmissor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os dois quadros são somados no barramento e cada nó recupera sua própria sequência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O quadro de 0x120 vence, e o transmissor de 0x180 aguarda o meio ficar livre.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ambos são abortados porque o CAN exige que somente um nó tente transmitir por ciclo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O quadro de 0x180 vence por ter menos bits dominantes em sua representação binária.",
+          "correct": false
+        }
+      ],
+      "explanation": "O identificador numericamente menor costuma obter prioridade, pois seu bit dominante prevalece na primeira posição em que os padrões divergem. A arbitragem é bit a bit e o perdedor aguarda para tentar novamente.",
+      "section": "3. Arbitragem, sincronização e integridade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que efeito tem a arbitragem CAN sobre uma mensagem de prioridade menor que perde acesso ao meio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O quadro menor é removido da fila do controlador e precisa ser montado novamente pelo software.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O transmissor perdedor abandona permanentemente a rede após a primeira disputa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O quadro vencedor recebe bits de carga do quadro que cedeu a transmissão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A mensagem de menor prioridade aguarda o fim da transmissão e pode disputar de novo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O receptor descarta os dados de ambos porque o início simultâneo invalida o barramento.",
+          "correct": false
+        }
+      ],
+      "explanation": "O nó que perde a arbitragem cessa a transmissão sem destruir o quadro vencedor. Sua solicitação permanece para nova tentativa quando o quadro atual terminar e o barramento estiver disponível.",
+      "section": "3. Arbitragem, sincronização e integridade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para que serve a inserção de um bit complementar após uma sequência de bits iguais em campos aplicáveis do quadro CAN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Indicar um endereço adicional de destino sem alterar o identificador da mensagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar transições que auxiliam sincronização e permitir detectar violação da regra.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Repetir a carga de dados para que o receptor compare duas cópias do conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reservar um intervalo de silêncio para o início da próxima arbitragem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Confirmar que todos os nós presentes no segmento aceitaram a mensagem recebida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Após cinco bits consecutivos iguais, um bit complementar é inserido nos campos sujeitos a stuffing. As transições apoiam a sincronização dos nós; o receptor remove os bits inseridos e detecta uma sequência inválida.",
+      "section": "3. Arbitragem, sincronização e integridade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante a recepção, o controlador recalcula uma sequência de verificação e encontra resultado diferente do campo recebido. Qual mecanismo detectou a inconsistência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A arbitragem por identificador, que compara destinatários antes do quadro de dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O reconhecimento ACK, que mede se a aplicação atualizou o valor interno.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O filtro de aceitação, que verifica se a ECU transmissora é autorizada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O bit stuffing, que compara o número de bytes com a taxa do transceptor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O CRC, que compara a verificação calculada com a sequência recebida.",
+          "correct": true
+        }
+      ],
+      "explanation": "O CRC é recalculado pelo receptor sobre os bits protegidos e comparado com a sequência recebida. Uma discrepância é detectada como erro de CRC, sem identificar necessariamente sua causa física.",
+      "section": "3. Arbitragem, sincronização e integridade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um transmissor termina de enviar o quadro, mas não observa nível dominante no slot de ACK. Qual interpretação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O transmissor conclui que todos os destinatários rejeitaram semanticamente a mensagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O transmissor detecta erro de ACK, pois faltou o reconhecimento de algum receptor.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O quadro passa automaticamente a ser remoto e solicita seus próprios dados novamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O identificador é removido da tabela de arbitragem para que os outros módulos o ignorem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O receptor altera o CRC para recessivo e o transmissor o interpreta como confirmação negativa.",
+          "correct": false
+        }
+      ],
+      "explanation": "No slot de ACK, ao menos um receptor que recebeu corretamente sinaliza dominante. Se o transmissor não observa esse nível, indica erro de reconhecimento; isso não fornece diagnóstico semântico da mensagem.",
+      "section": "3. Arbitragem, sincronização e integridade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa reúne os cinco mecanismos básicos de detecção de erro do enlace CAN clássico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CRC, verificação de formato, ACK, monitoramento de bits e verificação de stuffing.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criptografia, autenticação, assinatura digital, endereço IP e número de sequência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Timeout de aplicação, checksum do firmware, gateway, heartbeat e balanceamento de carga.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Controle de fluxo, repetição de aplicação, compressão, roteamento e correção por paridade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Validação de plausibilidade, filtro de aceitação, temperatura, watchdog e proteção contra cópia.",
+          "correct": false
+        }
+      ],
+      "explanation": "O enlace CAN verifica CRC, formato fixo, ACK, diferença entre bit enviado e observado e regra de stuffing. Segurança criptográfica, plausibilidade de aplicação e watchdog podem complementar o sistema, mas não integram essa lista de verificações do quadro.",
+      "section": "3. Arbitragem, sincronização e integridade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que ocorre quando um nó detecta erro durante uma transmissão CAN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O nó altera somente seu filtro e deixa o quadro corrompido ser aceito pelos demais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O transmissor corrige o bit defeituoso em silêncio e continua o quadro original.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O nó sinaliza erro, aborta-se o quadro em curso e pode haver retransmissão.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O gateway armazena a mensagem como válida e remove os campos de verificação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Todos os nós são imediatamente colocados em bus-off para evitar novo tráfego.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um erro detectado é sinalizado por quadro de erro, fazendo os nós reconhecerem a falha e abortando a transmissão em curso. O quadro pode ser retransmitido; repetição persistente aumenta o tráfego e aponta uma condição que deve ser investigada.",
+      "section": "3. Arbitragem, sincronização e integridade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual estado de confinamento descreve um nó que continua na comunicação, mas já não pode emitir uma sinalização ativa de erro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Error-active, que não possui contadores de falha nem sinaliza erros detectados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Bus-off, que mantém os drivers ativos e transmite quadros com menor prioridade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Arbitration-lost, estado permanente que impede recepção de qualquer quadro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Error-passive, que participa e sinaliza erro passivo sob restrições adicionais.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "ACK-missing, modo que desliga o transceptor até outro módulo confirmar o quadro.",
+          "correct": false
+        }
+      ],
+      "explanation": "O nó error-passive continua participando, mas não transmite flag de erro ativa e segue restrições adicionais. Bus-off é o estado em que não pode mais influenciar o barramento; error-active participa normalmente.",
+      "section": "3. Arbitragem, sincronização e integridade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ECU apresenta falhas recorrentes, seus contadores de erro aumentam e o controlador a coloca em bus-off. O que significa esse estado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A ECU recebeu prioridade máxima e pode interromper qualquer quadro no barramento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A ECU deixa de influenciar o barramento para limitar o efeito de falhas persistentes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A ECU continua transmitindo dados, mas seu identificador é substituído pelo gateway.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ECU converte automaticamente a rede de CAN clássico para CAN FD.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ECU apaga os contadores e passa a confirmar todos os quadros recebidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bus-off é o confinamento mais severo: o nó não pode exercer influência elétrica no barramento. Isso reduz a capacidade de um participante defeituoso perturbar a rede, sem reparar a causa da falha.",
+      "section": "3. Arbitragem, sincronização e integridade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao dimensionar mensagens periódicas e mensagens disparadas por eventos, o que deve integrar a análise de carga de uma rede CAN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente a soma de bytes de dados, pois arbitragem e campos de controle não ocupam o canal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas o quadro de menor prioridade, que sempre determina o tempo de todas as mensagens.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O número de ECUs instaladas, sem considerar frequência ou tamanho dos quadros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente a taxa física nominal, que corresponde integralmente a dados de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Frequência, tamanho, custos de quadro e eventos simultâneos, com prioridades e prazos.",
+          "correct": true
+        }
+      ],
+      "explanation": "A carga e os atrasos dependem de frequência, tamanho, overhead dos quadros e intervalos, eventos concorrentes e prioridades. A taxa bruta não é integralmente carga útil, e mensagens prioritárias podem atrasar as demais.",
+      "section": "4. Projeto e uso de CAN em veículos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ECU usa um filtro de aceitação para ignorar identificadores que não utiliza. Que propriedade esse filtro não fornece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reduzir a entrega de quadros irrelevantes ao software da unidade receptora.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Selecionar quais identificadores interessam ao processamento local da ECU.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Autenticar criptograficamente quem enviou cada quadro aceito no barramento.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Permitir que um nó receba mensagens difundidas por outros módulos conectados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Diminuir o trabalho de software associado a mensagens não pertinentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Filtro de aceitação seleciona identificadores que o nó entrega para processamento; não autentica emissor, cifra dados ou autoriza uma função. Quadros podem ser observados por nós conectados ao segmento.",
+      "section": "4. Projeto e uso de CAN em veículos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ECU consumidora deixa de receber a mensagem periódica que utiliza para controlar uma função. Qual resposta de projeto é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Detectar timeout e aplicar a estratégia de falha definida para a função controlada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter indefinidamente o último valor recebido, pois o enlace repetirá a mensagem ausente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Recalcular o dado físico sem sensor e enviá-lo como confirmação de recepção da rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Interpretar a ausência como um quadro de erro e colocar todos os nós em bus-off.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o identificador esperado para aceitar qualquer dado publicado no segmento.",
+          "correct": false
+        }
+      ],
+      "explanation": "A aplicação deve detectar que a mensagem esperada não chegou dentro do intervalo definido e adotar uma resposta compatível com a segurança da função. Repetições de quadros corrompidos não resolvem uma mensagem que não foi transmitida.",
+      "section": "4. Projeto e uso de CAN em veículos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um quadro tem CRC válido e recebe ACK, mas traz valor de velocidade impossível para o contexto do veículo. Qual conclusão é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A aplicação deve aceitar o valor porque CRC e ACK também verificam plausibilidade física.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O enlace validou mecanismos próprios, mas a aplicação ainda precisa checar plausibilidade.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O ACK indica que todos os módulos executaram o comando associado ao valor recebido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O CRC autentica o remetente e demonstra que a informação foi produzida pelo sensor correto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A arbitragem deveria ter rejeitado o quadro, pois identificadores menores contêm dados válidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "CRC detecta certos erros de transmissão e ACK reconhece a recepção no enlace. Nenhum deles interpreta a semântica ou plausibilidade do dado; a aplicação precisa de verificações próprias de faixa, coerência, idade e origem confiável.",
+      "section": "4. Projeto e uso de CAN em veículos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição distingue corretamente um quadro de dados clássico de um quadro remoto clássico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O quadro remoto transporta os bytes solicitados dentro do campo de dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O quadro de dados carrega conteúdo; o remoto solicita dados sem carga útil.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O quadro de dados não possui identificador, ao contrário do quadro remoto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O quadro remoto pode ser usado no CAN FD, mas não no CAN clássico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O quadro de dados é destinado a um nó, enquanto o remoto é difundido a todos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quadro de dados contém a carga útil da mensagem. O quadro remoto clássico solicita dados e não transporta essa carga; CAN FD não oferece quadros remotos.",
+      "section": "2. Como funciona a rede serial CAN",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência apresenta a ordem geral dos principais campos de um quadro de dados CAN clássico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dados, ACK, identificador, início, CRC, controle e endereço de destino.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Início, dados, controle, arbitragem, fim, ACK e sequência CRC.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Início, controle, ACK, arbitragem, carga, endereço IP e fim do quadro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Início, arbitragem, controle, dados, CRC, ACK e fim do quadro.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Arbitragem, início, CRC, carga, controle, confirmação e endereço do módulo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O quadro começa com SOF, segue pelo campo de arbitragem e controle, pode conter dados, inclui a verificação CRC e o ACK, e termina com EOF. A lista não inclui endereço IP ou destino exclusivo.",
+      "section": "2. Como funciona a rede serial CAN",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um receptor encontra um bit dominante em uma posição delimitadora que deveria ter formato fixo recessivo. Que verificação acusa essa violação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificação de formato, pois o campo fixo contém um bit ilegal.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Filtro de aceitação, pois o quadro não está na lista de emissores autorizados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Arbitragem, pois o bit dominante sempre indica identificador duplicado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Timeout, pois a mensagem foi recebida antes do período esperado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ACK, pois delimitadores fixos confirmam a execução do comando pelo consumidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "A verificação de formato confere campos com bits e posições fixos. Um valor ilegal em delimitador ou fim de quadro é erro de formato, diferente de falha CRC ou ausência de reconhecimento.",
+      "section": "3. Arbitragem, sincronização e integridade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que a arbitragem CAN é considerada não destrutiva em comparação com uma colisão que corrompe transmissões concorrentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todos os transmissores somam seus bits e recebem cópias privadas do resultado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O controlador reconstrói simultaneamente cada quadro a partir do CRC final.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os nós concorrentes aguardam em silêncio antes de escolher um vencedor ao acaso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O gateway copia cada fluxo para uma linha física exclusiva durante a disputa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O perdedor cessa a transmissão enquanto o vencedor segue com seu quadro intacto.",
+          "correct": true
+        }
+      ],
+      "explanation": "Os participantes com menor prioridade deixam de transmitir ao perceber a arbitragem perdida. O nó de maior prioridade continua sem interferência destrutiva e os demais recebem sua mensagem.",
+      "section": "3. Arbitragem, sincronização e integridade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma bancada tem duas terminações compatíveis de 120 ohms, uma em cada extremidade do segmento. Qual resistência aproximada se espera entre os fios com a rede desenergizada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cerca de 120 ohms, pois o multímetro mede somente a terminação mais próxima.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cerca de 240 ohms, pois as terminações ficam em série ao longo do tronco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cerca de 60 ohms, pois as duas terminações estão em paralelo no segmento.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Cerca de zero ohms, pois o barramento deve curto-circuitar os dois condutores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cerca de 1.000 ohms, pois o valor depende só da taxa configurada no controlador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Duas terminações de 120 ohms em paralelo resultam em aproximadamente 60 ohms. A medição pressupõe que ambas estejam acessíveis no segmento e que o circuito esteja desenergizado.",
+      "section": "4. Projeto e uso de CAN em veículos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um técnico encontra reflexões e forma de onda degradada após instalar derivações longas e vários resistores adicionais. Que correção é mais coerente com a topologia comum HS-CAN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retirar todas as terminações e manter os ramos longos para dissipar as reflexões.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter um tronco com derivações curtas e terminar somente as duas extremidades.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Duplicar resistores em cada ECU até que o sinal permaneça constante em todo ramo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter o par diferencial em fios independentes para emissor e receptor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar a taxa de bits para que as reflexões ocorram antes do início do quadro.",
+          "correct": false
+        }
+      ],
+      "explanation": "A prática comum mantém tronco linear, derivações curtas e terminação apropriada nas duas pontas. Terminações extras e ramos longos pioram a integridade do sinal em vez de compensar reflexões.",
+      "section": "2. Como funciona a rede serial CAN",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que diferencia CANopen do protocolo de enlace CAN em uma arquitetura embarcada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "CANopen substitui a camada física por Ethernet e usa CAN só como conector.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "CANopen é apenas o nome comercial do transceptor diferencial instalado na ECU.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "CANopen define a taxa elétrica e as terminações, mas não convenções de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CANopen acrescenta objetos, serviços e convenções de aplicação sobre a rede CAN.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "CANopen é o algoritmo de arbitragem bit a bit que escolhe o identificador vencedor.",
+          "correct": false
+        }
+      ],
+      "explanation": "CANopen é um protocolo de nível superior que define objetos, serviços e convenções sobre a comunicação CAN. O protocolo de enlace continua cuidando de quadros e acesso ao meio.",
+      "section": "4. Projeto e uso de CAN em veículos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa decidir quais sinais pertencem a cada rede e quais cruzam um gateway. Qual critério de arquitetura é mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Encaminhar todos os quadros sem filtro para que cada ECU escolha seu destino.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Concentrar funções críticas e de conforto no mesmo identificador de prioridade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Separar segmentos conforme requisitos e encaminhar apenas mensagens necessárias.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar o gateway como sensor principal e eliminar consumidores de cada segmento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ligar os segmentos sem configuração, pois identificadores iguais têm sempre semântica comum.",
+          "correct": false
+        }
+      ],
+      "explanation": "Segmentos podem atender tráfegos e requisitos distintos. Um gateway encaminha mensagens selecionadas conforme a arquitetura, com regras explícitas; identificadores iguais não garantem significado idêntico em redes independentes.",
+      "section": "1. O sistema embarcado dentro do veículo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que a taxa nominal do barramento não deve ser tratada como capacidade integral para dados úteis da aplicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todo bit transmitido é usado exclusivamente como carga útil e não há intervalos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O quadro não tem identificador ou verificação, então a aplicação calcula todo overhead.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O receptor decide a taxa após cada quadro e descarta os campos de controle.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A taxa nominal vale somente enquanto o barramento fica em estado bus-off.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Arbitragem, campos de quadro, stuffing e intervalos também ocupam tempo de rede.",
+          "correct": true
+        }
+      ],
+      "explanation": "A taxa física mede bits transmitidos por unidade de tempo, incluindo identificador, controle, CRC, ACK, stuffing e intervalos. A capacidade de carga útil é menor e também depende da concorrência e do planejamento de prioridades.",
+      "section": "4. Projeto e uso de CAN em veículos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual vantagem elétrica decorre do uso de sinalização diferencial em um par CAN_H/CAN_L?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela elimina a necessidade de temporização e sincronização entre controladores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela converte o identificador em um endereço físico imune a interferência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela garante sigilo dos dados porque cada fio transporta uma metade criptografada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela remove reflexões de qualquer cabo, mesmo com derivações e terminações inadequadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela ajuda a rejeitar ruído que se acopla de modo semelhante aos dois condutores.",
+          "correct": true
+        }
+      ],
+      "explanation": "A recepção diferencial considera a diferença entre os condutores, reduzindo o efeito de ruído comum acoplado de forma semelhante nos dois fios. Isso não elimina problemas de topologia, terminação ou temporização.",
+      "section": "2. Como funciona a rede serial CAN",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um quadro CAN válido pode ser observado por qualquer nó conectado ao segmento, mesmo que filtros de recepção limitem o processamento local.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. CAN difunde quadros no segmento. Filtros podem selecionar o que cada controlador entrega ao software, mas não tornam a transmissão fisicamente privada para um destinatário exclusivo.",
+      "section": "2. Como funciona a rede serial CAN",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O identificador CAN funciona como autenticação criptográfica da ECU emissora e impede que outro nó publique o mesmo tipo de mensagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O identificador descreve mensagem e prioridade; CAN básico não autentica o emissor. Um projeto precisa de controles de segurança acima ou ao redor do enlace para proteger comandos e identificar fontes confiáveis.",
+      "section": "4. Projeto e uso de CAN em veículos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A taxa máxima que uma rede CAN consegue usar é independente do comprimento do tronco e das derivações, desde que o par seja diferencial.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O comprimento e a topologia afetam propagação, reflexões e margens de sincronização. A taxa viável também depende do cabo, transceptores e temporização; sinalização diferencial não elimina essas restrições.",
+      "section": "2. Como funciona a rede serial CAN",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O controlador CAN forma e interpreta quadros, enquanto o transceptor realiza a interface elétrica entre os níveis lógicos e o barramento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O controlador implementa funções do protocolo e o transceptor dirige e recebe os sinais físicos do meio, como o par diferencial CAN_H/CAN_L em HS-CAN.",
+      "section": "2. Como funciona a rede serial CAN",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem CAN clássica de dados pode transportar até 64 bytes de carga útil, enquanto a modalidade CAN FD se limita a oito bytes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. CAN clássico leva até oito bytes por quadro de dados; CAN FD amplia a carga útil até 64 bytes e pode usar maior taxa na fase de dados quando a rede oferece suporte.",
+      "section": "2. Como funciona a rede serial CAN",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em CAN, o estado dominante prevalece sobre o recessivo durante a arbitragem bit a bit.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um nó que transmite recessivo e observa dominante perde a arbitragem e cede o meio. A mensagem vencedora segue sem ser destruída pela disputa.",
+      "section": "3. Arbitragem, sincronização e integridade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na arbitragem CAN, o nó que perde o acesso transmite um quadro de erro para obrigar o vencedor a reiniciar sua mensagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Perder a arbitragem é condição normal, não falha. O nó interrompe sua transmissão e recebe o quadro vencedor; quadro de erro é usado quando se detecta violação do protocolo ou erro de transmissão.",
+      "section": "3. Arbitragem, sincronização e integridade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O identificador numericamente menor costuma ter prioridade maior quando dois quadros CAN disputam o barramento ao mesmo tempo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Na comparação bit a bit, o padrão associado ao identificador menor apresenta dominante antes do concorrente, e dominante vence recessivo. Por isso, a prioridade deve ser planejada junto com os prazos.",
+      "section": "3. Arbitragem, sincronização e integridade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ECU que envia recessivo e observa dominante durante os bits de arbitragem deve tratar necessariamente a situação como erro de bit.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Essa diferença durante a arbitragem indica que outro quadro ganhou o acesso. O nó perdedor cessa a transmissão; o monitoramento de bit não classifica a perda de arbitragem como erro nessa fase.",
+      "section": "3. Arbitragem, sincronização e integridade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O CRC é um mecanismo de autenticação que identifica com segurança qual ECU produziu os dados do quadro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O CRC detecta discrepâncias compatíveis com corrupção acidental dos bits protegidos. Não comprova identidade do emissor, autorização ou integridade contra adulteração deliberada.",
+      "section": "4. Projeto e uso de CAN em veículos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após cinco bits consecutivos iguais nas regiões aplicáveis, o transmissor CAN insere um bit complementar, removido pelo receptor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O stuffing insere um bit complementar após cinco bits de mesma polaridade nos campos codificados por essa regra. O receptor remove o bit inserido e verifica a conformidade da sequência.",
+      "section": "3. Arbitragem, sincronização e integridade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O bit stuffing se aplica indistintamente ao slot de ACK, ao fim do quadro e a todos os campos de formato fixo do CAN.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Campos de formato fixo como delimitadores, ACK e fim não são tratados como as regiões sujeitas a stuffing. A regra se aplica a segmentos específicos do quadro, incluindo arbitragem, controle, dados e sequência CRC no CAN clássico.",
+      "section": "3. Arbitragem, sincronização e integridade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A confirmação no slot de ACK demonstra que a aplicação destinatária interpretou corretamente os dados e realizou a ação solicitada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O ACK demonstra reconhecimento da recepção do quadro no enlace por pelo menos um nó. O processamento semântico e a ação do consumidor exigem mecanismos próprios da aplicação.",
+      "section": "3. Arbitragem, sincronização e integridade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O nó bus-off deixa de poder influenciar eletricamente o barramento, limitando o impacto de falhas persistentes daquele participante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Bus-off impede que o nó continue afetando o barramento, por exemplo com seus drivers de saída. O estado resulta do mecanismo de confinamento de erros e não corrige por si só a causa subjacente.",
+      "section": "3. Arbitragem, sincronização e integridade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Filtros de aceitação podem reduzir o processamento de mensagens irrelevantes, mas não transformam o barramento difundido em uma conexão privada autenticada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O filtro controla quais identificadores são entregues ao software local, enquanto os nós conectados observam a transmissão física. Filtragem não fornece privacidade nem autenticação criptográfica.",
+      "section": "4. Projeto e uso de CAN em veículos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma mensagem de controle esperada não chega dentro do tempo definido, a ECU consumidora deve tratar timeout conforme uma estratégia de falha da função.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma ECU não deve presumir que o valor anterior continua válido indefinidamente. A aplicação detecta ausência além do limite e executa a resposta definida para aquela função veicular.",
+      "section": "4. Projeto e uso de CAN em veículos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "CANopen acrescenta convenções e serviços de aplicação sobre CAN; não é sinônimo do protocolo básico de enlace CAN.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. CAN define comunicação na camada de enlace e meio físico conforme a implementação; CANopen acrescenta objetos, serviços e regras de aplicação sobre essa base.",
+      "section": "4. Projeto e uso de CAN em veículos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A comunicação serial CAN torna desnecessário definir periodicidade, prioridade e prazo para as mensagens do veículo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Arbitragem define quem acessa primeiro quando há disputa, mas não garante que qualquer mensagem cumpra seu prazo sob toda carga. A rede precisa de análise de tráfego, prioridades e latências.",
+      "section": "4. Projeto e uso de CAN em veículos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "CAN CC",
+      "publisher": "CAN in Automation (CiA)",
+      "reference": "Formatos de quadro, identificadores, arbitragem, campos, erros e confinamento de falhas do CAN clássico",
+      "url": "https://can-cia.org/can-knowledge/can-cc",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "CAN data link layer generations",
+      "publisher": "CAN in Automation (CiA)",
+      "reference": "Difusão, arbitragem, CAN clássico, CAN FD e camadas de enlace CAN",
+      "url": "https://can-cia.org/can-knowledge/can-data-link-layer-generations",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "CAN CC: The classic CAN protocol as launched in 1986",
+      "publisher": "CAN in Automation (CiA)",
+      "reference": "Aplicações em veículos, camada física de alta velocidade, taxa e relação com comprimento de rede",
+      "url": "https://www.can-cia.org/fileadmin/cia/documents/brochures/25_can_1986_to_2021.pdf",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "CAN PROTOCOL Reference Manual",
+      "publisher": "NXP Semiconductors (documento Freescale/Motorola)",
+      "reference": "Stuffing, tipos de erro, sinalização e estados error-active, error-passive e bus-off",
+      "url": "https://www.nxp.com/docs/en/reference-manual/BCANPSV2.pdf",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

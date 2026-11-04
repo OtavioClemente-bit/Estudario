@@ -1,0 +1,1625 @@
+{
+  "id": "informatica.middleware",
+  "subject": "Informática",
+  "title": "Middleware",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Middleware em aplicações web",
+    "Camada middleware de software",
+    "Middleware no ciclo HTTP",
+    "Pipeline de requisições web",
+    "Componentes middleware de aplicação",
+    "Cadeia de processamento HTTP",
+    "Middleware em Express e ASP.NET",
+    "Filtros e interceptadores web",
+    "Uso de middleware em aplicações",
+    "Encadeamento de middleware web",
+    "Tratamento de requisições middleware",
+    "Middleware para aplicações servidoras"
+  ],
+  "scope": {
+    "covers": "Conceito e finalidade de middleware em aplicações web; processamento de requisição e resposta em cadeia; encaminhamento, alteração, encerramento e tratamento de erros; ordem, escopo e composição; exemplos concretos em Express e ASP.NET Core; distinção entre middleware, roteamento, filtros e interceptadores; usos em registro, autenticação, autorização, validação, CORS, compressão e arquivos estáticos.",
+    "excludes": "Configuração detalhada de produtos específicos, implementação completa de servidores, protocolos além do necessário para entender HTTP e comparação exaustiva de frameworks."
+  },
+  "theoryTitle": "Middleware no processamento de aplicações",
+  "chapters": [
+    {
+      "title": "1. O que é middleware e por que existe",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação web recebe requisições e precisa executar tarefas comuns: registrar acessos, validar credenciais, interpretar o corpo, encaminhar para a rota e preparar a resposta. Se cada rota repetir essas tarefas, o código fica duplicado e difícil de manter. **Middleware** é um componente intermediário que participa do processamento entre a chegada da requisição e a resposta ao cliente.\n\nEm frameworks web, várias funções ou componentes podem formar uma cadeia. Um componente pode examinar ou alterar a requisição, executar lógica antes e depois do próximo componente, produzir uma resposta e encerrar o fluxo, ou transferir o controle adiante. A palavra descreve um papel arquitetural; a assinatura e os detalhes dependem do framework.\n\n> **Siglas e termos deste capítulo**\n> - **HTTP**: protocolo usado na comunicação de requisições e respostas da Web.\n> - **Requisição**: mensagem recebida pelo servidor, com método, caminho, cabeçalhos e, possivelmente, corpo.\n> - **Resposta**: mensagem produzida pelo servidor, com status, cabeçalhos e, possivelmente, corpo.\n> - **Pipeline**: sequência ordenada de componentes que processa uma requisição.\n> - **Rota**: regra que associa método e caminho a um manipulador da aplicação.\n\n### Posição na aplicação\n\nMiddleware normalmente trata preocupações transversais, isto é, úteis para várias rotas: log, autenticação, tratamento uniforme de erros, compressão e análise de corpo. Ele não é necessariamente um serviço remoto ou uma camada de banco de dados. No uso comum de frameworks web, é código executado como parte do servidor da aplicação.\n\nUma cadeia ilustrativa é: receber requisição → registrar metadados → interpretar corpo → verificar identidade e permissão → selecionar rota → produzir resposta. Nem toda aplicação usa exatamente essa sequência. A arquitetura e o framework determinam a ordem apropriada.\n\n| Tarefa | Exemplo de comportamento |\n| --- | --- |\n| Observação | Registrar método, caminho e duração |\n| Preparação | Interpretar JSON e disponibilizar dados ao manipulador |\n| Controle de acesso | Rejeitar pedido sem credencial válida |\n| Resposta | Servir arquivo estático ou devolver erro padronizado |\n\n### Middleware não é uma camada mágica\n\nMiddleware pode reduzir duplicação, mas sua presença não garante segurança, desempenho nem correção. Um componente mal ordenado pode impedir uma rota válida, expor informação em log ou encerrar o fluxo antes de outro componente necessário. Cada componente precisa de escopo claro e integração correta.\n\n### Como cai na prova\n\n- Middleware participa do processamento de requisições e respostas e pode atuar antes de chegar ao manipulador da rota.\n- Não confunda middleware com banco de dados, navegador ou necessariamente um serviço distribuído.\n- A função exata varia: há middleware que encaminha e há middleware terminal, que responde e encerra o processamento."
+    },
+    {
+      "title": "2. Encadeamento, ordem e fluxo de controle",
+      "markdown": "### O problema que este assunto resolve\n\nUma cadeia só funciona quando cada componente sabe se deve continuar o processamento. Em Express, uma função de middleware recebe normalmente `req`, `res` e `next`. Se não encerrar a resposta, deve chamar `next()` para passar o controle adiante; deixar de fazer ambos pode manter a requisição pendurada. Em ASP.NET Core, um componente pode invocar o próximo delegado e executar lógica antes e depois dessa chamada, ou pode não invocá-lo e encerrar o fluxo.\n\n> **Siglas e termos deste capítulo**\n> - **`req` / `res`**: objetos de requisição e resposta do Express.\n> - **`next`**: função do Express que transfere o controle na cadeia ou encaminha erro, conforme o argumento.\n> - **Short-circuit**: encerramento do pipeline antes que componentes posteriores sejam executados.\n> - **Delegado**: referência a uma operação; em ASP.NET Core, o próximo componente pode ser representado por um delegado.\n\n### A ordem muda o resultado\n\nNo Express, middleware é registrado com `app.use`, com frequência antes das rotas que dependem dele. Um parser JSON precisa executar antes do manipulador que lê o corpo já interpretado. Em ASP.NET Core, a ordem de registro define a ordem da requisição; depois que um componente chama o próximo, o processamento da resposta retorna pelos componentes anteriores em ordem inversa.\n\nA ordem é funcional, não decorativa. Por exemplo, arquivos estáticos tratados antes de compressão de resposta podem ser servidos sem passar pela compressão. Um componente de tratamento de exceções deve estar cedo o suficiente para observar falhas dos componentes posteriores. O posicionamento concreto deve seguir a documentação do framework e a necessidade do fluxo.\n\n### Encaminhar, responder ou tratar erro\n\nNo Express, chamar `next()` sem argumento segue para o próximo middleware. Passar um erro a `next` transfere o controle para tratamento de erros, pulando os componentes comuns pertinentes. `next('route')` tem significado específico em cadeias de rota. O middleware de erro é reconhecido pela assinatura com quatro argumentos `(err, req, res, next)`. Não se deve transportar essas assinaturas para frameworks que usam outro modelo.\n\nUma resposta enviada encerra o ciclo: a cadeia posterior não deve tentar enviar outra resposta para a mesma requisição. Erros como resposta duplicada ou fluxo que nunca termina são consequências de controle mal administrado.\n\n### Como cai na prova\n\n- Se o componente não respondeu no Express, a chamada a `next()` costuma ser necessária para evitar a requisição parada.\n- A ordem de registro influencia quais componentes recebem a requisição e a resposta.\n- Em ASP.NET Core, o retorno percorre os componentes anteriores em ordem inversa após a chamada ao próximo."
+    },
+    {
+      "title": "3. Tipos, escopo e aplicações comuns",
+      "markdown": "### O problema que este assunto resolve\n\nAplicações grandes precisam aplicar regras gerais sem copiar a mesma lógica para cada rota. Frameworks oferecem formas de limitar componentes ao aplicativo inteiro, a um roteador, a um caminho ou a uma fase específica. Escolher o escopo adequado evita executar trabalho desnecessário e ajuda a manter a regra previsível.\n\n> **Siglas e termos deste capítulo**\n> - **Middleware de aplicação**: registrado para o conjunto geral de rotas da aplicação.\n> - **Middleware de roteador**: associado a um agrupamento de rotas.\n> - **Middleware integrado**: fornecido pelo próprio framework.\n> - **Middleware de terceiros**: biblioteca externa adicionada à aplicação.\n> - **CORS**: mecanismo de compartilhamento de recursos entre origens em navegadores.\n\n### Exemplos concretos no Express\n\nA documentação do Express classifica middleware em nível de aplicação, nível de roteador, tratamento de erros, integrado e de terceiros. `app.use()` registra middleware de aplicação; `router.use()` associa funções a um roteador. O uso de um caminho de montagem limita em quais caminhos o middleware se aplica. `express.json()` interpreta corpos JSON, enquanto `express.static()` serve arquivos estáticos. São funções com papéis distintos: o parser prepara dados recebidos; o middleware estático pode produzir uma resposta sem passar pela lógica de uma rota posterior.\n\nMódulos mantidos pela equipe Express incluem `cookie-parser`, que interpreta cabeçalhos de cookies e popula `req.cookies`, e `compression`, que comprime respostas. A documentação lista ainda módulos comunitários, como `cors`; estar listado como popular não significa que a equipe do Express o mantenha.\n\n### Exemplos concretos no ASP.NET Core\n\nO pipeline ASP.NET Core é composto por delegados de requisição configurados, por exemplo, com `Use`, `Run` e `Map`. `Use` permite compor etapas que podem chamar a próxima; `Run` registra uma etapa terminal que não encaminha para outro componente. O middleware de arquivos estáticos pode responder diretamente para um arquivo existente. Autenticação, autorização, roteamento e compressão são responsabilidades que podem integrar o pipeline, com requisitos de ordem próprios.\n\n### Escopo e responsabilidade\n\nLog observa; autenticação estabelece a identidade; autorização verifica se a identidade pode realizar a operação; validação examina dados segundo regras da aplicação. Essas tarefas não são sinônimas. Um middleware de autenticação não deve ser considerado automaticamente uma regra completa de autorização. A ordem entre elas importa: decisões de autorização normalmente precisam da identidade já estabelecida.\n\n### Como cai na prova\n\n- `express.json()` prepara corpo JSON; `express.static()` serve recursos estáticos.\n- Express distingue middleware da aplicação e do roteador, além de integrado, externo e de erro.\n- `Run` no ASP.NET Core pode formar uma etapa terminal; `Use` permite chamar o próximo componente."
+    },
+    {
+      "title": "4. Middleware, filtros e interceptadores",
+      "markdown": "### O problema que este assunto resolve\n\nVários mecanismos executam código ao redor de uma operação, mas ocupam pontos diferentes do ciclo. Uma questão pode usar “filtro”, “interceptor” e “middleware” como se fossem equivalentes. A resposta depende do framework e do ponto de integração, não apenas do nome.\n\n> **Siglas e termos deste capítulo**\n> - **Handler / manipulador**: operação da aplicação selecionada para tratar uma requisição.\n> - **Filtro**: mecanismo que envolve fases de execução de um framework, frequentemente próximo do processamento de ação ou endpoint.\n> - **Interceptor**: mecanismo que observa ou condiciona a execução em um ponto definido pelo framework.\n> - **Servlet filter**: filtro da cadeia Servlet, que atua em torno do processamento web correspondente.\n\n### Exemplo do Spring MVC\n\nNo Spring MVC, `HandlerInterceptor` oferece `preHandle`, chamado antes do handler e cujo retorno booleano pode permitir ou interromper o restante da cadeia, `postHandle`, após a execução do handler, e `afterCompletion`, após o término completo da requisição. Isso não equivale a dizer que todo interceptor consegue alterar qualquer resposta em qualquer momento: com `@ResponseBody` e `ResponseEntity`, a resposta pode já ter sido escrita antes de `postHandle`.\n\nA documentação do Spring alerta que interceptadores MVC não são a camada ideal para segurança, inclusive por possíveis diferenças entre o casamento de caminhos do interceptor e o dos controladores. Recomenda Spring Security ou mecanismo similar integrado cedo à cadeia de filtros Servlet para essa finalidade. Esse é um exemplo específico do framework, não uma regra universal sobre todo middleware.\n\n### Como comparar sem confundir\n\nMiddleware tende a ser descrito como componente do pipeline amplo de requisição/resposta. Filtros e interceptadores podem atuar em torno de handlers, ações ou fases mais específicas. Frameworks dão nomes e pontos de execução diferentes; compare o que cada mecanismo recebe, quando executa, se pode interromper e qual parte da resposta ainda pode modificar.\n\n| Pergunta de comparação | O que verificar |\n| --- | --- |\n| Em que momento executa? | Antes da rota, em torno do handler, ou após a resposta |\n| Como continua? | Próximo delegado, função `next`, retorno booleano ou outro contrato |\n| Qual é o escopo? | Aplicação, roteador, caminho, controlador ou ação |\n| Pode encerrar? | Se pode produzir resposta ou impedir o handler |\n\n### Como cai na prova\n\n- Em Spring MVC, `preHandle` pode impedir o handler ao retornar `false`; `postHandle` e `afterCompletion` ocorrem em fases distintas.\n- Não conclua que interceptor de MVC substitui o mecanismo de segurança integrado à cadeia de filtros.\n- O termo middleware é amplo; a semântica exata deve ser atribuída ao framework citado."
+    }
+  ],
+  "summary": "Middleware é um componente que participa do pipeline de uma aplicação, tratando a requisição antes ou depois de outros componentes e podendo modificá-la, encaminhá-la, encerrá-la ou tratar erros. A ordem afeta o fluxo. No Express, `app.use` e `router.use` registram componentes; `express.json` interpreta JSON; `express.static` serve arquivos; middleware que não responde deve chamar `next`; o tratamento de erros usa assinatura própria com quatro argumentos. No ASP.NET Core, `Use` compõe etapas, `Run` pode encerrar o pipeline e a resposta percorre os componentes anteriores em ordem inversa. No Spring MVC, `HandlerInterceptor` expõe preHandle, postHandle e afterCompletion; segurança costuma ser integrada cedo à cadeia de filtros por Spring Security. Middleware, filtros e interceptadores têm semânticas que dependem do framework.",
+  "flashcards": [
+    {
+      "front": "O que é middleware em uma aplicação web?",
+      "back": "Componente intermediário que participa do processamento da requisição e da resposta, em uma ou mais etapas do pipeline."
+    },
+    {
+      "front": "Quais ações um middleware pode executar?",
+      "back": "Executar lógica, observar ou alterar requisição/resposta, encaminhar o fluxo, produzir resposta ou tratar erro, conforme o framework."
+    },
+    {
+      "front": "O que significa pipeline?",
+      "back": "Sequência ordenada de componentes que recebe e processa uma requisição."
+    },
+    {
+      "front": "O que acontece se middleware Express não responde nem chama next?",
+      "back": "A requisição pode ficar pendurada, pois o controle não avança nem termina com resposta."
+    },
+    {
+      "front": "Para que serve express.json()?",
+      "back": "Interpretar o corpo JSON de requisições e disponibilizar os dados analisados ao restante da aplicação."
+    },
+    {
+      "front": "Para que serve express.static()?",
+      "back": "Servir arquivos estáticos, como páginas, imagens e outros ativos."
+    },
+    {
+      "front": "Como se registra middleware de aplicação no Express?",
+      "back": "Com app.use(), opcionalmente associado a um caminho de montagem."
+    },
+    {
+      "front": "Como se registra middleware de roteador no Express?",
+      "back": "Associando as funções a uma instância express.Router(), por exemplo com router.use()."
+    },
+    {
+      "front": "Qual a assinatura do middleware de erro Express?",
+      "back": "Quatro parâmetros: (err, req, res, next)."
+    },
+    {
+      "front": "O que faz next() sem argumento no Express?",
+      "back": "Passa o controle para o próximo middleware pertinente na cadeia."
+    },
+    {
+      "front": "O que indica short-circuit?",
+      "back": "Um componente encerra o processamento e impede que componentes posteriores recebam aquela requisição."
+    },
+    {
+      "front": "Como a ordem afeta ASP.NET Core?",
+      "back": "A ordem registrada define o processamento da requisição; após chamar o próximo componente, a resposta retorna em ordem inversa."
+    },
+    {
+      "front": "Qual o papel de Run no pipeline ASP.NET Core?",
+      "back": "Registrar uma etapa terminal que trata a requisição sem encaminhá-la a outro componente."
+    },
+    {
+      "front": "O que faz Use em ASP.NET Core?",
+      "back": "Compor middleware que pode realizar trabalho antes e depois de chamar o próximo delegado."
+    },
+    {
+      "front": "O que faz preHandle em Spring MVC?",
+      "back": "Executa antes do handler; retornar false impede a continuação para o handler."
+    },
+    {
+      "front": "Quando ocorre postHandle no Spring MVC?",
+      "back": "Depois da execução do handler, antes da conclusão completa da requisição."
+    },
+    {
+      "front": "Quando ocorre afterCompletion?",
+      "back": "Após o processamento completo da requisição."
+    },
+    {
+      "front": "Autenticação e autorização são iguais?",
+      "back": "Não. Autenticação estabelece identidade; autorização avalia permissão para a operação."
+    },
+    {
+      "front": "O que é middleware de terceiro no Express?",
+      "back": "Módulo externo adicionado à aplicação, como cookie-parser."
+    },
+    {
+      "front": "Qual a função de cookie-parser?",
+      "back": "Interpretar o cabeçalho de cookies e preencher req.cookies no Express."
+    },
+    {
+      "front": "CORS é um tipo de rota?",
+      "back": "Não. É um mecanismo de compartilhamento de recursos entre origens, configurado conforme a necessidade da aplicação."
+    },
+    {
+      "front": "Por que tratamento de exceções costuma vir cedo no pipeline?",
+      "back": "Para observar falhas produzidas por componentes posteriores e convertê-las em resposta apropriada."
+    }
+  ],
+  "tips": [
+    "Desenhe a cadeia e marque em qual ponto cada componente executa.",
+    "No Express, se não enviou resposta, confira se chamou next().",
+    "Separe identidade (autenticação) de permissão (autorização).",
+    "Associe express.json a corpo JSON e express.static a arquivos estáticos.",
+    "Em ASP.NET Core, lembre que a ordem de registro também ordena a volta da resposta ao contrário.",
+    "Ao comparar middleware e interceptor, use o contrato do framework citado."
+  ],
+  "traps": [
+    "Middleware não é necessariamente um serviço remoto; pode ser código dentro do servidor web.",
+    "No Express, não chamar next nem responder pode deixar o pedido sem conclusão.",
+    "Uma resposta já enviada não deve ser enviada outra vez por componente posterior.",
+    "Autenticação estabelece identidade; não substitui automaticamente autorização.",
+    "Middleware de erro Express tem quatro parâmetros, incluindo next.",
+    "No Spring MVC, postHandle pode ocorrer tarde demais para alterar resposta já escrita por ResponseBody."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique o papel de middleware em uma cadeia HTTP.",
+      "answer": "É uma etapa intermediária que pode observar ou alterar mensagens e decidir encaminhar o processamento, tratar falha ou produzir resposta."
+    },
+    {
+      "question": "O que distingue middleware terminal de middleware que continua a cadeia?",
+      "answer": "O terminal responde ou encerra o fluxo sem chamar o componente seguinte; o outro delega o processamento para que a cadeia prossiga."
+    },
+    {
+      "question": "Descreva o fluxo de requisição e resposta em ASP.NET Core.",
+      "answer": "A requisição percorre os componentes na ordem configurada. Quando um chama o próximo, o processamento da resposta retorna pelos anteriores em ordem inversa."
+    },
+    {
+      "question": "Como express.json e express.static diferem?",
+      "answer": "O primeiro interpreta corpos JSON recebidos; o segundo pode servir arquivos estáticos como resposta."
+    },
+    {
+      "question": "Como o Express reconhece middleware de tratamento de erro?",
+      "answer": "Pela assinatura com quatro argumentos (err, req, res, next)."
+    },
+    {
+      "question": "O que fazem os três callbacks do HandlerInterceptor?",
+      "answer": "preHandle antecede o handler e pode bloqueá-lo; postHandle ocorre após o handler; afterCompletion ocorre ao final completo."
+    },
+    {
+      "question": "Por que um interceptor MVC não deve ser presumido como camada de segurança?",
+      "answer": "O casamento de caminhos pode diferir do dos controladores; Spring recomenda Spring Security ou mecanismo integrado cedo à cadeia de filtros."
+    },
+    {
+      "question": "Diferencie autenticação e autorização no pipeline.",
+      "answer": "Autenticação estabelece quem é o solicitante; autorização decide se essa identidade pode executar a ação solicitada."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Continuação e encerramento confundidos",
+      "summary": "No Express, middleware precisa encaminhar com next ou responder; uma etapa terminal pode encerrar o processamento."
+    },
+    {
+      "key": "e2",
+      "title": "Ordem da cadeia ignorada",
+      "summary": "A ordem define o que observa a requisição e pode afetar o retorno da resposta; parsers e tratamento de erro precisam estar em posição compatível com seu uso."
+    },
+    {
+      "key": "e3",
+      "title": "Papéis de segurança misturados",
+      "summary": "Autenticação estabelece identidade; autorização verifica permissão. A primeira não substitui a segunda."
+    },
+    {
+      "key": "e4",
+      "title": "Contratos de frameworks generalizados",
+      "summary": "Express, ASP.NET Core e Spring MVC têm contratos diferentes; next, Use/Run e callbacks de interceptor não são intercambiáveis."
+    },
+    {
+      "key": "e5",
+      "title": "Middleware e interceptor tratados como sinônimos",
+      "summary": "Os mecanismos atuam em pontos e escopos distintos; no Spring MVC, o interceptor envolve handler e não é recomendado como camada principal de segurança."
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Using Express middleware",
+      "publisher": "Express.js",
+      "reference": "Documentação oficial sobre funções e fluxo de middleware.",
+      "url": "https://expressjs.com/en/guide/using-middleware.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ASP.NET Core Middleware",
+      "publisher": "Microsoft Learn",
+      "reference": "Documentação oficial sobre configuração e ordenação do pipeline.",
+      "url": "https://learn.microsoft.com/en-us/aspnet/core/fundamentals/middleware/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Interceptors",
+      "publisher": "Spring Framework",
+      "reference": "Documentação de referência para interceptadores do Spring MVC.",
+      "url": "https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-config/interceptors.html",
+      "accessedAt": "2026-11-04"
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Middleware pode examinar uma requisição e encaminhar o processamento para outro componente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A afirmação está correta porque middleware integra o fluxo de processamento da aplicação e pode encaminhar o controle ao próximo componente. O contrato específico varia conforme o framework, mas essa função de participação na cadeia é comum.",
+      "section": "1. O que é middleware e por que existe",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Todo middleware é necessariamente um servidor separado que se comunica pela rede com a aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A afirmação está errada: middleware web pode ser uma função ou componente executado no próprio processo do servidor. O termo descreve sua posição e seu papel no processamento, não exige comunicação de rede com um serviço separado.",
+      "section": "1. O que é middleware e por que existe",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um middleware pode modificar informações da requisição antes de a rota processá-la.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A afirmação está correta porque certos middlewares acrescentam dados à requisição, ajustam cabeçalhos ou modificam aspectos da resposta antes de encaminhar o controle. A possibilidade e a forma concreta dependem das interfaces oferecidas pelo framework.",
+      "section": "1. O que é middleware e por que existe",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um componente que produz a resposta pode encerrar o processamento da requisição para as etapas posteriores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A afirmação está correta: quando um componente produz e conclui a resposta, ele pode encerrar o pipeline para aquela requisição. Etapas posteriores deixam de receber o controle, evitando que outra rotina tente responder novamente ao mesmo pedido.",
+      "section": "2. Encadeamento, ordem e fluxo de controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Express, se o middleware não encerra a resposta, chamar next() permite que o fluxo prossiga.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A afirmação está correta porque next() transfere o controle para a próxima etapa comum da cadeia Express. Se o middleware também não enviar uma resposta, deixar de chamar next() pode manter a requisição sem conclusão e o cliente aguardando.",
+      "section": "2. Encadeamento, ordem e fluxo de controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Express, qualquer middleware comum que chama next() já enviou automaticamente uma resposta HTTP ao cliente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A afirmação está errada: next() encaminha o controle na cadeia, mas não envia por si só status, cabeçalhos nem corpo HTTP ao cliente. Um middleware posterior ou a rota ainda pode processar a requisição e produzir a resposta.",
+      "section": "2. Encadeamento, ordem e fluxo de controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No ASP.NET Core, a ordem de registro dos componentes influencia a ordem em que a requisição é processada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A afirmação está correta porque a ordem em que os componentes são registrados determina a sequência de execução da requisição no pipeline ASP.NET Core. A posição também influencia quais etapas podem observar ou modificar o processamento da resposta.",
+      "section": "2. Encadeamento, ordem e fluxo de controle",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em ASP.NET Core, depois de chamar o próximo componente, a resposta percorre os anteriores na mesma ordem da requisição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A afirmação está errada: depois que o componente seguinte termina, a execução retorna pelos componentes que o chamaram na ordem inversa. Essa estrutura permite que cada etapa execute lógica antes e depois de delegar o processamento.",
+      "section": "2. Encadeamento, ordem e fluxo de controle",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Express, middleware de tratamento de erros usa uma assinatura de quatro argumentos, começando pelo erro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A afirmação está correta. No Express, o middleware de tratamento de erros usa os parâmetros (err, req, res, next), nessa ordem; a assinatura de quatro argumentos permite distinguir esse tipo de rotina do middleware comum.",
+      "section": "2. Encadeamento, ordem e fluxo de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Express, next('route') pode pular os demais handlers da rota atual em condições apropriadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A afirmação está correta: next('route') tem semântica própria no Express e, em handlers de rota compatíveis, pula as funções restantes daquela rota para procurar a próxima rota correspondente. Não deve ser confundido com o next() comum nem generalizado a outros frameworks.",
+      "section": "2. Encadeamento, ordem e fluxo de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "express.json() e express.static() têm a mesma finalidade: devolver ao cliente arquivos guardados no servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A afirmação está errada porque os componentes têm finalidades distintas. express.json interpreta corpos JSON recebidos e disponibiliza os dados analisados; express.static localiza e pode devolver arquivos estáticos, como imagens e folhas de estilo.",
+      "section": "3. Tipos, escopo e aplicações comuns",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Spring MVC, preHandle pode impedir que o handler seja chamado ao retornar false.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A afirmação está correta. No contrato de HandlerInterceptor do Spring MVC, preHandle executa antes do handler; se retornar false, a cadeia é interrompida e o handler não é chamado. A aplicação ainda precisa cuidar da resposta adequada ao bloqueio.",
+      "section": "4. Middleware, filtros e interceptadores",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Spring MVC, postHandle sempre pode alterar o corpo de uma resposta que já foi escrita pelo controlador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A afirmação está errada. Com @ResponseBody ou ResponseEntity, o corpo pode já ter sido serializado e escrito durante a execução do HandlerAdapter antes de postHandle. Nesse caso, o callback ocorre tarde demais para alterar o conteúdo já enviado.",
+      "section": "4. Middleware, filtros e interceptadores",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Autenticação estabelece a identidade do solicitante, enquanto autorização avalia se ele pode executar uma operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A afirmação está correta porque autenticação estabelece quem é o solicitante, enquanto autorização verifica se essa identidade tem permissão para a operação ou recurso. Reconhecer a identidade, por si só, não concede acesso a todas as rotas.",
+      "section": "3. Tipos, escopo e aplicações comuns",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Spring MVC, a documentação recomenda HandlerInterceptor como mecanismo principal de segurança por corresponder sempre exatamente às rotas dos controladores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A afirmação está errada. A documentação alerta que o casamento de caminhos do interceptor pode divergir do usado pelos controladores e recomenda Spring Security ou mecanismo semelhante integrado cedo à cadeia de filtros Servlet para tratar segurança.",
+      "section": "4. Middleware, filtros e interceptadores",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma etapa terminal do pipeline pode responder sem invocar o componente seguinte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A afirmação está correta: short-circuit é a interrupção do fluxo antes dos componentes restantes. Uma etapa terminal pode produzir a resposta e concluir o pedido sem invocar o próximo delegado, portanto as etapas seguintes não processam aquela requisição.",
+      "section": "2. Encadeamento, ordem e fluxo de controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Middleware pode encerrar o fluxo ao produzir uma resposta sem encaminhar o controle.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A afirmação está correta porque uma etapa terminal pode produzir a resposta e concluir o processamento da requisição sem delegar ao componente seguinte. Assim, as etapas posteriores não recebem o controle para aquele pedido.",
+      "section": "2. Encadeamento, ordem e fluxo de controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer registrar método, caminho e duração de pedidos de várias rotas sem copiar a mesma rotina em cada handler. Qual abordagem atende diretamente a essa necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar middleware comum para observar as requisições antes das rotas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar uma tabela de banco que substitua a execução dos handlers.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar o navegador para registrar a execução interna do servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Registrar uma rota diferente para cada cabeçalho recebido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar o pipeline e deixar o protocolo gerar o relatório.",
+          "correct": false
+        }
+      ],
+      "explanation": "Middleware é apropriado para preocupações transversais, como registro de acesso, porque pode observar vários pedidos em um ponto comum antes das rotas. Isso evita duplicação nos handlers e mantém a rotina dentro do fluxo do servidor.",
+      "section": "1. O que é middleware e por que existe",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma aplicação Express, qual componente é adequado para interpretar o corpo JSON recebido antes que uma rota leia seus dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "express.static(), que localiza arquivos públicos no disco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "express.json(), registrado antes das rotas dependentes do corpo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "router.use(), que sempre converte qualquer corpo em JSON.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "next('route'), que transforma bytes em objetos JavaScript.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "res.send(), usado para analisar dados enviados pelo cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "express.json() analisa corpos JSON e disponibiliza os dados interpretados à aplicação. Ele precisa estar registrado antes dos handlers que dependem desses dados; express.static() tem outra função, ligada ao fornecimento de arquivos.",
+      "section": "3. Tipos, escopo e aplicações comuns",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma requisição chega ao Express e o middleware atual não envia resposta. Qual chamada normalmente permite que o próximo middleware comum continue?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "res.finish(), para reiniciar a cadeia no começo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "app.static(), para encaminhar o controle adiante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "next(), que transfere o controle ao próximo componente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "req.end(), que chama automaticamente a rota seguinte e tambem reinicia todo o processo do servidor a cada pedido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "router.json(), que conclui o pedido sem resposta.",
+          "correct": false
+        }
+      ],
+      "explanation": "No fluxo comum do Express, next() passa o controle ao próximo middleware registrado. A chamada não envia uma resposta por conta própria; se nenhuma etapa responder nem encaminhar, o cliente pode continuar aguardando.",
+      "section": "2. Encadeamento, ordem e fluxo de controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente a função de express.static() em uma aplicação Express?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele serve arquivos estáticos, como imagens e folhas de estilo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ele autentica usuários por meio de uma senha padrão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele converte toda resposta HTTP em um objeto JSON.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele cria rotas automaticamente para cada método HTTP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele comprime sempre qualquer corpo recebido do cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "express.static() procura recursos estáticos no local configurado e pode devolvê-los como resposta. Interpretar o corpo JSON, autenticar usuários e comprimir respostas são tarefas distintas e não definem a finalidade desse middleware.",
+      "section": "3. Tipos, escopo e aplicações comuns",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No pipeline do ASP.NET Core, o que caracteriza uma etapa terminal registrada com Run?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela sempre chama todos os componentes registrados depois dela, mesmo sendo descrita como uma etapa terminal sem encaminhamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela substitui a identidade do usuário pelo nome da rota.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela executa apenas depois que a resposta chega ao cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela não recebe a requisição e só configura dependências.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela pode concluir o processamento sem invocar outro componente.",
+          "correct": true
+        }
+      ],
+      "explanation": "Run registra uma etapa terminal: seu delegado processa a requisição sem oferecer a chamada ao próximo componente. Por isso, etapas posteriores não são alcançadas por aquele caminho do pipeline.",
+      "section": "3. Tipos, escopo e aplicações comuns",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual distinção resume corretamente autenticação e autorização em uma cadeia de processamento web?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autenticação registra arquivos; autorização comprime respostas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Autenticação escolhe a rota; autorização interpreta JSON.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Autenticação identifica o solicitante; autorização avalia suas permissões.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Autorização identifica o solicitante; autenticação libera cada operação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As duas tarefas significam somente registrar cabeçalhos HTTP.",
+          "correct": false
+        }
+      ],
+      "explanation": "Autenticar é estabelecer a identidade associada ao pedido; autorizar é decidir se essa identidade pode realizar a operação pretendida. Separar as decisões evita tratar uma identidade reconhecida como autorização irrestrita.",
+      "section": "3. Tipos, escopo e aplicações comuns",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma requisição precisa passar por um parser de corpo antes de alcançar uma rota que consulta os dados analisados. Qual ordem é coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar a rota e só depois registrar o parser necessário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar o parser antes da rota que depende do resultado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar a rota duas vezes para criar os dados analisados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover o parser e pedir ao navegador que altere req.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar o parser depois da resposta para reabrir o pedido.",
+          "correct": false
+        }
+      ],
+      "explanation": "A etapa que prepara os dados deve ocorrer antes da rota que os consome. Se a rota for executada primeiro, o valor analisado ainda não estará disponível naquele ponto da cadeia.",
+      "section": "2. Encadeamento, ordem e fluxo de controle",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um middleware de aplicação do Express foi montado para um caminho específico. Qual efeito essa escolha tem em termos gerais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Faz o componente atuar apenas em requisições compatíveis com o caminho de montagem.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Transforma automaticamente todo caminho da aplicação em um arquivo estático e desativa o roteamento para todos os pedidos que não coincidam com o caminho de montagem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garante que o componente será executado depois de todas as rotas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converte o middleware em uma conexão remota fora do processo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Impede que qualquer middleware posterior seja registrado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O caminho de montagem limita o conjunto de pedidos em que o middleware participa. Essa escolha controla o escopo de execução, mas não transforma o componente em servidor remoto nem determina que ele sempre rode depois das rotas.",
+      "section": "3. Tipos, escopo e aplicações comuns",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma cadeia Express, um middleware comum chama next com um objeto de erro. Para onde o controle é encaminhado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para a rota estática que converte erros em imagens.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Para o primeiro middleware comum, ignorando a falha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para o processo de tratamento de erros da aplicação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Diretamente para o navegador, sem uma resposta HTTP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para um novo pedido iniciado pelo próprio servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Passar um erro a next sinaliza ao Express que o fluxo deve seguir para tratamento de erros. Isso não equivale a enviar o objeto diretamente ao navegador e difere do next() sem argumento, usado para continuar o fluxo comum.",
+      "section": "2. Encadeamento, ordem e fluxo de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer que um componente envolva o próximo no ASP.NET Core para medir o tempo total de processamento. Qual padrão permite isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Chamar o próximo delegado entre a medição inicial e a finalização.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Registrar apenas uma etapa Run antes do próximo delegado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover todos os delegados e medir o tamanho da rota.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar o próximo componente em outro pedido independente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aguardar o navegador informar quanto durou o servidor, pois o pipeline nao pode medir localmente o tempo antes e depois do proximo delegado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um componente baseado em Use pode executar lógica antes e depois de invocar o próximo delegado. A medição ao redor dessa chamada inclui o tempo gasto no restante do pipeline alcançado por aquele pedido.",
+      "section": "2. Encadeamento, ordem e fluxo de controle",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rota de uma API só deve ser processada depois que o servidor estabeleceu a identidade do solicitante. Qual arranjo respeita essa dependência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar autorização antes de qualquer identificação e ignorar o resultado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Estabelecer a identidade antes das decisões que dependem dela.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar a rota antes da autenticação em todos os pedidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar compressão de resposta para descobrir o solicitante.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir a identidade por um cabeçalho de caminho estático.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando uma decisão posterior depende da identidade, a autenticação precisa disponibilizá-la antes desse ponto. A autorização então pode avaliar permissões. Compressão e seleção de caminho não estabelecem a identidade do solicitante.",
+      "section": "3. Tipos, escopo e aplicações comuns",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que um middleware de tratamento de exceções costuma ser colocado antes de componentes cuja execução precisa monitorar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para impedir que os componentes monitorados recebam requisições, embora o objetivo seja observar falhas ocorridas durante a execução deles.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Para serializar a requisição antes de conhecer seu conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para garantir que cada exceção seja enviada sem tratamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para que falhas posteriores possam retornar por ele e ser tratadas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Para executar depois da resposta e reconstruir a requisição.",
+          "correct": false
+        }
+      ],
+      "explanation": "O componente de tratamento precisa envolver o trecho do pipeline cujas falhas deseja observar. Se estiver fora do caminho de execução dos componentes que falham, não poderá interceptar essas exceções para produzir o tratamento esperado.",
+      "section": "2. Encadeamento, ordem e fluxo de controle",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação serve arquivos estáticos antes de executar a lógica de uma rota. Qual consequência é compatível com esse comportamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A rota sempre altera o arquivo antes de ele ser localizado e transforma todos os outros caminhos da aplicacao em recursos estaticos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O arquivo existente pode ser respondido sem alcançar a rota posterior.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O servidor converte o arquivo em identidade autenticada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A requisição é reiniciada no começo após cada arquivo servido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Toda rota posterior passa a ser convertida em arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um middleware estático pode produzir diretamente a resposta quando encontra o recurso solicitado. Nessa situação, o fluxo pode ser encerrado antes da rota posterior; se não houver correspondência, o comportamento de continuação depende da configuração.",
+      "section": "3. Tipos, escopo e aplicações comuns",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um HandlerInterceptor do Spring MVC retorna false em preHandle. Qual resultado corresponde ao contrato desse callback?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O handler é chamado duas vezes para compensar a interrupção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A resposta é sempre apagada depois de ser enviada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A cadeia restante é interrompida antes da chamada ao handler.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O callback passa a funcionar como parser de corpo JSON.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O controle é transferido para a próxima aplicação remota.",
+          "correct": false
+        }
+      ],
+      "explanation": "preHandle é chamado antes do handler, e retornar false impede a continuação normal da cadeia e a invocação do handler. O código que interrompe o processamento deve considerar como a resposta será tratada.",
+      "section": "4. Middleware, filtros e interceptadores",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual aspecto deve ser comparado para distinguir middleware de um filtro ou interceptor específico de framework?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cor usada para representar o componente no diagrama, que define universalmente sua fase, seu escopo e seu contrato de fluxo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O nome da equipe que publicou primeiro o framework.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A quantidade de letras na classe que implementa a rotina.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O momento de execução, o escopo e o contrato para continuar ou interromper.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A linguagem usada pelo navegador para apresentar a página.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os nomes não bastam para definir a semântica. É preciso verificar em que fase o mecanismo executa, qual parte da aplicação alcança e como permite continuar ou interromper o fluxo; esses contratos variam entre frameworks.",
+      "section": "4. Middleware, filtros e interceptadores",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um interceptor MVC é usado para restringir URLs sensíveis, mas o casamento de caminhos do interceptor difere do mapeamento do controlador. Qual conclusão é mais segura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A diferença pode deixar caminhos sem a proteção esperada; segurança deve usar mecanismo integrado apropriado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O interceptor passa automaticamente a substituir autenticação e autorização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O controlador deixa de possuir qualquer regra de mapeamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A divergência garante que todas as URLs serão negadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O servidor transforma o interceptor em middleware de compressão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se os critérios de caminho não coincidirem, uma regra do interceptor pode não cobrir exatamente os endpoints pretendidos. A documentação do Spring recomenda tratar segurança com Spring Security ou mecanismo integrado cedo à cadeia de filtros, adequado a esse propósito.",
+      "section": "4. Middleware, filtros e interceptadores",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe coloca a seleção de rota antes de um middleware que deveria preparar dados usados pelo handler. Qual risco decorre dessa ordem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O middleware passa a autenticar sem examinar credenciais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O handler pode executar antes de os dados necessários serem preparados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A resposta percorre a cadeia na mesma ordem de entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O roteamento remove o corpo da requisição em qualquer framework.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A rota passa a servir automaticamente todos os arquivos estáticos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Componentes dependentes precisam ser registrados em uma ordem compatível com seus consumidores. Se o handler for alcançado antes da preparação, ele não poderá contar com os dados produzidos pelo middleware posterior durante aquela execução.",
+      "section": "2. Encadeamento, ordem e fluxo de controle",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um componente ASP.NET Core executa lógica antes e depois de chamar o próximo delegado. Como isso afeta a resposta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A resposta só pode ser observada pelo último componente registrado, embora a execução aninhada devolva o controle aos componentes anteriores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A requisição retorna aos componentes anteriores na ordem inversa ao avanço.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A chamada ao próximo delegado destrói os dados da requisição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A resposta reinicia o pipeline e executa todos os componentes duas vezes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somente um interceptor MVC pode escrever cabeçalhos de resposta.",
+          "correct": false
+        }
+      ],
+      "explanation": "A chamada ao próximo delegado aninha a execução: a requisição avança e, quando o componente seguinte termina, o controle retorna aos chamadores. Assim, a lógica posterior à chamada observa a fase de resposta na ordem inversa.",
+      "section": "2. Encadeamento, ordem e fluxo de controle",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rota Express contém vários handlers e um deles chama next('route'). Qual efeito específico pode ocorrer em uma rota compatível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A requisição é convertida em erro interno automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A resposta é enviada com status de sucesso sem conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O Express reinicia a aplicação e limpa o registro de rotas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O fluxo comum passa pelo middleware seguinte sem pular handlers, mesmo quando next('route') pede que os handlers restantes da rota sejam ignorados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os handlers restantes daquela rota podem ser ignorados em favor de outra rota correspondente.",
+          "correct": true
+        }
+      ],
+      "explanation": "next('route') tem efeito especial em cadeias de handlers de rota Express: ele pula os handlers restantes da rota atual e permite avaliar a próxima rota correspondente. O comportamento não é intercambiável com next() simples.",
+      "section": "2. Encadeamento, ordem e fluxo de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma resposta com corpo já serializado por ResponseEntity, qual limitação pode afetar uma alteração tentada em postHandle?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O callback ocorre necessariamente antes de qualquer execução do handler.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O callback substitui o objeto de requisição por um novo pedido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O corpo pode já ter sido escrito, tornando tardia a tentativa de modificá-lo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O callback transforma o conteúdo serializado em credenciais válidas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A serialização garante que nenhum header da resposta possa existir e que o callback postHandle seja executado antes do próprio handler.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em respostas produzidas por ResponseEntity ou @ResponseBody, a conversão e a escrita do conteúdo podem ocorrer antes de postHandle. Um interceptor não deve presumir que esse callback ainda pode alterar o corpo depois de ele ter sido comprometido.",
+      "section": "4. Middleware, filtros e interceptadores",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma requisição passa por autenticação, autorização e seleção de rota. Qual dependência explica a posição usual da autenticação antes da autorização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A autorização precisa de uma identidade estabelecida para avaliar permissões associadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A autenticação precisa aguardar a compressão terminar para ler a rota.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A seleção de rota sempre cria credenciais e elimina a autenticação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A autorização converte o corpo em JSON antes de qualquer parser.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O registro de acesso determina a identidade de todos os clientes e substitui autenticacao e autorizacao para qualquer operacao protegida.",
+          "correct": false
+        }
+      ],
+      "explanation": "A autorização avalia se o solicitante pode realizar uma ação, o que normalmente pressupõe que sua identidade já tenha sido estabelecida. A ordem reflete essa dependência, embora a configuração concreta também dependa do framework e do tipo de endpoint.",
+      "section": "3. Tipos, escopo e aplicações comuns",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação registra arquivos estáticos antes do componente de compressão. O que pode acontecer a uma resposta servida diretamente pelo componente estático?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela sempre será comprimida pelo componente posterior, mesmo sem alcançá-lo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela pode encerrar o fluxo antes de alcançar o componente de compressão posterior.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A resposta deixa de ser HTTP porque veio de arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O servidor troca o arquivo por uma requisição de autenticação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A rota posterior altera o arquivo depois que ele foi enviado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma etapa que responde diretamente pode fazer short-circuit e impedir a execução das etapas posteriores. Assim, o efeito da compressão depende da ordem e da forma como os componentes foram configurados para tratar a resposta.",
+      "section": "2. Encadeamento, ordem e fluxo de controle",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação quer aplicar verificações apenas a um conjunto de rotas relacionadas, sem repetir código em cada rota. Qual escolha de escopo é adequada no Express?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registrar a rotina como regra de formatação do corpo da resposta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar somente o navegador para duplicar as rotas no cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar um roteador e associar o middleware ao escopo desse agrupamento.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Converter os handlers em arquivos estáticos e desativar o roteamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover o caminho de montagem para restringir ainda mais a aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Express permite associar middleware a um Router, agrupando rotas que compartilham uma preocupação. Esse escopo reduz repetição sem obrigar a executar a mesma verificação em toda a aplicação ou copiá-la em cada handler.",
+      "section": "3. Tipos, escopo e aplicações comuns",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que um filtro de segurança integrado à cadeia web pode ser mais apropriado que depender apenas de um interceptor MVC para proteger endpoints?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque interceptores MVC executam antes de qualquer filtro em todo framework e sempre cobrem exatamente cada URL sem configuracao.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque filtros podem atuar em uma etapa mais ampla e integrada do processamento web.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Porque filtros eliminam a necessidade de identificar o usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque interceptores só podem servir imagens armazenadas no servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque qualquer filtro garante proteção sem configuração de caminhos.",
+          "correct": false
+        }
+      ],
+      "explanation": "No contexto Spring, a documentação orienta não presumir que o interceptor MVC seja a camada principal de segurança, inclusive por diferenças no casamento de caminhos. Um mecanismo integrado à cadeia de filtros, como Spring Security, atua no ponto apropriado para essa responsabilidade.",
+      "section": "4. Middleware, filtros e interceptadores",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ]
+}
