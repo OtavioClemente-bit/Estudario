@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Estudário – fila automática do ChatGPT (conta 3)
 // @namespace    estudario-conta3
-// @version      1.3
+// @version      1.4
 // @updateURL    http://127.0.0.1:8788/estudario-chatgpt-conta3.meta.js
 // @downloadURL  http://127.0.0.1:8788/estudario-chatgpt-conta3.user.js
 // @description  Envia os pedidos da fila do Estudário ao projeto "Gerador Estudário" e salva no PC os arquivos entregues.
@@ -124,6 +124,7 @@
         if (res.ok) {
           feitos.add(c.id); set("coletados", [...feitos].slice(-3000));
           if (!res.ja) set("salvos", get("salvos", 0) + 1);
+          set("vivo", Date.now());
           atualizar();
         }
       }
@@ -132,6 +133,13 @@
     } finally { coletando = false; }
   }
 
+  // Vigia: ligado e nada salvo há 60 min (aba travada com a mensagem parada), recarrega a página do projeto,
+  // o mesmo que o dono fazia à mão (03/11).
+  set("vivo", get("vivo", Date.now()));
+  setInterval(() => {
+    if (!get("ativo", false)) return;
+    if (Date.now() - get("vivo", Date.now()) > 60 * 60_000) { set("vivo", Date.now()); location.href = PROJ; }
+  }, 60_000);
   setTimeout(passo, 3000);
   setInterval(passo, 30_000);
   setInterval(atualizar, 30_000);
