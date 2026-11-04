@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Estudário – fila automática do Gemini
 // @namespace    estudario
-// @version      1.10
+// @version      1.11
 // @updateURL    http://127.0.0.1:8788/estudario-gemini.meta.js
 // @downloadURL  http://127.0.0.1:8788/estudario-gemini.user.js
 // @description  Envia os pedidos da fila do Estudário ao Gemini (modo Argon) e salva no PC o JSON de cada resposta (arquivos .chatgpt-80N).
@@ -29,8 +29,13 @@ PEDIDO:
 
   const w = (ms) => new Promise((r) => setTimeout(r, ms));
   const ABA = Math.random().toString(36).slice(2);
-  const get = (k, d) => GM_getValue(k, d);
-  const set = (k, v) => GM_setValue(k, v);
+  // Cada conta Google (gemini.google.com/u/N/...) trabalha sozinha, ao mesmo tempo que as outras: a vez, a fila
+  // e os contadores ficam separados por conta (antes eram um só, e a segunda conta ficava parada em
+  // "outra aba está trabalhando").
+  const U = (location.pathname.match(/^\/u\/(\d+)\//) || [])[1] || "0";
+  const APP = U === "0" ? "/app" : `/u/${U}/app`;
+  const get = (k, d) => GM_getValue(`u${U}:${k}`, d);
+  const set = (k, v) => GM_setValue(`u${U}:${k}`, v);
   const local = (method, path, body) => new Promise((ok, erro) => GM_xmlhttpRequest({
     method, url: SERV + path, data: body ? JSON.stringify(body) : undefined,
     headers: { "Content-Type": "application/json" },
@@ -128,7 +133,7 @@ PEDIDO:
     try {
       // Pedido em andamento (a página recarregou no meio): lê a resposta desta conversa.
       const atual = get("atual", null);
-      const naConversa = () => /^\/app\/[0-9a-f]+/.test(location.pathname) || !!document.querySelector("model-response");
+      const naConversa = () => /\/app\/[0-9a-f]+/.test(location.pathname) || !!document.querySelector("model-response");
       if (atual && naConversa()) {
         atualizar("esperando a resposta…");
         const r = await esperarResposta();
@@ -139,7 +144,7 @@ PEDIDO:
         let ok = false;
         try { JSON.parse(r.texto); ok = true; } catch { /* inválido */ }
         if (!ok) { set("falhas", get("falhas", 0) + 1); atualizar("JSON inválido; pulei"); return; }
-        const res = await local("POST", "/arquivo", { nome: atual.nome, conteudo: r.texto, conta: "gemini" });
+        const res = await local("POST", "/arquivo", { nome: atual.nome, conteudo: r.texto, conta: `gemini${U}` });
         if (res.ok && !res.ja) set("salvos", get("salvos", 0) + 1);
         atualizar(res.ok ? `salvo ${atual.nome}` : `servidor recusou: ${res.erro}`);
         return;
@@ -153,12 +158,12 @@ PEDIDO:
 
       let fila = get("fila", []);
       if (!fila.length) {
-        fila = (await local("GET", `/proximos?n=${POR_CICLO}&tipo=QUESTOES&conta=gemini`)).filter((p) => /^QUESTÕES:/.test(p));
+        fila = (await local("GET", `/proximos?n=${POR_CICLO}&tipo=QUESTOES&conta=gemini${U}`)).filter((p) => /^QUESTÕES:/.test(p));
         set("fila", fila);
         atualizar(`ciclo novo: ${fila.length} pedidos`);
         if (!fila.length) { set("proximo", Date.now() + 15 * 60_000); return; }
       }
-      if (location.pathname !== "/app") { location.href = "/app"; return; }
+      if (location.pathname !== APP) { location.href = APP; return; }
       let ed;
       for (let i = 0; i < 40 && !(ed = document.querySelector("rich-textarea .ql-editor")); i++) await w(500);
       if (!ed) return;
@@ -185,7 +190,7 @@ PEDIDO:
       document.execCommand("insertText", false, PREFIXO + pedido);
       await w(1500);
       const b = document.querySelector("button.send-button, button[aria-label='Enviar mensagem']");
-      if (!b) { atualizar("botão de enviar não apareceu"); await w(5000); location.href = "/app"; return; }
+      if (!b) { atualizar("botão de enviar não apareceu"); await w(5000); location.href = APP; return; }
       set("atual", { nome: nomeDe(pedido), t: Date.now() });
       fila.shift(); set("fila", fila);
       b.click();
@@ -202,7 +207,7 @@ PEDIDO:
   set("vivo", Date.now());
   setInterval(() => {
     if (!get("ativo", false) || get("dono", {}).id !== ABA || Date.now() < get("proximo", 0)) return;
-    if (Date.now() - get("vivo", Date.now()) > 35 * 60_000) { set("vivo", Date.now()); location.href = "/app"; }
+    if (Date.now() - get("vivo", Date.now()) > 35 * 60_000) { set("vivo", Date.now()); location.href = APP; }
   }, 60_000);
   setTimeout(passo, 4000);
   setInterval(passo, 20_000);
