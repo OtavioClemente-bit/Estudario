@@ -74,6 +74,11 @@ object Prefs {
         }
     }
 
+    /** Grava campos soltos na foto da conta (ex.: o fundo do caderno), sem mexer no resto. */
+    fun setSyncedFields(fields: Map<String, kotlinx.serialization.json.JsonElement>) {
+        Store.update { data -> data.withObject(SYNCED_KEY, JsonObject(synced(data) + fields)) }
+    }
+
     private fun JsonObject.long(key: String): Long? = (this[key] as? JsonPrimitive)?.longOrNull
     private fun JsonObject.withGoal(questions: Int, history: String, at: Long) =
         JsonObject(this + mapOf("dailyGoal" to JsonPrimitive(questions), "goalHistory" to JsonPrimitive(history), "goalUpdatedAt" to JsonPrimitive(at)))

@@ -1,5 +1,6 @@
 package br.com.estudario.ui.planner
 
+import br.com.estudario.ui.brand.cutPanel
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -41,13 +42,13 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
-private val Ink = Color(0xFF2E2799)
-private val InkDeep = Color(0xFF1B1464)
+private val Ink = Color(0xFF1F3B8A)
+private val InkDeep = Color(0xFF14285E)
 private val Gold = Color(0xFFF5B83D)
 private val Mint = Color(0xFF7EE0B8)
 private val Paper = Color(0xFFFFFBEF)
 private val Tape = Color(0x99F5E6B8)
-private val PaperInk = Color(0xFF26215C)
+private val PaperInk = Color(0xFF1C2A4F)
 private val weekdayInitials = listOf("S", "T", "Q", "Q", "S", "S", "D")
 
 /**
@@ -72,8 +73,9 @@ fun PlanProgressHeader(state: ActivePlanUiState, modifier: Modifier = Modifier) 
         Column(
             Modifier
                 .fillMaxWidth()
+                .cutPanel(RoundedCornerShape(28.dp))
                 .clip(RoundedCornerShape(28.dp))
-                .background(Brush.linearGradient(listOf(Ink, InkDeep)))
+                .background(Ink)
                 .drawBehind {
                     val step = 26.dp.toPx()
                     var y = step
@@ -224,7 +226,7 @@ private fun TodayMission(done: Int, total: Int, title: String, subtitle: String,
                 if (finished) drawCircle(accent)
                 else {
                     drawArc(Color(0xFFE9E3D3), 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(stroke))
-                    drawArc(Color(0xFF5B4BF5), -90f, 360f * shown, false, Offset(inset, inset), arc, style = Stroke(stroke, cap = StrokeCap.Round))
+                    drawArc(Color(0xFF2F5BD3), -90f, 360f * shown, false, Offset(inset, inset), arc, style = Stroke(stroke, cap = StrokeCap.Round))
                 }
             }
             Text(
@@ -239,7 +241,7 @@ private fun TodayMission(done: Int, total: Int, title: String, subtitle: String,
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = PaperInk)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = PaperInk.copy(alpha = 0.72f))
             if (total > 0 && !finished) Box(Modifier.padding(top = 6.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)).background(Color(0xFFE9E3D3))) {
-                Box(Modifier.fillMaxWidth(progress.coerceAtLeast(0.03f)).height(6.dp).clip(RoundedCornerShape(50)).background(Brush.horizontalGradient(listOf(Color(0xFF5B4BF5), Gold))))
+                Box(Modifier.fillMaxWidth(progress.coerceAtLeast(0.03f)).height(6.dp).clip(RoundedCornerShape(50)).background(Color(0xFF3BB273)))
             }
         }
         if (overdue > 0) Box(Modifier.padding(start = 8.dp).clip(RoundedCornerShape(50)).background(Color(0xFFC0262D)).padding(horizontal = 10.dp, vertical = 4.dp)) {

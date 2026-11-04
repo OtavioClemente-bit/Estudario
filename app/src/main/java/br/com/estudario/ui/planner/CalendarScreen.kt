@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.TextButton
 import br.com.estudario.ui.brand.Surface
 import br.com.estudario.ui.brand.ElevatedCard
 import br.com.estudario.ui.brand.Icon
@@ -42,10 +43,12 @@ fun CalendarScreen(
     /** Arrastar no mês (planos pagos): o estudo vai para o dia escolhido e fica fixado lá. */
     onMoveTask: (PlannerTaskUi, LocalDate) -> Unit = { _, _ -> },
     onSwapTasks: (PlannerTaskUi, PlannerTaskUi) -> Unit = { _, _ -> },
+    onDayOff: (LocalDate, Boolean) -> Unit = { _, _ -> },
 ) {
     val theoryByTopic = remember(state.tasks) {
         state.tasks.map { it.entity }.filter { it.type == br.com.estudario.domain.planner.PlanTaskType.THEORY && it.topicId != null && it.status != PlanTaskStatus.REPROGRAMADA }
-            .groupBy { it.topicId!! }.mapValues { (_, l) -> l.maxBy { it.scheduledEpochDay } }
+            // Teoria concluída em qualquer tarefa vale (uma "não realizada" antiga não pode acusar "pulada" o que já foi feito).
+            .groupBy { it.topicId!! }.mapValues { (_, l) -> l.filter { it.status == PlanTaskStatus.CONCLUIDA }.maxByOrNull { it.scheduledEpochDay } ?: l.maxBy { it.scheduledEpochDay } }
     }
     androidx.compose.runtime.CompositionLocalProvider(br.com.estudario.ui.components.LocalOpenTaskTopic provides onOpenTopic, br.com.estudario.ui.components.LocalTheoryByTopic provides theoryByTopic) {
     // Os chips "Acompanhe seu plano" (Hoje/Semana/Mês/Visão geral) escolhem qual destas visões
@@ -61,7 +64,7 @@ fun CalendarScreen(
             header = header,
         )
         PlanSection.WEEK -> WeekPlanView(state = state, onFocus = onFocus, onReprogram = onReprogram, onSkip = onSkip, onGenerate = onGenerate, header = header)
-        PlanSection.MONTH -> MonthPlanView(state = state, onFocus = onFocus, onReprogram = onReprogram, onSkip = onSkip, onGenerate = onGenerate, header = header, onMoveTask = onMoveTask, onSwapTasks = onSwapTasks)
+        PlanSection.MONTH -> MonthPlanView(state = state, onFocus = onFocus, onReprogram = onReprogram, onSkip = onSkip, onGenerate = onGenerate, header = header, onMoveTask = onMoveTask, onSwapTasks = onSwapTasks, onDayOff = onDayOff)
         PlanSection.YEAR -> OverviewPlanView(state = state, header = header, onEditAvailability = onEditAvailability, onShiftRoadmapEnd = onShiftRoadmapEnd)
     }
     }
@@ -370,6 +373,7 @@ private fun MonthPlanView(
     header: LazyListScope.() -> Unit,
     onMoveTask: (PlannerTaskUi, LocalDate) -> Unit,
     onSwapTasks: (PlannerTaskUi, PlannerTaskUi) -> Unit,
+    onDayOff: (LocalDate, Boolean) -> Unit,
 ) {
     val monthTasks = state.monthTasks
     val plannedMinutes = monthTasks.plannedLoadMinutes()
@@ -393,7 +397,7 @@ private fun MonthPlanView(
 
     PlanList(header) {
         // O mês inteiro, legível e arrastável (pagos): o calendário e a lista do dia escolhido.
-        item(key = "month-board") { PlanMonthBoard(state, onFocus, onMoveTask, onSwapTasks) }
+        item(key = "month-board") { PlanMonthBoard(state, onFocus, onMoveTask, onSwapTasks, onDayOff) }
         item { PlannerSummary(plannedMinutes = plannedMinutes, actualMinutes = actualMinutes, completionPercent = completionPercent, plannedLabel = "planejadas no mês", periodTitle = "Progresso do mês") }
         if (bySubject.isNotEmpty()) {
             item { Text("Distribuição por matéria", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }

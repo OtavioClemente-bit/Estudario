@@ -20,6 +20,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.FilterChip
+import br.com.estudario.ui.brand.TextButton
 import br.com.estudario.ui.brand.LinearProgressIndicator
 import br.com.estudario.ui.brand.Surface
 import br.com.estudario.ui.brand.FilledTonalButton
@@ -468,6 +470,8 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
     val topicSummaries = summaries.filter { it.topicId == topicId }
     val topicSnippets = snippets.filter { it.topicId == topicId }
     val recallSnippets = topicSnippets.filter { it.kind == SnippetKind.RECUPERACAO && !SavedFlashcards.isSavedCard(it) }
+    val recallSeen = remember(topicId) { androidx.compose.runtime.mutableStateSetOf<Long>() }
+    val recallContext = androidx.compose.ui.platform.LocalContext.current
     val tipSnippets = topicSnippets.filter { it.kind != SnippetKind.RECUPERACAO }
     val hasMaterial = topicTheories.isNotEmpty() || topicSummaries.isNotEmpty() || topicSnippets.isNotEmpty()
     if (apagarMaterial) {
@@ -808,7 +812,11 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                     item(key = "recall-header") { br.com.estudario.ui.components.RecallGroupHeader(recallSnippets.size) }
                     recallSnippets.forEach { snippet ->
                         item(key = "recall-${snippet.id}") {
-                            RecallCard(snippet.text, snippet.answer, revealKey = snippet.id, showIcon = false) {
+                            RecallCard(snippet.text, snippet.answer, revealKey = snippet.id, showIcon = false, onReveal = {
+                                // Virou todas as cartas do tópico: conta um baralho (uma vez por dia por tópico).
+                                recallSeen.add(snippet.id)
+                                if (recallSnippets.all { it.id in recallSeen }) br.com.estudario.data.FlashDeckLog.record(recallContext, "recall-$topicId-${br.com.estudario.data.FlashDeckLog.today()}")
+                            }) {
                                 IconButton(onClick = { viewModel.saveSnippet(snippet.copy(isFavorite = !snippet.isFavorite)) }) {
                                     Icon(if (snippet.isFavorite) Icons.Outlined.Star else Icons.Outlined.StarBorder, if (snippet.isFavorite) "Tirar do Caderno" else "Guardar no Caderno", tint = if (snippet.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                                 }

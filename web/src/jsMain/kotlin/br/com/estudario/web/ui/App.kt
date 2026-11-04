@@ -109,6 +109,9 @@ fun App() {
     // A abertura (#splash do index.html) fica na frente enquanto carrega e se dissolve quando o app
     // abre, depois de um mínimo para a marca terminar de se desenhar.
     val loading = Store.load == LoadState.Loading
+    // O fundo do caderno escolhido no app (ou em outro navegador) chega pela conta.
+    val syncedPrefs = br.com.estudario.web.data.Prefs.synced(Store.data)
+    androidx.compose.runtime.LaunchedEffect(syncedPrefs["paperUpdatedAt"]) { br.com.estudario.web.Paper.adopt(syncedPrefs) }
     androidx.compose.runtime.LaunchedEffect(loading) {
         if (loading) return@LaunchedEffect
         val splash = kotlinx.browser.document.getElementById("splash") ?: run { Splash.gone = true; return@LaunchedEffect }

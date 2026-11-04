@@ -23,6 +23,7 @@ import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.TextButton
 import br.com.estudario.ui.brand.LinearProgressIndicator
 import br.com.estudario.ui.brand.Surface
 import br.com.estudario.ui.brand.ElevatedCard

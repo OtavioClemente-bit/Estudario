@@ -15,7 +15,7 @@ import br.com.estudario.ui.brand.Card
 import androidx.compose.material3.MaterialTheme
 import br.com.estudario.ui.brand.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import br.com.estudario.ui.brand.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue

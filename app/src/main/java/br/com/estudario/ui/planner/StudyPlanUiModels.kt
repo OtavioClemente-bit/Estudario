@@ -63,6 +63,8 @@ data class ActivePlanUiState(
     /** O edital mês a mês até a prova (ou até o prazo escolhido) e se ele cabe. */
     val roadmap: br.com.estudario.domain.planner.EditalRoadmapResult? = null,
     val message: String? = null,
+    /** A conta já foi conferida desde que o app voltou para a tela (SyncGate). */
+    val syncFresh: Boolean = true,
 ) {
     /**
      * Só as tarefas vigentes. Ao mudar horas ou prioridades o plano é refeito: as tarefas antigas
@@ -81,7 +83,7 @@ data class ActivePlanUiState(
     val upcomingWeekTasks get() = currentTasks.filter { it.entity.scheduledEpochDay in (today.toEpochDay() + 1)..(today.toEpochDay() + 7) }
     /** "Hoje não vou conseguir" marcado para hoje. */
     val todayOff get() = dayOverrides.any { it.epochDay == today.toEpochDay() && it.unavailable }
-    val overdueTasks get() = tasks.filter { it.entity.scheduledEpochDay < today.toEpochDay() && it.entity.status in listOf(br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA, br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO) }
+    val overdueTasks get() = if (!syncFresh) emptyList() else tasks.filter { it.entity.scheduledEpochDay < today.toEpochDay() && it.entity.status in listOf(br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA, br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO) }
     val todayCompletionPercent: Int get() = todayTasks.plannedLoadCompletionPercent()
     val weekStart: LocalDate get() = today.minusDays((today.dayOfWeek.value - 1).toLong())
     val weekTasks get() = currentTasks.filter { LocalDate.ofEpochDay(it.entity.scheduledEpochDay) in weekStart..weekStart.plusDays(6) }

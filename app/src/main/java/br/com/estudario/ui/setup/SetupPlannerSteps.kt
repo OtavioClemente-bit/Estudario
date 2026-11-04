@@ -21,7 +21,7 @@ import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import br.com.estudario.ui.brand.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -126,7 +126,7 @@ internal fun SubjectsStep(
                     options = ExamPriority.entries,
                     selected = priority,
                     label = { it.label },
-                    color = Color(0xFF5B4BF5),
+                    color = Color(0xFF2F5BD3),
                     testTagPrefix = "priority_${subject.id}",
                 ) { chosen -> if (chosen == suggested) onResetPriority(key) else onPriority(key, chosen) }
                 if (edited) {
@@ -169,7 +169,7 @@ private fun LevelLegend() {
     SetupCard {
         Text("Como ler", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         listOf(
-            Color(0xFF5B4BF5) to "Peso na prova: quanto espaço a matéria ocupa no plano.",
+            Color(0xFF2F5BD3) to "Peso na prova: quanto espaço a matéria ocupa no plano.",
             Color(0xFFFF7A45) to "Esforço: o quanto ela costuma dar trabalho para você.",
             Color(0xFF1FB574) to "O quanto já sabe: matérias que você domina vão mais para revisão e questões.",
         ).forEach { (color, text) ->

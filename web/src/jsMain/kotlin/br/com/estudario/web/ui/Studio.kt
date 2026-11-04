@@ -143,7 +143,7 @@ fun GxCounter(
             attr("style", "--gxp:$pct%")
             attr("aria-label", label.ifBlank { "Quantidade" })
             value(value)
-            onInput { e -> (e.value?.toInt())?.let { latest.value(it.coerceIn(min, max)) } }
+            onInput { e -> (e.nativeEvent.target.asDynamic().value as? String)?.toDoubleOrNull()?.toInt()?.let { latest.value(it.coerceIn(min, max)) } }
         }
         mood(value)?.let { Div({ classes("gx-mood") }) { Text(it) } }
         val quick = chips.filter { it in min..max }

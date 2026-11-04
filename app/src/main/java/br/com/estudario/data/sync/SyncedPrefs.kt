@@ -37,6 +37,10 @@ object SyncedPrefs {
         val out = JSONObject().put("dailyGoal", goal).put("goalHistory", history).put("goalUpdatedAt", at)
         folhaSets.forEach { (name, key) -> out.put(name, JSONArray(folhaSet(context, key).orEmpty().sorted())) }
         out.put(BADGES, JSONArray(app(context).preferences.earnedBadges.first().sorted()))
+        // O fundo do caderno (o mesmo do site): vale a escolha mais nova.
+        br.com.estudario.ui.brand.PaperStyle.load(context)
+        val paperAt = br.com.estudario.ui.brand.PaperStyle.updatedAt(context)
+        if (paperAt > 0) out.put("paperPattern", br.com.estudario.ui.brand.PaperStyle.pattern).put("paperLight", br.com.estudario.ui.brand.PaperStyle.light).put("paperUpdatedAt", paperAt)
         return out
     }
 
@@ -55,6 +59,7 @@ object SyncedPrefs {
             }
         }
         br.com.estudario.data.FlashDeckLog.refresh(context)
+        if (json.has("paperUpdatedAt")) br.com.estudario.ui.brand.PaperStyle.adopt(context, json.optString("paperPattern"), json.optString("paperLight"), json.optLong("paperUpdatedAt", 0L))
         json.set(BADGES).takeIf { it.isNotEmpty() }?.let { app(context).preferences.markBadgesEarned(it) }
     }
 
@@ -66,6 +71,8 @@ object SyncedPrefs {
         val out = JSONObject()
             .put("dailyGoal", goal.optInt("dailyGoal", 20)).put("goalHistory", goal.optString("goalHistory")).put("goalUpdatedAt", goal.optLong("goalUpdatedAt", 0L))
         (folhaSets.keys + BADGES).forEach { name -> out.put(name, JSONArray((a.set(name) + b.set(name)).sorted())) }
+        val paper = if (b.optLong("paperUpdatedAt", 0L) > a.optLong("paperUpdatedAt", 0L)) b else a
+        if (paper.has("paperUpdatedAt")) out.put("paperPattern", paper.optString("paperPattern")).put("paperLight", paper.optString("paperLight")).put("paperUpdatedAt", paper.optLong("paperUpdatedAt", 0L))
         return out
     }
 }

@@ -32,7 +32,9 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val selected = MutableStateFlow(PlanSection.TODAY)
     private val _state = MutableStateFlow(ActivePlanUiState(loading = true))
-    val state = _state.asStateFlow()
+    // Até a conta responder ao abrir o app, nada aparece como atrasado (SyncGate).
+    val state = kotlinx.coroutines.flow.combine(_state, br.com.estudario.data.sync.SyncGate.fresh) { s, fresh -> if (fresh == s.syncFresh) s else s.copy(syncFresh = fresh) }
+        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, _state.value)
     private val _transfer = MutableStateFlow<PlanTransferUiState>(PlanTransferUiState.Idle)
     val transfer = _transfer.asStateFlow()
     /** Texto do loading bloqueante enquanto uma ação do plano está em andamento; null = nada rodando. */

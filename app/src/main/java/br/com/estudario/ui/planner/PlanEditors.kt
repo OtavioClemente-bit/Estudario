@@ -28,7 +28,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import br.com.estudario.ui.brand.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -244,7 +244,7 @@ internal fun ReprogramDialog(taskTitle: String, onDismiss: () -> Unit, onPick: (
                 Text(taskTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text("O que você já fez dela continua registrado.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(4.dp))
-                ReprogramOption("Deixar o plano encaixar", "Vai para o primeiro espaço livre do seu cronograma", Color(0xFF7C5CFF)) { onPick(null); onDismiss() }
+                ReprogramOption("Deixar o plano encaixar", "Vai para o primeiro espaço livre do seu cronograma", Color(0xFF2F5BD3)) { onPick(null); onDismiss() }
                 ReprogramOption("Amanhã", "Entra no plano de amanhã", Color(0xFF22C59A)) { onPick(java.time.LocalDate.now().plusDays(1)); onDismiss() }
                 ReprogramOption("Hoje", "Fazer ainda hoje, junto com o que já estava", Color(0xFFF2852B)) { onPick(java.time.LocalDate.now()); onDismiss() }
                 TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Cancelar") }

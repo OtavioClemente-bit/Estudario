@@ -32,6 +32,8 @@ import androidx.compose.material.icons.outlined.Quiz
 import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.OutlinedButton
+import br.com.estudario.ui.brand.TextButton
 import br.com.estudario.domain.ComputedReviewStatus
 import br.com.estudario.domain.ReviewPolicy
 import androidx.compose.runtime.*
@@ -157,7 +159,7 @@ fun ReviewSessionScreen(
     val highlights = remember(reviewId, material, config) {
         material.marks.filter { it.theoryId in theoryOrder && it.quote.isNotBlank() }
             .sortedWith(compareBy({ theoryOrder[it.theoryId] }, { it.blockIndex }, { it.createdAt }))
-            .map { ReviewCard("GRIFO", topicTheories.firstOrNull { theory -> theory.id == it.theoryId }?.title.orEmpty(), it.quote, it.note.takeIf { _ -> config.showHighlightNotes }) }
+            .map { val th = topicTheories.firstOrNull { theory -> theory.id == it.theoryId }; ReviewCard("GRIFO", th?.title.orEmpty(), br.com.estudario.domain.StudyNotebook.restoreQuote(it.quote, br.com.estudario.ui.components.studyBlocks(th?.markdown.orEmpty()), it.blockIndex), it.note.takeIf { _ -> config.showHighlightNotes }) }
     }
     if (highlightsOpen && highlights.isNotEmpty()) NotebookReview("Grifos · ${topic?.title.orEmpty()}", highlights, allowNavigation = false) { highlightsOpen = false }
     val recall = remember(reviewId, material, config) {
@@ -276,7 +278,7 @@ fun ReviewSessionScreen(
                                     colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFF2FBF8A), contentColor = Color.White),
                                 ) { Icon(Icons.Outlined.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Lembrei", fontWeight = FontWeight.Black) }
                             }
-                            androidx.compose.material3.TextButton(onClick = { flipped = false }) { Text("Voltar à pergunta") }
+                            br.com.estudario.ui.brand.TextButton(onClick = { flipped = false }) { Text("Voltar à pergunta") }
                         }
                     }
                 }

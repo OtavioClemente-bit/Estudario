@@ -59,13 +59,37 @@ val Nunito = FontFamily(
     Font(R.font.nunito_900, FontWeight.Black),
 )
 
+/**
+ * Bricolage Grotesque, a letra dos títulos (a mesma do site): grotesca com personalidade, firme e
+ * um pouco irregular, do jeito de um caderno de projeto. Um arquivo variável só, com o peso escolhido.
+ * Licença SIL OFL 1.1, cópia em docs/licencas/BricolageGrotesque-OFL.txt.
+ */
+@OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+val Bricolage = FontFamily(
+    listOf(400, 500, 600, 700, 800).map { w ->
+        Font(R.font.bricolage_grotesque, FontWeight(w), variationSettings = androidx.compose.ui.text.font.FontVariation.Settings(androidx.compose.ui.text.font.FontVariation.weight(w), androidx.compose.ui.text.font.FontVariation.Setting("opsz", 14f)))
+    },
+)
+
+/**
+ * JetBrains Mono, a letra dos números de painel (XP, contagens, cronômetro), igual ao site.
+ * Licença SIL OFL 1.1, cópia em docs/licencas/JetBrainsMono-OFL.txt.
+ */
+@OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+val MonoNum = FontFamily(
+    listOf(400, 500, 700, 800).map { w ->
+        Font(R.font.jetbrains_mono, FontWeight(w), variationSettings = androidx.compose.ui.text.font.FontVariation.Settings(androidx.compose.ui.text.font.FontVariation.weight(w)))
+    },
+)
+
 private fun TextStyle.nunito() = copy(fontFamily = Nunito)
+private fun TextStyle.titulo() = copy(fontFamily = Bricolage, letterSpacing = 0.sp)
 
 val EstudarioTypography = BaseTypography.run {
     Typography(
-        displayLarge = displayLarge.nunito(), displayMedium = displayMedium.nunito(), displaySmall = displaySmall.nunito(),
-        headlineLarge = headlineLarge.nunito(), headlineMedium = headlineMedium.nunito(), headlineSmall = headlineSmall.nunito(),
-        titleLarge = titleLarge.nunito(), titleMedium = titleMedium.nunito(), titleSmall = titleSmall.nunito(),
+        displayLarge = displayLarge.titulo(), displayMedium = displayMedium.titulo(), displaySmall = displaySmall.titulo(),
+        headlineLarge = headlineLarge.titulo(), headlineMedium = headlineMedium.titulo(), headlineSmall = headlineSmall.titulo(),
+        titleLarge = titleLarge.titulo(), titleMedium = titleMedium.nunito(), titleSmall = titleSmall.nunito(),
         bodyLarge = bodyLarge.nunito(), bodyMedium = bodyMedium.nunito(), bodySmall = bodySmall.nunito(),
         labelLarge = labelLarge.nunito(), labelMedium = labelMedium.nunito(), labelSmall = labelSmall.nunito(),
     )

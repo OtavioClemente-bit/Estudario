@@ -181,8 +181,8 @@ private fun levelColor(level: Int, tone: HeatTone): Color {
     val dark = androidx.compose.foundation.isSystemInDarkTheme()
     val scale = when (tone) {
         HeatTone.Fire -> listOf(Color.White.copy(alpha = 0.08f), Color(0x4DFF8A3D), Color(0x8CFF8A3D), Color(0xFFFF8A3D), Color(0xFFFFC94A))
-        HeatTone.Brand -> if (dark) listOf(MaterialTheme.colorScheme.surfaceVariant, Color(0xFF2E2770), Color(0xFF4B3BB8), Color(0xFF7C5CFF), Color(0xFFB6A6FF))
-            else listOf(MaterialTheme.colorScheme.surfaceVariant, Color(0xFFDCD3FF), Color(0xFFA895FF), Color(0xFF7C5CFF), Color(0xFF4B2FD6))
+        HeatTone.Brand -> if (dark) listOf(MaterialTheme.colorScheme.surfaceVariant, Color(0xFF2E2770), Color(0xFF4B3BB8), Color(0xFF2F5BD3), Color(0xFFB6A6FF))
+            else listOf(MaterialTheme.colorScheme.surfaceVariant, Color(0xFFDCD3FF), Color(0xFFA895FF), Color(0xFF2F5BD3), Color(0xFF4B2FD6))
     }
     return scale[level.coerceIn(0, 4)]
 }

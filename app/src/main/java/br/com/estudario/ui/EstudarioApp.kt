@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.TextButton
 import br.com.estudario.ui.brand.Surface
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.runtime.*
@@ -216,8 +217,8 @@ private fun MainNavigation(viewModel: AppViewModel) {
             onDismissRequest = { focusIdleGap = null },
             title = { androidx.compose.material3.Text("Você estava estudando?") },
             text = { androidx.compose.material3.Text("O foco ficou ligado e o app ficou fechado por $label. Se você estava lendo no livro ou fazendo exercício no papel, pode contar tudo.") },
-            confirmButton = { androidx.compose.material3.TextButton(onClick = { focusIdleGap = null }) { androidx.compose.material3.Text("Sim, contar") } },
-            dismissButton = { androidx.compose.material3.TextButton(onClick = { focusIdleGap = null; focusScope.launch { br.com.estudario.focus.FocusSessionManager.discount(focusContext, gap) } }) { androidx.compose.material3.Text("Não, descontar $label") } },
+            confirmButton = { br.com.estudario.ui.brand.TextButton(onClick = { focusIdleGap = null }) { androidx.compose.material3.Text("Sim, contar") } },
+            dismissButton = { br.com.estudario.ui.brand.TextButton(onClick = { focusIdleGap = null; focusScope.launch { br.com.estudario.focus.FocusSessionManager.discount(focusContext, gap) } }) { androidx.compose.material3.Text("Não, descontar $label") } },
         )
     }
     val focusHidden by viewModel.focusClockHidden.collectAsState()

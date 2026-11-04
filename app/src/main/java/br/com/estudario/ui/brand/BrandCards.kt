@@ -25,6 +25,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.compositeOver
@@ -36,8 +39,10 @@ import androidx.compose.ui.unit.dp
  * Os cartões do Estudário: borda firme e uma espessura embaixo, como os botões. Os que dá para
  * tocar afundam. Mesma assinatura dos cartões do Material, então o app inteiro muda junto.
  */
-private val CardLip = 4.dp
-val BrandCardShape = RoundedCornerShape(20.dp)
+private val CardLip = 5.dp
+private val CardLipX = 4.dp
+// "Caderno de projeto": ficha recortada com cantos levemente desiguais, borda de tinta e sombra dura.
+val BrandCardShape = RoundedCornerShape(topStart = 18.dp, topEnd = 11.dp, bottomEnd = 20.dp, bottomStart = 13.dp)
 
 @Composable
 fun Card(
@@ -123,31 +128,50 @@ private fun ChunkyCard(
     val face = colors.containerColor.let { if (it.alpha < 1f) it.compositeOver(surface) else it }
     val tinted = face != MaterialTheme.colorScheme.surfaceContainerLow && face != MaterialTheme.colorScheme.surface &&
         face != MaterialTheme.colorScheme.surfaceContainerLowest && face != MaterialTheme.colorScheme.surfaceContainer
-    val lip = if (tinted) lerp(face, Color.Black, 0.30f) else outline
-    val edge = border ?: BorderStroke(2.dp, if (tinted) lerp(face, Color.Black, 0.12f) else outline)
+    val ink = cutInk()
+    @Suppress("UNUSED_VARIABLE") val unused = tinted to outline
+    val lip = ink
+    val edge = border ?: BorderStroke(2.5.dp, ink)
 
     val source = interactionSource ?: remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val sink by animateDpAsState(if (onClick != null && pressed && enabled) CardLip else 0.dp, tween(70), label = "card-press")
+    val sinkX by animateDpAsState(if (onClick != null && pressed && enabled) CardLipX else 0.dp, tween(70), label = "card-press-x")
 
     Box(
         modifier
-            .clip(shape)
             .then(
                 if (onClick != null) Modifier.clickable(source, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
                 else Modifier,
             ),
         propagateMinConstraints = true,
     ) {
-        Box(Modifier.matchParentSize().padding(top = CardLip).background(lip, shape))
+        Box(Modifier.matchParentSize().padding(top = CardLip, start = CardLipX).background(lip, shape))
         Column(
             Modifier
-                .padding(bottom = CardLip)
-                .offset(y = sink)
+                .padding(bottom = CardLip, end = CardLipX)
+                .offset(x = sinkX, y = sink)
+                .clip(shape)
                 .background(face, shape)
                 .border(edge, shape),
         ) {
             CompositionLocalProvider(LocalContentColor provides colors.contentColor) { content() }
         }
     }
+}
+
+/**
+ * O painel de papel recortado para os painéis desenhados à mão (herói do início, do plano, do
+ * perfil, do estúdio): sombra dura deslocada na cor da tinta e borda de tinta, sem degradê.
+ * Use ANTES do clip: `Modifier.cutPanel(shape).clip(shape).background(cor)`.
+ */
+@Composable
+fun Modifier.cutPanel(shape: Shape, shadow: androidx.compose.ui.unit.Dp = 5.dp): Modifier {
+    val ink = cutInk()
+    return this
+        .drawBehind {
+            val outline = shape.createOutline(size, layoutDirection, this)
+            translate(shadow.toPx() * 0.8f, shadow.toPx()) { drawOutline(outline, ink) }
+        }
+        .border(2.5.dp, ink, shape)
 }

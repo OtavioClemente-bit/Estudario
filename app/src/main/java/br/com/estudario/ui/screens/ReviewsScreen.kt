@@ -1,5 +1,6 @@
 package br.com.estudario.ui.screens
 
+import br.com.estudario.ui.brand.cutPanel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,6 +16,8 @@ import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.FilterChip
+import br.com.estudario.ui.brand.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,10 +50,10 @@ import java.util.Locale
 private val Gold = Color(0xFFF5B83D)
 private val Mint = Color(0xFF2FD39A)
 private val Red = Color(0xFFE5484D)
-private val Violet = Color(0xFFA78BFF)
+private val Violet = Color(0xFF8FB0FF)
 private val Cyan = Color(0xFF22D3EE)
-private val InkA = Color(0xFF2E2799)
-private val InkB = Color(0xFF1B1464)
+private val InkA = Color(0xFF1F3B8A)
+private val InkB = Color(0xFF14285E)
 
 /** Revisar tudo em sequência: ao terminar uma, a próxima do dia abre sozinha (como no site). */
 internal object ReviewRun { var active = false }
@@ -110,7 +113,7 @@ fun ReviewsScreen(
         // ---- o topo: quantas para hoje, o botão de começar e os quatro números
         item {
             Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(Brush.linearGradient(listOf(InkA, InkB)))
+                Modifier.fillMaxWidth().cutPanel(RoundedCornerShape(26.dp)).clip(RoundedCornerShape(26.dp)).background(InkA)
                     .drawBehind {
                         val step = 26.dp.toPx(); var y = step
                         while (y < size.height) { drawLine(Color.White.copy(alpha = 0.05f), Offset(0f, y), Offset(size.width, y), 1.dp.toPx()); y += step }
@@ -260,7 +263,7 @@ private fun PanelHead(glyph: Glyph, color: Color, title: String, subtitle: Strin
         }
         if (count != null) Box(
             Modifier.shadow(10.dp, RoundedCornerShape(12.dp), ambientColor = Violet, spotColor = Violet).clip(RoundedCornerShape(12.dp))
-                .background(Brush.linearGradient(listOf(Color(0xFF8C70FF), Color(0xFF5B4BF5))))
+                .background(Brush.linearGradient(listOf(Color(0xFF2F5BD3), Color(0xFF2F5BD3))))
                 .border(1.5.dp, Violet, RoundedCornerShape(12.dp)).defaultMinSize(minWidth = 42.dp, minHeight = 34.dp).padding(horizontal = 12.dp),
             contentAlignment = Alignment.Center,
         ) { Text("$count", fontWeight = FontWeight.Black, fontSize = 16.sp, color = Color.White) }
@@ -296,7 +299,7 @@ private fun DueRow(stage: Int, color: Color, subject: String, title: String, met
             Spacer(Modifier.weight(1f))
             Row(
                 Modifier.shadow(6.dp, RoundedCornerShape(50)).clip(RoundedCornerShape(50))
-                    .background(if (late) Brush.horizontalGradient(listOf(Color(0xFFFF5A7A), Red)) else Brush.horizontalGradient(listOf(Color(0xFF7C5CFF), Color(0xFF5B4BF5), Mint)))
+                    .background(if (late) Red else Mint)
                     .clickable(onClick = onOpen).padding(start = 10.dp, end = 16.dp, top = 9.dp, bottom = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {

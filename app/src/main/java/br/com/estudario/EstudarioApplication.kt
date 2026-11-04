@@ -137,6 +137,15 @@ class EstudarioApplication : Application() {
         )
     }
     /** Sincronização com a conta (celular ⇄ app web). */
+    /** Sincronização terminou (bem ou mal): o plano volta a mostrar atrasos (SyncGate). */
+    private fun watchSyncGate() {
+        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            cloudSync.status.collect { st ->
+                if (st !is br.com.estudario.data.sync.CloudSyncStatus.Running && st !is br.com.estudario.data.sync.CloudSyncStatus.Idle) br.com.estudario.data.sync.SyncGate.release()
+            }
+        }
+    }
+
     val cloudSync: br.com.estudario.data.sync.CloudSyncService by lazy {
         br.com.estudario.data.sync.CloudSyncService(this, database, supabaseClientConfig, supabaseAuthRepository)
     }
@@ -165,6 +174,7 @@ class EstudarioApplication : Application() {
         aiSyllabusRepository
         AiJobRecoveryWorker.enqueue(this)
         RemoteSyllabusSyncWorker.enqueue(this)
+        watchSyncGate()
         br.com.estudario.data.sync.CloudSyncWorker.schedulePeriodic(this)
         br.com.estudario.data.sync.CloudSyncWorker.syncSoon(this)
         // Simulado que estava sendo gerado quando o app fechou continua de onde parou.

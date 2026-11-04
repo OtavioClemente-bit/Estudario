@@ -1,5 +1,6 @@
 package br.com.estudario.ui.screens.home
 
+import br.com.estudario.ui.brand.cutPanel
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.runtime.getValue
@@ -76,8 +77,8 @@ fun HomeHero(
     // O cartão do concurso com a cara do Estudário: a tinta índigo do Folha, a pauta do caderno e a
     // margem vermelha ao fundo, o nome do concurso sempre inteiro (a letra diminui antes de cortar),
     // os dias até a prova num ingresso dourado e o edital coberto num anel.
-    val ink = androidx.compose.ui.graphics.Color(0xFF2E2799)
-    val inkDeep = androidx.compose.ui.graphics.Color(0xFF1B1464)
+    val ink = androidx.compose.ui.graphics.Color(0xFF1F3B8A)
+    val inkDeep = androidx.compose.ui.graphics.Color(0xFF14285E)
     val gold = androidx.compose.ui.graphics.Color(0xFFF5B83D)
     val white = androidx.compose.ui.graphics.Color.White
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp)
@@ -89,8 +90,9 @@ fun HomeHero(
     Column(
         modifier
             .fillMaxWidth()
+            .cutPanel(shape)
             .clip(shape)
-            .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(ink, inkDeep)))
+            .background(ink)
             .drawBehind {
                 // Pauta do caderno, bem leve, e a linha vermelha da margem.
                 val step = 26.dp.toPx()
@@ -186,9 +188,8 @@ fun DailyMissionCard(
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
     run {
         Column(
-            modifier.fillMaxWidth().clip(shape)
-                .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(g.bg2, g.bg)))
-                .border(1.dp, g.line, shape)
+            modifier.fillMaxWidth().cutPanel(shape).clip(shape)
+                .background(g.bg2)
                 .padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -246,7 +247,7 @@ fun DailyMissionCard(
 private fun MissionStep(index: Int, item: MissionItemUi, isNow: Boolean, isOpen: Boolean, onSelect: () -> Unit, onStart: (() -> Unit)?, onGenerate: (() -> Unit)?) {
     val g = br.com.estudario.ui.profile.Game
     val color = when (item.kind) {
-        br.com.estudario.domain.planner.PlanTaskType.THEORY -> androidx.compose.ui.graphics.Color(0xFFA78BFF)
+        br.com.estudario.domain.planner.PlanTaskType.THEORY -> androidx.compose.ui.graphics.Color(0xFF8FB0FF)
         br.com.estudario.domain.planner.PlanTaskType.QUESTIONS, br.com.estudario.domain.planner.PlanTaskType.SIMULATION -> androidx.compose.ui.graphics.Color(0xFF2FD39A)
         br.com.estudario.domain.planner.PlanTaskType.REVIEW -> androidx.compose.ui.graphics.Color(0xFF22D3EE)
         br.com.estudario.domain.planner.PlanTaskType.FLASHCARDS, br.com.estudario.domain.planner.PlanTaskType.ACTIVE_RECALL -> androidx.compose.ui.graphics.Color(0xFFFFC94D)
@@ -302,7 +303,7 @@ private fun MissionStep(index: Int, item: MissionItemUi, isNow: Boolean, isOpen:
                     onClick = { if (generate != null) generate() else onStart() },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFF6C5CFF), contentColor = androidx.compose.ui.graphics.Color.White),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFF2F5BD3), contentColor = androidx.compose.ui.graphics.Color.White),
                 ) {
                     Text(
                         when {

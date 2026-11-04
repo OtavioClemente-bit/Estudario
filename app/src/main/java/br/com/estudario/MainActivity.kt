@@ -176,6 +176,23 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Voltou para a tela: até a conta responder, o plano não acusa "atrasada" o que pode ter sido
+     * feito no site (SyncGate). A sincronização já é pedida pelo laço de RESUMED acima.
+     */
+    override fun onStart() {
+        super.onStart()
+        val app = application as EstudarioApplication
+        if (app.cloudSync.enabled) {
+            br.com.estudario.data.sync.SyncGate.hold()
+            br.com.estudario.data.sync.CloudSyncWorker.syncSoon(this)
+            lifecycleScope.launch {
+                kotlinx.coroutines.delay(br.com.estudario.data.sync.SyncGate.timeoutMs)
+                br.com.estudario.data.sync.SyncGate.releaseIfStale()
+            }
+        }
+    }
+
     /** Ao sair do app, o que foi estudado sobe para a conta e aparece no app web. */
     override fun onStop() {
         super.onStop()

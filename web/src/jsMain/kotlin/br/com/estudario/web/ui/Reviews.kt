@@ -395,7 +395,7 @@ fun ReviewSessionScreen(reviewId: Long) {
     val highlights = remember(reviewId, config) {
         material.theoryMarks.filter { it.theoryId in theoryOrder && it.quote.isNotBlank() }
             .sortedWith(compareBy({ theoryOrder[it.theoryId] }, { it.blockIndex }, { it.createdAt }))
-            .map { NbCard("GRIFO", topicTheories.firstOrNull { theory -> theory.id == it.theoryId }?.title.orEmpty(), it.quote, it.note.takeIf { _ -> config.showHighlightNotes }, review.topicId) }
+            .map { val th = topicTheories.firstOrNull { theory -> theory.id == it.theoryId }; NbCard("GRIFO", th?.title.orEmpty(), br.com.estudario.domain.StudyNotebook.restoreQuote(it.quote, studyBlocks(th?.markdown.orEmpty()), it.blockIndex), it.note.takeIf { _ -> config.showHighlightNotes }, review.topicId) }
     }
     val recall = remember(reviewId, config) {
         val cards = material.snippets.filter { it.topicId == review.topicId && it.kind == "RECUPERACAO" && !it.answer.isNullOrBlank() }.sortedWith(compareBy({ it.position }, { it.id }))

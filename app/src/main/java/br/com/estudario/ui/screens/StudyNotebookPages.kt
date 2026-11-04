@@ -1,5 +1,7 @@
 package br.com.estudario.ui.screens
 
+import androidx.compose.foundation.layout.offset
+import br.com.estudario.ui.brand.cutPanel
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -91,7 +93,7 @@ import java.time.LocalDate
 
 /** Tema escuro: papel azul-noite e cores suaves (o papel creme claro ficava forte demais). */
 @Composable private fun nbDark() = MaterialTheme.colorScheme.background.luminance() < 0.5f
-private val Ink: Color @Composable get() = if (nbDark()) Color(0xFFECE9FF) else Color(0xFF1B1464)
+private val Ink: Color @Composable get() = if (nbDark()) Color(0xFFEAF1FF) else Color(0xFF14285E)
 private val Muted: Color @Composable get() = if (nbDark()) Color(0xFFB3ADDF) else Color(0xFF6B6790)
 private val PaperColor: Color @Composable get() = if (nbDark()) Color(0xFF1E1A4A) else Color(0xFFFFFDF7)
 private val CardBg: Color @Composable get() = if (nbDark()) Color(0xFF262158) else Color.White
@@ -158,7 +160,7 @@ private fun daySeed(): Long = LocalDate.now().toEpochDay()
 private fun firmColor(f: StudyNotebook.Firmness) = when (f) { StudyNotebook.Firmness.FIRM -> Mint; StudyNotebook.Firmness.MID -> Gold; StudyNotebook.Firmness.COLD -> Coral }
 private fun since(at: Long, now: Long): String { val d = ((now - at) / 86_400_000L).toInt(); return when { d <= 0 -> "hoje"; d == 1 -> "ontem"; else -> "há $d dias" } }
 private fun kindOf(p: StudyNotebook.Page): Pair<String, Color> = when (p) {
-    is StudyNotebook.Page.Key -> "Ponto-chave" to Color(0xFF5B4BE8)
+    is StudyNotebook.Page.Key -> "Ponto-chave" to Color(0xFF2F5BD3)
     is StudyNotebook.Page.MarkPage -> "Seu grifo" to Color(0xFFFFD43B)
     is StudyNotebook.Page.Trap -> "Pegadinha" to Stamp
     is StudyNotebook.Page.Recall -> "Lembrar" to Mint
@@ -198,7 +200,7 @@ private fun MarkQuote(mark: StudyNotebook.Mark) {
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Box(if (long && !open) Modifier.heightIn(max = 150.dp).clipToBounds() else Modifier) { br.com.estudario.ui.components.MarkdownText(md) }
-        if (long) Text(if (open) "recolher" else "ver o trecho inteiro", Modifier.clickable { open = !open }, color = Color(0xFF5B4BE8), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        if (long) Text(if (open) "recolher" else "ver o trecho inteiro", Modifier.clickable { open = !open }, color = Color(0xFF2F5BD3), fontWeight = FontWeight.Bold, fontSize = 13.sp)
         if (mark.note.isNotBlank()) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (nbDark()) Color(0xFFE8DC8A) else Postit).padding(horizontal = 10.dp, vertical = 6.dp)) {
             Text("✎ SUA NOTA", fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp, color = Color(0xFF3E3300).copy(alpha = 0.65f))
             Text(mark.note, fontFamily = Hand, fontSize = 19.sp, lineHeight = 22.sp, color = Color(0xFF3E3300))
@@ -281,7 +283,7 @@ fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Lon
                 }
                 // A Folheada do dia
                 Column(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Brush.linearGradient(listOf(Color(0xFF2E2799), Ink))).padding(16.dp),
+                    Modifier.fillMaxWidth().cutPanel(RoundedCornerShape(20.dp)).clip(RoundedCornerShape(20.dp)).background(Color(0xFF1F3B8A)).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Text(if (pages.isEmpty()) "FOLHEADA DO DIA" else if (flippedToday) "FOLHEADA DE HOJE · FEITA" else "FOLHEADA DO DIA · ~${StudyNotebook.minutes(pages)} MIN", color = Gold, fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 1.5.sp)
@@ -430,8 +432,8 @@ fun NotebookFlipScreen(viewModel: AppViewModel, onClose: () -> Unit, onPage: (Lo
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Row(Modifier.weight(1f).clickable { onPage(page.topicId) }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Description, null, Modifier.size(18.dp), tint = Color(0xFF5B4BE8)); Spacer(Modifier.width(6.dp))
-                        Text("Abrir a página do tópico", color = Color(0xFF5B4BE8), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Icon(Icons.Outlined.Description, null, Modifier.size(18.dp), tint = Color(0xFF2F5BD3)); Spacer(Modifier.width(6.dp))
+                        Text("Abrir a página do tópico", color = Color(0xFF2F5BD3), fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                     br.com.estudario.ui.components.ReportErrorButton(br.com.estudario.data.remote.ReportKind.OTHER, { StudyNotebook.pageText(page) }, topic?.title)
                 }
@@ -522,7 +524,7 @@ fun NotebookPageScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Uni
             val quotes = topic.marks.map { it.quote.trim() }.filter { it.length >= 8 }
             val thin = lines.size < 3 && topic.tips.size < 3 && topic.recall.size < 4
             Column(Modifier.fillMaxWidth().notebookPaper(24f).padding(start = 34.dp, end = 12.dp, top = 18.dp, bottom = 22.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text((subjects.firstOrNull { it.id == topic.subjectId }?.name ?: "").uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color(0xFF5B4BE8), letterSpacing = 0.5.sp)
+                Text((subjects.firstOrNull { it.id == topic.subjectId }?.name ?: "").uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color(0xFF2F5BD3), letterSpacing = 0.5.sp)
                 Text(topic.title, fontWeight = FontWeight.Black, fontSize = 23.sp, color = Ink)
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     val chip = @Composable { t: String, warn: Boolean -> Text(t, Modifier.clip(RoundedCornerShape(50)).background(if (warn) Color(0xFFFFE9D6) else Color(0xFFF1ECFF)).padding(horizontal = 9.dp, vertical = 3.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (warn) Color(0xFFB5560F) else Color(0xFF4232C9)) }
@@ -594,18 +596,18 @@ fun NotebookTabs(saved: Boolean, onNotebook: () -> Unit, onSaved: () -> Unit, vi
     val count = marks.size + notes.size
     val scheme = MaterialTheme.colorScheme
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).clip(RoundedCornerShape(18.dp)).background(scheme.surfaceContainerHigh).padding(4.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         @Composable
         fun Tab(on: Boolean, label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, badge: Int, onClick: () -> Unit) {
             Row(
-                Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(if (on) scheme.surface else Color.Transparent).clickable(enabled = !on, onClick = onClick).padding(vertical = 10.dp, horizontal = 8.dp),
+                Modifier.weight(1f).padding(horizontal = 4.dp).then(if (on) Modifier.offset(2.dp, 3.dp).border(2.dp, br.com.estudario.ui.brand.cutInk(), RoundedCornerShape(12.dp, 7.dp, 13.dp, 8.dp)) else Modifier.cutPanel(RoundedCornerShape(12.dp, 7.dp, 13.dp, 8.dp), 3.dp)).clip(RoundedCornerShape(12.dp, 7.dp, 13.dp, 8.dp)).background(if (on) Color(0xFF2F5BD3) else scheme.surface).clickable(enabled = !on, onClick = onClick).padding(vertical = 10.dp, horizontal = 8.dp),
                 horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(icon, null, Modifier.size(18.dp), tint = if (on) Color(0xFFC98A0B) else scheme.onSurfaceVariant)
+                Icon(icon, null, Modifier.size(18.dp), tint = if (on) Color.White else scheme.onSurfaceVariant)
                 Spacer(Modifier.width(6.dp))
-                Text(label, fontWeight = FontWeight.Black, fontSize = 13.sp, color = if (on) scheme.onSurface else scheme.onSurfaceVariant, maxLines = 1)
+                Text(label, fontWeight = FontWeight.Black, fontSize = 13.sp, color = if (on) Color.White else scheme.onSurface, maxLines = 1)
                 if (badge > 0) { Spacer(Modifier.width(6.dp)); Text("$badge", Modifier.clip(RoundedCornerShape(50)).background(Gold).padding(horizontal = 6.dp, vertical = 1.dp), fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color(0xFF3B2300)) }
             }
         }

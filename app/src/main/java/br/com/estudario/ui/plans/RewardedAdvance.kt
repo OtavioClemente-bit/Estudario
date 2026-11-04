@@ -129,7 +129,7 @@ fun RewardedAdvanceCard(ads: AiFreeAdAdvances, onCredit: () -> Unit, modifier: M
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(44.dp).clip(CircleShape).background(Color(0xFFF5B83D)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Outlined.OndemandVideo, null, tint = Color(0xFF1B1464))
+                Icon(Icons.Outlined.OndemandVideo, null, tint = Color(0xFF14285E))
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
@@ -171,7 +171,7 @@ fun RewardedAdvanceCard(ads: AiFreeAdAdvances, onCredit: () -> Unit, modifier: M
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (busy) { CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.White); Spacer(Modifier.width(10.dp)) }
-                Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = if (ads.canWatch && !busy) Color(0xFF1B1464) else Color.White)
+                Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = if (ads.canWatch && !busy) Color(0xFF14285E) else Color.White)
             }
         }
         if (!busy && state != null) Text(state!!, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.85f))

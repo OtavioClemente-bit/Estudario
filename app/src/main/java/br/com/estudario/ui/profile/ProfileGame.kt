@@ -1,5 +1,6 @@
 package br.com.estudario.ui.profile
 
+import br.com.estudario.ui.brand.cutPanel
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -112,19 +113,19 @@ import br.com.estudario.ui.theme.EstudarioTheme
 
 internal object Game {
     private val d: Boolean get() = br.com.estudario.ui.theme.CxTheme.dark
-    val bg: Color get() = if (d) Color(0xFF12143A) else Color(0xFFF3F1FF)
-    val bg2: Color get() = if (d) Color(0xFF1C1B52) else Color(0xFFFFFFFF)
-    val deep: Color get() = if (d) Color(0xFF0B0C26) else Color(0xFFE9E5FF)
+    val bg: Color get() = if (d) Color(0xFF0E1A33) else Color(0xFFF8F5EC)
+    val bg2: Color get() = if (d) Color(0xFF14223F) else Color(0xFFFFFDF8)
+    val deep: Color get() = if (d) Color(0xFF0B1529) else Color(0xFFE9E3D2)
     val ink: Color get() = if (d) Color.White else Color(0xFF14113A)
     val muted: Color get() = if (d) Color(0xFFA9ABD9) else Color(0xFF6B6894)
-    val line: Color get() = if (d) Game.tint(0.10f) else Color(0x2E5B4BF5)
+    val line: Color get() = if (d) Game.tint(0.10f) else Color(0x291C1E25)
     val track: Color get() = tint(0.08f)
     fun tint(alpha: Float): Color = br.com.estudario.ui.theme.CxTheme.tint(alpha)
     /** No claro, a cor do destaque um tom mais funda, para texto ler bem no fundo branco. */
     fun readable(c: Color): Color = if (d) c else androidx.compose.ui.graphics.lerp(c, Color(0xFF14113A), 0.38f)
     val mint = Color(0xFF34D399)
     val flame = Color(0xFFFF8A3D)
-    val violet = Color(0xFF8B7CFF)
+    val violet = Color(0xFF8FB0FF)
     val gold = Color(0xFFFFC94A)
 }
 
@@ -140,7 +141,7 @@ internal fun leagueOf(level: Int): League = when (levelTier(level)) {
     else -> League("Esmeralda", Color(0xFF10B981), Color(0xFF6EE7B7))
 }
 
-private val AttrColors = listOf(Color(0xFF8B7CFF), Color(0xFF34D399), Color(0xFF60A5FA), Color(0xFFFFC94A), Color(0xFFF472B6), Color(0xFF22D3EE))
+private val AttrColors = listOf(Color(0xFF8FB0FF), Color(0xFF34D399), Color(0xFF60A5FA), Color(0xFFFFC94A), Color(0xFFF472B6), Color(0xFF22D3EE))
 
 internal fun formatXp(xp: Int): String = "%,d".format(xp).replace(',', '.')
 
@@ -160,9 +161,8 @@ internal fun GamePanel(
     val shape = RoundedCornerShape(24.dp)
     run {
         Column(
-            Modifier.fillMaxWidth().clip(shape)
-                .background(Brush.verticalGradient(listOf(Game.bg2, Game.bg)))
-                .border(1.dp, Game.line, shape)
+            Modifier.fillMaxWidth().cutPanel(shape).clip(shape)
+                .background(Game.bg2)
                 .padding(18.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -201,8 +201,8 @@ internal fun PlayerCard(
     val shine by loop.animateFloat(-0.6f, 1.6f, infiniteRepeatable(tween(5_200, easing = LinearEasing)), label = "cartao-brilho")
     run {
         Column(
-            Modifier.fillMaxWidth().clip(shape)
-                .background(Brush.linearGradient(listOf(Game.bg2, Game.bg, Game.deep)))
+            Modifier.fillMaxWidth().cutPanel(shape).clip(shape)
+                .background(Game.bg2)
                 .drawBehind {
                     // Grade fina de holograma e o brilho da liga no canto.
                     val step = 22.dp.toPx()
@@ -218,7 +218,6 @@ internal fun PlayerCard(
                     val cx = size.width * shine
                     drawRect(Brush.linearGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.07f), Color.Transparent), Offset(cx - 120f, 0f), Offset(cx + 120f, size.height)))
                 }
-                .border(1.5.dp, Brush.linearGradient(listOf(league.c2.copy(alpha = 0.7f), Game.line, league.c1.copy(alpha = 0.5f))), shape)
                 .padding(18.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -553,12 +552,12 @@ internal fun TrophyRoom(progress: ProgressEngine.ProgressSummary, onBadges: () -
     val locked = progress.nextBadges.take(3)
     GamePanel("Sala de troféus", Game.gold, trailing = "Ver todos", onTrailing = onBadges) {
         Row(verticalAlignment = Alignment.Bottom) {
-            Text("${earned.size}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = Game.readable(Game.gold))
+            Text("${earned.size}", style = MaterialTheme.typography.headlineMedium.copy(fontFamily = br.com.estudario.ui.theme.MonoNum), fontWeight = FontWeight.Black, color = Game.readable(Game.gold))
             Text(" de ${progress.badges.size} troféus", style = MaterialTheme.typography.bodyMedium, color = Game.muted, modifier = Modifier.padding(bottom = 4.dp))
         }
         Spacer(Modifier.height(8.dp))
         Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)).background(Game.track)) {
-            Box(Modifier.fillMaxWidth(earned.size.toFloat() / total).fillMaxHeight().clip(RoundedCornerShape(50)).background(Brush.horizontalGradient(listOf(Color(0xFFF59E0B), Game.gold))))
+            Box(Modifier.fillMaxWidth(earned.size.toFloat() / total).fillMaxHeight().clip(RoundedCornerShape(50)).background(Game.gold))
         }
         Spacer(Modifier.height(14.dp))
         // Na vitrine, os três últimos ganhos; embaixo, os três mais perto de sair, trancados.
@@ -608,7 +607,7 @@ internal fun ComboPanel(streak: StreakSummary) {
             StreakFlame(lit = streak.current > 0, size = 76.dp, frozen = streak.current == 0 && streak.best > 0)
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Text("${streak.current}", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black, color = if (streak.current > 0) Game.flame else Game.ink)
+                Text("${streak.current}", style = MaterialTheme.typography.displaySmall.copy(fontFamily = br.com.estudario.ui.theme.MonoNum), fontWeight = FontWeight.Black, color = if (streak.current > 0) Game.flame else Game.ink)
                 Text(if (streak.current == 1) "dia de combo" else "dias de combo", style = MaterialTheme.typography.bodyMedium, color = Game.muted)
             }
         }
@@ -673,7 +672,7 @@ internal fun AttributesPanel(progress: ProgressEngine.ProgressSummary) {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(source.label, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = Game.ink, modifier = Modifier.weight(1f))
-                        Text("${formatXp(source.xp)} XP", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = Game.readable(color))
+                        Text("${formatXp(source.xp)} XP", style = MaterialTheme.typography.labelMedium.copy(fontFamily = br.com.estudario.ui.theme.MonoNum), fontWeight = FontWeight.Black, color = Game.readable(color))
                         Text("  ${percents[i]}%", style = MaterialTheme.typography.labelSmall, color = Game.muted)
                     }
                     Spacer(Modifier.height(5.dp))

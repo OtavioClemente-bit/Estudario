@@ -34,6 +34,8 @@ import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.OutlinedButton
+import br.com.estudario.ui.brand.TextButton
 import br.com.estudario.ui.brand.LinearProgressIndicator
 import br.com.estudario.ui.brand.Surface
 import br.com.estudario.ui.brand.Button

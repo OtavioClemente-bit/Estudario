@@ -57,7 +57,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import br.com.estudario.ui.brand.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import br.com.estudario.ui.brand.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -212,6 +212,7 @@ fun StudyNotebookScreen(
             saved = false,
             onToggleSave = null,
             onDismiss = { cardsFor = null },
+            deckKey = "caderno-$title",
             isCardSaved = { card -> list.any { it.text == card.front && it.answer.orEmpty() == card.back } },
             onToggleCard = { card -> list.firstOrNull { it.text == card.front && it.answer.orEmpty() == card.back }?.let(viewModel::deleteSnippet) },
         )
@@ -626,7 +627,7 @@ internal fun NotebookReview(title: String, cards: List<ReviewCard>, allowNavigat
                     Text(card.place, style = MaterialTheme.typography.labelLarge, color = scheme.primary, fontWeight = FontWeight.Bold)
                     if (!card.quote.isNullOrBlank()) Row(Modifier.fillMaxWidth().background(Color(0x33FFC857), RoundedCornerShape(12.dp)).height(IntrinsicSize.Min)) {
                         Box(Modifier.width(5.dp).fillMaxHeight().background(Color(0xFFF2A900)))
-                        Text(card.quote, Modifier.padding(14.dp), style = MaterialTheme.typography.bodyLarge.copy(lineHeight = MaterialTheme.typography.bodyLarge.lineHeight * 1.15f))
+                        Box(Modifier.padding(14.dp)) { br.com.estudario.ui.components.MarkdownText(remember(card.quote) { br.com.estudario.domain.StudyNotebook.quoteMarkdown(card.quote) }) }
                     }
                     if (!card.body.isNullOrBlank()) {
                         if (card.quote != null) Text("SUA NOTA", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = scheme.onSurfaceVariant)
