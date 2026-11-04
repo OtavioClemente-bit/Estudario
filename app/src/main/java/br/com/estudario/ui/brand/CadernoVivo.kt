@@ -38,23 +38,37 @@ fun Modifier.marker(): Modifier {
     }
 }
 
-/** O papel de caderno pontilhado (pontos de 1,3 dp a cada 22 dp), atrás de tudo. */
+/**
+ * O papel ao fundo de tudo: milimetrado no claro (linhas finas a cada 8 dp, fortes a cada 40 dp, tinta
+ * azul de caneta) e papel de planta azul de engenheiro no escuro, com a luz da luminária no canto.
+ * (O nome ficou da época do pontilhado; quem chama não precisa mudar.)
+ */
 @Composable
 fun Modifier.dottedPaper(): Modifier {
     val night = isCadernoNight()
-    val dot = if (night) Color.White.copy(alpha = 0.07f) else Color(0xFF26234A).copy(alpha = 0.11f)
+    val ink = if (night) Color(0xFF8CBEFF) else Color(0xFF2F5BD3)
+    val fine = ink.copy(alpha = if (night) 0.09f else 0.07f)
+    val strong = ink.copy(alpha = if (night) 0.19f else 0.16f)
+    val glow = if (night) Color(0xFF5C86FF).copy(alpha = 0.22f) else Color(0xFFFFD23F).copy(alpha = 0.20f)
     val paper = MaterialTheme.colorScheme.background
     // Os pontos viram uma pecinha desenhada uma vez e repetida pela GPU (antes eram ~1000 círculos a cada
     // quadro, e qualquer animação de qualquer tela fazia redesenhar o fundo inteiro: o app travava).
     return this.drawWithCache {
-        val step = 22.dp.toPx().toInt().coerceAtLeast(1)
-        val radius = 1.3.dp.toPx()
+        val step = 40.dp.toPx().toInt().coerceAtLeast(5)
+        val small = step / 5f
+        val line = 1.dp.toPx().coerceAtLeast(1f)
         val tile = androidx.compose.ui.graphics.ImageBitmap(step, step)
         androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(this, layoutDirection, androidx.compose.ui.graphics.Canvas(tile), Size(step.toFloat(), step.toFloat())) {
             drawRect(paper)
-            drawCircle(dot, radius, Offset(step / 2f, step / 2f))
+            for (i in 1 until 5) {
+                drawRect(fine, Offset(i * small, 0f), Size(line, step.toFloat()))
+                drawRect(fine, Offset(0f, i * small), Size(step.toFloat(), line))
+            }
+            drawRect(strong, Offset(0f, 0f), Size(line, step.toFloat()))
+            drawRect(strong, Offset(0f, 0f), Size(step.toFloat(), line))
         }
         val brush = androidx.compose.ui.graphics.ShaderBrush(androidx.compose.ui.graphics.ImageShader(tile, androidx.compose.ui.graphics.TileMode.Repeated, androidx.compose.ui.graphics.TileMode.Repeated))
-        onDrawBehind { drawRect(brush) }
+        val light = androidx.compose.ui.graphics.Brush.radialGradient(listOf(glow, Color.Transparent), center = Offset(size.width, 0f), radius = size.maxDimension * 0.7f)
+        onDrawBehind { drawRect(brush); drawRect(light) }
     }.graphicsLayer()
 }
