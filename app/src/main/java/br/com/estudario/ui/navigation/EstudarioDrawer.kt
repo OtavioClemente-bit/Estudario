@@ -1,5 +1,6 @@
 package br.com.estudario.ui.navigation
 
+import br.com.estudario.ui.brand.marker
 import br.com.estudario.BuildConfig
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -377,16 +378,7 @@ fun EstudarioTopBar(
                     style = MaterialTheme.typography.titleLarge.copy(letterSpacing = (-0.04).em),
                     fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
                     color = if (dark) androidx.compose.ui.graphics.Color(0xFFEDEBFF) else androidx.compose.ui.graphics.Color(0xFF26234A),
-                    modifier = Modifier
-                        .drawBehind {
-                            drawRoundRect(
-                                highlight,
-                                topLeft = androidx.compose.ui.geometry.Offset(0f, size.height * 0.55f),
-                                size = androidx.compose.ui.geometry.Size(size.width, size.height * 0.34f),
-                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()),
-                            )
-                        }
-                        .padding(horizontal = 3.dp),
+                    modifier = Modifier.marker(),
                 )
             }
         }
@@ -491,15 +483,6 @@ private fun DrawerWordmark() {
         style = MaterialTheme.typography.headlineSmall.copy(letterSpacing = (-0.04).em),
         fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
         color = if (dark) androidx.compose.ui.graphics.Color(0xFFEDEBFF) else androidx.compose.ui.graphics.Color(0xFF26234A),
-        modifier = Modifier
-            .drawBehind {
-                drawRoundRect(
-                    highlight,
-                    topLeft = androidx.compose.ui.geometry.Offset(0f, size.height * 0.55f),
-                    size = androidx.compose.ui.geometry.Size(size.width, size.height * 0.34f),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()),
-                )
-            }
-            .padding(horizontal = 3.dp),
+        modifier = Modifier.marker(),
     )
 }

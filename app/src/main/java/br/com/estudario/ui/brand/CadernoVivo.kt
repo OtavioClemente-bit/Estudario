@@ -1,5 +1,6 @@
 package br.com.estudario.ui.brand
 
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -24,17 +25,46 @@ private val Highlighter = Color(0xFFFFD23F)
 @Composable
 fun isCadernoNight(): Boolean = MaterialTheme.colorScheme.background.luminance() < 0.5f
 
-/** Passada de marca-texto atrás da metade de baixo do texto, como nos títulos do site. */
+/**
+ * O "risco do Folha", a assinatura dos títulos (a mesma do site): um risco de caneta feito à mão,
+ * levemente ondulado, com um segundo traço fino por baixo e a folhinha verde na ponta. Fica embaixo
+ * do texto, sem cobrir as letras. (O nome marker ficou da época da faixa de marca-texto.)
+ */
 @Composable
 fun Modifier.marker(): Modifier {
-    val color = Highlighter.copy(alpha = if (isCadernoNight()) 0.30f else 0.55f)
-    return this.drawBehind {
-        drawRoundRect(
-            color,
-            topLeft = Offset(-3.dp.toPx(), size.height * 0.60f),
-            size = Size(size.width + 6.dp.toPx(), size.height * 0.32f),
-            cornerRadius = CornerRadius(2.dp.toPx()),
-        )
+    val night = isCadernoNight()
+    val ink = if (night) Color(0xFF8FB0FF) else Color(0xFF2F5BD3)
+    val leaf = if (night) Color(0xFF4CD08A) else Color(0xFF3BB273)
+    val edge = if (night) Color(0xFF05091A) else Color(0xFF1C1E25)
+    return this.padding(end = 15.dp, bottom = 8.dp).drawBehind {
+        val leafW = 15.dp.toPx(); val leafH = 11.dp.toPx()
+        val w = size.width - leafW * 0.75f
+        val y = size.height - 4.dp.toPx()
+        val main = androidx.compose.ui.graphics.Path().apply {
+            moveTo(1.dp.toPx(), y)
+            cubicTo(w * 0.16f, y - 3.dp.toPx(), w * 0.31f, y + 2.dp.toPx(), w * 0.47f, y - 1.dp.toPx())
+            cubicTo(w * 0.64f, y - 3.5f.dp.toPx(), w * 0.8f, y - 1.dp.toPx(), w, y - 0.5f.dp.toPx())
+        }
+        drawPath(main, ink, style = androidx.compose.ui.graphics.drawscope.Stroke(2.6f.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round))
+        val thin = androidx.compose.ui.graphics.Path().apply {
+            moveTo(w * 0.06f, y + 3.dp.toPx())
+            cubicTo(w * 0.3f, y + 1.5f.dp.toPx(), w * 0.55f, y + 4.dp.toPx(), w * 0.78f, y + 2.dp.toPx())
+        }
+        drawPath(thin, ink.copy(alpha = 0.5f), style = androidx.compose.ui.graphics.drawscope.Stroke(1.3f.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round))
+        // a folhinha na ponta do risco
+        val lx = size.width - leafW; val ly = y - leafH * 0.85f
+        fun px(x: Float) = lx + x / 24f * leafW
+        fun py(v: Float) = ly + v / 18f * leafH
+        val shape = androidx.compose.ui.graphics.Path().apply {
+            moveTo(px(2f), py(15f))
+            cubicTo(px(4f), py(5f), px(13f), py(1f), px(22f), py(2f))
+            cubicTo(px(21f), py(10f), px(14f), py(16f), px(2f), py(15f))
+            close()
+        }
+        drawPath(shape, leaf)
+        drawPath(shape, edge, style = androidx.compose.ui.graphics.drawscope.Stroke(1.3f.dp.toPx(), join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        val vein = androidx.compose.ui.graphics.Path().apply { moveTo(px(3.5f), py(14f)); cubicTo(px(9f), py(10f), px(14f), py(7f), px(19f), py(4f)) }
+        drawPath(vein, edge, style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round))
     }
 }
 
