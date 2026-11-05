@@ -60,11 +60,30 @@ function contradictsTrueFalseKey(q: Record<string, unknown>): boolean {
  * Assertivas na mesma linha ("Avalie: I. ... II. ... III. ..."): um parágrafo por item e o comando
  * final ("Assinale...") separado, para o app e o site mostrarem como na prova.
  */
+// Comando final das questões de itens ("Estão corretas:", "Está correto o que se afirma em", "A sequência correta é"):
+// vai para um parágrafo próprio. Antes só pegava o masculino ("corretos") e o comando colava no último item (04/11).
+const COMANDO = /\s+(?=(?:Assinale|Indique|Marque|Considerando|Quais|Pode-se afirmar|A sequ[êe]ncia correta|A ordem correta|A associa[çc][ãa]o correta|(?:Est[áa]|Est[ãa]o|[ÉE]|S[ãa]o)\s+(?:apenas\s+)?(?:corret|incorret|verdadeir|fals|cert)[oa]s?)\b)/;
+
+/**
+ * Assertivas na mesma linha ("Avalie: I. ... II. ... III. ..."): um parágrafo por item e o comando
+ * final ("Assinale...") separado, para o app e o site mostrarem como na prova. Também separa as
+ * questões de relacionar ("1. ... 2. ..." e "( ) ...") em linhas.
+ */
 export function breakAssertivas(statement: string): string {
-  if (!/(^|\s)I[.)]\s/.test(statement) || !/\sII[.)]\s/.test(statement) || statement.includes("\nII")) return statement;
-  return statement
-    .replace(/\s+(?=(?:I|II|III|IV|V|VI)[.)]\s)/g, "\n\n")
-    .replace(/\s+(?=(?:Assinale|Est[áa] correto|[ÉE] correto|Est[ãa]o corretos|S[ãa]o corretas?|Indique|Marque)\b)/, "\n\n");
+  let s = statement;
+  // Itens em algarismos romanos (I. a VIII.).
+  if (/(^|\s)I[.)]\s/.test(s) && /\sII[.)]\s/.test(s) && !s.includes("\nII")) {
+    s = s.replace(/\s+(?=(?:I|II|III|IV|V|VI|VII|VIII)[.)]\s)/g, "\n\n").replace(COMANDO, "\n\n");
+  }
+  // Relacionar colunas: "( )" da segunda coluna, cada um numa linha.
+  if ((s.match(/\(\s*\)/g) ?? []).length >= 3 && !/\n\(\s*\)/.test(s)) {
+    s = s.replace(/\s+(?=\(\s*\)\s)/g, "\n").replace(COMANDO, "\n\n");
+  }
+  // Primeira coluna numerada "1. ... 2. ... 3. ..." (ou "(1)") na mesma linha.
+  if (/(^|\s)\(?1[.)]\s/.test(s) && /\s\(?2[.)]\s/.test(s) && /\s\(?3[.)]\s/.test(s) && !/\n\(?2[.)]/.test(s)) {
+    s = s.replace(/\s+(?=\(?[1-9][.)]\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ])/g, "\n");
+  }
+  return s;
 }
 
 export function hasDraftExplanation(question: Record<string, unknown>): boolean {

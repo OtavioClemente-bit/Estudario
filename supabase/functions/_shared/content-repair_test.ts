@@ -89,3 +89,13 @@ Deno.test("answer keys stuck on A are spread out and the explanation letters fol
   assert(explanation.includes(`${to.key} combina corretamente`));
   assert(explanation.endsWith(`Gabarito: ${to.key}.`));
 });
+
+Deno.test("assertivas: comando no feminino vai para parágrafo próprio e colunas de relacionar quebram em linhas", async () => {
+  const { breakAssertivas } = await import("./content-repair.ts");
+  const itens = breakAssertivas("Julgue: I. um; II. dois; III. três; IV. quatro. Estão corretas:");
+  assertEquals(itens.split("\n\n").at(-1), "Estão corretas:");
+  assert(itens.includes("\n\nIV. quatro."));
+  const colunas = breakAssertivas("Relacione. 1. Eficácia 2. Eficiência 3. Efetividade ( ) fazer certo ( ) atingir metas ( ) impacto. A sequência correta é:");
+  assert(colunas.includes("\n2. Eficiência") && colunas.includes("\n( ) atingir metas"));
+  assert(colunas.endsWith("\n\nA sequência correta é:"));
+});
