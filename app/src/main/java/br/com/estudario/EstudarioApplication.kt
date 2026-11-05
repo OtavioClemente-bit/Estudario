@@ -175,6 +175,10 @@ class EstudarioApplication : Application() {
         AiJobRecoveryWorker.enqueue(this)
         RemoteSyllabusSyncWorker.enqueue(this)
         watchSyncGate()
+        // Geração de matéria/questões que o Android interrompeu ao fechar o app: retoma do mesmo pedido.
+        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+            runCatching { br.com.estudario.data.ai.PendingContentJobs.resumeAll(this@EstudarioApplication) }
+        }
         br.com.estudario.data.sync.CloudSyncWorker.schedulePeriodic(this)
         br.com.estudario.data.sync.CloudSyncWorker.syncSoon(this)
         // Simulado que estava sendo gerado quando o app fechou continua de onde parou.

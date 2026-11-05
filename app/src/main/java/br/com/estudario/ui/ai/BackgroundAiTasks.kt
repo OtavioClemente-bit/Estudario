@@ -99,7 +99,7 @@ object BackgroundAiTasks {
     fun dismiss(id: String) {
         jobs.remove(id)?.let { if (it.isActive) it.cancel() }
         _tasks.update { list -> list.filterNot { it.id == id } }
-        appContext?.let { AiGenerationNotifications.cancel(it, id) }
+        appContext?.let { AiGenerationNotifications.cancel(it, id); br.com.estudario.data.ai.PendingContentJobs.remove(it, id) }
     }
 
     private fun upsert(task: Task) = _tasks.update { list -> list.filterNot { it.id == task.id } + task }

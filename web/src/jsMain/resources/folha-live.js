@@ -4483,7 +4483,9 @@
     static get observedAttributes() { return ["size", "tipo", "nivel", "tier", "categoria", "dias", "semana", "piece", "piece-slot", "rarity", "pieces", "bleed"]; }
     connectedCallback() {
       if (!this._canvas) {
-        this._canvas = cpuCanvas(); this._canvas.style.display = "block"; this._canvas.style.pointerEvents = "none";
+        // gpu: a WebView do app desenha a cena pela placa de vídeo. Pelo processador (o padrão, por causa do
+        // quadrado preto em algumas placas do computador) a cena inteira, quadro a quadro, travava em tablet.
+        this._canvas = this.hasAttribute("gpu") ? document.createElement("canvas") : cpuCanvas(); this._canvas.style.display = "block"; this._canvas.style.pointerEvents = "none";
         this.appendChild(this._canvas); this.setAttribute("role", "img");
         if (!this.style.display) this.style.display = "block";
         if ("ResizeObserver" in window) { this._ro = new ResizeObserver(() => this._size()); this._ro.observe(this); }

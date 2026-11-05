@@ -5,6 +5,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Spacer
@@ -339,7 +340,9 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
                 { selected.clear(); selected.addAll(ordered.map { it.first.id }) },
                 description = "${ordered.size} tópicos de uma vez", icon = Icons.Outlined.LibraryBooks,
             )
-            if (!wholeSubject) Column {
+            // Lista longa (edital com dezenas de tópicos) rola dentro de uma caixa de altura fixa: o cartão do
+            // estúdio recorta o conteúdo numa camada só, e camada alta demais o Android deixa de desenhar.
+            if (!wholeSubject) Column(Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState())) {
                 ordered.forEach { (topic, depth) ->
                     val checked = topic.id in selectedIds
                     Row(
@@ -458,7 +461,9 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
                 val (sameSubject, others) = questions.filter { !it.question.isHidden }.partition { it.question.topicId in subjectIds }
                 val avoid = (sameSubject.asReversed() + others.asReversed()).map { it.question.statement }.take(400)
                 // No Grátis o servidor confere para que é a matéria: dia do plano, adiantar ou extra.
-                application.aiContentGenerator.generate(competition, subject, topics, target, options, avoid, purpose = viewModel.contentPurposeFor(target.id)).collect { value ->
+                application.aiContentGenerator.generate(competition, subject, topics, target, options, avoid, purpose = viewModel.contentPurposeFor(target.id), onJobCreated = { jobId ->
+                    br.com.estudario.data.ai.PendingContentJobs.save(application, br.com.estudario.data.ai.PendingContentJobs.Job(taskId, jobId, target.title, "Material", competition.id, subject.id, target.id, System.currentTimeMillis()))
+                }).collect { value ->
                     when (value) {
                         is AiContentProgress.Done -> result = value.estudo
                         is AiContentProgress.Failed -> throw IllegalStateException(value.message)
@@ -757,7 +762,9 @@ fun AdditionalQuestionPromptBuilderDialog(
                 var result: String? = null
                 // Só as do próprio tópico: são as que o lote novo não pode repetir.
                 val avoid = questions.filter { it.question.topicId == topic.id && !it.question.isHidden }.map { it.question.statement }.asReversed()
-                application.aiContentGenerator.generate(competition, subject, subjectTopics, topic, questionOptions, avoid).collect { value ->
+                application.aiContentGenerator.generate(competition, subject, subjectTopics, topic, questionOptions, avoid, onJobCreated = { jobId ->
+                    br.com.estudario.data.ai.PendingContentJobs.save(application, br.com.estudario.data.ai.PendingContentJobs.Job(taskId, jobId, topic.title, "Questões", competition.id, subject.id, topic.id, System.currentTimeMillis()))
+                }).collect { value ->
                     when (value) {
                         is AiContentProgress.Done -> result = value.estudo
                         is AiContentProgress.Failed -> throw IllegalStateException(value.message)

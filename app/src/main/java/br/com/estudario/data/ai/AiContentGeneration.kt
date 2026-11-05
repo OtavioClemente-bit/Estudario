@@ -62,6 +62,8 @@ class AiContentGenerator(
         avoidStatements: List<String> = emptyList(),
         /** Para que é a matéria no Grátis: PLAN_DAY, ADVANCE ou EXTRA (AppViewModel.contentPurposeFor). */
         purpose: String = "EXTRA",
+        /** O servidor aceitou o pedido: guarde o id para retomar se o Android fechar o app (PendingContentJobs). */
+        onJobCreated: (String) -> Unit = {},
     ): Flow<AiContentProgress> = flow {
         emit(AiContentProgress.Sending)
         if (!config.isConfigured) return@flow emit(AiContentProgress.Failed("A geração pelo Estudário não está disponível nesta versão do app."))
@@ -87,7 +89,24 @@ class AiContentGenerator(
         if (created.status !in 200..299) return@flow emit(AiContentProgress.Failed(errorMessage(created)))
         val jobId = runCatching { JSONObject(created.body).getString("jobId") }.getOrNull()
             ?: return@flow emit(AiContentProgress.Failed(NETWORK))
+        onJobCreated(jobId)
+        poll(token, jobId, competition, subject, topics, target)
+    }
 
+    /**
+     * Retoma uma geração já aceita pelo servidor (o app foi fechado pelo Android no meio): só acompanha
+     * o pedido [jobId] até ficar pronto. Não cria pedido novo nem gasta cota de novo.
+     */
+    fun resume(jobId: String, competition: CompetitionEntity, subject: SubjectEntity, topics: List<TopicEntity>, target: TopicEntity): Flow<AiContentProgress> = flow {
+        if (!config.isConfigured) return@flow emit(AiContentProgress.Failed(NETWORK))
+        val token = authRepository.accessToken()
+            ?: return@flow emit(AiContentProgress.Failed("Entre na sua conta para receber o material."))
+        poll(token, jobId, competition, subject, topics, target)
+    }
+
+    private suspend fun kotlinx.coroutines.flow.FlowCollector<AiContentProgress>.poll(
+        token: String, jobId: String, competition: CompetitionEntity, subject: SubjectEntity, topics: List<TopicEntity>, target: TopicEntity,
+    ) {
         emit(AiContentProgress.Processing)
         val deadline = System.currentTimeMillis() + maxWaitMillis
         while (System.currentTimeMillis() < deadline) {
@@ -103,10 +122,10 @@ class AiContentGenerator(
             when (job.optString("status")) {
                 "SUCCEEDED" -> {
                     val proposal = job.optJSONObject("proposal")
-                        ?: return@flow emit(AiContentProgress.Failed("O material ficou pronto, mas não chegou ao aparelho. Tente de novo."))
-                    return@flow emit(AiContentProgress.Done(AiContentEstudo.build(competition, subject, topics, target, proposal)))
+                        ?: return emit(AiContentProgress.Failed("O material ficou pronto, mas não chegou ao aparelho. Tente de novo."))
+                    return emit(AiContentProgress.Done(AiContentEstudo.build(competition, subject, topics, target, proposal)))
                 }
-                "FAILED", "EXPIRED", "CANCELLED" -> return@flow emit(AiContentProgress.Failed(
+                "FAILED", "EXPIRED", "CANCELLED" -> return emit(AiContentProgress.Failed(
                     when (job.optString("errorCode")) {
                         // Grátis num tópico sem matéria pronta: o servidor não chama a IA.
                         "PLAN_AI_MATERIAL_LIMIT" -> NOT_READY_MESSAGE
