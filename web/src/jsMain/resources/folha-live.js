@@ -3079,16 +3079,19 @@
    * borda do quadro, sem o "quadrado" cortando os raios.
    */
   function backdrop(g, el, cx, cy, rx, ry, paint) {
-    const c = el._bgc || (el._bgc = cpuCanvas());
-    if (c.width !== g.canvas.width || c.height !== g.canvas.height) { c.width = g.canvas.width; c.height = g.canvas.height; }
-    const b = c.getContext("2d");
-    b.setTransform(1, 0, 0, 1, 0, 0); b.clearRect(0, 0, c.width, c.height); b.setTransform(g.getTransform());
+    // A luz do fundo é toda macia: pintada em meia resolução e ampliada, custa um quarto dos pixels por quadro
+    // (era a parte mais pesada da cena e o que travava em tablet e celular mais simples).
+    const c = el._bgc || (el._bgc = el.hasAttribute("gpu") ? document.createElement("canvas") : cpuCanvas()), S = 0.5;
+    const bw = Math.ceil(g.canvas.width * S), bh = Math.ceil(g.canvas.height * S);
+    if (c.width !== bw || c.height !== bh) { c.width = bw; c.height = bh; }
+    const b = c.getContext("2d"), M = g.getTransform();
+    b.setTransform(1, 0, 0, 1, 0, 0); b.clearRect(0, 0, c.width, c.height); b.setTransform(M.a * S, M.b * S, M.c * S, M.d * S, M.e * S, M.f * S);
     paint(b);
     b.save(); b.globalCompositeOperation = "destination-in"; b.translate(cx, cy); b.scale(1, ry / rx);
     const m = b.createRadialGradient(0, 0, 0, 0, 0, rx);
     m.addColorStop(0, "#000"); m.addColorStop(0.45, "rgba(0,0,0,0.92)"); m.addColorStop(0.75, "rgba(0,0,0,0.45)"); m.addColorStop(1, "rgba(0,0,0,0)");
     b.fillStyle = m; b.fillRect(-rx * 1.2, -rx * 1.2, rx * 2.4, rx * 2.4); b.restore();
-    g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(c, 0, 0); g.restore();
+    g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(c, 0, 0, g.canvas.width, g.canvas.height); g.restore();
   }
   // bolinhas de luz desfocadas, flutuando devagar (dão profundidade ao palco)
   function bokeh(g, t, cx, cy, color, a, n = 10) {
@@ -4540,7 +4543,7 @@
     _look(over) { return resolveLook(null, Object.assign({ plain: true }, over || {})); }
     _size() {
       if (!this._canvas) return;
-      const attr = parseInt(this.getAttribute("size") || "0", 10), w = attr || this.clientWidth || 320, dpr = Math.min(window.devicePixelRatio || 1, this._lite ? 1.25 : 1.75); // 1,75: a cena é animação; 2,5 desenhava o dobro de pixels por quadro e travava no celular
+      const attr = parseInt(this.getAttribute("size") || "0", 10), w = attr || this.clientWidth || 320, dpr = Math.min(window.devicePixelRatio || 1, this._lite ? 1.1 : 1.5); // 1,75: a cena é animação; 2,5 desenhava o dobro de pixels por quadro e travava no celular
       if (attr) { this.style.width = w + "px"; }
       const h = Math.round(w * CENA_H / 100);
       this.style.height = h + "px";
@@ -4549,6 +4552,11 @@
       this._bleed = bleed; this._placeFenix && this._placeFenix();
       if (getComputedStyle(this).position === "static") this.style.position = "relative";
       const st = this._canvas.style; st.position = "absolute"; st.left = st.top = -off + "px"; st.width = w + 2 * off + "px"; st.height = h + 2 * off + "px";
+      // borda macia (nada encosta na borda do quadro): máscara do navegador, que a placa de vídeo aplica de graça;
+      // antes eram dois degradês pintados sobre o canvas inteiro a cada quadro
+      { const W = 100 + 2 * bleed, H = CENA_H + 2 * bleed, sx = Math.min(30, 700 / W), st0 = Math.min(30, 500 / H), sb = Math.min(30, 300 / H);
+        const mask = "linear-gradient(to right, transparent, #000 " + sx + "%, #000 " + (100 - sx) + "%, transparent), linear-gradient(to bottom, transparent, #000 " + st0 + "%, #000 " + (100 - sb) + "%, transparent)";
+        st.webkitMaskImage = st.maskImage = mask; st.webkitMaskComposite = "source-in"; st.maskComposite = "intersect"; }
       const cw = Math.round((w + 2 * off) * dpr), ch = Math.round((h + 2 * off) * dpr);
       if (this._canvas.width !== cw || this._canvas.height !== ch) { this._canvas.width = cw; this._canvas.height = ch; }
       this._k = w * dpr / 100; this._off = off * dpr;
@@ -4574,14 +4582,6 @@
       g.setTransform(this._k, 0, 0, this._k, this._off || 0, this._off || 0);
       draw(g, T, t, this);
       Q = 1;
-      // borda macia: nada encosta na borda do quadro (o que sangra para fora some aos poucos)
-      const b = (this._bleed || 0), x0 = -b, x1 = 100 + b, y0 = -b, y1 = CENA_H + b, W = x1 - x0, H = y1 - y0;
-      g.save(); g.globalCompositeOperation = "destination-in";
-      const fx = g.createLinearGradient(x0, 0, x1, 0); fx.addColorStop(0, "rgba(0,0,0,0)"); fx.addColorStop(Math.min(0.3, 7 / W), "#000"); fx.addColorStop(1 - Math.min(0.3, 7 / W), "#000"); fx.addColorStop(1, "rgba(0,0,0,0)");
-      g.fillStyle = fx; g.fillRect(x0, y0, W, H);
-      const fy = g.createLinearGradient(0, y0, 0, y1); fy.addColorStop(0, "rgba(0,0,0,0)"); fy.addColorStop(Math.min(0.3, 5 / H), "#000"); fy.addColorStop(1 - Math.min(0.3, 3 / H), "#000"); fy.addColorStop(1, "rgba(0,0,0,0)");
-      g.fillStyle = fy; g.fillRect(x0, y0, W, H);
-      g.restore();
     }
   }
   customElements.define("estudario-cena", EstudarioCena);

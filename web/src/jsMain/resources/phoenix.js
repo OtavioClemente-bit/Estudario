@@ -193,7 +193,7 @@
     _size() {
       const r = this.getBoundingClientRect(), side = Math.max(r.width, r.height) * 1.7 || 1;
       // no máximo ~1000 px de lado: no celular (tela 3x) o canvas passaria de 2500 px e cada quadro pesaria
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.5, 1000 / side);
+      const dpr = Math.min(window.devicePixelRatio || 1, this._lite ? 1 : 1.5, 1000 / side);
       const w = Math.max(1, Math.round(r.width * 1.7 * dpr)), h = Math.max(1, Math.round(r.height * 1.7 * dpr));
       if (this._c.width !== w || this._c.height !== h) { this._c.width = w; this._c.height = h; this._glow.width = Math.ceil(w / 4); this._glow.height = Math.ceil(h / 4); this._fire.width = Math.ceil(w * .4); this._fire.height = Math.ceil(h * .4); this._soft.width = this._glow.width; this._soft.height = this._glow.height; }
     }
@@ -202,7 +202,17 @@
       // 60 quadros na hora de acordar; depois que o fogo estabiliza (2,5 s), 30: a chama continua viva e o
       // celular desenha metade (em tela de 120 Hz a fênix era a comemoração mais pesada).
       let last = 0; const born = performance.now();
-      const step = (now) => { const gap = now - born > 2500 ? 31 : 14; if (now - last >= gap) { last = now; this._frame(); } if (!reduced.matches) this._raf = requestAnimationFrame(step); };
+      // Aparelho lento (mediana de 30 quadros acima de 40 ms depois de 1,5 s): modo leve até o fim, com menos
+      // pixels e 30 quadros por segundo. Em tablet e celular simples a fênix travava a tela inteira.
+      const win = [];
+      const step = (now) => {
+        const gap = this._lite || now - born > 2500 ? 31 : 14;
+        if (now - last >= gap) {
+          if (last && !this._lite) { win.push(now - last); if (win.length > 30) win.shift(); if (now - born > 1500 && win.length >= 30 && [...win].sort((a, b) => a - b)[15] > 40) { this._lite = true; this._size(); } }
+          last = now; this._frame();
+        }
+        if (!reduced.matches) this._raf = requestAnimationFrame(step);
+      };
       this._raf = requestAnimationFrame(step);
     }
     _frame() {
