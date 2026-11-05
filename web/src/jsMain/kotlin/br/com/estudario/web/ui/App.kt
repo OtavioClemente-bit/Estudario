@@ -139,6 +139,8 @@ fun App() {
     Store.conflict?.let { head -> ConflictDialog(head.deviceLabel) }
     // O visual do Folha (armário, sequência e hora do dia) vale para todos os Folhas do site.
     if (Store.load == LoadState.Ready) FolhaLookSync()
+    // trazendo da conta o que foi feito no celular: o Folha passa as folhas de um aparelho para o outro
+    if (Store.load == LoadState.Ready) SyncBanner()
     // Grátis: confere na biblioteca quais tópicos já têm matéria pronta (os outros ficam fora do plano).
     if (Store.load == LoadState.Ready && !Store.demo) androidx.compose.runtime.LaunchedEffect(Unit) {
         runCatching { br.com.estudario.web.data.LibraryGaps.refresh(Store.data, isFreeTier()) }

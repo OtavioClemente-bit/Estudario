@@ -150,6 +150,8 @@ class MainActivity : ComponentActivity() {
             }
             Box(Modifier.fillMaxSize().turmaTouchRoot()) {
                 if (mountApp) EstudarioApp(viewModel)
+                // "Sincronizando" com o Folha entre o celular e o computador (a abertura já cobre o começo)
+                if (!showSplash) br.com.estudario.ui.brand.SyncBanner()
                 if (showSplash) androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalTextStyle provides androidx.compose.ui.text.TextStyle(fontFamily = br.com.estudario.ui.theme.Nunito)) {
                     BrandSplash(ready = onboarding != null && tours != null, onFinished = { showSplash = false })
                 }
@@ -163,6 +165,10 @@ class MainActivity : ComponentActivity() {
             if (br.com.estudario.data.DebugSeed.allowed() && intent?.getBooleanExtra("seedDemo", false) == true) {
                 val app = application as EstudarioApplication
                 lifecycleScope.launch { br.com.estudario.data.DebugSeed.run(app.database, app.repository) }
+            }
+            // Vitrine do "Sincronizando": `--ez syncShowcase true` finge 4 s de sincronização.
+            if (br.com.estudario.data.DebugSeed.allowed() && intent?.getBooleanExtra("syncShowcase", false) == true) {
+                lifecycleScope.launch { kotlinx.coroutines.delay(2500); br.com.estudario.data.sync.SyncGate.hold(); kotlinx.coroutines.delay(4000); br.com.estudario.data.sync.SyncGate.release() }
             }
             // Massa de teste pesada, como a de quem estuda há seis semanas: `--ez seedReal true`.
             if (br.com.estudario.data.DebugSeed.allowed() && intent?.getBooleanExtra("seedReal", false) == true) {

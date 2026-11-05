@@ -35,6 +35,8 @@ object Store {
     var data by mutableStateOf(Snapshot.empty())
         private set
     var save by mutableStateOf(SaveState.Saved)
+    /** Trazendo da conta o que outro aparelho fez (o aviso "Sincronizando" com o Folha). */
+    var syncing by mutableStateOf(false)
         private set
     var conflict by mutableStateOf<CloudHead?>(null)
         private set
@@ -119,6 +121,7 @@ object Store {
             val head = Cloud.head()
             if (head.revision == baseRevision || head.objectPath == null) return
             if (save != SaveState.Saved) return // alguém editou enquanto a cabeça era lida
+            syncing = true
             val text = Cloud.download(head)
             val fresh = Snapshot.parse(text)
             if (save != SaveState.Saved) return
@@ -132,6 +135,7 @@ object Store {
             // Sem rede ou erro passageiro: a próxima rodada tenta de novo.
         } finally {
             refreshing = false
+            syncing = false
         }
     }
 
