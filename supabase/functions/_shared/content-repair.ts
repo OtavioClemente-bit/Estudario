@@ -78,6 +78,8 @@ export function breakAssertivas(statement: string): string {
   // Relacionar colunas: "( )" da segunda coluna, cada um numa linha.
   if ((s.match(/\(\s*\)/g) ?? []).length >= 3 && !/\n\(\s*\)/.test(s)) {
     s = s.replace(/\s+(?=\(\s*\)\s)/g, "\n").replace(COMANDO, "\n\n");
+    // Título da segunda coluna ("Situações:", "Coluna II:") colado no último item da primeira: linha própria.
+    s = s.replace(/([.;])\s+([A-ZÁÉÍÓÚÂÊÔÃÕÇ][^.:;()\n]{2,40}:)\s*\n(?=\(\s*\))/, "$1\n\n$2\n");
   }
   // Primeira coluna numerada "1. ... 2. ... 3. ..." (ou "(1)") na mesma linha.
   if (/(^|\s)\(?1[.)]\s/.test(s) && /\s\(?2[.)]\s/.test(s) && /\s\(?3[.)]\s/.test(s) && !/\n\(?2[.)]/.test(s)) {
