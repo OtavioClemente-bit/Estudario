@@ -55,8 +55,17 @@ async function ok(r: Response, oque: string) { if (!r.ok) throw new Error(`${oqu
 
 // 1) abre uma edição, 2) sobe o AAB, 3) põe na faixa, 4) confirma
 const edicao = await ok(await fetch(`${api}/edits`, { method: "POST", headers: h }), "abrir edição");
-console.log("Enviando o AAB (pode levar alguns minutos)...");
-const bundle = await ok(await fetch(`https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/${PACOTE}/edits/${edicao.id}/bundles?uploadType=media`, {
+// --estado: só mostra as faixas e as versões de cada uma (não muda nada).
+if (args.includes("--estado")) {
+  const t = await ok(await fetch(`${api}/edits/${edicao.id}/tracks`, { headers: h }), "ler faixas");
+  for (const tr of t.tracks ?? []) console.log(tr.track, JSON.stringify((tr.releases ?? []).map((r: { versionCodes?: string[]; status: string; name?: string }) => ({ v: r.versionCodes, s: r.status, n: r.name }))));
+  await fetch(`${api}/edits/${edicao.id}`, { method: "DELETE", headers: h });
+  Deno.exit(0);
+}
+// --versao N: a versão já foi enviada antes (ex.: no teste interno); só muda de faixa.
+const jaEnviada = arg("--versao");
+if (!jaEnviada) console.log("Enviando o AAB (pode levar alguns minutos)...");
+const bundle = jaEnviada ? { versionCode: Number(jaEnviada) } : await ok(await fetch(`https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/${PACOTE}/edits/${edicao.id}/bundles?uploadType=media`, {
   method: "POST", headers: { ...h, "content-type": "application/octet-stream" }, body: await Deno.readFile(aab),
 }), "enviar AAB");
 console.log(`AAB aceito: versionCode ${bundle.versionCode}`);
