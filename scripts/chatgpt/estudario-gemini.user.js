@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Estudário – fila automática do Gemini
 // @namespace    estudario
-// @version      1.11
+// @version      1.12
 // @updateURL    http://127.0.0.1:8788/estudario-gemini.meta.js
 // @downloadURL  http://127.0.0.1:8788/estudario-gemini.user.js
 // @description  Envia os pedidos da fila do Estudário ao Gemini (modo Argon) e salva no PC o JSON de cada resposta (arquivos .chatgpt-80N).
@@ -32,7 +32,13 @@ PEDIDO:
   // Cada conta Google (gemini.google.com/u/N/...) trabalha sozinha, ao mesmo tempo que as outras: a vez, a fila
   // e os contadores ficam separados por conta (antes eram um só, e a segunda conta ficava parada em
   // "outra aba está trabalhando").
-  const U = (location.pathname.match(/^\/u\/(\d+)\//) || [])[1] || "0";
+  // O Gemini às vezes tira o /u/N do endereço (05/11: a aba da conta 1 voltava para /app e virava conta 0). A conta
+  // fica guardada na própria aba (sessionStorage sobrevive ao F5): endereço sem /u/N usa a conta guardada.
+  const doEndereco = (location.pathname.match(/^\/u\/(\d+)(\/|$)/) || [])[1];
+  let guardada = null; try { guardada = sessionStorage.getItem("estudario-conta"); } catch { /* sem acesso */ }
+  const U = doEndereco ?? guardada ?? "0";
+  try { sessionStorage.setItem("estudario-conta", U); } catch { /* sem acesso */ }
+  if (!doEndereco && U !== "0") { location.replace(`/u/${U}/app`); return; }
   const APP = U === "0" ? "/app" : `/u/${U}/app`;
   const get = (k, d) => GM_getValue(`u${U}:${k}`, d);
   const set = (k, v) => GM_setValue(`u${U}:${k}`, v);
