@@ -269,12 +269,12 @@ fun PlansDialog(onDismiss: () -> Unit, onSignIn: (() -> Unit)? = null) {
     }
 
     when (val current = event) {
-        is PurchaseEvent.Activated -> AlertDialog(
-            onDismissRequest = { billing.consumeEvent() },
-            icon = { Icon(Icons.Outlined.WorkspacePremium, null) },
-            title = { Text("Assinatura ativa") },
-            text = { Text("Seu plano ${planDisplayName(current.planTier)} já está valendo nesta conta, no celular e no computador. Bons estudos!") },
-            confirmButton = { TextButton(onClick = { billing.consumeEvent() }) { Text("Começar") } },
+        // Assinou: carimbo, foguete e a turma do Folha agradecendo e chamando para estudar.
+        is PurchaseEvent.Activated -> br.com.estudario.ui.components.WelcomeAboard(
+            planName = planDisplayName(current.planTier),
+            pro = current.planTier == "PRO",
+            onStudy = { billing.consumeEvent(); onDismiss() },
+            onClose = { billing.consumeEvent() },
         )
         is PurchaseEvent.Pending -> AlertDialog(
             onDismissRequest = { billing.consumeEvent() },

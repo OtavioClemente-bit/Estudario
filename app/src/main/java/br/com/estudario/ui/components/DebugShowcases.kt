@@ -26,6 +26,14 @@ import br.com.estudario.ui.theme.EstudarioTheme
 @Composable
 fun LoaderShowcase(scene: String? = null) = EstudarioTheme {
     // "--es scene rocket" mostra a decolagem em loop; plan/material/questions/edital, a oficina.
+    // "--es scene assinou" (ou assinou-pro): as boas-vindas de quem acabou de assinar, em loop.
+    if (scene == "assinou" || scene == "assinou-pro") {
+        val run = androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+        br.com.estudario.ui.brand.Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            androidx.compose.runtime.key(run.intValue) { WelcomeAboard(if (scene == "assinou") "Essencial" else "Pro", scene == "assinou-pro", onStudy = { run.intValue++ }, onClose = { run.intValue++ }) }
+        }
+        return@EstudarioTheme
+    }
     if (scene == "rocket") {
         val run = androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
         br.com.estudario.ui.brand.Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
