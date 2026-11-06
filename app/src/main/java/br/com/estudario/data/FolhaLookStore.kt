@@ -26,6 +26,19 @@ object FolhaLookStore {
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    private const val KEY_TIER = "plan_tier"
+
+    /** O último plano conhecido da conta (as peças de assinante dependem dele); chamado ao abrir o app. */
+    fun loadTier(context: Context) { FolhaWardrobe.subscriberTier = prefs(context).getString(KEY_TIER, "FREE") ?: "FREE" }
+
+    /** O servidor disse qual é o plano: guarda e, se mudou, o Folha e o armário se redesenham. */
+    fun rememberTier(context: Context, tier: String) {
+        val changed = FolhaWardrobe.subscriberTier != tier
+        FolhaWardrobe.subscriberTier = tier
+        prefs(context).edit().putString(KEY_TIER, tier).apply()
+        if (changed) _changes.value++
+    }
+
     fun read(context: Context, slot: FolhaSlot): String? = prefs(context).getString(slot.name.lowercase(), null)
         // escolha da versão antiga (um "acessório" só) vale para a categoria nova
         ?: FolhaWardrobe.legacyAccessory(prefs(context).getString("acessorio", null))?.takeIf { it.slot == slot }?.id

@@ -31,6 +31,13 @@ object Entitlements {
     var current by mutableStateOf<Limits?>(null)
         private set
 
+    private const val TIER_KEY = "estudario.plano"
+
+    /** O último plano conhecido neste navegador, antes de o servidor responder. */
+    fun restoreTier() {
+        runCatching { kotlinx.browser.localStorage.getItem(TIER_KEY) }.getOrNull()?.let { br.com.estudario.domain.FolhaWardrobe.subscriberTier = it }
+    }
+
     suspend fun load(): Limits? {
         current?.let { return it }
         if (Store.demo) return null
@@ -39,6 +46,9 @@ object Entitlements {
             httpRequest("GET", "${WebConfig.SUPABASE_URL}/functions/v1/ai-plan", mapOf("Authorization" to "Bearer $token", "apikey" to WebConfig.SUPABASE_KEY, "Accept" to "application/json", "x-estudario-client" to "web"))
         }.getOrNull()?.takeIf { it.ok } ?: return null
         val limits = runCatching { parse(response.body) }.getOrNull() ?: return null
+        // as peças de assinante do armário do Folha dependem do plano (guardado para abrir já certo)
+        br.com.estudario.domain.FolhaWardrobe.subscriberTier = limits.tier
+        runCatching { kotlinx.browser.localStorage.setItem(TIER_KEY, limits.tier) }
         current = limits
         return limits
     }

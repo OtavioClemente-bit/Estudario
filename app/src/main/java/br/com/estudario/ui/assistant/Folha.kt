@@ -29,6 +29,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -407,7 +408,7 @@ fun folhaBitmap(sizePx: Int, mood: FolhaMood = FolhaMood.HAPPY, style: FolhaStyl
             return@draw
         }
         val pet = look.pet != "nenhum" && sizePx >= 160
-        val wide = look.back != "nada" || look.aura == "holofote" || look.aura == "fogos"
+        val wide = look.back != "nada" || look.aura == "holofote" || look.aura == "fogos" || look.aura == "supernova"
         val fit = when { pet || wide -> 0.76f; m == FolhaMood.PRESENT -> 0.78f; else -> 0.9f }
         translate(size.width * (1 - fit) / 2f + (if (pet) size.width * 0.07f else 0f), size.height * (1 - fit) / 2f + size.width * (when { pet -> 0.01f; m == FolhaMood.PRESENT -> 0.05f; else -> 0.02f })) {
             scale(fit, fit, pivot = Offset.Zero) { drawFolha(sim.snapshot(0f, look)) }
@@ -1368,6 +1369,49 @@ private fun DrawScope.drawBack(t: Float, kind: String, mood: FolhaMood, small: B
                 drawCircle(Color(0xFFE9AE34), 1.1f, Offset(95.6f + sw * 0.5f, 62.4f))
                 drawPath(Path().apply { moveTo(94.6f + sw * 0.5f, 63f); lineTo(96.6f + sw * 0.5f, 63f); lineTo(97.6f + sw, 68.6f); lineTo(93.6f + sw, 68.6f); close() }, vg(listOf(Color(0xFFFFE08A), Color(0xFFC98A12)), 63f, 68.6f))
                 for (i in 0 until 4) line(Color(0x99965F0A), 94.2f + sw + i, 64.4f, 94.2f + sw + i, 68.4f, 0.2f)
+            }
+        }
+        "asas-caderno", "asas-fenix" -> {
+            // asas de assinante (iguais ao site): penas que são páginas, abertas em leque atrás do livro.
+            // Essencial: folhas pautadas com margem vermelha, contorno azul. Pro (fênix): páginas de ouro
+            // com a ponta em brasa, chaminhas tremendo nas pontas, brilho atrás e faíscas subindo.
+            val pro = kind == "asas-fenix"
+            val busy = party || air > 0.1f
+            val flap = sin(t * (if (busy) 9f else 2.2f)) * (if (busy) 16f else 5f) - air * 8f
+            val n = if (pro) 6 else 4
+            if (pro && !small) drawCircle(Brush.radialGradient(listOf(Color(0x66FFD27A), Color(0x00FFB421)), center = Offset(50f, 56f), radius = 64f), 64f, Offset(50f, 56f))
+            for (side in listOf(-1f, 1f)) mirrored(side) {
+                rotate(flap, pivot = Offset(22f, 60f)) {
+                    for (i in n - 1 downTo 0) {
+                        val ang = 72f - i * (82f / (n - 1))
+                        val len = (if (pro) 40f else 29f) - i * (if (pro) 3.2f else 3.6f)
+                        val w = if (pro) 7.4f else 7f
+                        translate(22f, 60f) { rotate(ang, pivot = Offset.Zero) {
+                            val feather = Path().apply {
+                                moveTo(0f, -w * 0.35f); cubicTo(-len * 0.3f, -w, -len * 0.8f, -w * 0.9f, -len, 0f)
+                                cubicTo(-len * 0.8f, w * 0.9f, -len * 0.3f, w, 0f, w * 0.35f); close()
+                            }
+                            if (pro) drawPath(feather, hg(listOf(Color(0xFFE0452F), Color(0xFFFF9F3A), Gold, Color(0xFFFFF1BF)), -len, 0f))
+                            else drawPath(feather, hg(listOf(Color(0xFFEAF0FF), Color(0xFFFFFDF8)), -len, 0f))
+                            if (!small) clipPath(feather) {
+                                val rule = if (pro) Color(0x998A5A0A) else Color(0x8C6F8FE0)
+                                for (y in listOf(-w * 0.45f, 0f, w * 0.45f)) line(rule, -len * 0.92f, y, -len * 0.12f, y, 0.35f)
+                                line(if (pro) Color(0xB3FFF1BF) else Color(0xCCF2A3A3), -len * 0.22f, -w, -len * 0.22f, w, 0.45f)
+                            }
+                            drawPath(feather, if (pro) Color(0xFF7A4F05) else Color(0xFF2F5BD3), style = stroke(if (small) 1.1f else 0.6f))
+                            if (pro) {
+                                // a chaminha na ponta de cada pena
+                                val fl = 3.2f + sin(t * 13f + i * 1.7f + side) * 1.1f + (if (busy) 1.6f else 0f)
+                                drawPath(Path().apply { moveTo(-len + 0.4f, -1.4f); quadraticTo(-len - fl * 0.6f, -1.8f, -len - fl, sin(t * 9f + i) * 0.8f); quadraticTo(-len - fl * 0.6f, 1.8f, -len + 0.4f, 1.4f); close() },
+                                    hg(listOf(Color(0x00F2552C), Color(0xFFFF9F3A), Color(0xFFFFE07A)), -len - fl, -len + 0.4f))
+                            } else if (busy && !small) star4(-len - 1.5f, 0f, 1.6f + sin(t * 8f + i) * 0.6f, Color(0xFF2F5BD3).copy(alpha = 0.8f))
+                        } }
+                    }
+                }
+            }
+            if (pro && !small) for (i in 0 until 8) {
+                val ph = (t * 0.55f + i / 8f) % 1f; val sx = if (i % 2 == 1) 1f else -1f
+                drawCircle(Color(0xFFFFB421).copy(alpha = 0.85f * (1f - ph)), 0.9f * (1f - ph) + 0.3f, Offset(50f + sx * (26f + (i * 7 % 13)) + sin(t * 3f + i) * 2f, 64f - ph * 46f))
             }
         }
         "capa-real" -> {
@@ -2956,6 +3000,38 @@ private fun DrawScope.drawAura(t: Float, kind: String, small: Boolean, burst: Fl
                         rotate(-0.45f * 180f / PIf, pivot = Offset(-0.6f, -0.4f)) { oval(Color.White.copy(alpha = 0.6f * a), -1.1f, -0.7f, 1f, 0.6f) }
                     }
                 }
+            }
+        }
+        "supernova" -> {
+            // a supernova do Pro: raios de luz girando e um halo que pulsa atrás; seis páginas de ouro em órbita
+            // (passam por trás e pela frente) e uma coroa de três estrelas piscando por cima
+            if (behind) {
+                val pulse = 1f + 0.06f * sin(t * 2.4f)
+                drawCircle(Brush.radialGradient(listOf(Color(0x80FFE07A), Color(0x33FFB421), Color(0x00FFB421)), center = Offset(50f, 56f), radius = 54f * pulse * boost), 54f * pulse * boost, Offset(50f, 56f))
+                if (!small) rotate(t * 12f, pivot = Offset(50f, 56f)) {
+                    for (i in 0 until 12) {
+                        val a = i * 2f * PIf / 12f; val r = 74f
+                        drawPath(Path().apply { moveTo(50f, 56f); lineTo(50f + cos(a - 0.06f) * r, 56f + sin(a - 0.06f) * r); lineTo(50f + cos(a + 0.06f) * r, 56f + sin(a + 0.06f) * r); close() },
+                            Brush.radialGradient(listOf(Color(0x33FFE07A).copy(alpha = 0.16f + 0.08f * sin(t * 2f + i)), Color(0x00FFE07A)), center = Offset(50f, 56f), radius = r))
+                    }
+                }
+            }
+            for (i in 0 until 6) {
+                val a = t * 1.1f + i * 2f * PIf / 6f; val front = sin(a) > 0f; if (front == behind) continue
+                val x = 50f + cos(a) * 52f; val y = 62f + sin(a) * 16f; val s = (if (front) 1f else 0.7f) * boost
+                rotate(cos(a) * 25f, pivot = Offset(x, y)) {
+                    val pg = roundRect(x - 2.6f * s, y - 3.4f * s, 5.2f * s, 6.8f * s, 0.6f * s)
+                    drawPath(pg, if (front) vg(listOf(Color(0xFFFFFDF2), Color(0xFFFFE9B0)), y - 3.4f * s, y + 3.4f * s) else SolidColor(Color(0x99FFE9B0)))
+                    drawPath(pg, Gold.copy(alpha = if (front) 1f else 0.6f), style = stroke(0.45f))
+                    if (front && !small) { line(Color(0x99C98A12), x - 1.6f * s, y - 1f * s, x + 1.6f * s, y - 1f * s, 0.3f); line(Color(0x99C98A12), x - 1.6f * s, y + 0.6f * s, x + 1.2f * s, y + 0.6f * s, 0.3f) }
+                }
+                if (front && !small) star4(x - cos(a + 0.35f) * 5f, y - sin(a + 0.35f) * 2f, 1.2f, Color(0xCCFFE07A))
+            }
+            if (!behind) for (i in 0 until 3) {
+                val (x, y) = listOf(36f to 15f, 50f to 8f, 64f to 15f)[i]
+                val r = (if (i == 1) 3.6f else 2.6f) * (0.65f + 0.35f * sin(t * 3f + i * 2f)) * boost
+                drawCircle(Brush.radialGradient(listOf(Color(0x99FFE07A), Color(0x00FFE07A)), center = Offset(x, y), radius = r * 2.2f), r * 2.2f, Offset(x, y))
+                star4(x, y, r, if (i == 1) Color.White else Gold)
             }
         }
         "orbita" -> for (i in 0 until 3) {

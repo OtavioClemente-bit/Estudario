@@ -116,12 +116,13 @@ private fun StampAct(planName: String, pro: Boolean, still: Boolean = false, onD
             .clickable(remember { MutableInteractionSource() }, null) { onDone() },
         contentAlignment = Alignment.Center,
     ) {
+        if (pro) ProRays()
         // A página do caderno, entrando girada.
         val inP = pop(t / 0.5f)
         Box(
             Modifier.offset(x = with(density) { shake.toDp() }).size(300.dp, 380.dp)
                 .graphicsLayer { scaleX = inP; scaleY = inP; rotationZ = -4f + (1f - inP) * -14f }
-                .background(PAPER, RoundedCornerShape(6.dp)).border(2.5.dp, INK, RoundedCornerShape(6.dp)),
+                .background(PAPER, RoundedCornerShape(6.dp)).border(if (pro) 4.dp else 2.5.dp, if (pro) Color(0xFFF5B83D) else INK, RoundedCornerShape(6.dp)),
         ) {
             Canvas(Modifier.fillMaxSize()) {
                 // pauta, margem dupla e furos do fichário
@@ -157,6 +158,7 @@ private fun StampAct(planName: String, pro: Boolean, still: Boolean = false, onD
                         .border(BorderStroke(1.5.dp, ink), RoundedCornerShape(7.dp)).padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (pro) Text("👑", fontSize = 26.sp)
                         Text("★ ASSINANTE ★", color = ink, fontWeight = FontWeight.Black, fontSize = 13.sp, letterSpacing = 2.sp)
                         Text(planName.uppercase(), color = ink, fontWeight = FontWeight.Black, fontSize = 34.sp, letterSpacing = 3.sp)
                         Text("ESTUDÁRIO · ${java.time.LocalDate.now().let { "%02d/%02d/%d".format(it.dayOfMonth, it.monthValue, it.year) }}", color = ink, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)
@@ -167,55 +169,79 @@ private fun StampAct(planName: String, pro: Boolean, still: Boolean = false, onD
     }
 }
 
+
+/** Os raios dourados do Pro: um sol girando atrás de tudo, com o brilho pulsando. */
+@Composable
+private fun ProRays() {
+    val t = seconds()
+    Canvas(Modifier.fillMaxSize()) {
+        val c = Offset(size.width / 2, size.height * 0.42f)
+        val r = size.maxDimension * 0.75f
+        val fade = (t / 0.6f).coerceIn(0f, 1f)
+        drawCircle(androidx.compose.ui.graphics.Brush.radialGradient(listOf(Color(0x66FFD27A), Color(0x00FFB421)), center = c, radius = r * 0.6f), r * 0.6f * (1f + 0.05f * sin(t * 2.4f)), c, alpha = fade)
+        rotate(t * 10f, c) {
+            for (i in 0 until 16) {
+                val a = i * 2f * PI.toFloat() / 16f
+                val p = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(c.x, c.y)
+                    lineTo(c.x + kotlin.math.cos(a - 0.07f) * r, c.y + sin(a - 0.07f) * r)
+                    lineTo(c.x + kotlin.math.cos(a + 0.07f) * r, c.y + sin(a + 0.07f) * r); close()
+                }
+                drawPath(p, androidx.compose.ui.graphics.Brush.radialGradient(listOf(Color(0xFFFFE07A).copy(alpha = (0.22f + 0.1f * sin(t * 2f + i)) * fade), Color(0x00FFE07A)), center = c, radius = r))
+            }
+        }
+    }
+}
+
 @Composable
 private fun CrewAct(planName: String, pro: Boolean, onStudy: () -> Unit, onClose: () -> Unit) {
     val t = seconds()
-    val moods = listOf(FolhaMood.ECSTATIC, FolhaMood.WAVE, FolhaMood.FOCUS, FolhaMood.WINK, FolhaMood.PROUD)
-    val lines = listOf("Bora!", "Oi, $planName!", "Já tô lendo", "Hoje rende", "Orgulho!")
     val accent = if (pro) STAMP_PRO else STAMP_ESSENCIAL
-    Box(Modifier.fillMaxSize().background(Color(0xFF110F26).copy(alpha = 0.72f)).clickable(remember { MutableInteractionSource() }, null) { onClose() }) {
-        // Confete leve que continua caindo.
+    // O presente de assinante já vestido no Folha (as mesmas peças que entram no armário).
+    val style = remember(pro) {
+        br.com.estudario.ui.assistant.FolhaStyle(
+            pieces = if (pro) mapOf("back" to "asas-fenix", "aura" to "supernova") else mapOf("back" to "asas-caderno"),
+            noScene = true,
+        )
+    }
+    val gift = if (pro) "Asas de fênix + Supernova" else "Asas de caderno"
+    Box(Modifier.fillMaxSize().background(Color(0xFF110F26).copy(alpha = 0.78f)).clickable(remember { MutableInteractionSource() }, null) { onClose() }) {
+        if (pro) ProRays()
+        // Confete que continua caindo (dourado no Pro).
         Canvas(Modifier.fillMaxSize()) {
             val r = java.util.Random(11)
-            val cols = listOf(Color(0xFFFFD23F), accent, Color(0xFF22C59A), Color(0xFFFF5C4D), Color(0xFF8FD3FF))
-            repeat(40) {
+            val cols = if (pro) listOf(Color(0xFFFFD23F), Color(0xFFF5B83D), Color(0xFFFFF1BF), STAMP_PRO, Color(0xFFFF9F3A))
+            else listOf(Color(0xFFFFD23F), accent, Color(0xFF22C59A), Color(0xFFFF5C4D), Color(0xFF8FD3FF))
+            repeat(if (pro) 56 else 40) {
                 val x0 = r.nextFloat() * size.width; val sp = 60f + r.nextFloat() * 90f; val ph = r.nextFloat() * size.height
                 val y = (ph + t * sp.dp.toPx()) % (size.height + 40f) - 20f
                 val x = x0 + sin(t * 2f + it) * 14.dp.toPx()
                 rotate(t * 200f * (if (it % 2 == 0) 1 else -1), Offset(x, y)) { drawRect(cols[it % cols.size], Offset(x, y), Size(7.dp.toPx(), 11.dp.toPx())) }
             }
         }
-        // O grande, no meio, chamando.
         val big = pop(t / 0.6f)
         Column(
-            Modifier.align(Alignment.Center).padding(bottom = 120.dp).graphicsLayer { scaleX = big; scaleY = big },
-            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp),
+            Modifier.align(Alignment.Center).padding(horizontal = 20.dp).padding(bottom = 90.dp).graphicsLayer { scaleX = big; scaleY = big },
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Folha(150.dp, mood = if (t < 2.4f) FolhaMood.TALKING else FolhaMood.HAPPY, say = null)
-            Surface(shape = RoundedCornerShape(22.dp), color = PAPER, border = BorderStroke(2.5.dp, INK), shadowElevation = 6.dp, modifier = Modifier.widthIn(max = 330.dp)) {
+            Folha(230.dp, mood = if (t < 2.4f) FolhaMood.TALKING else FolhaMood.ECSTATIC, style = style, enter = false)
+            // A etiqueta do presente, que entra girando depois do Folha.
+            val tag = pop((t - 0.7f) / 0.45f)
+            Row(
+                Modifier.graphicsLayer { scaleX = tag; scaleY = tag; rotationZ = -3f; alpha = if (t < 0.7f) 0f else 1f }
+                    .background(if (pro) Color(0xFFFFD23F) else Color(0xFFEAF0FF), RoundedCornerShape(12.dp))
+                    .border(2.dp, INK, RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text("🎁", fontSize = 16.sp)
+                Text("Presente de assinante: $gift", color = INK, fontWeight = FontWeight.Black, fontSize = 13.sp)
+            }
+            Surface(shape = RoundedCornerShape(22.dp), color = PAPER, border = BorderStroke(2.5.dp, INK), shadowElevation = 6.dp, modifier = Modifier.widthIn(max = 340.dp)) {
                 Column(Modifier.padding(horizontal = 20.dp, vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    val line = "Obrigado de verdade. Agora é estudar como se a prova fosse amanhã!"
+                    val line = if (pro) "Obrigado de verdade. Agora você é Pro: estuda como se a prova fosse amanhã!" else "Obrigado de verdade. Agora é estudar como se a prova fosse amanhã!"
                     val shown = (t / 0.03f).toInt().coerceIn(0, line.length)
                     Text(line.take(shown), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = INK, textAlign = TextAlign.Center)
-                    if (shown >= line.length) Text("Tudo do $planName já está liberado, no app e no site.", style = MaterialTheme.typography.bodyMedium, color = Color(0xFF4E4B6B), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
-                }
-            }
-        }
-        // A turma subindo da borda de baixo, cada um no seu tempo, pulando sem parar.
-        Row(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 92.dp).navigationBarsPadding(),
-            horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom,
-        ) {
-            moods.forEachIndexed { i, m ->
-                val start = 0.35f + i * 0.14f
-                val up = pop((t - start) / 0.5f)
-                val hop = if (t > start + 0.5f) kotlin.math.abs(sin((t - start) * 7f + i)) * 10f else 0f
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.graphicsLayer { translationY = (1f - up) * 260f - hop * density; alpha = if (t < start) 0f else 1f },
-                ) {
-                    if (t > start + 0.9f) Text(lines[i], color = Color.White, fontWeight = FontWeight.Black, fontSize = 12.sp, modifier = Modifier.background(accent, RoundedCornerShape(10.dp)).padding(horizontal = 7.dp, vertical = 2.dp))
-                    Folha(58.dp, mood = m)
+                    if (shown >= line.length) Text("Tudo do $planName já está liberado, no app e no site. O presente está no armário do Folha.", style = MaterialTheme.typography.bodyMedium, color = Color(0xFF4E4B6B), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
                 }
             }
         }
@@ -223,7 +249,7 @@ private fun CrewAct(planName: String, pro: Boolean, onStudy: () -> Unit, onClose
         val pulse = 1f + (if (t > 1.8f) sin(t * 6f) * 0.04f else 0f)
         val showBtn = pop((t - 1.6f) / 0.4f)
         Box(
-            Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 24.dp)
+            Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 28.dp)
                 .graphicsLayer { scaleX = showBtn * pulse; scaleY = showBtn * pulse; alpha = if (t < 1.6f) 0f else 1f }
                 .background(Color(0xFFFFD23F), RoundedCornerShape(16.dp)).border(2.5.dp, INK, RoundedCornerShape(16.dp))
                 .clickable { onStudy() }.padding(horizontal = 34.dp, vertical = 14.dp),

@@ -155,6 +155,7 @@ class EstudarioApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        br.com.estudario.data.FolhaLookStore.loadTier(this)
         br.com.estudario.ui.ai.BackgroundAiTasks.init(this)
         br.com.estudario.data.ai.DeviceIdentity.init(this)
         br.com.estudario.data.ai.EditalPdfText.init(this)

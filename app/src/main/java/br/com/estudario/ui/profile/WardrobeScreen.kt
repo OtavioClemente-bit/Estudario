@@ -227,6 +227,11 @@ fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopB
     val progress by viewModel.progress.collectAsState()
     // A versão das escolhas: lida (não só observada) para a tela redesenhar a marcação "Equipado" a cada troca.
     val chosenVersion by br.com.estudario.data.FolhaLookStore.changes.collectAsState()
+    // As peças de assinante dependem do plano: confere com o servidor ao abrir o armário.
+    LaunchedEffect(Unit) {
+        val app = context.applicationContext as? br.com.estudario.EstudarioApplication ?: return@LaunchedEffect
+        (app.aiPlanRepository.load() as? br.com.estudario.ui.plans.AiPlanLoadResult.Available)?.summary?.let { br.com.estudario.data.FolhaLookStore.rememberTier(app, it.planTier) }
+    }
     val seenVersion = WardrobeSeen.version
     var slot by remember { mutableStateOf(FolhaSlot.CHAPEU) }
     var showCollections by remember { mutableStateOf(false) }

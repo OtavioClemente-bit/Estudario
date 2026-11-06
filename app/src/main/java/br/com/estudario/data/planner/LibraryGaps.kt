@@ -43,12 +43,14 @@ object LibraryGaps {
 
     fun rememberTier(context: Context, planTier: String) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(FREE, planTier == "FREE").apply()
+        br.com.estudario.data.FolhaLookStore.rememberTier(context, planTier)
     }
 
     /** Pergunta ao servidor o que está pronto. Sem conta ou sem resposta, fica a lista de antes. */
     suspend fun refresh(app: EstudarioApplication): Set<Long> {
         val summary = (app.aiPlanRepository.load() as? AiPlanLoadResult.Available)?.summary ?: return excluded(app)
         app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(FREE, summary.planTier == "FREE").apply()
+        br.com.estudario.data.FolhaLookStore.rememberTier(app, summary.planTier)
         if (summary.planTier != "FREE") { save(app, emptySet()); return emptySet() }
         val token = app.supabaseAuthRepository.accessToken() ?: return excluded(app)
         val config = app.supabaseClientConfig

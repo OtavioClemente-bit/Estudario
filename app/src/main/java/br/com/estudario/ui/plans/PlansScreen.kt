@@ -170,6 +170,7 @@ fun PlansDialog(onDismiss: () -> Unit, onSignIn: (() -> Unit)? = null) {
             AiPlanLoadResult.Unavailable -> PlansState.Unavailable
         }
         val summary = (state as? PlansState.Ready)?.summary
+        summary?.let { br.com.estudario.data.FolhaLookStore.rememberTier(context, it.planTier) }
         if (summary != null && summary.billing.playEnabled) {
             products = billing.products(summary.pricing.mapNotNull { it.playProductId })
         }

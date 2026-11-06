@@ -63,6 +63,7 @@ object FolhaLook {
     }
 
     fun chosen(slot: FolhaSlot, summary: ProgressEngine.ProgressSummary): FolhaItem {
+        @Suppress("UNUSED_VARIABLE") val plan = br.com.estudario.web.data.Entitlements.current // relê quando o plano chega
         val saved = (cloudLook()?.get(slot.key) as? kotlinx.serialization.json.JsonPrimitive)?.content
             ?: read(storageKey(slot))
             // escolha da versão antiga (um "acessório" só) vale para a categoria nova
@@ -205,6 +206,8 @@ fun WardrobeScreen() {
     val progress = Progress.of(Store.data).progress
     @Suppress("UNUSED_VARIABLE") val chosenNow = FolhaLook.choices
     @Suppress("UNUSED_VARIABLE") val seenNow = WardrobeSeen.version
+    @Suppress("UNUSED_VARIABLE") val planNow = br.com.estudario.web.data.Entitlements.current
+    androidx.compose.runtime.LaunchedEffect(Unit) { br.com.estudario.web.data.Entitlements.load() }
     var slot by remember { mutableStateOf(FolhaSlot.CHAPEU) }
     var showCollections by remember { mutableStateOf(false) }
     var trying by remember { mutableStateOf<FolhaItem?>(null) }

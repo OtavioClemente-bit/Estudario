@@ -51,6 +51,8 @@ data class FolhaItem(
     val level: Int? = null,
     /** Recompensa exclusiva de uma coleção (sai ao completar as peças dela). */
     val collection: String? = null,
+    /** Exclusiva de quem assina: "ESSENCIAL" (vale também no Pro) ou "PRO". Some se a assinatura acabar. */
+    val plan: String? = null,
 )
 
 /**
@@ -59,8 +61,16 @@ data class FolhaItem(
  * comprado nem ganho por engano, e quem troca de aparelho recupera tudo junto com o histórico.
  */
 object FolhaWardrobe {
-    private fun item(id: String, slot: FolhaSlot, name: String, rarity: FolhaRarity = FolhaRarity.COMUM, badge: String? = null, level: Int? = null, collection: String? = null) =
-        FolhaItem(id, slot, name, rarity, badge, level, collection)
+    private fun item(id: String, slot: FolhaSlot, name: String, rarity: FolhaRarity = FolhaRarity.COMUM, badge: String? = null, level: Int? = null, collection: String? = null, plan: String? = null) =
+        FolhaItem(id, slot, name, rarity, badge, level, collection, plan)
+
+    /**
+     * O plano da conta (FREE, ESSENCIAL, PRO ou TESTE), que libera as peças de assinante. O app e o site
+     * atualizam quando leem o plano (função ai-plan); começa no Grátis.
+     */
+    var subscriberTier: String = "FREE"
+
+    private fun planRank(tier: String?): Int = when (tier) { "PRO", "TESTE" -> 2; "ESSENCIAL" -> 1; else -> 0 }
 
     private val C = FolhaRarity.COMUM
     private val R = FolhaRarity.RARA
@@ -242,6 +252,10 @@ object FolhaWardrobe {
         item("coruja", FolhaSlot.COMPANHEIRO, "Coruja de capelo", R, level = 12),
         item("robo", FolhaSlot.COMPANHEIRO, "Robozinho", E, level = 24),
         item("dragao", FolhaSlot.COMPANHEIRO, "Dragãozinho", E, level = 20),
+        // de assinante: o Essencial ganha as asas de caderno; o Pro, as asas de fênix e a supernova
+        item("asas-caderno", FolhaSlot.COSTAS, "Asas de caderno", E, plan = "ESSENCIAL"),
+        item("asas-fenix", FolhaSlot.COSTAS, "Asas de fênix", L, plan = "PRO"),
+        item("supernova", FolhaSlot.AURA, "Supernova", L, plan = "PRO"),
     )
 
     /** Coleções, da mais fácil de completar para a mais difícil. */
@@ -278,10 +292,11 @@ object FolhaWardrobe {
 
     fun of(slot: FolhaSlot): List<FolhaItem> = items.filter { it.slot == slot }
     /** A peça padrão de cada lugar (a primeira não exclusiva). */
-    fun default(slot: FolhaSlot): FolhaItem = of(slot).first { it.collection == null && it.badgeId == null && it.level == null }
+    fun default(slot: FolhaSlot): FolhaItem = of(slot).first { it.collection == null && it.badgeId == null && it.level == null && it.plan == null }
     fun find(slot: FolhaSlot, id: String?): FolhaItem? = items.firstOrNull { it.slot == slot && it.id == id }
 
     fun unlocked(item: FolhaItem, summary: ProgressEngine.ProgressSummary): Boolean = when {
+        item.plan != null -> planRank(subscriberTier) >= planRank(item.plan)
         item.collection != null -> collection(item.collection)?.let { c -> piecesOf(c).all { unlocked(it, summary) } } ?: false
         item.badgeId != null -> summary.badges.any { it.badge.id == item.badgeId && it.earned }
         item.level != null -> summary.level >= item.level
@@ -290,6 +305,8 @@ object FolhaWardrobe {
 
     /** Como liberar, em uma linha ("Emblema Semana cheia: 7 dias seguidos batendo a meta", "Chegar ao nível 5"). */
     fun requirement(item: FolhaItem): String = when {
+        item.plan == "PRO" -> "Exclusiva de quem assina o Pro"
+        item.plan != null -> "Exclusiva de quem assina o Essencial ou o Pro"
         item.collection != null -> "Complete a coleção ${collection(item.collection)?.name ?: ""}"
         item.badgeId != null -> BadgeCatalog.all.firstOrNull { it.id == item.badgeId }?.let { "Emblema ${it.name}: ${it.requirement.replaceFirstChar { c -> c.lowercaseChar() }}" } ?: "Emblema"
         item.level != null -> "Chegar ao nível ${item.level}"
@@ -299,6 +316,7 @@ object FolhaWardrobe {
 
     /** O andamento até liberar: atual, alvo e a unidade. Nulo quando já vem liberada. */
     fun progress(item: FolhaItem, summary: ProgressEngine.ProgressSummary): Triple<Int, Int, String>? {
+        if (item.plan != null) return null
         item.collection?.let { id -> val c = collection(id) ?: return null; val ps = piecesOf(c); return Triple(ps.count { unlocked(it, summary) }, ps.size, "peças") }
         item.level?.let { return Triple(summary.level.coerceAtMost(it), it, "nível") }
         val p = summary.badges.firstOrNull { it.badge.id == item.badgeId } ?: return null

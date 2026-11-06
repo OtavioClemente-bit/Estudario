@@ -1860,6 +1860,39 @@
         g.beginPath(); g.ellipse(-0.6, -0.4, 0.5, 0.3, -0.45, 0, 2 * PI); g.fillStyle = `rgba(255,255,255,${0.6 * a})`; g.fill();
         g.restore();
       }
+    } else if (kind === "supernova") {
+      // a supernova do Pro: raios de luz girando e um halo que pulsa atrás; seis páginas de ouro em órbita
+      // (passam por trás e pela frente) e uma coroa de três estrelas piscando por cima
+      if (behind) {
+        const pr = 54 * (1 + 0.06 * sin(t * 2.4)) * boost;
+        const halo = g.createRadialGradient(50, 56, 0, 50, 56, pr); halo.addColorStop(0, "rgba(255,224,122,0.5)"); halo.addColorStop(0.5, "rgba(255,180,33,0.2)"); halo.addColorStop(1, "rgba(255,180,33,0)");
+        g.fillStyle = halo; g.beginPath(); g.arc(50, 56, pr, 0, 2 * PI); g.fill();
+        if (!small) {
+          g.save(); g.translate(50, 56); g.rotate(t * 12 * PI / 180);
+          for (let i = 0; i < 12; i++) {
+            const a = i * 2 * PI / 12, r = 74, ray = g.createRadialGradient(0, 0, 0, 0, 0, r);
+            ray.addColorStop(0, `rgba(255,224,122,${0.16 + 0.08 * sin(t * 2 + i)})`); ray.addColorStop(1, "rgba(255,224,122,0)");
+            g.fillStyle = ray; g.beginPath(); g.moveTo(0, 0); g.lineTo(cos(a - 0.06) * r, sin(a - 0.06) * r); g.lineTo(cos(a + 0.06) * r, sin(a + 0.06) * r); g.closePath(); g.fill();
+          }
+          g.restore();
+        }
+      }
+      for (let i = 0; i < 6; i++) {
+        const a = t * 1.1 + i * 2 * PI / 6, front = sin(a) > 0; if (front === behind) continue;
+        const x = 50 + cos(a) * 52, y = 62 + sin(a) * 16, s = (front ? 1 : 0.7) * boost;
+        g.save(); g.translate(x, y); g.rotate(cos(a) * 25 * PI / 180);
+        const pg = new Path2D(); pg.roundRect(-2.6 * s, -3.4 * s, 5.2 * s, 6.8 * s, 0.6 * s);
+        g.fillStyle = front ? vGrad(g, ["#FFFDF2", "#FFE9B0"], -3.4 * s, 3.4 * s) : "rgba(255,233,176,0.6)"; g.fill(pg);
+        stroke(g, pg, rgba(GOLD, front ? 1 : 0.6), 0.45);
+        if (front && !small) { line(g, "rgba(201,138,18,0.6)", -1.6 * s, -1 * s, 1.6 * s, -1 * s, 0.3); line(g, "rgba(201,138,18,0.6)", -1.6 * s, 0.6 * s, 1.2 * s, 0.6 * s, 0.3); }
+        g.restore();
+        if (front && !small) star4(g, x - cos(a + 0.35) * 5, y - sin(a + 0.35) * 2, 1.2, "rgba(255,224,122,0.8)");
+      }
+      if (!behind) [[36, 15], [50, 8], [64, 15]].forEach(([x, y], i) => {
+        const r = (i === 1 ? 3.6 : 2.6) * (0.65 + 0.35 * sin(t * 3 + i * 2)) * boost;
+        const gl = g.createRadialGradient(x, y, 0, x, y, r * 2.2); gl.addColorStop(0, "rgba(255,224,122,0.6)"); gl.addColorStop(1, "rgba(255,224,122,0)"); g.fillStyle = gl; g.beginPath(); g.arc(x, y, r * 2.2, 0, 2 * PI); g.fill();
+        star4(g, x, y, r, i === 1 ? "#FFFFFF" : GOLD);
+      });
     } else if (kind === "orbita") {
       // três estrelas em órbita: passam por trás e pela frente do Folha
       for (let i = 0; i < 3; i++) {
@@ -2208,6 +2241,45 @@
         circle(g, "#E9AE34", 1.1, 95.6 + sw * 0.5, 62.4);
         const tas = new Path2D(); tas.moveTo(94.6 + sw * 0.5, 63); tas.lineTo(96.6 + sw * 0.5, 63); tas.lineTo(97.6 + sw, 68.6); tas.lineTo(93.6 + sw, 68.6); tas.closePath(); g.fillStyle = vGrad(g, ["#FFE08A", "#C98A12"], 63, 68.6); g.fill(tas);
         for (let i = 0; i < 4; i++) line(g, "rgba(150,95,10,0.6)", 94.2 + sw + i, 64.4, 94.2 + sw + i, 68.4, 0.2);
+      }
+    } else if (kind === "asas-caderno" || kind === "asas-fenix") {
+      // asas de assinante (iguais ao app): penas que são páginas, abertas em leque atrás do livro.
+      // Essencial: folhas pautadas com margem vermelha, contorno azul. Pro (fênix): páginas de ouro com a
+      // ponta em brasa, chaminhas tremendo nas pontas, brilho atrás e faíscas subindo.
+      const pro = kind === "asas-fenix", busy = party || air > 0.1;
+      const flap = (sin(t * (busy ? 9 : 2.2)) * (busy ? 16 : 5) - air * 8) * PI / 180;
+      const n = pro ? 6 : 4;
+      if (pro && !small) { const gl = g.createRadialGradient(50, 56, 0, 50, 56, 64); gl.addColorStop(0, "rgba(255,210,122,0.4)"); gl.addColorStop(1, "rgba(255,180,33,0)"); g.fillStyle = gl; g.beginPath(); g.arc(50, 56, 64, 0, 2 * PI); g.fill(); }
+      for (const side of [-1, 1]) {
+        g.save(); if (side > 0) { g.translate(100, 0); g.scale(-1, 1); }
+        g.translate(22, 60); g.rotate(flap);
+        for (let i = n - 1; i >= 0; i--) {
+          const ang = (72 - i * (82 / (n - 1))) * PI / 180, len = (pro ? 40 : 29) - i * (pro ? 3.2 : 3.6), w = pro ? 7.4 : 7;
+          g.save(); g.rotate(ang);
+          const feather = new Path2D(); feather.moveTo(0, -w * 0.35); feather.bezierCurveTo(-len * 0.3, -w, -len * 0.8, -w * 0.9, -len, 0);
+          feather.bezierCurveTo(-len * 0.8, w * 0.9, -len * 0.3, w, 0, w * 0.35); feather.closePath();
+          g.fillStyle = pro ? hGrad(g, ["#E0452F", "#FF9F3A", GOLD, "#FFF1BF"], -len, 0) : hGrad(g, ["#EAF0FF", "#FFFDF8"], -len, 0); g.fill(feather);
+          if (!small) {
+            g.save(); g.clip(feather);
+            const rule = pro ? "rgba(138,90,10,0.6)" : "rgba(111,143,224,0.55)";
+            for (const y of [-w * 0.45, 0, w * 0.45]) line(g, rule, -len * 0.92, y, -len * 0.12, y, 0.35);
+            line(g, pro ? "rgba(255,241,191,0.7)" : "rgba(242,163,163,0.8)", -len * 0.22, -w, -len * 0.22, w, 0.45);
+            g.restore();
+          }
+          stroke(g, feather, pro ? "#7A4F05" : "#2F5BD3", small ? 1.1 : 0.6);
+          if (pro) {
+            // a chaminha na ponta de cada pena
+            const fl = 3.2 + sin(t * 13 + i * 1.7 + side) * 1.1 + (busy ? 1.6 : 0);
+            const fp = new Path2D(); fp.moveTo(-len + 0.4, -1.4); fp.quadraticCurveTo(-len - fl * 0.6, -1.8, -len - fl, sin(t * 9 + i) * 0.8); fp.quadraticCurveTo(-len - fl * 0.6, 1.8, -len + 0.4, 1.4); fp.closePath();
+            g.fillStyle = hGrad(g, ["rgba(242,85,44,0)", "#FF9F3A", "#FFE07A"], -len - fl, -len + 0.4); g.fill(fp);
+          } else if (busy && !small) star4(g, -len - 1.5, 0, 1.6 + sin(t * 8 + i) * 0.6, "rgba(47,91,211,0.8)");
+          g.restore();
+        }
+        g.restore();
+      }
+      if (pro && !small) for (let i = 0; i < 8; i++) {
+        const ph = (t * 0.55 + i / 8) % 1, sx = i % 2 ? 1 : -1;
+        g.fillStyle = `rgba(255,180,33,${0.85 * (1 - ph)})`; g.beginPath(); g.arc(50 + sx * (26 + (i * 7 % 13)) + sin(t * 3 + i) * 2, 64 - ph * 46, 0.9 * (1 - ph) + 0.3, 0, 2 * PI); g.fill();
       }
     } else if (kind === "capa-real") {
       const wave = sin(t * 1.7), fl = air * 6 + (party ? 3 : 0);
@@ -4601,7 +4673,7 @@
     const T = pose(mood === "thinking" ? "idle" : mood, 0.35, { x: 0.3, y: -0.2 }, null, { tm: 9, holding: look.hand && look.hand !== "nenhum" });
     const P = { ...T, hL0: T.hL[0], hL1: T.hL[1], hR0: T.hR[0], hR1: T.hR[1] };
     const c = cpuCanvas(); c.width = c.height = Math.round(size * dpr);
-    const pet = look.pet && look.pet !== "nenhum" && size >= SMALL, wide = (look.back && look.back !== "nada") || look.aura === "holofote" || look.aura === "fogos";
+    const pet = look.pet && look.pet !== "nenhum" && size >= SMALL, wide = (look.back && look.back !== "nada") || look.aura === "holofote" || look.aura === "fogos" || look.aura === "supernova";
     const g = c.getContext("2d"), k = c.width / 100, fit = pet || wide ? 0.76 : mood === "present" ? 0.78 : 0.9;      // cabe a mão para o alto (e o companheiro) dentro da caixa
     g.setTransform(k * fit, 0, 0, k * fit, c.width * (1 - fit) / 2 + (pet ? k * 7 : 0), c.width * (1 - fit) / 2 + k * (pet ? 1 : mood === "present" ? 5 : 2));
     if (zoom) { g.setTransform(k * zoom, 0, 0, k * zoom, -k * zoom * zx + c.width / 2, -k * zoom * zy + c.width / 2); }
