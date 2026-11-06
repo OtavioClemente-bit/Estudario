@@ -3,6 +3,7 @@ import {
   type AccessDataSource,
   ClosedBetaAiPolicy,
   effectivePlanTier,
+  billingCycle,
   nextMonthlyReset,
   type PlanLimitRecord,
   type ProfileRecord,
@@ -83,4 +84,21 @@ Deno.test("plan summary lists catalog and usage", async () => {
   assertEquals(summary.planTier, "FREE");
   assertEquals(summary.plans.map((plan) => plan.planTier), ["FREE", "ESSENCIAL", "PRO"]);
   assertEquals(summary.usage.find((row) => row.feature === "CONTENT_GENERATION")?.remaining, 10);
+});
+
+Deno.test("cota de quem paga renova no dia do pagamento", () => {
+  const now = new Date("2026-11-06T15:00:00Z");
+  // pagou dia 28/10, próxima cobrança 28/11: ciclo 28/10 a 28/11
+  assertEquals(billingCycle("2026-11-28T13:00:00Z", now).start, "2026-10-28");
+  assertEquals(billingCycle("2026-11-28T13:00:00Z", now).next, "2026-11-28T13:00:00Z");
+  // pagou dia 4: ciclo começou 04/11
+  assertEquals(billingCycle("2026-12-04T13:00:00Z", now).start, "2026-11-04");
+  // anual: ciclo mensal dentro do ano, renova todo dia 10
+  const y = billingCycle("2027-03-10T13:00:00Z", now);
+  assertEquals(y.start, "2026-10-10");
+  assertEquals(y.next, "2026-11-10T03:00:00.000Z");
+  // dia 31 em mês curto vira o último dia
+  assertEquals(billingCycle("2026-12-31T13:00:00Z", new Date("2026-12-01T15:00:00Z")).start, "2026-11-30");
+  assertEquals(quotaPeriodStart("MONTHLY", now, "PRO", null, "2026-11-28T13:00:00Z"), "2026-10-28");
+  assertEquals(quotaPeriodStart("MONTHLY", now, "FREE", null, null), "2026-11-01");
 });

@@ -288,12 +288,34 @@ function dateInSaoPaulo(now: Date): string {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
+/**
+ * Ciclo da cobrança: o mês que termina na próxima renovação paga (planRenewsAt). Quem paga dia 28 tem
+ * o saldo de 28 a 28. Mesma conta de public.ai_billing_cycle_start (o dia que não existe no mês, como
+ * 31 em fevereiro, vira o último dia). Devolve o início do ciclo e quando ele renova.
+ */
+export function billingCycle(renewsAt: string, now: Date): { start: string; next: string } {
+  const [ay, am, ad] = dateInSaoPaulo(new Date(renewsAt)).split("-").map(Number);
+  const today = dateInSaoPaulo(now);
+  const shift = (k: number) => {
+    const total = ay * 12 + (am - 1) - k;
+    const y = Math.floor(total / 12), m = total % 12 + 1;
+    const d = Math.min(ad, new Date(Date.UTC(y, m, 0)).getUTCDate());
+    return { y, m, d, iso: `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}` };
+  };
+  let k = 1;
+  while (shift(k).iso > today && k < 240) k++;
+  const n = shift(k - 1);
+  return { start: shift(k).iso, next: k - 1 === 0 ? renewsAt : saoPauloMidnight(n.y, n.m, n.d) };
+}
+
 export function quotaPeriodStart(
   periodKind: PlanPeriodKind | null,
   now: Date,
   tier: PlanTier = "FREE",
   testCycleStart: string | null = null,
+  renewsAt: string | null = null,
 ): string {
+  if (periodKind === "MONTHLY" && (tier === "ESSENCIAL" || tier === "PRO") && renewsAt) return billingCycle(renewsAt, now).start;
   // Mesma regra de public.ai_quota_period: o saldo do TESTE é do ciclo aberto no último reset.
   if (periodKind !== "MONTHLY" && tier === "TESTE") return testCycleStart ?? "1970-01-02";
   if (periodKind !== "MONTHLY") return "1970-01-01";
@@ -315,6 +337,12 @@ function saoPauloMidnight(year: number, month: number, day: number): string {
       (Number(match[2]) * 60 + Number(match[3] ?? 0))
     : 0;
   return new Date(midnightUtc.getTime() - offsetMinutes * 60_000).toISOString();
+}
+
+/** Quando o saldo mensal renova: na data da cobrança para quem paga, senão no dia 1. */
+export function monthlyReset(now: Date, tier: PlanTier, renewsAt: string | null): string {
+  if ((tier === "ESSENCIAL" || tier === "PRO") && renewsAt) return billingCycle(renewsAt, now).next;
+  return nextMonthlyReset(now);
 }
 
 export function nextMonthlyReset(now: Date): string {
@@ -378,7 +406,7 @@ export class ClosedBetaAiPolicy {
       SERVER_FEATURES.map(async (feature) => {
         const row = quotaLimitRow(limits, tier, feature);
         const periodKind = row?.periodKind ?? null;
-        const periodStart = quotaPeriodStart(periodKind, now, tier, profile?.testCycleStart ?? null);
+        const periodStart = quotaPeriodStart(periodKind, now, tier, profile?.testCycleStart ?? null, profile?.planRenewsAt ?? null);
         const record = await this.dataSource.findQuotaUsage(userId, feature, periodStart);
         const used = (record?.successfulCount ?? 0) + (record?.reservedCount ?? 0);
         const limit = overrides[feature] ?? row?.quotaLimit ?? 0;
@@ -389,7 +417,7 @@ export class ClosedBetaAiPolicy {
           used,
           remaining: Math.max(limit - used, 0),
           periodStart,
-          resetAt: periodKind === "MONTHLY" ? nextMonthlyReset(now) : null,
+          resetAt: periodKind === "MONTHLY" ? monthlyReset(now, tier, profile?.planRenewsAt ?? null) : null,
         };
       }),
     );
@@ -429,7 +457,7 @@ export class ClosedBetaAiPolicy {
     const tier = effectivePlanTier(profile, now);
     const limitRow = quotaLimitRow(await this.dataSource.listPlanLimits(tier), tier, feature);
     const periodKind = limitRow?.periodKind ?? null;
-    const periodStart = quotaPeriodStart(periodKind, now, tier, profile?.testCycleStart ?? null);
+    const periodStart = quotaPeriodStart(periodKind, now, tier, profile?.testCycleStart ?? null, profile?.planRenewsAt ?? null);
     // Sem configuração o recurso fica fechado, igual a public.ai_quota_limit (que, na conta TESTE,
     // usa o ajuste individual quando existe).
     const override = tier === "TESTE" ? (await this.dataSource.listQuotaOverrides?.(userId).catch(() => ({} as Record<string, number>)))?.[feature] : undefined;
@@ -450,7 +478,7 @@ export class ClosedBetaAiPolicy {
       used: successfulCount + reservedCount,
       remaining,
       periodStart,
-      resetAt: periodKind === "MONTHLY" ? nextMonthlyReset(now) : null,
+      resetAt: periodKind === "MONTHLY" ? monthlyReset(now, tier, profile?.planRenewsAt ?? null) : null,
     };
 
     let reasonCode: string | null = null;
