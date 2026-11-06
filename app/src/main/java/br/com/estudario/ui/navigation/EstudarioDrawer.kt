@@ -416,7 +416,7 @@ fun EstudarioTopBar(
 private fun DrawerPreview() {
     EstudarioTheme {
         EstudarioDrawerContent(
-            profile = UserProfile(name = "Otávio Clemente", email = "otavio@exemplo.com"),
+            profile = UserProfile(name = "Ana Souza", email = "ana@exemplo.com"),
             level = 14,
             totalXp = 1840,
             currentRoute = "plan",

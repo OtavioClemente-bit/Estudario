@@ -557,7 +557,7 @@ internal fun ProfileShowcase(dark: Boolean, emptyStreak: Boolean, level: Int = 1
 private fun ProfileWithPhotoPreview() {
     EstudarioTheme {
         ProfileContent(
-            profile = UserProfile(name = "Otávio Clemente", email = "otavio@exemplo.com", photoPath = "/data/user/perfil.jpg"),
+            profile = UserProfile(name = "Ana Souza", email = "ana@exemplo.com", photoPath = "/data/user/perfil.jpg"),
             progress = previewProgress,
             streak = previewStreak,
             driveLastBackupAt = System.currentTimeMillis(),
@@ -573,7 +573,7 @@ private fun ProfileWithPhotoPreview() {
 private fun ProfileNoPhotoPreview() {
     EstudarioTheme {
         ProfileContent(
-            profile = UserProfile(name = "Otávio", email = "otavio@exemplo.com"),
+            profile = UserProfile(name = "Ana", email = "ana@exemplo.com"),
             progress = previewProgress,
             streak = previewStreak,
             driveLastBackupAt = 0L,
