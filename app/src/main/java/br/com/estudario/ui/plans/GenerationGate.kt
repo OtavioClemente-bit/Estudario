@@ -58,9 +58,11 @@ fun generationGate(summary: AiPlanSummary, purpose: String, questionsOnly: Boole
     fun remaining(feature: String) = summary.usage.firstOrNull { it.feature == feature }?.remaining
     if (questionsOnly) return if (remaining("QUESTION_BATCH") == 0) GenerationGate.Blocked(UpgradeReason.QUESTIONS) else GenerationGate.Go
     val free = summary.freeAllowance
-        ?: return paidGate(summary, purpose, remaining("CONTENT_GENERATION"))
+        ?: return paidGate(summary, if (purpose == "PLAN_DAY_QUESTIONS") "PLAN_DAY" else purpose, remaining("CONTENT_GENERATION"))
     return when (purpose) {
         "PLAN_DAY" -> if (free.planDay.left == 0) GenerationGate.Blocked(UpgradeReason.PLAN_DAY) else GenerationGate.Go
+        // Questões do dia (a teoria do tópico já foi): não é matéria nova, não conta nas 2 do dia.
+        "PLAN_DAY_QUESTIONS" -> GenerationGate.Go
         // Adiantar: crédito de anúncio já confirmado ou o adiantamento grátis da semana seguem; sem
         // eles, o anúncio (se ainda houver hoje e no mês); sem anúncio, a oferta.
         "ADVANCE" -> when {

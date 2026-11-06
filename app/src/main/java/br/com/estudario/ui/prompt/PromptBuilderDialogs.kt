@@ -303,7 +303,9 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
     // O saldo é conferido no toque, antes do assistente: sem saldo, a oferta; no Grátis, fora do
     // plano a oferta e, ao adiantar sem crédito, o anúncio. O servidor confere de novo ao criar.
     val purpose = remember(initialTopicIds) { initialTopicIds?.singleOrNull()?.let(viewModel::contentPurposeFor) ?: "EXTRA" }
-    if (!br.com.estudario.ui.plans.generationAllowed(purpose, questionsOnly = false, onDismiss = onDismiss)) return
+    // Questões do dia de um tópico com a teoria já feita não são matéria nova: não esbarram nas 2 do dia do Grátis.
+    val gatePurpose = remember(purpose) { if (purpose == "PLAN_DAY" && initialTopicIds?.singleOrNull()?.let(viewModel::planDayQuestionsOnly) == true) "PLAN_DAY_QUESTIONS" else purpose }
+    if (!br.com.estudario.ui.plans.generationAllowed(gatePurpose, questionsOnly = false, onDismiss = onDismiss)) return
     val selectedIds = selected.toSet()
     val prompt = remember(options, selectedIds, topics, subject, competition) {
         // O órgão decide qual estatuto/lei vale; em vez de perguntar, usa o próprio concurso.

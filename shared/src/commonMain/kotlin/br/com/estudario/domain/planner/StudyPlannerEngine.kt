@@ -18,8 +18,14 @@ class StudyPlannerEngine(
         val keepToday = snapshot.policy.keepTodayTasks && !todayOff && reason != ReplanReason.INITIAL && snapshot.tasks.any {
             it.date == snapshot.today && it.status !in terminalInactiveStatuses
         }
+        // Semana estável: concluir, pular, fazer parte de uma tarefa ou virar o dia não refaz os próximos
+        // dias. Antes cada conclusão apagava e recriava o mês inteiro (6 a 16 vezes por dia, 1.500
+        // tarefas remarcadas em 4 dias numa conta real) e o que a pessoa via ontem mudava hoje. Só o
+        // que vem depois da janela se reorganiza; mudar horas, matérias ou recriar o plano refaz tudo.
+        val stableUntil = if (reason in stableReasons) snapshot.today.plusDays(STABLE_DAYS.toLong()) else null
         val fixedTasks = snapshot.tasks.filter { task ->
             task.status == PlanTaskStatus.CONCLUIDA ||
+                (stableUntil != null && task.status == PlanTaskStatus.PLANEJADA && task.date > snapshot.today && task.date < stableUntil) ||
                 task.locked ||
                 snapshot.dayOverrides[task.date]?.locked == true ||
                 task.subjectId == null ||
@@ -307,6 +313,29 @@ class StudyPlannerEngine(
             generated.clear(); generated += fixed
         }
 
+        // Nenhum dia passa das horas que a pessoa escolheu (contando as revisões reservadas e o que já
+        // está fixo nele). A sobra de bloco e o "questões no dia da teoria" acima podiam passar do dia
+        // (2h18 num dia de 2h). O que passa vai para o próximo dia com espaço: primeiro as questões mais
+        // novas do dia, sempre depois da teoria do mesmo tópico.
+        run {
+            fun load(date: LocalDate) = lockedUsage.getOrElse(date) { 0 } + partialUsage.getOrElse(date) { 0 } + reserve.getOrElse(date) { 0 } +
+                generated.filter { it.date == date }.sumOf { it.plannedMinutes }
+            val theoryDay = generated.filter { it.type == PlanTaskType.THEORY && it.topicId != null }
+                .groupBy { it.topicId!! }.mapValues { (_, l) -> l.maxOf { it.date } }
+            dates.forEach { date ->
+                val cap = rawCapacity.getValue(date)
+                if (cap <= 0) return@forEach
+                var guard = 0
+                while (load(date) > cap && guard++ < 12) {
+                    val victim = generated.filter { it.date == date && it.type != PlanTaskType.THEORY }
+                        .maxByOrNull { it.sequence } ?: break
+                    val earliest = maxOf(date.plusDays(1), victim.topicId?.let { theoryDay[it] } ?: date.plusDays(1))
+                    val target = dates.firstOrNull { d -> d >= earliest && rawCapacity.getValue(d) > 0 && load(d) + victim.plannedMinutes <= rawCapacity.getValue(d) } ?: break
+                    generated[generated.indexOf(victim)] = victim.copy(date = target, sequence = sequence++)
+                }
+            }
+        }
+
         val dependencyUnallocated = blocked.map {
             UnallocatedDemand(it.id, it.minutes, "Dependência ainda não concluída.")
         }
@@ -417,6 +446,9 @@ class StudyPlannerEngine(
         /** Tarefas cujo tamanho vem de questões do tópico (e por isso respeitam questionCapByTopic). */
         val cappedTypes = setOf(PlanTaskType.QUESTIONS, PlanTaskType.ACTIVE_RECALL)
         val dayKeepingReasons = setOf(ReplanReason.TASK_COMPLETED, ReplanReason.TASK_PARTIAL, ReplanReason.TASK_SKIPPED)
+        /** Dias à frente que ficam como estão nas reorganizações do dia a dia (ver "Semana estável"). */
+        const val STABLE_DAYS = 7
+        val stableReasons = dayKeepingReasons + ReplanReason.DAY_MISSED
         val terminalInactiveStatuses = setOf(
             PlanTaskStatus.CONCLUIDA,
             PlanTaskStatus.REPROGRAMADA,

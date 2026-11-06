@@ -130,7 +130,7 @@ fun PlanScreen() {
                 Span({ classes("grow") }) {
                     Span({ classes("prc-tag") }) { Text("REVISÃO ESPAÇADA · HOJE") }
                     B { Text(if (dueReviews == 1) "1 revisão para hoje" else "$dueReviews revisões para hoje") }
-                    Span({ classes("prc-sub") }) { Text("Uns ${dueReviews * 3} minutos · +${dueReviews * 20} XP · revisar no dia certo é o que fixa") }
+                    Span({ classes("prc-sub") }) { Text("Uns ${dueReviews * br.com.estudario.domain.ReviewQueue.MINUTES_EACH} minutos · +${dueReviews * 20} XP · revisar no dia certo é o que fixa") }
                 }
                 Span({ classes("prc-go") }) { Text("Revisar") }
             }

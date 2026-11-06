@@ -108,7 +108,12 @@ class PlanAuditSimulation {
         val engine = StudyPlannerEngine()
         val studiedOn = mutableMapOf<Long, LocalDate>()
 
+        // Estabilidade: a cada conclusão, quanto da próxima semana (o que a pessoa já viu marcado) mudou.
+        var weekSlots = 0; var weekChanged = 0
+        fun weekView(day: LocalDate) = tasks.filter { it.status == PlanTaskStatus.PLANEJADA && it.date > day && daysBetween(day, it.date) < 7 }
+            .map { "${it.date}|${it.topicId}|${it.type}" }.toSet()
         fun replan(day: LocalDate, reason: ReplanReason) {
+            val before = if (reason == ReplanReason.TASK_COMPLETED) weekView(day) else emptySet()
             val input = PlannerSnapshotBuilder.Input(
                 PlannerSnapshotBuilder.Plan("p", revision, start.toEpochDays().toLong(), exam.toEpochDays().toLong(), config),
                 subjects, topics.toList(), questionsByTopic, attempts.toList(), reviews.toList(), tasks.toList(), executions.toList(),
@@ -120,6 +125,7 @@ class PlanAuditSimulation {
             val moved = proposal.transitions.associateBy { it.taskId }
             tasks = tasks.map { t -> moved[t.id]?.let { t.copy(status = it.to) } ?: t }.toMutableList()
             tasks += proposal.newTasks
+            if (reason == ReplanReason.TASK_COMPLETED) { val after = weekView(day); weekSlots += before.size; weekChanged += (before - after).size }
         }
 
         fun pCorrect(topicId: Long): Double {
@@ -216,6 +222,13 @@ class PlanAuditSimulation {
             wk.horizon = (tasks.filter { it.status == PlanTaskStatus.PLANEJADA }.maxOfOrNull { it.date }?.let { daysBetween(day, it) } ?: -1)
         }
 
+        // Dias acima do limite: o que o plano marcou no dia (feito ou não) passa das horas do dia.
+        val capOf = { d: LocalDate -> availability.first { it.isoDayOfWeek == (d.dayOfWeek.ordinal + 1) }.minutes }
+        val overDays = tasks.filter { it.status == PlanTaskStatus.PLANEJADA || it.status == PlanTaskStatus.CONCLUIDA }.groupBy { it.date }
+            .count { (d, l) -> capOf(d) > 0 && l.sumOf { it.plannedMinutes } > capOf(d) }
+        val overSample = tasks.filter { it.status == PlanTaskStatus.PLANEJADA || it.status == PlanTaskStatus.CONCLUIDA }.groupBy { it.date }
+            .filter { (d, l) -> capOf(d) > 0 && l.sumOf { it.plannedMinutes } > capOf(d) }.entries.take(3)
+            .joinToString(" ; ") { (d, l) -> "$d cap ${capOf(d)}: " + l.joinToString(",") { "${it.type.name.take(4)}${it.plannedMinutes}${if (it.status == PlanTaskStatus.CONCLUIDA) "ok" else ""}" } }
         val total = topics.size
         // Visto = estudado ou dispensado pelo diagnóstico (8+ questões com 75%+ de acerto).
         val byQuestion = attempts.groupBy { a -> questionsByTopic.entries.first { a.questionId in it.value }.key }
@@ -236,6 +249,7 @@ class PlanAuditSimulation {
             appendLine("Edital: $leaves/$total tópicos vistos até a prova; $coveredByDeadline/$total antes da reta final ($contentDeadline).")
             appendLine("Último tópico novo em: ${studiedOn.values.maxOrNull() ?: "-"}; depois da reta final: " + studiedOn.filterValues { !it.isBefore(contentDeadline) }.map { (id, d) -> topics.first { it.id == id }.title + " " + d }.joinToString(", ") + "; nunca vistos: " + topics.filter { t -> !t.studied && t.id !in studiedOn }.joinToString(", ") { it.title })
             appendLine("Tempo feito: teoria ${tot.theory * 100 / allMin}% · questões ${tot.questions * 100 / allMin}% · revisão ${tot.review * 100 / allMin}% · reforço ${tot.recall * 100 / allMin}% · outros ${tot.other * 100 / allMin}% (total ${allMin / 60} h de ${st.weeklyMinutes * st.examInDays / 7 / 60} h disponíveis)")
+            appendLine("Estabilidade: ${if (weekSlots == 0) 0 else weekChanged * 100 / weekSlots}% da próxima semana mudou a cada conclusão · dias acima do limite: $overDays · ex.: $overSample")
             appendLine("Teoria gasta em matérias que a pessoa disse dominar: ${theoryOnKnown[0] / 60} h · revisões espaçadas feitas: $reviewsDone")
             appendLine("Semana | teoria questões revisão reforço | tópicos novos | tarefas vencidas | revisões vencidas | dias vazios | horizonte (dias)")
             weeks.forEachIndexed { i, w -> appendLine("S${(i + 1).toString().padStart(2)}    | ${w.theory / 60}h ${w.questions / 60}h ${w.review / 60}h ${w.recall / 60}h | ${w.newTopics} | ${w.overdueTasks} | ${w.overdueReviews} | ${w.emptyDays} | ${w.horizon}") }

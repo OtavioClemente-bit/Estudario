@@ -12,7 +12,7 @@ object ReviewQueue {
     data class Item(val id: Long, val dueDay: Long, val stage: Int)
 
     /** Minutos que uma revisão costuma levar (a conta de "uns N minutos" das telas). */
-    const val MINUTES_EACH = 3
+    const val MINUTES_EACH = 4
 
     /** Teto do dia: um quarto do tempo de estudo do dia, nunca menos que 4 (sem plano, 10). */
     fun capFor(dayLimitMinutes: Int?): Int =

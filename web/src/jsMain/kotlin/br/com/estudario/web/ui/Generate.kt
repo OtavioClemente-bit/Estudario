@@ -133,7 +133,8 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
         val blocked = when {
             questionsOnly -> UpgradeReason.QUESTIONS.takeIf { q != null && q.limit > 0 && q.remaining == 0 }
             f != null -> when (AiContent.purposeFor(Store.data, topicId)) {
-                "PLAN_DAY" -> UpgradeReason.PLAN_DAY.takeIf { f.planDayUsed >= f.planDayLimit }
+                // Questões do dia de um tópico com a teoria já feita não são matéria nova: não esbarram nas 2 do dia.
+                "PLAN_DAY" -> UpgradeReason.PLAN_DAY.takeIf { f.planDayUsed >= f.planDayLimit && !AiContent.planDayQuestionsOnly(Store.data, topicId) }
                 "ADVANCE" -> UpgradeReason.ADVANCE.takeIf { f.weeklyUsed >= f.weeklyLimit }
                 else -> UpgradeReason.EXTRAS
             }

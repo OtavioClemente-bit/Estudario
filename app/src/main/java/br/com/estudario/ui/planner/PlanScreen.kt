@@ -366,7 +366,7 @@ private fun ReviewReminderCard(count: Int, onOpen: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text("REVISÃO ESPAÇADA · HOJE", style = MaterialTheme.typography.labelSmall, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = androidx.compose.ui.graphics.Color(0xFFC47F00))
                 Text(if (count == 1) "1 revisão para hoje" else "$count revisões para hoje", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = androidx.compose.ui.graphics.Color(0xFF26234A))
-                Text("Uns ${count * 3} minutos · +${count * 20} XP · revisar no dia certo é o que fixa", style = MaterialTheme.typography.bodySmall, color = androidx.compose.ui.graphics.Color(0xFF4E4B6B))
+                Text("Uns ${count * br.com.estudario.domain.ReviewQueue.MINUTES_EACH} minutos · +${count * 20} XP · revisar no dia certo é o que fixa", style = MaterialTheme.typography.bodySmall, color = androidx.compose.ui.graphics.Color(0xFF4E4B6B))
             }
             Text("Revisar", style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = androidx.compose.ui.graphics.Color(0xFF2F5BD3))
         }

@@ -71,7 +71,18 @@ export function brasiliaBounds(now: Date): { dayStart: string; monthStart: strin
   };
 }
 
-interface JobRow { created_at: string; purpose?: unknown; ad_credit?: unknown; weekly?: unknown }
+interface JobRow { created_at: string; purpose?: unknown; ad_credit?: unknown; weekly?: unknown; blocks?: unknown }
+
+/**
+ * O pedido traz matéria nova (teoria)? Só ele conta nas 2 matérias do plano por dia do Grátis. Pedido só
+ * de questões (a tarefa de questões do dia, de um tópico cuja teoria já saiu) não é matéria: antes ele
+ * contava, e quem tinha uma teoria e uma tarefa de questões no dia não conseguia gerar a segunda teoria.
+ * Job antigo sem a lista de blocos conta, como antes.
+ */
+export function bringsTheory(blocks: unknown): boolean {
+  if (!Array.isArray(blocks)) return true;
+  return blocks.includes("THEORY");
+}
 interface CreditRow { id: string; created_at: string; used_at: string | null }
 
 /** Conta o uso a partir dos jobs e dos créditos (só a service role lê). */
@@ -80,7 +91,7 @@ export function usageFrom(jobs: JobRow[], credits: CreditRow[], now: Date): Free
   const purposeOf = (row: JobRow) => parsePurpose(row.purpose);
   const after = (iso: string, bound: string) => Date.parse(iso) >= Date.parse(bound);
   return {
-    planDayToday: jobs.filter((j) => purposeOf(j) === "PLAN_DAY" && after(j.created_at, dayStart)).length,
+    planDayToday: jobs.filter((j) => purposeOf(j) === "PLAN_DAY" && bringsTheory(j.blocks) && after(j.created_at, dayStart)).length,
     extrasMonth: jobs.filter((j) => purposeOf(j) === "EXTRA" && after(j.created_at, monthStart)).length,
     weeklyAdvances: jobs.filter((j) => purposeOf(j) === "ADVANCE" && j.weekly === true && after(j.created_at, weekAgo)).length,
     adCreditsToday: credits.filter((c) => after(c.created_at, dayStart)).length,
@@ -116,7 +127,7 @@ export class SupabaseFreeAllowance implements FreeAllowanceStore {
     const since = Date.parse(weekAgo) < Date.parse(monthStart) ? weekAgo : monthStart;
     const user = encodeURIComponent(userId);
     const jobs = await this.rest(
-      `ai_jobs?select=created_at,purpose:request_payload->purpose,weekly:request_payload->weekly&user_id=eq.${user}` +
+      `ai_jobs?select=created_at,purpose:request_payload->purpose,weekly:request_payload->weekly,blocks:request_payload->input->options->blocks&user_id=eq.${user}` +
         `&feature=eq.CONTENT_GENERATION&status=not.in.(FAILED,EXPIRED,CANCELLED)&created_at=gte.${encodeURIComponent(since)}&limit=500`,
     );
     const credits = await this.rest(`ad_reward_credits?select=id,created_at,used_at&user_id=eq.${user}&created_at=gte.${encodeURIComponent(since)}&limit=200`);

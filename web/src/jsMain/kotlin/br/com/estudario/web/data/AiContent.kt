@@ -43,6 +43,15 @@ object AiContent {
         val purpose: String = "EXTRA",
     )
 
+    /** O tópico está no dia do plano só pelas questões (a teoria dele já foi concluída): não é matéria nova. */
+    fun planDayQuestionsOnly(data: Snapshot, topicId: Long): Boolean {
+        val today = Queries.todayEpoch()
+        val mine = data.tasks.filter { it.topicId == topicId }
+        val dayTasks = mine.filter { it.status in setOf("PLANEJADA", "EM_ANDAMENTO") && it.day <= today }
+        if (dayTasks.isEmpty() || dayTasks.any { it.type == "THEORY" }) return false
+        return mine.any { it.type == "THEORY" && it.status == "CONCLUIDA" }
+    }
+
     /** Tópico com tarefa do plano hoje (ou atrasada) é o dia do plano; num dia que ainda vem, adiantar; fora do plano, extra. */
     fun purposeFor(data: Snapshot, topicId: Long): String {
         val today = Queries.todayEpoch()

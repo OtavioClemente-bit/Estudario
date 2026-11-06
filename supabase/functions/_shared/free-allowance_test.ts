@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { adCreditAllowed, decideFreeContent, type FreeUsage, parsePurpose, usageFrom } from "./free-allowance.ts";
+import { adCreditAllowed, bringsTheory, decideFreeContent, type FreeUsage, parsePurpose, usageFrom } from "./free-allowance.ts";
 import { derToRaw, isOurAdUnit, verifyRewardCall } from "../ad-reward-ssv/index.ts";
 
 const none: FreeUsage = { planDayToday: 0, extrasMonth: 0, weeklyAdvances: 0, adCreditsToday: 0, adCreditsMonth: 0, adCreditsAvailable: 0 };
@@ -85,4 +85,16 @@ Deno.test("anúncio premiado: só o bloco do Estudário vira crédito", () => {
   assertEquals(isOurAdUnit("ca-app-pub-6794476146182030/9507247864", "9507247864"), true);
   assertEquals(isOurAdUnit("1234567890", "9507247864"), false);
   assertEquals(isOurAdUnit(null, "9507247864"), false);
+});
+
+Deno.test("questões do dia do plano não contam como matéria", () => {
+  assertEquals(bringsTheory(["QUESTIONS"]), false);
+  assertEquals(bringsTheory(["THEORY", "QUESTIONS"]), true);
+  assertEquals(bringsTheory(undefined), true);
+  const now = new Date("2026-11-05T15:00:00Z");
+  const usage = usageFrom([
+    { created_at: "2026-11-05T12:00:00Z", purpose: "PLAN_DAY", blocks: ["THEORY", "QUESTIONS"] },
+    { created_at: "2026-11-05T13:00:00Z", purpose: "PLAN_DAY", blocks: ["QUESTIONS"] },
+  ], [], now);
+  assertEquals(usage.planDayToday, 1);
 });

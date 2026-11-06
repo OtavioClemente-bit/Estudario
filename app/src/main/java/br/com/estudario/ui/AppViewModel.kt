@@ -814,6 +814,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * O tópico está no dia do plano só pelas questões (a teoria dele já foi): gerar aqui não é matéria
+     * nova e não entra nas 2 matérias do dia do Grátis. O servidor confere pelos blocos pedidos.
+     */
+    fun planDayQuestionsOnly(topicId: Long): Boolean {
+        val pending = setOf(br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA, br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO)
+        val today = LocalDate.now().toEpochDay()
+        val mine = allPlanTasks.value.filter { it.topicId == topicId }
+        val dayTasks = mine.filter { it.status in pending && it.scheduledEpochDay <= today }
+        if (dayTasks.isEmpty() || dayTasks.any { it.type == br.com.estudario.domain.planner.PlanTaskType.THEORY }) return false
+        return mine.any { it.type == br.com.estudario.domain.planner.PlanTaskType.THEORY && it.status == br.com.estudario.domain.planner.PlanTaskStatus.CONCLUIDA }
+    }
+
     /** A tarefa "Simulado do plano": monta ou abre o simulado dela (sem cota) e avisa o que acontece. */
     fun openPlanSimulation(task: br.com.estudario.data.local.planner.PlanTaskEntity) {
         viewModelScope.launch {

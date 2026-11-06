@@ -35,7 +35,7 @@ import {
 } from "../_shared/text-job-input.ts";
 import { effectivePlanTier, SupabaseAccessDataSource } from "../_shared/access-policy.ts";
 import { parseSimulationJobInput } from "../_shared/simulation.ts";
-import { decideFreeContent, type FreeAllowanceStore, PAID_PLAN_PER_DAY, parsePurpose, planMaterialsToday, SupabaseFreeAllowance } from "../_shared/free-allowance.ts";
+import { decideFreeContent, type FreeAllowanceStore, PAID_PLAN_PER_DAY, parsePurpose, planMaterialsToday, SupabaseFreeAllowance, bringsTheory } from "../_shared/free-allowance.ts";
 
 const SYLLABUS_FEATURE: AiFeature = "SYLLABUS_GENERATION";
 const TEXT_FEATURES: ReadonlySet<string> = new Set(["CONTENT_GENERATION", "PLAN_GENERATION", "SIMULATION_GENERATION", "QUESTION_BATCH"]);
@@ -575,7 +575,9 @@ async function createTextJob(
       const purpose = parsePurpose(rawPurpose);
       let decision;
       try {
-        decision = decideFreeContent(purpose, await dependencies.freeAllowance.usage(user.userId));
+        // Questões do dia do plano (sem teoria) não são matéria nova: não entram no limite de 2 por dia.
+        const onlyQuestions = purpose === "PLAN_DAY" && !bringsTheory((input as ContentJobInput).options?.blocks);
+        decision = onlyQuestions ? { ok: true as const, useCredit: false, weekly: false } : decideFreeContent(purpose, await dependencies.freeAllowance.usage(user.userId));
       } catch {
         return safeError("AI_JOB_DATA_UNAVAILABLE", 503);
       }
