@@ -1371,47 +1371,62 @@ private fun DrawScope.drawBack(t: Float, kind: String, mood: FolhaMood, small: B
                 for (i in 0 until 4) line(Color(0x99965F0A), 94.2f + sw + i, 64.4f, 94.2f + sw + i, 68.4f, 0.2f)
             }
         }
-        "asas-caderno", "asas-fenix" -> {
-            // asas de assinante (iguais ao site): penas que são páginas, abertas em leque atrás do livro.
-            // Essencial: folhas pautadas com margem vermelha, contorno azul. Pro (fênix): páginas de ouro
-            // com a ponta em brasa, chaminhas tremendo nas pontas, brilho atrás e faíscas subindo.
-            val pro = kind == "asas-fenix"
+        "asas-caderno" -> {
+            // asas de caderno (Essencial, iguais ao site): quatro penas que são folhas pautadas com margem
+            // vermelha e contorno azul, abertas em leque atrás do livro
             val busy = party || air > 0.1f
             val flap = sin(t * (if (busy) 9f else 2.2f)) * (if (busy) 16f else 5f) - air * 8f
-            val n = if (pro) 6 else 4
-            if (pro && !small) drawCircle(Brush.radialGradient(listOf(Color(0x66FFD27A), Color(0x00FFB421)), center = Offset(50f, 56f), radius = 64f), 64f, Offset(50f, 56f))
             for (side in listOf(-1f, 1f)) mirrored(side) {
                 rotate(flap, pivot = Offset(22f, 60f)) {
-                    for (i in n - 1 downTo 0) {
-                        val ang = 72f - i * (82f / (n - 1))
-                        val len = (if (pro) 40f else 29f) - i * (if (pro) 3.2f else 3.6f)
-                        val w = if (pro) 7.4f else 7f
+                    for (i in 3 downTo 0) {
+                        val ang = 72f - i * (82f / 3f); val len = 29f - i * 3.6f; val w = 7f
                         translate(22f, 60f) { rotate(ang, pivot = Offset.Zero) {
                             val feather = Path().apply {
                                 moveTo(0f, -w * 0.35f); cubicTo(-len * 0.3f, -w, -len * 0.8f, -w * 0.9f, -len, 0f)
                                 cubicTo(-len * 0.8f, w * 0.9f, -len * 0.3f, w, 0f, w * 0.35f); close()
                             }
-                            if (pro) drawPath(feather, hg(listOf(Color(0xFFE0452F), Color(0xFFFF9F3A), Gold, Color(0xFFFFF1BF)), -len, 0f))
-                            else drawPath(feather, hg(listOf(Color(0xFFEAF0FF), Color(0xFFFFFDF8)), -len, 0f))
+                            drawPath(feather, hg(listOf(Color(0xFFEAF0FF), Color(0xFFFFFDF8)), -len, 0f))
                             if (!small) clipPath(feather) {
-                                val rule = if (pro) Color(0x998A5A0A) else Color(0x8C6F8FE0)
-                                for (y in listOf(-w * 0.45f, 0f, w * 0.45f)) line(rule, -len * 0.92f, y, -len * 0.12f, y, 0.35f)
-                                line(if (pro) Color(0xB3FFF1BF) else Color(0xCCF2A3A3), -len * 0.22f, -w, -len * 0.22f, w, 0.45f)
+                                for (y in listOf(-w * 0.45f, 0f, w * 0.45f)) line(Color(0x8C6F8FE0), -len * 0.92f, y, -len * 0.12f, y, 0.35f)
+                                line(Color(0xCCF2A3A3), -len * 0.22f, -w, -len * 0.22f, w, 0.45f)
                             }
-                            drawPath(feather, if (pro) Color(0xFF7A4F05) else Color(0xFF2F5BD3), style = stroke(if (small) 1.1f else 0.6f))
-                            if (pro) {
-                                // a chaminha na ponta de cada pena
-                                val fl = 3.2f + sin(t * 13f + i * 1.7f + side) * 1.1f + (if (busy) 1.6f else 0f)
-                                drawPath(Path().apply { moveTo(-len + 0.4f, -1.4f); quadraticTo(-len - fl * 0.6f, -1.8f, -len - fl, sin(t * 9f + i) * 0.8f); quadraticTo(-len - fl * 0.6f, 1.8f, -len + 0.4f, 1.4f); close() },
-                                    hg(listOf(Color(0x00F2552C), Color(0xFFFF9F3A), Color(0xFFFFE07A)), -len - fl, -len + 0.4f))
-                            } else if (busy && !small) star4(-len - 1.5f, 0f, 1.6f + sin(t * 8f + i) * 0.6f, Color(0xFF2F5BD3).copy(alpha = 0.8f))
+                            drawPath(feather, Color(0xFF2F5BD3), style = stroke(if (small) 1.1f else 0.6f))
+                            if (busy && !small) star4(-len - 1.5f, 0f, 1.6f + sin(t * 8f + i) * 0.6f, Color(0xFF2F5BD3).copy(alpha = 0.8f))
                         } }
                     }
                 }
             }
-            if (pro && !small) for (i in 0 until 8) {
-                val ph = (t * 0.55f + i / 8f) % 1f; val sx = if (i % 2 == 1) 1f else -1f
-                drawCircle(Color(0xFFFFB421).copy(alpha = 0.85f * (1f - ph)), 0.9f * (1f - ph) + 0.3f, Offset(50f + sx * (26f + (i * 7 % 13)) + sin(t * 3f + i) * 2f, 64f - ph * 46f))
+        }
+        "asas-fenix" -> {
+            // asas de fênix (Pro, iguais ao site): cinco penas longas e finas, curvadas para trás, com uma camada
+            // de penas curtas por cima, perto do livro. Ouro com a ponta âmbar, haste marcada, brilho suave atrás
+            // e poucas faíscas subindo devagar. Batem devagar; na festa, um pouco mais.
+            val busy = party || air > 0.1f
+            val flap = sin(t * (if (busy) 7f else 1.8f)) * (if (busy) 10f else 3f) - air * 6f
+            if (!small) drawCircle(Brush.radialGradient(listOf(Color(0x40FFD27A), Color(0x00FFB421)), center = Offset(50f, 52f), radius = 58f), 58f, Offset(50f, 52f))
+            val edge = Color(0xFF8A5A0A)
+            fun DrawScope.feather(len: Float, w: Float, bend: Float, fill: Brush, spine: Boolean) {
+                val p = Path().apply {
+                    moveTo(0f, -w * 0.3f); cubicTo(-len * 0.35f, -w, -len * 0.75f, -w * 0.55f + bend, -len, bend)
+                    cubicTo(-len * 0.75f, w * 0.65f + bend, -len * 0.35f, w * 0.95f, 0f, w * 0.3f); close()
+                }
+                drawPath(p, fill)
+                if (spine && !small) drawPath(Path().apply { moveTo(-1f, 0f); quadraticTo(-len * 0.55f, bend * 0.25f, -len * 0.92f, bend * 0.9f) }, Color(0x997A4F05), style = stroke(0.35f))
+                drawPath(p, edge, style = stroke(if (small) 1f else 0.5f))
+            }
+            for (side in listOf(-1f, 1f)) mirrored(side) {
+                rotate(flap, pivot = Offset(24f, 58f)) {
+                    translate(24f, 58f) {
+                        for (i in 4 downTo 0) { val len = 44f - i * 4.5f
+                            rotate(84f - i * 15f, pivot = Offset.Zero) { feather(len, 5.4f, len * 0.1f, hg(listOf(Color(0xFFFF9F3A), Gold, Color(0xFFFFF1BF)), -len, 0f), true) } }
+                        for (i in 3 downTo 0) { val len = 17f - i * 1.4f
+                            rotate(80f - i * 19f, pivot = Offset.Zero) { feather(len, 6.2f, len * 0.08f, hg(listOf(Gold, Color(0xFFFFF1BF), Color(0xFFFFFBEA)), -len, 0f), false) } }
+                    }
+                }
+            }
+            if (!small) for (i in 0 until 4) {
+                val ph = (t * 0.35f + i / 4f) % 1f; val sx = if (i % 2 == 1) 1f else -1f
+                drawCircle(Color(0xFFFFC65A).copy(alpha = 0.7f * sin(PIf * ph)), 0.7f, Offset(50f + sx * (30f + i * 4f) + sin(t * 2f + i) * 1.5f, 50f - ph * 34f))
             }
         }
         "capa-real" -> {

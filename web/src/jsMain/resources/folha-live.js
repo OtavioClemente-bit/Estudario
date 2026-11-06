@@ -2242,44 +2242,54 @@
         const tas = new Path2D(); tas.moveTo(94.6 + sw * 0.5, 63); tas.lineTo(96.6 + sw * 0.5, 63); tas.lineTo(97.6 + sw, 68.6); tas.lineTo(93.6 + sw, 68.6); tas.closePath(); g.fillStyle = vGrad(g, ["#FFE08A", "#C98A12"], 63, 68.6); g.fill(tas);
         for (let i = 0; i < 4; i++) line(g, "rgba(150,95,10,0.6)", 94.2 + sw + i, 64.4, 94.2 + sw + i, 68.4, 0.2);
       }
-    } else if (kind === "asas-caderno" || kind === "asas-fenix") {
-      // asas de assinante (iguais ao app): penas que são páginas, abertas em leque atrás do livro.
-      // Essencial: folhas pautadas com margem vermelha, contorno azul. Pro (fênix): páginas de ouro com a
-      // ponta em brasa, chaminhas tremendo nas pontas, brilho atrás e faíscas subindo.
-      const pro = kind === "asas-fenix", busy = party || air > 0.1;
-      const flap = (sin(t * (busy ? 9 : 2.2)) * (busy ? 16 : 5) - air * 8) * PI / 180;
-      const n = pro ? 6 : 4;
-      if (pro && !small) { const gl = g.createRadialGradient(50, 56, 0, 50, 56, 64); gl.addColorStop(0, "rgba(255,210,122,0.4)"); gl.addColorStop(1, "rgba(255,180,33,0)"); g.fillStyle = gl; g.beginPath(); g.arc(50, 56, 64, 0, 2 * PI); g.fill(); }
+    } else if (kind === "asas-caderno") {
+      // asas de caderno (Essencial, iguais ao app): quatro penas que são folhas pautadas com margem vermelha
+      // e contorno azul, abertas em leque atrás do livro
+      const busy = party || air > 0.1, flap = (sin(t * (busy ? 9 : 2.2)) * (busy ? 16 : 5) - air * 8) * PI / 180;
       for (const side of [-1, 1]) {
         g.save(); if (side > 0) { g.translate(100, 0); g.scale(-1, 1); }
         g.translate(22, 60); g.rotate(flap);
-        for (let i = n - 1; i >= 0; i--) {
-          const ang = (72 - i * (82 / (n - 1))) * PI / 180, len = (pro ? 40 : 29) - i * (pro ? 3.2 : 3.6), w = pro ? 7.4 : 7;
+        for (let i = 3; i >= 0; i--) {
+          const ang = (72 - i * (82 / 3)) * PI / 180, len = 29 - i * 3.6, w = 7;
           g.save(); g.rotate(ang);
           const feather = new Path2D(); feather.moveTo(0, -w * 0.35); feather.bezierCurveTo(-len * 0.3, -w, -len * 0.8, -w * 0.9, -len, 0);
           feather.bezierCurveTo(-len * 0.8, w * 0.9, -len * 0.3, w, 0, w * 0.35); feather.closePath();
-          g.fillStyle = pro ? hGrad(g, ["#E0452F", "#FF9F3A", GOLD, "#FFF1BF"], -len, 0) : hGrad(g, ["#EAF0FF", "#FFFDF8"], -len, 0); g.fill(feather);
+          g.fillStyle = hGrad(g, ["#EAF0FF", "#FFFDF8"], -len, 0); g.fill(feather);
           if (!small) {
             g.save(); g.clip(feather);
-            const rule = pro ? "rgba(138,90,10,0.6)" : "rgba(111,143,224,0.55)";
-            for (const y of [-w * 0.45, 0, w * 0.45]) line(g, rule, -len * 0.92, y, -len * 0.12, y, 0.35);
-            line(g, pro ? "rgba(255,241,191,0.7)" : "rgba(242,163,163,0.8)", -len * 0.22, -w, -len * 0.22, w, 0.45);
+            for (const y of [-w * 0.45, 0, w * 0.45]) line(g, "rgba(111,143,224,0.55)", -len * 0.92, y, -len * 0.12, y, 0.35);
+            line(g, "rgba(242,163,163,0.8)", -len * 0.22, -w, -len * 0.22, w, 0.45);
             g.restore();
           }
-          stroke(g, feather, pro ? "#7A4F05" : "#2F5BD3", small ? 1.1 : 0.6);
-          if (pro) {
-            // a chaminha na ponta de cada pena
-            const fl = 3.2 + sin(t * 13 + i * 1.7 + side) * 1.1 + (busy ? 1.6 : 0);
-            const fp = new Path2D(); fp.moveTo(-len + 0.4, -1.4); fp.quadraticCurveTo(-len - fl * 0.6, -1.8, -len - fl, sin(t * 9 + i) * 0.8); fp.quadraticCurveTo(-len - fl * 0.6, 1.8, -len + 0.4, 1.4); fp.closePath();
-            g.fillStyle = hGrad(g, ["rgba(242,85,44,0)", "#FF9F3A", "#FFE07A"], -len - fl, -len + 0.4); g.fill(fp);
-          } else if (busy && !small) star4(g, -len - 1.5, 0, 1.6 + sin(t * 8 + i) * 0.6, "rgba(47,91,211,0.8)");
+          stroke(g, feather, "#2F5BD3", small ? 1.1 : 0.6);
+          if (busy && !small) star4(g, -len - 1.5, 0, 1.6 + sin(t * 8 + i) * 0.6, "rgba(47,91,211,0.8)");
           g.restore();
         }
         g.restore();
       }
-      if (pro && !small) for (let i = 0; i < 8; i++) {
-        const ph = (t * 0.55 + i / 8) % 1, sx = i % 2 ? 1 : -1;
-        g.fillStyle = `rgba(255,180,33,${0.85 * (1 - ph)})`; g.beginPath(); g.arc(50 + sx * (26 + (i * 7 % 13)) + sin(t * 3 + i) * 2, 64 - ph * 46, 0.9 * (1 - ph) + 0.3, 0, 2 * PI); g.fill();
+    } else if (kind === "asas-fenix") {
+      // asas de fênix (Pro, iguais ao app): cinco penas longas e finas, curvadas para trás, com uma camada de
+      // penas curtas por cima, perto do livro. Ouro com a ponta âmbar, haste marcada, brilho suave atrás e
+      // poucas faíscas subindo devagar. Batem devagar; na festa, um pouco mais.
+      const busy = party || air > 0.1, flap = (sin(t * (busy ? 7 : 1.8)) * (busy ? 10 : 3) - air * 6) * PI / 180;
+      if (!small) { const gl = g.createRadialGradient(50, 52, 0, 50, 52, 58); gl.addColorStop(0, "rgba(255,210,122,0.25)"); gl.addColorStop(1, "rgba(255,180,33,0)"); g.fillStyle = gl; g.beginPath(); g.arc(50, 52, 58, 0, 2 * PI); g.fill(); }
+      const feather = (len, w, bend, fill, spine) => {
+        const p = new Path2D(); p.moveTo(0, -w * 0.3); p.bezierCurveTo(-len * 0.35, -w, -len * 0.75, -w * 0.55 + bend, -len, bend);
+        p.bezierCurveTo(-len * 0.75, w * 0.65 + bend, -len * 0.35, w * 0.95, 0, w * 0.3); p.closePath();
+        g.fillStyle = fill; g.fill(p);
+        if (spine && !small) { const sp = new Path2D(); sp.moveTo(-1, 0); sp.quadraticCurveTo(-len * 0.55, bend * 0.25, -len * 0.92, bend * 0.9); stroke(g, sp, "rgba(122,79,5,0.6)", 0.35); }
+        stroke(g, p, "#8A5A0A", small ? 1 : 0.5);
+      };
+      for (const side of [-1, 1]) {
+        g.save(); if (side > 0) { g.translate(100, 0); g.scale(-1, 1); }
+        g.translate(24, 58); g.rotate(flap);
+        for (let i = 4; i >= 0; i--) { const len = 44 - i * 4.5; g.save(); g.rotate((84 - i * 15) * PI / 180); feather(len, 5.4, len * 0.1, hGrad(g, ["#FF9F3A", GOLD, "#FFF1BF"], -len, 0), true); g.restore(); }
+        for (let i = 3; i >= 0; i--) { const len = 17 - i * 1.4; g.save(); g.rotate((80 - i * 19) * PI / 180); feather(len, 6.2, len * 0.08, hGrad(g, [GOLD, "#FFF1BF", "#FFFBEA"], -len, 0), false); g.restore(); }
+        g.restore();
+      }
+      if (!small) for (let i = 0; i < 4; i++) {
+        const ph = (t * 0.35 + i / 4) % 1, sx = i % 2 ? 1 : -1;
+        g.fillStyle = `rgba(255,198,90,${0.7 * sin(PI * ph)})`; g.beginPath(); g.arc(50 + sx * (30 + i * 4) + sin(t * 2 + i) * 1.5, 50 - ph * 34, 0.7, 0, 2 * PI); g.fill();
       }
     } else if (kind === "capa-real") {
       const wave = sin(t * 1.7), fl = air * 6 + (party ? 3 : 0);
