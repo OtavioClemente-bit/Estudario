@@ -200,11 +200,11 @@ private fun CrewAct(planName: String, pro: Boolean, onStudy: () -> Unit, onClose
     // O presente de assinante já vestido no Folha (as mesmas peças que entram no armário).
     val style = remember(pro) {
         br.com.estudario.ui.assistant.FolhaStyle(
-            pieces = if (pro) mapOf("back" to "asas-fenix", "aura" to "supernova") else mapOf("back" to "asas-caderno"),
+            pieces = if (pro) mapOf("back" to "asas-fenix", "aura" to "supernova") else mapOf("aura" to "avioes"),
             noScene = true,
         )
     }
-    val gift = if (pro) "Asas de fênix + Supernova" else "Asas de caderno"
+    val gift = if (pro) "Asas de fênix + Supernova" else "Aviõezinhos de papel"
     Box(Modifier.fillMaxSize().background(Color(0xFF110F26).copy(alpha = 0.78f)).clickable(remember { MutableInteractionSource() }, null) { onClose() }) {
         if (pro) ProRays()
         // Confete que continua caindo (dourado no Pro).

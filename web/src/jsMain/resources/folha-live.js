@@ -1860,6 +1860,24 @@
         g.beginPath(); g.ellipse(-0.6, -0.4, 0.5, 0.3, -0.45, 0, 2 * PI); g.fillStyle = `rgba(255,255,255,${0.6 * a})`; g.fill();
         g.restore();
       }
+    } else if (kind === "avioes") {
+      // aviõezinhos de papel (Essencial, iguais ao app): três aviões dobrados de folha pautada, com a margem
+      // vermelha, dando voltas em volta do Folha; passam por trás e pela frente e deixam um rastro tracejado
+      const pos = (a) => [50 + cos(a) * 50, 55 + sin(a) * 20 + sin(2 * a) * 6];
+      for (let i = 0; i < 3; i++) {
+        const a = t * 1.3 + i * 2 * PI / 3, front = sin(a) > 0; if (front === behind) continue;
+        const [x, y] = pos(a), [ax, ay] = pos(a + 0.05), heading = Math.atan2(ay - y, ax - x);
+        const s = (front ? 7 : 5.2) * boost, al = front ? 1 : 0.7;
+        if (!small) for (let k = 1; k <= 9; k++) { const [qx, qy] = pos(a - k * 0.07), [rx, ry] = pos(a - k * 0.07 + 0.03); line(g, `rgba(47,91,211,${0.55 * al * (1 - k / 10)})`, qx, qy, rx, ry, 0.45); }
+        g.save(); g.translate(x, y); g.rotate(heading); g.globalAlpha *= al;
+        const wing = new Path2D(); wing.moveTo(s, 0); wing.lineTo(-s * 0.75, -s * 0.55); wing.lineTo(-s * 0.3, 0.05 * s); wing.closePath();
+        const fold = new Path2D(); fold.moveTo(s, 0); fold.lineTo(-s * 0.3, 0.05 * s); fold.lineTo(-s * 0.6, s * 0.38); fold.closePath();
+        g.fillStyle = "#FFFDF8"; g.fill(wing);
+        if (!small) { g.save(); g.clip(wing); for (let k = 0; k < 3; k++) line(g, "rgba(111,143,224,0.55)", -s, -s * (0.12 + k * 0.15), s, -s * (0.12 + k * 0.15), 0.3); line(g, "rgba(242,163,163,0.8)", -s * 0.45, -s, -s * 0.45, s, 0.35); g.restore(); }
+        g.fillStyle = "#DCE6FF"; g.fill(fold);
+        stroke(g, wing, "#2F5BD3", small ? 0.9 : 0.45); stroke(g, fold, "#2F5BD3", small ? 0.9 : 0.45);
+        g.restore();
+      }
     } else if (kind === "supernova") {
       // a supernova do Pro: raios de luz girando e um halo que pulsa atrás; seis páginas de ouro em órbita
       // (passam por trás e pela frente) e uma coroa de três estrelas piscando por cima
@@ -2241,31 +2259,6 @@
         circle(g, "#E9AE34", 1.1, 95.6 + sw * 0.5, 62.4);
         const tas = new Path2D(); tas.moveTo(94.6 + sw * 0.5, 63); tas.lineTo(96.6 + sw * 0.5, 63); tas.lineTo(97.6 + sw, 68.6); tas.lineTo(93.6 + sw, 68.6); tas.closePath(); g.fillStyle = vGrad(g, ["#FFE08A", "#C98A12"], 63, 68.6); g.fill(tas);
         for (let i = 0; i < 4; i++) line(g, "rgba(150,95,10,0.6)", 94.2 + sw + i, 64.4, 94.2 + sw + i, 68.4, 0.2);
-      }
-    } else if (kind === "asas-caderno") {
-      // asas de caderno (Essencial, iguais ao app): quatro penas que são folhas pautadas com margem vermelha
-      // e contorno azul, abertas em leque atrás do livro
-      const busy = party || air > 0.1, flap = (sin(t * (busy ? 9 : 2.2)) * (busy ? 16 : 5) - air * 8) * PI / 180;
-      for (const side of [-1, 1]) {
-        g.save(); if (side > 0) { g.translate(100, 0); g.scale(-1, 1); }
-        g.translate(22, 60); g.rotate(flap);
-        for (let i = 3; i >= 0; i--) {
-          const ang = (72 - i * (82 / 3)) * PI / 180, len = 29 - i * 3.6, w = 7;
-          g.save(); g.rotate(ang);
-          const feather = new Path2D(); feather.moveTo(0, -w * 0.35); feather.bezierCurveTo(-len * 0.3, -w, -len * 0.8, -w * 0.9, -len, 0);
-          feather.bezierCurveTo(-len * 0.8, w * 0.9, -len * 0.3, w, 0, w * 0.35); feather.closePath();
-          g.fillStyle = hGrad(g, ["#EAF0FF", "#FFFDF8"], -len, 0); g.fill(feather);
-          if (!small) {
-            g.save(); g.clip(feather);
-            for (const y of [-w * 0.45, 0, w * 0.45]) line(g, "rgba(111,143,224,0.55)", -len * 0.92, y, -len * 0.12, y, 0.35);
-            line(g, "rgba(242,163,163,0.8)", -len * 0.22, -w, -len * 0.22, w, 0.45);
-            g.restore();
-          }
-          stroke(g, feather, "#2F5BD3", small ? 1.1 : 0.6);
-          if (busy && !small) star4(g, -len - 1.5, 0, 1.6 + sin(t * 8 + i) * 0.6, "rgba(47,91,211,0.8)");
-          g.restore();
-        }
-        g.restore();
       }
     } else if (kind === "asas-fenix") {
       // asas de fênix (Pro, iguais ao app): asas erguidas em V, feitas de penas de fogo. Cada pena nasce vermelha

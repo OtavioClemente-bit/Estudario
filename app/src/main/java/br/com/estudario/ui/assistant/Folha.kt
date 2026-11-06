@@ -1371,32 +1371,6 @@ private fun DrawScope.drawBack(t: Float, kind: String, mood: FolhaMood, small: B
                 for (i in 0 until 4) line(Color(0x99965F0A), 94.2f + sw + i, 64.4f, 94.2f + sw + i, 68.4f, 0.2f)
             }
         }
-        "asas-caderno" -> {
-            // asas de caderno (Essencial, iguais ao site): quatro penas que são folhas pautadas com margem
-            // vermelha e contorno azul, abertas em leque atrás do livro
-            val busy = party || air > 0.1f
-            val flap = sin(t * (if (busy) 9f else 2.2f)) * (if (busy) 16f else 5f) - air * 8f
-            for (side in listOf(-1f, 1f)) mirrored(side) {
-                rotate(flap, pivot = Offset(22f, 60f)) {
-                    for (i in 3 downTo 0) {
-                        val ang = 72f - i * (82f / 3f); val len = 29f - i * 3.6f; val w = 7f
-                        translate(22f, 60f) { rotate(ang, pivot = Offset.Zero) {
-                            val feather = Path().apply {
-                                moveTo(0f, -w * 0.35f); cubicTo(-len * 0.3f, -w, -len * 0.8f, -w * 0.9f, -len, 0f)
-                                cubicTo(-len * 0.8f, w * 0.9f, -len * 0.3f, w, 0f, w * 0.35f); close()
-                            }
-                            drawPath(feather, hg(listOf(Color(0xFFEAF0FF), Color(0xFFFFFDF8)), -len, 0f))
-                            if (!small) clipPath(feather) {
-                                for (y in listOf(-w * 0.45f, 0f, w * 0.45f)) line(Color(0x8C6F8FE0), -len * 0.92f, y, -len * 0.12f, y, 0.35f)
-                                line(Color(0xCCF2A3A3), -len * 0.22f, -w, -len * 0.22f, w, 0.45f)
-                            }
-                            drawPath(feather, Color(0xFF2F5BD3), style = stroke(if (small) 1.1f else 0.6f))
-                            if (busy && !small) star4(-len - 1.5f, 0f, 1.6f + sin(t * 8f + i) * 0.6f, Color(0xFF2F5BD3).copy(alpha = 0.8f))
-                        } }
-                    }
-                }
-            }
-        }
         "asas-fenix" -> {
             // asas de fênix (Pro, iguais ao site): asas erguidas em V, feitas de penas de fogo. Cada pena nasce
             // vermelha no ombro, passa pelo laranja e acaba numa ponta amarela que tremula como chama; um
@@ -3028,6 +3002,35 @@ private fun DrawScope.drawAura(t: Float, kind: String, small: Boolean, burst: Fl
                         } else drawPath(Path().apply { moveTo(1.45f, -6.2f); cubicTo(3.6f, -5.4f, 4.2f, -3.6f, 3f, -2.2f) }, c, style = stroke(0.6f))
                         rotate(-0.45f * 180f / PIf, pivot = Offset(-0.6f, -0.4f)) { oval(Color.White.copy(alpha = 0.6f * a), -1.1f, -0.7f, 1f, 0.6f) }
                     }
+                }
+            }
+        }
+        "avioes" -> {
+            // aviõezinhos de papel (Essencial, iguais ao site): três aviões dobrados de folha pautada, com a
+            // margem vermelha, dando voltas em volta do Folha; passam por trás e pela frente e deixam um
+            // rastro tracejado, como risco de lápis
+            val blue = Color(0xFF2F5BD3)
+            fun pos(a: Float) = Offset(50f + cos(a) * 50f, 55f + sin(a) * 20f + sin(2f * a) * 6f)
+            for (i in 0 until 3) {
+                val a = t * 1.3f + i * 2f * PIf / 3f; val front = sin(a) > 0f; if (front == behind) continue
+                val p = pos(a); val ahead = pos(a + 0.05f)
+                val heading = atan2(ahead.y - p.y, ahead.x - p.x) * DEG
+                val s = (if (front) 7f else 5.2f) * boost; val alpha = if (front) 1f else 0.7f
+                if (!small) for (k in 1..9) {
+                    val q = pos(a - k * 0.07f); val q2 = pos(a - k * 0.07f + 0.03f)
+                    line(blue.copy(alpha = 0.55f * alpha * (1f - k / 10f)), q.x, q.y, q2.x, q2.y, 0.45f)
+                }
+                rotate(heading, pivot = p) {
+                    val wing = Path().apply { moveTo(p.x + s, p.y); lineTo(p.x - s * 0.75f, p.y - s * 0.55f); lineTo(p.x - s * 0.3f, p.y + 0.05f * s); close() }
+                    val fold = Path().apply { moveTo(p.x + s, p.y); lineTo(p.x - s * 0.3f, p.y + 0.05f * s); lineTo(p.x - s * 0.6f, p.y + s * 0.38f); close() }
+                    drawPath(wing, Color(0xFFFFFDF8).copy(alpha = alpha))
+                    if (!small) clipPath(wing) {
+                        for (k in 0 until 3) line(Color(0x8C6F8FE0).copy(alpha = 0.55f * alpha), p.x - s, p.y - s * (0.12f + k * 0.15f), p.x + s, p.y - s * (0.12f + k * 0.15f), 0.3f)
+                        line(Color(0xCCF2A3A3).copy(alpha = 0.8f * alpha), p.x - s * 0.45f, p.y - s, p.x - s * 0.45f, p.y + s, 0.35f)
+                    }
+                    drawPath(fold, Color(0xFFDCE6FF).copy(alpha = alpha))
+                    drawPath(wing, blue.copy(alpha = alpha), style = stroke(if (small) 0.9f else 0.45f))
+                    drawPath(fold, blue.copy(alpha = alpha), style = stroke(if (small) 0.9f else 0.45f))
                 }
             }
         }

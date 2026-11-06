@@ -252,8 +252,8 @@ object FolhaWardrobe {
         item("coruja", FolhaSlot.COMPANHEIRO, "Coruja de capelo", R, level = 12),
         item("robo", FolhaSlot.COMPANHEIRO, "Robozinho", E, level = 24),
         item("dragao", FolhaSlot.COMPANHEIRO, "Dragãozinho", E, level = 20),
-        // de assinante: o Essencial ganha as asas de caderno; o Pro, as asas de fênix e a supernova
-        item("asas-caderno", FolhaSlot.COSTAS, "Asas de caderno", E, plan = "ESSENCIAL"),
+        // de assinante: o Essencial ganha os aviõezinhos de papel; o Pro, as asas de fênix e a supernova
+        item("avioes", FolhaSlot.AURA, "Aviõezinhos de papel", E, plan = "ESSENCIAL"),
         item("asas-fenix", FolhaSlot.COSTAS, "Asas de fênix", L, plan = "PRO"),
         item("supernova", FolhaSlot.AURA, "Supernova", L, plan = "PRO"),
     )
