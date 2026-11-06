@@ -23,6 +23,8 @@ export interface ProfileRecord {
   planRenewsAt?: string | null;
   /** Início do ciclo atual do plano TESTE (muda a cada reset feito pelo administrador). */
   testCycleStart?: string | null;
+  /** Início do mês do Grátis: o dia do primeiro uso do ciclo (public.ai_free_cycle_start). */
+  freeCycleStart?: string | null;
 }
 
 export interface PlanLimitRecord {
@@ -105,6 +107,7 @@ export class SupabaseAccessDataSource implements AccessDataSource {
       planTier: planTierField(row, "plan_tier"),
       planRenewsAt: typeof row.plan_renews_at === "string" ? row.plan_renews_at : null,
       testCycleStart: typeof row.test_cycle_start === "string" ? row.test_cycle_start : null,
+      freeCycleStart: await this.myFreeCycleStart(),
     };
   }
 
@@ -205,6 +208,23 @@ export class SupabaseAccessDataSource implements AccessDataSource {
     return payload.filter((row): row is Record<string, unknown> =>
       typeof row === "object" && row !== null
     );
+  }
+
+  /** O mês do Grátis da própria conta (começa no primeiro uso); null se o banco não responder. */
+  private async myFreeCycleStart(): Promise<string | null> {
+    try {
+      const fetcher = this.environment.fetcher ?? fetch;
+      const r = await fetcher(`${this.environment.supabaseUrl.replace(/\/$/, "")}/rest/v1/rpc/ai_my_free_cycle_start`, {
+        method: "POST",
+        headers: { apikey: this.environment.publishableKey, authorization: `Bearer ${this.environment.accessToken}`, "content-type": "application/json", accept: "application/json" },
+        body: "{}",
+      });
+      if (!r.ok) return null;
+      const v = await r.json();
+      return typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+    } catch {
+      return null;
+    }
   }
 
   private assertOwner(userId: string): void {
@@ -308,13 +328,22 @@ export function billingCycle(renewsAt: string, now: Date): { start: string; next
   return { start: shift(k).iso, next: k - 1 === 0 ? renewsAt : saoPauloMidnight(n.y, n.m, n.d) };
 }
 
+/** Fim do mês do Grátis que começou em `start` (mesmo dia no mês seguinte; 31 vira o último dia). */
+export function freeCycleEnd(start: string): string {
+  const [y, m, d] = start.split("-").map(Number);
+  const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1;
+  return saoPauloMidnight(ny, nm, Math.min(d, new Date(Date.UTC(ny, nm, 0)).getUTCDate()));
+}
+
 export function quotaPeriodStart(
   periodKind: PlanPeriodKind | null,
   now: Date,
   tier: PlanTier = "FREE",
   testCycleStart: string | null = null,
   renewsAt: string | null = null,
+  freeCycleStart: string | null = null,
 ): string {
+  if (periodKind === "MONTHLY" && tier === "FREE" && freeCycleStart) return freeCycleStart;
   if (periodKind === "MONTHLY" && (tier === "ESSENCIAL" || tier === "PRO") && renewsAt) return billingCycle(renewsAt, now).start;
   // Mesma regra de public.ai_quota_period: o saldo do TESTE é do ciclo aberto no último reset.
   if (periodKind !== "MONTHLY" && tier === "TESTE") return testCycleStart ?? "1970-01-02";
@@ -340,8 +369,9 @@ function saoPauloMidnight(year: number, month: number, day: number): string {
 }
 
 /** Quando o saldo mensal renova: na data da cobrança para quem paga, senão no dia 1. */
-export function monthlyReset(now: Date, tier: PlanTier, renewsAt: string | null): string {
+export function monthlyReset(now: Date, tier: PlanTier, renewsAt: string | null, freeCycleStart: string | null = null): string {
   if ((tier === "ESSENCIAL" || tier === "PRO") && renewsAt) return billingCycle(renewsAt, now).next;
+  if (tier === "FREE" && freeCycleStart) return freeCycleEnd(freeCycleStart);
   return nextMonthlyReset(now);
 }
 
@@ -406,7 +436,7 @@ export class ClosedBetaAiPolicy {
       SERVER_FEATURES.map(async (feature) => {
         const row = quotaLimitRow(limits, tier, feature);
         const periodKind = row?.periodKind ?? null;
-        const periodStart = quotaPeriodStart(periodKind, now, tier, profile?.testCycleStart ?? null, profile?.planRenewsAt ?? null);
+        const periodStart = quotaPeriodStart(periodKind, now, tier, profile?.testCycleStart ?? null, profile?.planRenewsAt ?? null, profile?.freeCycleStart ?? null);
         const record = await this.dataSource.findQuotaUsage(userId, feature, periodStart);
         const used = (record?.successfulCount ?? 0) + (record?.reservedCount ?? 0);
         const limit = overrides[feature] ?? row?.quotaLimit ?? 0;
@@ -417,7 +447,7 @@ export class ClosedBetaAiPolicy {
           used,
           remaining: Math.max(limit - used, 0),
           periodStart,
-          resetAt: periodKind === "MONTHLY" ? monthlyReset(now, tier, profile?.planRenewsAt ?? null) : null,
+          resetAt: periodKind === "MONTHLY" ? monthlyReset(now, tier, profile?.planRenewsAt ?? null, profile?.freeCycleStart ?? null) : null,
         };
       }),
     );
@@ -457,7 +487,7 @@ export class ClosedBetaAiPolicy {
     const tier = effectivePlanTier(profile, now);
     const limitRow = quotaLimitRow(await this.dataSource.listPlanLimits(tier), tier, feature);
     const periodKind = limitRow?.periodKind ?? null;
-    const periodStart = quotaPeriodStart(periodKind, now, tier, profile?.testCycleStart ?? null, profile?.planRenewsAt ?? null);
+    const periodStart = quotaPeriodStart(periodKind, now, tier, profile?.testCycleStart ?? null, profile?.planRenewsAt ?? null, profile?.freeCycleStart ?? null);
     // Sem configuração o recurso fica fechado, igual a public.ai_quota_limit (que, na conta TESTE,
     // usa o ajuste individual quando existe).
     const override = tier === "TESTE" ? (await this.dataSource.listQuotaOverrides?.(userId).catch(() => ({} as Record<string, number>)))?.[feature] : undefined;
@@ -478,7 +508,7 @@ export class ClosedBetaAiPolicy {
       used: successfulCount + reservedCount,
       remaining,
       periodStart,
-      resetAt: periodKind === "MONTHLY" ? monthlyReset(now, tier, profile?.planRenewsAt ?? null) : null,
+      resetAt: periodKind === "MONTHLY" ? monthlyReset(now, tier, profile?.planRenewsAt ?? null, profile?.freeCycleStart ?? null) : null,
     };
 
     let reasonCode: string | null = null;

@@ -4,6 +4,7 @@ import {
   ClosedBetaAiPolicy,
   effectivePlanTier,
   billingCycle,
+  freeCycleEnd,
   nextMonthlyReset,
   type PlanLimitRecord,
   type ProfileRecord,
@@ -101,4 +102,11 @@ Deno.test("cota de quem paga renova no dia do pagamento", () => {
   assertEquals(billingCycle("2026-12-31T13:00:00Z", new Date("2026-12-01T15:00:00Z")).start, "2026-11-30");
   assertEquals(quotaPeriodStart("MONTHLY", now, "PRO", null, "2026-11-28T13:00:00Z"), "2026-10-28");
   assertEquals(quotaPeriodStart("MONTHLY", now, "FREE", null, null), "2026-11-01");
+});
+
+Deno.test("Grátis renova um mês depois do primeiro uso", () => {
+  const now = new Date("2026-11-06T15:00:00Z");
+  assertEquals(quotaPeriodStart("MONTHLY", now, "FREE", null, null, "2026-10-15"), "2026-10-15");
+  assertEquals(freeCycleEnd("2026-10-15"), "2026-11-15T03:00:00.000Z");
+  assertEquals(freeCycleEnd("2027-01-31"), "2027-02-28T03:00:00.000Z");
 });

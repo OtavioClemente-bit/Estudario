@@ -98,3 +98,14 @@ Deno.test("questões do dia do plano não contam como matéria", () => {
   ], [], now);
   assertEquals(usage.planDayToday, 1);
 });
+
+Deno.test("mês do Grátis começa no dia do primeiro uso", () => {
+  const now = new Date("2026-11-06T15:00:00Z");
+  const jobs = [
+    { created_at: "2026-10-20T12:00:00Z", purpose: "EXTRA" },
+    { created_at: "2026-11-02T12:00:00Z", purpose: "EXTRA" },
+  ];
+  // ciclo de 15/10 a 15/11: os dois extras contam (no mês do calendário, só o de novembro)
+  assertEquals(usageFrom(jobs, [], now, "2026-10-15").extrasMonth, 2);
+  assertEquals(usageFrom(jobs, [], now).extrasMonth, 1);
+});

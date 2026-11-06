@@ -10,7 +10,7 @@
 //
 // No AdMob: bloco de anúncio premiado → "Verificação do lado do servidor" → URL desta função.
 // O app passa o id da conta (user_id) nas opções de verificação do anúncio.
-import { adCreditAllowed, brasiliaBounds } from "../_shared/free-allowance.ts";
+import { adCreditAllowed, brasiliaBounds, cycleStartIso, freeCycleStart } from "../_shared/free-allowance.ts";
 
 const KEYS_URL = "https://www.gstatic.com/admob/reward/verifier-keys.json";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -118,7 +118,15 @@ async function handle(request: Request): Promise<Response> {
       headers: { apikey: serviceKey, authorization: `Bearer ${serviceKey}`, "content-type": "application/json", accept: "application/json", ...(init.headers ?? {}) },
     });
   const user = encodeURIComponent(userId);
-  const { dayStart, monthStart } = brasiliaBounds(new Date());
+  const { dayStart } = brasiliaBounds(new Date());
+  // O mês do Grátis começa no primeiro uso do ciclo, não no dia 1.
+  let monthStart: string;
+  try {
+    const cycle = await freeCycleStart(rest, userId);
+    monthStart = cycle ? cycleStartIso(cycle) : brasiliaBounds(new Date()).monthStart;
+  } catch {
+    return text("unavailable", 503);
+  }
   const credits = await rest(`ad_reward_credits?select=created_at&user_id=eq.${user}&created_at=gte.${encodeURIComponent(monthStart)}&limit=50`);
   if (!credits.ok) return text("unavailable", 503);
   const rows = await credits.json() as { created_at: string }[];

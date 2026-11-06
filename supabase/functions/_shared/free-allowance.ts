@@ -83,11 +83,27 @@ export function bringsTheory(blocks: unknown): boolean {
   if (!Array.isArray(blocks)) return true;
   return blocks.includes("THEORY");
 }
+/** Meia-noite de Brasília do dia (AAAA-MM-DD), em ISO. */
+export function cycleStartIso(day: string): string {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d, 3)).toISOString();
+}
+
+/** Início do mês do Grátis da conta, pelo banco (service role). */
+export async function freeCycleStart(rest: (path: string, init?: RequestInit) => Promise<Response>, userId: string): Promise<string | undefined> {
+  const r = await rest("rpc/ai_free_cycle_start", { method: "POST", body: JSON.stringify({ p_user: userId }) });
+  if (!r.ok) throw new Error("FREE_USAGE_UNAVAILABLE");
+  const v = await r.json();
+  return typeof v === "string" ? v : undefined;
+}
 interface CreditRow { id: string; created_at: string; used_at: string | null }
 
 /** Conta o uso a partir dos jobs e dos créditos (só a service role lê). */
-export function usageFrom(jobs: JobRow[], credits: CreditRow[], now: Date): FreeUsage {
-  const { dayStart, monthStart, weekAgo } = brasiliaBounds(now);
+export function usageFrom(jobs: JobRow[], credits: CreditRow[], now: Date, cycleStart?: string): FreeUsage {
+  const b = brasiliaBounds(now);
+  const { dayStart, weekAgo } = b;
+  // O mês do Grátis começa no dia do primeiro uso (public.ai_free_cycle_start), não no dia 1.
+  const monthStart = cycleStart ? cycleStartIso(cycleStart) : b.monthStart;
   const purposeOf = (row: JobRow) => parsePurpose(row.purpose);
   const after = (iso: string, bound: string) => Date.parse(iso) >= Date.parse(bound);
   return {
@@ -123,7 +139,9 @@ export class SupabaseFreeAllowance implements FreeAllowanceStore {
 
   async usage(userId: string): Promise<FreeUsage> {
     const now = this.now();
-    const { monthStart, weekAgo } = brasiliaBounds(now);
+    const { weekAgo } = brasiliaBounds(now);
+    const cycle = await freeCycleStart((p, i) => this.rest(p, i), userId);
+    const monthStart = cycle ? cycleStartIso(cycle) : brasiliaBounds(now).monthStart;
     const since = Date.parse(weekAgo) < Date.parse(monthStart) ? weekAgo : monthStart;
     const user = encodeURIComponent(userId);
     const jobs = await this.rest(
@@ -132,7 +150,7 @@ export class SupabaseFreeAllowance implements FreeAllowanceStore {
     );
     const credits = await this.rest(`ad_reward_credits?select=id,created_at,used_at&user_id=eq.${user}&created_at=gte.${encodeURIComponent(since)}&limit=200`);
     if (!jobs.ok || !credits.ok) throw new Error("FREE_USAGE_UNAVAILABLE");
-    return usageFrom(await jobs.json() as JobRow[], await credits.json() as CreditRow[], now);
+    return usageFrom(await jobs.json() as JobRow[], await credits.json() as CreditRow[], now, cycle);
   }
 
   async consumeCredit(userId: string): Promise<string | null> {
