@@ -1861,21 +1861,35 @@
         g.restore();
       }
     } else if (kind === "avioes") {
-      // aviõezinhos de papel (Essencial, iguais ao app): três aviões dobrados de folha pautada, com a margem
-      // vermelha, dando voltas em volta do Folha; passam por trás e pela frente e deixam um rastro tracejado
-      const pos = (a) => [50 + cos(a) * 50, 55 + sin(a) * 20 + sin(2 * a) * 6];
+      // aviõezinhos de papel (Essencial, iguais ao app): três aviões dobrados de folha pautada voando em volta do
+      // Folha. Asa de cima com pauta, margem e um adesivo de estrela; quilha e asa de baixo na sombra; o avião
+      // inclina nas curvas, deixa uma fita que afina com brilhinhos e projeta a sombra no chão.
+      const pos = (a) => [50 + cos(a) * 50, 54 + sin(a) * 20 + sin(2 * a) * 6];
       for (let i = 0; i < 3; i++) {
-        const a = t * 1.3 + i * 2 * PI / 3, front = sin(a) > 0; if (front === behind) continue;
-        const [x, y] = pos(a), [ax, ay] = pos(a + 0.05), heading = Math.atan2(ay - y, ax - x);
-        const s = (front ? 7 : 5.2) * boost, al = front ? 1 : 0.7;
-        if (!small) for (let k = 1; k <= 9; k++) { const [qx, qy] = pos(a - k * 0.07), [rx, ry] = pos(a - k * 0.07 + 0.03); line(g, `rgba(47,91,211,${0.55 * al * (1 - k / 10)})`, qx, qy, rx, ry, 0.45); }
-        g.save(); g.translate(x, y); g.rotate(heading); g.globalAlpha *= al;
-        const wing = new Path2D(); wing.moveTo(s, 0); wing.lineTo(-s * 0.75, -s * 0.55); wing.lineTo(-s * 0.3, 0.05 * s); wing.closePath();
-        const fold = new Path2D(); fold.moveTo(s, 0); fold.lineTo(-s * 0.3, 0.05 * s); fold.lineTo(-s * 0.6, s * 0.38); fold.closePath();
-        g.fillStyle = "#FFFDF8"; g.fill(wing);
-        if (!small) { g.save(); g.clip(wing); for (let k = 0; k < 3; k++) line(g, "rgba(111,143,224,0.55)", -s, -s * (0.12 + k * 0.15), s, -s * (0.12 + k * 0.15), 0.3); line(g, "rgba(242,163,163,0.8)", -s * 0.45, -s, -s * 0.45, s, 0.35); g.restore(); }
-        g.fillStyle = "#DCE6FF"; g.fill(fold);
-        stroke(g, wing, "#2F5BD3", small ? 0.9 : 0.45); stroke(g, fold, "#2F5BD3", small ? 0.9 : 0.45);
+        const a = t * 1.25 + i * 2 * PI / 3, front = sin(a) > 0; if (front === behind) continue;
+        const [x, y] = pos(a), [ax, ay] = pos(a + 0.04), heading = Math.atan2(ay - y, ax - x);
+        const s = (front ? 9 : 6.4) * boost, al = front ? 1 : 0.72, roll = 0.55 + 0.45 * abs(sin(a));
+        if (!small) {
+          let [px, py] = [x, y];
+          for (let k = 1; k <= 14; k++) { const [qx, qy] = pos(a - k * 0.05), f = 1 - k / 15; line(g, `rgba(47,91,211,${0.42 * al * f})`, px, py, qx, qy, 1.7 * f + 0.15); px = qx; py = qy; }
+          for (const k of [5, 10]) { const [qx, qy] = pos(a - k * 0.05); star4(g, qx, qy, (0.9 + 0.5 * sin(t * 7 + i + k)) * al, `rgba(255,255,255,${0.9 * al})`); }
+          if (front) { g.fillStyle = `rgba(38,33,92,${0.12 * (y / 95)})`; g.beginPath(); g.ellipse(x, 93.6 + s * 0.14, s * 0.7, s * 0.14, 0, 0, 2 * PI); g.fill(); }
+        }
+        g.save(); g.translate(x, y); g.rotate(heading); g.scale(1, roll); g.globalAlpha *= al;
+        const P = (...v) => { const p = new Path2D(); p.moveTo(v[0] * s, v[1] * s); for (let j = 2; j < v.length; j += 2) p.lineTo(v[j] * s, v[j + 1] * s); p.closePath(); return p; };
+        const bottom = P(1, 0, -0.55, 0.12, -0.9, 0.5), keel = P(1, 0, -0.45, -0.04, -0.72, 0.24), top = P(1, 0, -0.82, -0.64, -0.45, -0.04), w = small ? 0.8 : 0.42;
+        g.fillStyle = vGrad(g, ["#C9D7FF", "#A9BEF5"], 0, s * 0.5); g.fill(bottom); stroke(g, bottom, "#26215C", w);
+        g.fillStyle = vGrad(g, ["#8FA8EE", "#6F8FE0"], -s * 0.05, s * 0.25); g.fill(keel); stroke(g, keel, "#26215C", w);
+        g.fillStyle = vGrad(g, ["#FFFFFF", "#F4F7FF"], -s * 0.64, 0); g.fill(top);
+        if (!small) {
+          g.save(); g.clip(top);
+          for (let k = 0; k < 4; k++) line(g, "rgba(111,143,224,0.6)", -s, -s * (0.1 + k * 0.14), s, -s * (0.1 + k * 0.14), 0.28);
+          line(g, "rgba(242,163,163,0.85)", -s * 0.62, -s, -s * 0.62, s, 0.32);
+          g.fillStyle = "#FFD23F"; g.fill(star5(g, -s * 0.3, -s * 0.3, s * 0.13));
+          g.restore();
+        }
+        stroke(g, top, "#26215C", w);
+        if (!small) line(g, "rgba(255,255,255,0.9)", s * 0.92, -s * 0.01, -s * 0.4, -s * 0.05, 0.5);
         g.restore();
       }
     } else if (kind === "supernova") {

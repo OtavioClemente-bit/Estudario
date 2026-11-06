@@ -3006,32 +3006,46 @@ private fun DrawScope.drawAura(t: Float, kind: String, small: Boolean, burst: Fl
             }
         }
         "avioes" -> {
-            // aviõezinhos de papel (Essencial, iguais ao site): três aviões dobrados de folha pautada, com a
-            // margem vermelha, dando voltas em volta do Folha; passam por trás e pela frente e deixam um
-            // rastro tracejado, como risco de lápis
-            val blue = Color(0xFF2F5BD3)
-            fun pos(a: Float) = Offset(50f + cos(a) * 50f, 55f + sin(a) * 20f + sin(2f * a) * 6f)
+            // aviõezinhos de papel (Essencial, iguais ao site): três aviões dobrados de folha pautada voando em
+            // volta do Folha. Asa de cima com pauta, margem e um adesivo de estrela; quilha e asa de baixo na
+            // sombra; o avião inclina nas curvas (achata, como se girasse), deixa uma fita que afina com
+            // brilhinhos e projeta a sombra no chão. Passam por trás (menores) e pela frente.
+            val blue = Color(0xFF2F5BD3); val navy = Color(0xFF26215C)
+            fun pos(a: Float) = Offset(50f + cos(a) * 50f, 54f + sin(a) * 20f + sin(2f * a) * 6f)
             for (i in 0 until 3) {
-                val a = t * 1.3f + i * 2f * PIf / 3f; val front = sin(a) > 0f; if (front == behind) continue
-                val p = pos(a); val ahead = pos(a + 0.05f)
+                val a = t * 1.25f + i * 2f * PIf / 3f; val front = sin(a) > 0f; if (front == behind) continue
+                val p = pos(a); val ahead = pos(a + 0.04f)
                 val heading = atan2(ahead.y - p.y, ahead.x - p.x) * DEG
-                val s = (if (front) 7f else 5.2f) * boost; val alpha = if (front) 1f else 0.7f
-                if (!small) for (k in 1..9) {
-                    val q = pos(a - k * 0.07f); val q2 = pos(a - k * 0.07f + 0.03f)
-                    line(blue.copy(alpha = 0.55f * alpha * (1f - k / 10f)), q.x, q.y, q2.x, q2.y, 0.45f)
-                }
-                rotate(heading, pivot = p) {
-                    val wing = Path().apply { moveTo(p.x + s, p.y); lineTo(p.x - s * 0.75f, p.y - s * 0.55f); lineTo(p.x - s * 0.3f, p.y + 0.05f * s); close() }
-                    val fold = Path().apply { moveTo(p.x + s, p.y); lineTo(p.x - s * 0.3f, p.y + 0.05f * s); lineTo(p.x - s * 0.6f, p.y + s * 0.38f); close() }
-                    drawPath(wing, Color(0xFFFFFDF8).copy(alpha = alpha))
-                    if (!small) clipPath(wing) {
-                        for (k in 0 until 3) line(Color(0x8C6F8FE0).copy(alpha = 0.55f * alpha), p.x - s, p.y - s * (0.12f + k * 0.15f), p.x + s, p.y - s * (0.12f + k * 0.15f), 0.3f)
-                        line(Color(0xCCF2A3A3).copy(alpha = 0.8f * alpha), p.x - s * 0.45f, p.y - s, p.x - s * 0.45f, p.y + s, 0.35f)
+                val s = (if (front) 9f else 6.4f) * boost; val al = if (front) 1f else 0.72f
+                val roll = 0.55f + 0.45f * abs(sin(a))
+                if (!small) {
+                    // a fita do rastro, afinando e sumindo, com dois brilhinhos
+                    var prev = p
+                    for (k in 1..14) {
+                        val q = pos(a - k * 0.05f); val f = 1f - k / 15f
+                        line(blue.copy(alpha = 0.42f * al * f), prev.x, prev.y, q.x, q.y, 1.7f * f + 0.15f)
+                        prev = q
                     }
-                    drawPath(fold, Color(0xFFDCE6FF).copy(alpha = alpha))
-                    drawPath(wing, blue.copy(alpha = alpha), style = stroke(if (small) 0.9f else 0.45f))
-                    drawPath(fold, blue.copy(alpha = alpha), style = stroke(if (small) 0.9f else 0.45f))
+                    for (k in listOf(5, 10)) { val q = pos(a - k * 0.05f); star4(q.x, q.y, (0.9f + 0.5f * sin(t * 7f + i + k)) * al, Color.White.copy(alpha = 0.9f * al)) }
+                    if (front) drawOval(navy.copy(alpha = 0.12f * (p.y / 95f)), Offset(p.x - s * 0.7f, 93.6f), Size(s * 1.4f, s * 0.28f))
                 }
+                rotate(heading, pivot = p) { scale(1f, roll, pivot = p) {
+                    fun P(vararg v: Float) = Path().apply { moveTo(p.x + v[0] * s, p.y + v[1] * s); var j = 2; while (j < v.size) { lineTo(p.x + v[j] * s, p.y + v[j + 1] * s); j += 2 }; close() }
+                    val bottom = P(1f, 0f, -0.55f, 0.12f, -0.9f, 0.5f)
+                    val keel = P(1f, 0f, -0.45f, -0.04f, -0.72f, 0.24f)
+                    val top = P(1f, 0f, -0.82f, -0.64f, -0.45f, -0.04f)
+                    val w = if (small) 0.8f else 0.42f
+                    drawPath(bottom, vg(listOf(Color(0xFFC9D7FF), Color(0xFFA9BEF5)), p.y, p.y + s * 0.5f), alpha = al); drawPath(bottom, navy.copy(alpha = al), style = stroke(w))
+                    drawPath(keel, vg(listOf(Color(0xFF8FA8EE), Color(0xFF6F8FE0)), p.y - s * 0.05f, p.y + s * 0.25f), alpha = al); drawPath(keel, navy.copy(alpha = al), style = stroke(w))
+                    drawPath(top, vg(listOf(Color.White, Color(0xFFF4F7FF)), p.y - s * 0.64f, p.y), alpha = al)
+                    if (!small) clipPath(top) {
+                        for (k in 0 until 4) line(Color(0x8C6F8FE0).copy(alpha = 0.6f * al), p.x - s, p.y - s * (0.1f + k * 0.14f), p.x + s, p.y - s * (0.1f + k * 0.14f), 0.28f)
+                        line(Color(0xFFF2A3A3).copy(alpha = 0.85f * al), p.x - s * 0.62f, p.y - s, p.x - s * 0.62f, p.y + s, 0.32f)
+                        drawPath(star5(p.x - s * 0.3f, p.y - s * 0.3f, s * 0.13f), Color(0xFFFFD23F).copy(alpha = al))
+                    }
+                    drawPath(top, navy.copy(alpha = al), style = stroke(w))
+                    if (!small) line(Color.White.copy(alpha = 0.9f * al), p.x + s * 0.92f, p.y - s * 0.01f, p.x - s * 0.4f, p.y - s * 0.05f, 0.5f)
+                } }
             }
         }
         "supernova" -> {
