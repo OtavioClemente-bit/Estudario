@@ -258,8 +258,11 @@ object PlannerSnapshotBuilder {
 
         // Dia de cada tópico novo estudado, por matéria (tarefa de teoria concluída ou tópico marcado
         // como estudado): o ritmo de conteúdo novo conta a partir do último dia e de quantos saíram nele.
+        // Só a primeira teoria de cada tópico conta como tópico novo: a teoria de retomada (tópico em que a
+        // pessoa errava muito) não atrasa o ritmo do conteúdo novo da matéria.
+        val theoryDone = tasks.filter { it.status == PlanTaskStatus.CONCLUIDA && it.type == PlanTaskType.THEORY && it.subjectId != null && it.topicId != null }
         val lastTheory: Map<Long, Map<LocalDate, Set<Long>>> = (
-            tasks.filter { it.status == PlanTaskStatus.CONCLUIDA && it.type == PlanTaskType.THEORY && it.subjectId != null && it.topicId != null }
+            theoryDone.groupBy { it.topicId!! }.values.map { l -> l.minBy { it.date } }
                 .map { Triple(it.subjectId!!, it.date, it.topicId!!) } +
                 topics.filter { it.studied && it.lastStudiedAt != null }.map { Triple(it.subjectId, epochMillisToDate(it.lastStudiedAt!!, zone), it.id) }
             )
@@ -283,6 +286,8 @@ object PlannerSnapshotBuilder {
                 lastPracticeByTopic = lastPracticeByTopic,
                 lastSubjectMixBySubject = lastSubjectMix,
                 liveSubjectMixes = liveSubjectMixes,
+                liveTheoryTopics = tasks.filter { it.status in live && it.type == PlanTaskType.THEORY }.mapNotNullTo(hashSetOf()) { it.topicId },
+                lastTheoryByTopic = theoryDone.groupBy { it.topicId!! }.mapValues { (_, l) -> l.maxOf { it.date } },
                 lastSimulation = tasks.filter { it.type == PlanTaskType.SIMULATION && it.status == PlanTaskStatus.CONCLUIDA }.maxOfOrNull { it.date },
                 liveSimulation = tasks.any { it.type == PlanTaskType.SIMULATION && it.status in live },
                 lastTheoryBySubject = lastTheory.mapValues { (_, days) -> days.keys.max() },

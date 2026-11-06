@@ -151,14 +151,14 @@ class StudyPlannerEngine(
             }
         }
 
-        fun allocate(demand: TaskDemand, maximum: Int, respectShare: Boolean = true): Int {
+        fun allocate(demand: TaskDemand, maximum: Int, respectShare: Boolean = true, wholeOn: LocalDate? = null): Int {
             var left = minOf(maximum, remaining.getValue(demand.id))
             var allocated = 0
             while (left > 0) {
-                val date = dateFor(demand, respectShare) ?: break
+                val date = wholeOn ?: dateFor(demand, respectShare) ?: break
                 val free = freeByDate.getValue(date)
                 val minimum = snapshot.policy.minimumBlockMinutes
-                var chunk = minOf(left, free, snapshot.policy.preferredBlockMinutes.coerceAtLeast(minimum))
+                var chunk = if (wholeOn != null) left else minOf(left, free, snapshot.policy.preferredBlockMinutes.coerceAtLeast(minimum))
                 // Nunca deixa um caco para outro dia ("Java · 2 min"): a sobra menor que um bloco mínimo
                 // vai junto, mesmo passando um pouco do dia (até um bloco mínimo); se nem assim cabe, o
                 // corte vem antes, para o pedaço seguinte ter ao menos um bloco mínimo.
@@ -217,6 +217,18 @@ class StudyPlannerEngine(
                 scheduledBySubject[demand.subjectId] = scheduledBySubject.getOrElse(demand.subjectId) { 0 } + chunk
             }
             return allocated
+        }
+
+        // Simulado do plano: entra primeiro, inteiro e num dia só (no dia marcado ou no primeiro dia
+        // seguinte com espaço para ele todo). Antes ele disputava o espaço com o resto, como se fosse da
+        // primeira matéria (cabia no teto dela), era partido em blocos e escorregava semanas: na reta
+        // final saía um a cada mês em vez de um por semana.
+        eligible.filter { it.type == PlanTaskType.SIMULATION }.forEach { demand ->
+            val from = demand.anchorDate ?: snapshot.today
+            val day = dates.firstOrNull { !it.isBefore(from) && freeByDate.getValue(it) >= demand.minutes }
+                ?: dates.filter { !it.isBefore(from) && daysBetween(from, it) < 7 && freeByDate.getValue(it) >= snapshot.policy.minimumBlockMinutes }
+                    .maxByOrNull { freeByDate.getValue(it) }
+            if (day != null) allocate(demand, demand.minutes, respectShare = false, wholeOn = day)
         }
 
         snapshot.subjects

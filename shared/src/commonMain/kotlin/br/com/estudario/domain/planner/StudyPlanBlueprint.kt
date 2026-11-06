@@ -64,6 +64,10 @@ data class BlueprintInput(
     val theoryCountOnLastDay: Map<Long, Int> = emptyMap(),
     /** Último simulado do plano feito (null = nenhum: o primeiro é o diagnóstico). */
     val lastSimulation: LocalDate? = null,
+    /** Último dia com teoria concluída de cada tópico (a primeira ou uma retomada). */
+    val lastTheoryByTopic: Map<Long, LocalDate> = emptyMap(),
+    /** Tópicos com teoria marcada e ainda não feita. */
+    val liveTheoryTopics: Set<Long> = emptySet(),
     /** Já tem simulado do plano marcado e ainda não feito. */
     val liveSimulation: Boolean = false,
     /** Matérias que já têm uma revisão de matéria marcada e ainda não feita. */
@@ -106,6 +110,12 @@ object StudyPlanBlueprint {
     private const val THEORY_BASE_MINUTES = 50
     /** Teoria de retomada, para quem já viu o conteúdo e precisa relembrar. */
     private const val SHORT_THEORY_MINUTES = 25
+    private const val RETAKE_MIN_ANSWERED = 15
+    private const val RETAKE_BELOW_PERCENT = 45
+    private const val RETAKE_EVERY_DAYS = 30
+    private const val RETAKES_PER_WEEK = 2
+    private fun retakeAccuracy(ev: StudyEvidence): Int =
+        if (ev.recentAnswered >= 10) ev.recentCorrect * 100 / ev.recentAnswered else ev.correct * 100 / ev.answered.coerceAtLeast(1)
     /** Diagnóstico de quem diz dominar: questões antes de qualquer teoria. */
     const val DIAGNOSTIC_QUESTIONS = 8
     /** Acerto no diagnóstico (ou em qualquer bateria do tópico) que dispensa a teoria. */
@@ -407,6 +417,80 @@ object StudyPlanBlueprint {
         // edital apertado, quase nada, e o tempo vai para ver o que falta.
         val reviewEstimate = dueReviews.distinctBy { it.topicId }.size * StudyPlannerEngine.REVIEW_MINUTES
         var practiceRoom = (horizonCapacity * 0.95 - contentNeeded - reviewEstimate).toInt()
+        // 5b. Simulado do plano (antes do treino, que senão ocupava a folga toda e o simulado nunca
+        // entrava: um a cada 2 meses em vez de um por semana na reta final). Reforço, do que já foi estudado, montado só com o banco e as questões
+        // que a pessoa já fez (nunca gasta cota). Diagnóstico na primeira semana; depois um a cada 4
+        // semanas na base, 2 no aprofundamento e 1 por semana na reta final, no dia mais livre.
+        if (SIMULATIONS_IN_PLAN && !input.liveSimulation && activeSubjects.isNotEmpty()) {
+            val first = input.lastSimulation == null
+            val interval = when (phase.kind) {
+                PlanPhaseKind.BASE -> 28
+                PlanPhaseKind.APROFUNDAMENTO -> 14
+                PlanPhaseKind.RETA_FINAL -> 7
+            }
+            val seen = input.topics.count { it.studied }
+            val due = input.lastSimulation?.plusDays(interval.toLong()) ?: input.today
+            // Fora o diagnóstico, só com alguma coisa estudada para cobrar.
+            // Com o prazo apertado (sem espaço para treino), o simulado de reforço cede ao conteúdo, como o
+            // treino; o diagnóstico entra sempre.
+            // Na reta final o simulado semanal entra mesmo com o prazo apertado: ali ele vale mais que um tópico novo.
+            if (first || (seen >= MIN_SEEN_FOR_SUBJECT_MIX && (practiceRoom > 0 || phase.kind == PlanPhaseKind.RETA_FINAL))) {
+                practiceRoom -= (if (first) PLAN_DIAGNOSTIC_QUESTIONS else 30) * SIMULATION_MINUTES_PER_QUESTION
+                val from = if (due.isBefore(input.today)) input.today else due
+                val day = (0 until 7).map { from.plusDays(it.toLong()) }.firstOrNull { it.dayOfWeek == input.heaviestDay } ?: from
+                if (day.isBefore(input.today.plusDays(input.horizonDays.toLong()))) {
+                    val size = if (first) PLAN_DIAGNOSTIC_QUESTIONS else if (phase.kind == PlanPhaseKind.RETA_FINAL) 30 else 20
+                    demands += TaskDemand(
+                        id = "plan-simulation:$day",
+                        order = next(),
+                        subjectId = activeSubjects.first().subjectId,
+                        topicId = null,
+                        type = PlanTaskType.SIMULATION,
+                        minutes = size * SIMULATION_MINUTES_PER_QUESTION,
+                        questions = size,
+                        priority = PlanPriority.HIGH,
+                        anchorDate = day.takeIf { it.isAfter(input.today) },
+                        subjectPosition = -1,
+                    )
+                    notes += if (first) "Diagnóstico de $size questões nesta semana, no seu dia mais livre: mostra de onde você parte."
+                        else "Simulado de reforço de $size questões no seu dia mais livre (${diaLabel(input.heaviestDay)}), só do que você já estudou."
+                }
+            }
+        }
+
+        // 5c. Teoria de retomada: tópico já estudado em que a pessoa continua errando muito (15+ questões,
+        // menos de 45% de acerto) não melhora só com mais questão; ele ganha uma teoria curta de novo,
+        // no máximo uma por mês por tópico e duas por semana no total, dos piores (e de mais peso) primeiro.
+        // Na reta final não entra teoria.
+        if (phase.kind != PlanPhaseKind.RETA_FINAL) {
+            val retakeLimit = (input.horizonDays / 7).coerceAtLeast(1) * RETAKES_PER_WEEK
+            val retakes = activeSubjects.flatMap { subject ->
+                topicsBySubject[subject.subjectId].orEmpty()
+                    .filter { trackOf(it, subject) == Track.COVERED && it.evidence.answered >= RETAKE_MIN_ANSWERED }
+                    // O acerto recente decide (melhorou depois da retomada, para de voltar); sem ele, o total.
+                    .filter { retakeAccuracy(it.evidence) < RETAKE_BELOW_PERCENT }
+                    .filter { it.topicId !in input.liveTheoryTopics }
+                    .filter { t -> (input.lastTheoryByTopic[t.topicId] ?: t.lastStudied)?.let { daysBetween(it, input.today) >= RETAKE_EVERY_DAYS } ?: true }
+                    .map { subject to it }
+            }.sortedWith(compareBy<Pair<BlueprintSubject, BlueprintTopic>> { (_, t) -> retakeAccuracy(t.evidence) }
+                .thenByDescending { (s, _) -> weights.getValue(s.subjectId) })
+                .take(retakeLimit)
+            // Uma por semana entra mesmo com o plano apertado (errar sempre o mesmo tópico custa mais que adiar
+            // um treino); as outras, só com folga.
+            val guaranteed = (input.horizonDays / 7).coerceAtLeast(1)
+            retakes.forEachIndexed { i, (subject, topic) ->
+                val minutes = roundTo5(SHORT_THEORY_MINUTES * difficultyFactor(subject.dimensions.personalDifficulty)).coerceAtLeast(20)
+                if (practiceRoom < minutes && i >= guaranteed) return@forEachIndexed
+                practiceRoom -= minutes
+                demands += TaskDemand(
+                    id = "retake:${topic.topicId}", order = next(), subjectId = subject.subjectId, topicId = topic.topicId,
+                    type = PlanTaskType.THEORY, minutes = minutes,
+                    priority = subject.priority, subjectPosition = subject.position, topicPosition = topic.position,
+                )
+                theoryPlanned += minutes
+            }
+            if (retakes.isNotEmpty()) notes += "${retakes.size} tópico(s) com acerto muito baixo ganham uma teoria curta de retomada antes de voltar às questões."
+        }
         weightedMerge(practiceStreams).forEach { unit ->
             if (practiceRoom <= 0) return@forEach
             practiceRoom -= unit.sumOf { it.minutes }
@@ -445,44 +529,6 @@ object StudyPlanBlueprint {
             )
         }
         if (mixCount > 0) notes += "$mixCount revisão(ões) de matéria no período: questões misturadas de tudo que você já viu nela, uma matéria por dia."
-
-        // 6b. Simulado do plano: reforço, do que já foi estudado, montado só com o banco e as questões
-        // que a pessoa já fez (nunca gasta cota). Diagnóstico na primeira semana; depois um a cada 4
-        // semanas na base, 2 no aprofundamento e 1 por semana na reta final, no dia mais livre.
-        if (SIMULATIONS_IN_PLAN && !input.liveSimulation && activeSubjects.isNotEmpty()) {
-            val first = input.lastSimulation == null
-            val interval = when (phase.kind) {
-                PlanPhaseKind.BASE -> 28
-                PlanPhaseKind.APROFUNDAMENTO -> 14
-                PlanPhaseKind.RETA_FINAL -> 7
-            }
-            val seen = input.topics.count { it.studied }
-            val due = input.lastSimulation?.plusDays(interval.toLong()) ?: input.today
-            // Fora o diagnóstico, só com alguma coisa estudada para cobrar.
-            // Com o prazo apertado (sem espaço para treino), o simulado de reforço cede ao conteúdo, como o
-            // treino; o diagnóstico entra sempre.
-            if (first || (seen >= MIN_SEEN_FOR_SUBJECT_MIX && practiceRoom > 0)) {
-                val from = if (due.isBefore(input.today)) input.today else due
-                val day = (0 until 7).map { from.plusDays(it.toLong()) }.firstOrNull { it.dayOfWeek == input.heaviestDay } ?: from
-                if (day.isBefore(input.today.plusDays(input.horizonDays.toLong()))) {
-                    val size = if (first) PLAN_DIAGNOSTIC_QUESTIONS else if (phase.kind == PlanPhaseKind.RETA_FINAL) 30 else 20
-                    demands += TaskDemand(
-                        id = "plan-simulation:$day",
-                        order = next(),
-                        subjectId = activeSubjects.first().subjectId,
-                        topicId = null,
-                        type = PlanTaskType.SIMULATION,
-                        minutes = size * SIMULATION_MINUTES_PER_QUESTION,
-                        questions = size,
-                        priority = PlanPriority.HIGH,
-                        anchorDate = day.takeIf { it.isAfter(input.today) },
-                        subjectPosition = -1,
-                    )
-                    notes += if (first) "Diagnóstico de $size questões nesta semana, no seu dia mais livre: mostra de onde você parte."
-                        else "Simulado de reforço de $size questões no seu dia mais livre (${diaLabel(input.heaviestDay)}), só do que você já estudou."
-                }
-            }
-        }
 
         // 7. Discursiva no dia mais livre da semana (simulado fica fora do plano por enquanto).
         val heaviestDays = (0 until input.horizonDays)

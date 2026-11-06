@@ -25,6 +25,14 @@ class PlanAuditSimulation {
         val adherence: Double = 1.0,
         /** Matérias marcadas como "já estudei" no início (todos os tópicos). */
         val markStudied: Set<String> = emptySet(),
+        /** No dia N, a pessoa muda as horas da semana (minutos). */
+        val hoursChange: Pair<Int, Int>? = null,
+        /** No dia N, a pessoa junta outro edital ao plano (matérias novas). */
+        val addEdital: Pair<Int, List<Sub>>? = null,
+        /** No dia N, a pessoa sobe a prioridade de uma matéria. */
+        val priorityChange: Triple<Int, String, PlanPriority>? = null,
+        /** Matérias em que a pessoa vai mal de verdade (acerto bem menor que o esperado). */
+        val struggles: Set<String> = emptySet(),
     )
 
     private val trt = listOf(
@@ -61,6 +69,14 @@ class PlanAuditSimulation {
                 20 * 60, 180,
             ),
             Student("7. Reta final: prova em 5 semanas, 25h/sem, já viu tudo", StudyProfile.RETA_FINAL, trt.map { it.copy(knowledge = InitialKnowledge.SOLID) }, 25 * 60, 35, markStudied = trt.map { it.name }.toSet()),
+            Student("8. Do zero, 20h/sem, 6 meses; no dia 45 cai para 12h/sem", StudyProfile.DO_ZERO, trt, 20 * 60, 180, hoursChange = 45 to 12 * 60),
+            Student(
+                "9. Do zero, 20h/sem, 6 meses; no dia 30 junta outro edital (3 matérias)",
+                StudyProfile.DO_ZERO, trt, 20 * 60, 180,
+                addEdital = 30 to listOf(Sub("Dir. Penal", 10, PlanPriority.HIGH), Sub("Proc. Penal", 8, PlanPriority.MEDIUM), Sub("Arquivologia", 5, PlanPriority.LOW)),
+            ),
+            Student("10. Do zero, 20h/sem, 6 meses; vai mal em Dir. do Trabalho e Redes; no dia 20 põe Redes como crítica", StudyProfile.DO_ZERO, trt, 20 * 60, 180,
+                priorityChange = Triple(20, "Redes", PlanPriority.CRITICAL), struggles = setOf("Dir. do Trabalho", "Redes")),
         )
     }
 
@@ -80,10 +96,11 @@ class PlanAuditSimulation {
         val exam = start.plusDays(st.examInDays.toLong())
         val dayMs = 86_400_000L
         var nextId = 1L
-        val subjects = st.subjects.mapIndexed { i, s ->
+        var subjects = st.subjects.mapIndexed { i, s ->
             PlannerSnapshotBuilder.PlanSubject(i + 1L, s.name, s.priority, false, 0, null, i, s.difficulty, s.knowledge)
         }
-        val subByName = st.subjects.associateBy { it.name }
+        val allSubs = st.subjects + (st.addEdital?.second ?: emptyList())
+        val subByName = allSubs.associateBy { it.name }
         var topics = mutableListOf<PlannerSnapshotBuilder.Topic>()
         val questionsByTopic = mutableMapOf<Long, Set<Long>>()
         var qid = 1L
@@ -95,14 +112,14 @@ class PlanAuditSimulation {
                 questionsByTopic[id] = (0 until 40).map { qid++ }.toSet()
             }
         }
-        val subjectOfTopic = topics.associate { it.id to it.subjectId }
-        val subOf = subjects.associate { it.subjectId to subByName.getValue(it.name) }
+        val subjectOfTopic = mutableMapOf<Long, Long>().apply { topics.forEach { put(it.id, it.subjectId) } }
+        val subOf = allSubs.mapIndexed { i, s -> (i + 1L) to s }.toMap()
         val attempts = mutableListOf<PlannerSnapshotBuilder.Attempt>()
         val usedQ = mutableMapOf<Long, Int>()
         val reviews = mutableListOf<PlannerSnapshotBuilder.PendingReview>()
         var tasks = mutableListOf<PlannerTask>()
         val executions = mutableListOf<TaskExecution>()
-        val availability = (1..7).map { PlannerSnapshotBuilder.Availability(it, if (it == 7) 0 else st.weeklyMinutes / 6, it == 7) }
+        var availability = (1..7).map { PlannerSnapshotBuilder.Availability(it, if (it == 7) 0 else st.weeklyMinutes / 6, it == 7) }
         val config = StudyMethodConfig.forProfile(st.profile)
         var revision = 1L
         val engine = StudyPlannerEngine()
@@ -131,7 +148,7 @@ class PlanAuditSimulation {
         fun pCorrect(topicId: Long): Double {
             val s = subOf.getValue(subjectOfTopic.getValue(topicId))
             val studied = topics.first { it.id == topicId }.studied
-            return (0.30 + 0.45 * s.knowledge.normalized + (if (studied) 0.22 else 0.0) - 0.20 * (s.difficulty.normalized - 0.5)).coerceIn(0.15, 0.95)
+            return (0.30 + 0.45 * s.knowledge.normalized + (if (studied) 0.22 else 0.0) - 0.20 * (s.difficulty.normalized - 0.5) - (if (s.name in st.struggles) 0.22 else 0.0)).coerceIn(0.15, 0.95)
         }
 
         data class Week(var theory: Int = 0, var questions: Int = 0, var review: Int = 0, var recall: Int = 0, var other: Int = 0, var newTopics: Int = 0, var overdueTasks: Int = 0, var overdueReviews: Int = 0, var horizon: Long = 0, var emptyDays: Int = 0)
@@ -140,13 +157,42 @@ class PlanAuditSimulation {
         val theoryOnKnown = intArrayOf(0)
         val lastInterval = mutableMapOf<Long, Int>()
         var reviewsDone = 0
+        var retakesDone = 0
+        val reviewLoad = mutableMapOf<LocalDate, Int>()
+        val events = mutableListOf<String>()
+        val capByDay = mutableMapOf<LocalDate, Int>()
         var day = start
         replan(day, ReplanReason.INITIAL)
         while (day.isBefore(exam)) {
             val wIdx = (daysBetween(start, day) / 7).toInt()
             while (weeks.size <= wIdx) weeks += Week()
             val w = weeks[wIdx]
+            val dayNo = daysBetween(start, day).toInt()
+            st.hoursChange?.takeIf { it.first == dayNo }?.let { (_, mins) ->
+                availability = (1..7).map { PlannerSnapshotBuilder.Availability(it, if (it == 7) 0 else mins / 6, it == 7) }
+                replan(day, ReplanReason.AVAILABILITY_CHANGED); events += "dia $dayNo: horas para ${mins / 60}h/sem"
+            }
+            st.addEdital?.takeIf { it.first == dayNo }?.let { (_, extra) ->
+                extra.forEachIndexed { j, s ->
+                    val sid = st.subjects.size + j + 1L
+                    subjects = subjects + PlannerSnapshotBuilder.PlanSubject(sid, s.name, s.priority, false, 0, null, sid.toInt() - 1, s.difficulty, s.knowledge)
+                    repeat(s.topics) { p ->
+                        val id = 1000L * sid + p
+                        topics += PlannerSnapshotBuilder.Topic(id, sid, null, "${s.name} ${p + 1}", p, false, null)
+                        subjectOfTopic[id] = sid
+                        questionsByTopic[id] = (0 until 40).map { qid++ }.toSet()
+                    }
+                }
+                replan(day, ReplanReason.SYLLABUS_CHANGED); events += "dia $dayNo: novo edital com ${extra.size} matérias"
+            }
+            st.priorityChange?.takeIf { it.first == dayNo }?.let { (_, name, pr) ->
+                subjects = subjects.map { if (it.name == name) it.copy(priority = pr) else it }
+                replan(day, ReplanReason.SUBJECT_CHANGED); events += "dia $dayNo: $name agora ${pr.name}"
+            }
+            // O app reorganiza o plano ao abrir no dia (o que ficou para trás volta na frente).
+            if (dayNo > 0) replan(day, ReplanReason.DAY_MISSED)
             val today = tasks.filter { it.date == day && it.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO) }.sortedBy { it.sequence }
+            capByDay[day] = availability.first { it.isoDayOfWeek == (day.dayOfWeek.ordinal + 1) }.minutes
             val capacityToday = availability.first { it.isoDayOfWeek == (day.dayOfWeek.ordinal + 1) }.minutes
             if (today.isEmpty() && capacityToday > 0) w.emptyDays++
             val studies = rnd.nextDouble() < st.adherence
@@ -157,6 +203,7 @@ class PlanAuditSimulation {
                 val due = reviews.groupBy { it.topicId }.mapNotNull { (_, l) -> l.minByOrNull { it.dueAt } }.filter { it.dueAt <= day.toEpochDays() * dayMs }
                 due.forEach { r ->
                     w.review += StudyPlannerEngine.REVIEW_MINUTES
+                    reviewLoad[day] = reviewLoad.getOrElse(day) { 0 } + StudyPlannerEngine.REVIEW_MINUTES
                     reviewsDone++
                     reviews.remove(r)
                     if (rnd.nextDouble() < (1 - pCorrect(r.topicId)) * 0.6) {
@@ -197,6 +244,7 @@ class PlanAuditSimulation {
                         PlanTaskType.THEORY -> {
                             w.theory += task.plannedMinutes
                             if (subOf.getValue(task.subjectId!!).knowledge >= InitialKnowledge.SOLID) theoryOnKnown[0] += task.plannedMinutes
+                            if (tid != null && tid in studiedOn && studiedOn[tid] != day) retakesDone++
                             if (tid != null && tid !in studiedOn) {
                                 studiedOn[tid] = day; w.newTopics++
                                 topics = topics.map { if (it.id == tid) it.copy(studied = true, lastStudiedAt = day.toEpochDays() * dayMs) else it }.toMutableList()
@@ -223,7 +271,16 @@ class PlanAuditSimulation {
         }
 
         // Dias acima do limite: o que o plano marcou no dia (feito ou não) passa das horas do dia.
-        val capOf = { d: LocalDate -> availability.first { it.isoDayOfWeek == (d.dayOfWeek.ordinal + 1) }.minutes }
+        val capOf = { d: LocalDate -> capByDay[d] ?: 0 }
+        // Carga real de cada dia estudado: tarefas feitas + revisões feitas, contra as horas do dia.
+        val doneByDay = tasks.filter { it.status == PlanTaskStatus.CONCLUIDA }.groupBy { it.date }.mapValues { (_, l) -> l.sumOf { it.plannedMinutes } }
+        val realDays = (doneByDay.keys + reviewLoad.keys).filter { capOf(it) > 0 }
+        val realOver = realDays.map { d -> (doneByDay[d] ?: 0) + (reviewLoad[d] ?: 0) - capOf(d) to d }
+        val over10 = realOver.count { (o, d) -> o * 10 > capOf(d) }
+        val worst = realOver.maxByOrNull { it.first }
+        val simus = tasks.filter { it.type == PlanTaskType.SIMULATION && it.status == PlanTaskStatus.CONCLUIDA }.map { it.date }.distinct().sorted()
+        // Teoria partida: o mesmo tópico com teoria em mais de um dia.
+        val splitTheory = tasks.filter { it.type == PlanTaskType.THEORY && it.status == PlanTaskStatus.CONCLUIDA && it.topicId != null }.groupBy { it.topicId }.count { (_, l) -> l.map { it.date }.distinct().size > 1 }
         val overDays = tasks.filter { it.status == PlanTaskStatus.PLANEJADA || it.status == PlanTaskStatus.CONCLUIDA }.groupBy { it.date }
             .count { (d, l) -> capOf(d) > 0 && l.sumOf { it.plannedMinutes } > capOf(d) }
         val overSample = tasks.filter { it.status == PlanTaskStatus.PLANEJADA || it.status == PlanTaskStatus.CONCLUIDA }.groupBy { it.date }
@@ -236,7 +293,7 @@ class PlanAuditSimulation {
         val phases = StudyMethod.phases(start, exam, st.profile)
         val contentDeadline = phases.firstOrNull { it.kind == PlanPhaseKind.RETA_FINAL }?.start ?: exam
         val coveredByDeadline = studiedOn.values.count { it.isBefore(contentDeadline) } + topics.count { it.id !in studiedOn && it.studied }
-        val acc = st.subjects.mapIndexed { i, s ->
+        val acc = allSubs.mapIndexed { i, s ->
             val ids = topics.filter { it.subjectId == i + 1L }.flatMap { questionsByTopic.getValue(it.id) }.toSet()
             val a = attempts.filter { it.questionId in ids }
             "${s.name}: ${minutesBySubject[s.name] ?: 0} min, ${a.size} questões, ${if (a.isEmpty()) "-" else "${a.count { it.correct } * 100 / a.size}%"} acerto"
@@ -247,9 +304,12 @@ class PlanAuditSimulation {
             appendLine("=== ${st.name}")
             appendLine("Fases: " + phases.joinToString(" | ") { "${it.kind.label} ${it.start}..${it.end} (${it.mix.describe()})" })
             appendLine("Edital: $leaves/$total tópicos vistos até a prova; $coveredByDeadline/$total antes da reta final ($contentDeadline).")
-            appendLine("Último tópico novo em: ${studiedOn.values.maxOrNull() ?: "-"}; depois da reta final: " + studiedOn.filterValues { !it.isBefore(contentDeadline) }.map { (id, d) -> topics.first { it.id == id }.title + " " + d }.joinToString(", ") + "; nunca vistos: " + topics.filter { t -> !t.studied && t.id !in studiedOn }.joinToString(", ") { it.title })
+            appendLine("Último tópico novo em: ${studiedOn.values.maxOrNull() ?: "-"}; depois da reta final: " + studiedOn.filterValues { !it.isBefore(contentDeadline) }.map { (id, d) -> topics.first { it.id == id }.title + " " + d }.joinToString(", ") + "; nunca vistos: " + topics.filter { t -> !t.studied && t.id !in studiedOn && byQuestion[t.id].orEmpty().let { it.size < 8 || it.count { a -> a.correct } * 4 < it.size * 3 } }.joinToString(", ") { it.title })
             appendLine("Tempo feito: teoria ${tot.theory * 100 / allMin}% · questões ${tot.questions * 100 / allMin}% · revisão ${tot.review * 100 / allMin}% · reforço ${tot.recall * 100 / allMin}% · outros ${tot.other * 100 / allMin}% (total ${allMin / 60} h de ${st.weeklyMinutes * st.examInDays / 7 / 60} h disponíveis)")
             appendLine("Estabilidade: ${if (weekSlots == 0) 0 else weekChanged * 100 / weekSlots}% da próxima semana mudou a cada conclusão · dias acima do limite: $overDays · ex.: $overSample")
+            if (events.isNotEmpty()) appendLine("Eventos: " + events.joinToString(" · "))
+            appendLine("Carga real (tarefas + revisões): ${over10} dias passaram mais de 10% das horas do dia; pior: ${worst?.let { "+${it.first} min em ${it.second} (dia de ${capOf(it.second)})" } ?: "-"} · teoria partida em 2+ dias: $splitTheory tópicos")
+            appendLine("Teorias de retomada (tópico em que errava muito): $retakesDone · Simulados do plano feitos: ${simus.size} (${simus.joinToString(", ")})")
             appendLine("Teoria gasta em matérias que a pessoa disse dominar: ${theoryOnKnown[0] / 60} h · revisões espaçadas feitas: $reviewsDone")
             appendLine("Semana | teoria questões revisão reforço | tópicos novos | tarefas vencidas | revisões vencidas | dias vazios | horizonte (dias)")
             weeks.forEachIndexed { i, w -> appendLine("S${(i + 1).toString().padStart(2)}    | ${w.theory / 60}h ${w.questions / 60}h ${w.review / 60}h ${w.recall / 60}h | ${w.newTopics} | ${w.overdueTasks} | ${w.overdueReviews} | ${w.emptyDays} | ${w.horizon}") }
