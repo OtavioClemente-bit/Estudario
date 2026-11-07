@@ -71,7 +71,11 @@ data class EditalRoadmapResult(
      * mostra que o essencial está garantido.
      */
     val weightCoveredPercent: Int = 100,
+    /** Dias de estudo na semana (sem as folgas): "por dia" é sobre eles, não sobre 7. */
+    val studyDaysPerWeek: Int = 7,
 ) {
+    /** Minutos de um dia de estudo (sem contar as folgas). */
+    val minutesPerStudyDay: Int get() = weeklyCapacityMinutes / studyDaysPerWeek.coerceIn(1, 7)
     val slackDays: Long get() = coverageDate?.let { daysBetween(it, contentDeadline) } ?: 0
 }
 
@@ -101,6 +105,7 @@ object EditalRoadmap {
         projected: PlanProjection.Result? = null,
         /** Teto de matérias novas por dia do plano (PlannerSnapshotBuilder.topicsPerDay); só a conta reserva usa. */
         maxTopicsPerDay: Int = PlannerSnapshotBuilder.PAID_TOPICS_PER_DAY,
+        studyDaysPerWeek: Int = 7,
     ): EditalRoadmapResult {
         val safeEnd = if (end.isAfter(today)) end else today.plusDays(1)
         val phases = StudyMethod.phases(today, safeEnd, profile)
@@ -205,7 +210,9 @@ object EditalRoadmap {
             verdict = verdict,
             topicsLeftOut = leftOut.size,
             atRiskSubjects = leftOut.groupBy { it.subjectId }.entries.sortedByDescending { it.value.size }.map { subjectById.getValue(it.key).name },
-            extraMinutesPerDayToFit = extraPerDay,
+            // A conta acima é por dia do calendário; quem folga um dia precisa do extra nos dias de estudo.
+            extraMinutesPerDayToFit = extraPerDay * 7 / studyDaysPerWeek.coerceIn(1, 7),
+            studyDaysPerWeek = studyDaysPerWeek.coerceIn(1, 7),
             weeklyCapacityMinutes = weeklyCapacityMinutes,
         )
     }

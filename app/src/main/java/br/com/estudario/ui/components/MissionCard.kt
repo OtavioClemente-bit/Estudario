@@ -142,6 +142,20 @@ fun MissionCard(
                     modifier = if (openTopic != null && topicId != null) Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(6.dp)).clickable(onClickLabel = "Abrir o conteúdo") { openTopic(topicId) } else Modifier,
                 )
                 
+                // O tópico está entre os que mais caem nas provas de verdade da matéria.
+                if (topicId != null) {
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    if (topicId in br.com.estudario.data.planner.TopicIncidence.hot(context)) {
+                        val n = br.com.estudario.data.planner.TopicIncidence.counts(context)[topicId]
+                        Text(
+                            "🔥 Cai muito na prova" + (n?.let { " · $it questões em provas" } ?: ""),
+                            modifier = Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(50)).background(Color(0x26FF7A1A)).padding(horizontal = 10.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFC2410C),
+                        )
+                    }
+                }
                 // Questões de um tópico: onde está a teoria dele (feita, atrasada ou marcada para outro dia).
                 if (task.type == PlanTaskType.QUESTIONS && topicId != null && task.status != PlanTaskStatus.CONCLUIDA) {
                     val theoryTask = LocalTheoryByTopic.current[topicId]

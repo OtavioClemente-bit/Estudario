@@ -38,18 +38,29 @@ data class PersonalPace(
             executions: List<TaskExecution>,
             baseTheoryMinutes: (topicId: Long) -> Int?,
         ): PersonalPace {
-            val minutesByTask = executions.filter { it.taskId != null && it.minutes > 0 }
-                .groupBy { it.taskId!! }.mapValues { (_, l) -> l.sumOf { it.minutes } }
-            val done = tasks.filter { it.status == PlanTaskStatus.CONCLUIDA && it.id in minutesByTask }
+            // Só conta o que foi medido de verdade. Fica de fora o registro que é só o tempo planejado
+            // repetido (a tela de conclusão já vem com ele preenchido; contar isso faria o ritmo confirmar
+            // a si mesmo) e o tempo absurdo (a teoria marcada como feita em 2 min, depois de estudar fora).
+            val taskById = tasks.associateBy { it.id }
+            val measured = executions.filter { e ->
+                val task = e.taskId?.let(taskById::get) ?: return@filter false
+                e.minutes > 0 && e.minutes != task.plannedMinutes
+            }
+            val minutesByTask = measured.groupBy { it.taskId!! }.mapValues { (_, l) -> l.sumOf { it.minutes } }
+            // Concluída ou feita em parte (registrar menos que o planejado deixa a tarefa "em andamento"):
+            // sem a feita em parte, só as passadas lentas entravam e o ritmo só subia.
+            val worked = tasks.filter { (it.status == PlanTaskStatus.CONCLUIDA || it.status == PlanTaskStatus.EM_ANDAMENTO) && it.id in minutesByTask }
 
             // Teoria: só a primeira passada de cada tópico (a retomada é curta e distorceria a conta);
             // teoria partida em dois dias seguidos conta inteira.
-            val theoryByTopic = done.filter { it.type == PlanTaskType.THEORY && it.topicId != null }.groupBy { it.topicId!! }
+            val theoryByTopic = worked.filter { it.type == PlanTaskType.THEORY && it.topicId != null }.groupBy { it.topicId!! }
             val samples = theoryByTopic.mapNotNull { (topicId, list) ->
                 val first = list.minOf { it.date }
                 val pass = list.filter { daysBetween(first, it.date) <= 2 }
                 val base = baseTheoryMinutes(topicId)?.takeIf { it > 0 } ?: return@mapNotNull null
-                Triple(first, pass.sumOf { minutesByTask.getValue(it.id) }, base)
+                val real = pass.sumOf { minutesByTask.getValue(it.id) }
+                if (real * 10 < base * 3 || real > base * 3) return@mapNotNull null
+                Triple(first, real, base)
             }.sortedByDescending { it.first }.take(RECENT_TOPICS)
             val factor = if (samples.size < MIN_THEORY_TOPICS) 1.0 else {
                 val ratio = (samples.sumOf { it.second }.toDouble() / samples.sumOf { it.third }).coerceIn(MIN_FACTOR, MAX_FACTOR)
@@ -58,8 +69,13 @@ data class PersonalPace(
                 1.0 + (ratio - 1.0) * trust
             }
 
-            val questionTasks = done.filter { it.type == PlanTaskType.QUESTIONS }
-                .mapNotNull { task -> executions.filter { it.taskId == task.id }.let { l -> l.sumOf { it.questions }.takeIf { q -> q > 0 }?.let { q -> Triple(task.date, minutesByTask.getValue(task.id), q) } } }
+            val questionTasks = worked.filter { it.type == PlanTaskType.QUESTIONS }
+                .mapNotNull { task ->
+                    val q = measured.filter { it.taskId == task.id }.sumOf { it.questions }.takeIf { it > 0 } ?: return@mapNotNull null
+                    val m = minutesByTask.getValue(task.id)
+                    // Entre 20 s e 8 min por questão; fora disso não é tempo de questão.
+                    if (m * 3 < q || m > q * 8) null else Triple(task.date, m, q)
+                }
                 .sortedByDescending { it.first }.take(RECENT_QUESTION_TASKS)
             val answered = questionTasks.sumOf { it.third }
             val perQuestion = if (answered < MIN_QUESTIONS) null
@@ -106,7 +122,8 @@ data class SimuladoFocus(
             if (date.isAfter(today) || daysBetween(date, today) > DAYS) return null
             val topicOfQuestion = HashMap<Long, Long>()
             questionsByTopic.forEach { (topic, ids) -> if (topic in subjectByTopic) ids.forEach { topicOfQuestion[it] = topic } }
-            val counted = last.mapNotNull { a -> topicOfQuestion[a.questionId]?.let { it to a.correct } }
+            // A questão do simulado é uma cópia (outro id, fora do banco do tópico): o tópico vem na resposta.
+            val counted = last.mapNotNull { a -> (a.topicId?.takeIf { it in subjectByTopic } ?: topicOfQuestion[a.questionId])?.let { it to a.correct } }
             if (counted.isEmpty()) return null
             val bySubject = counted.groupBy { subjectByTopic.getValue(it.first) }
                 .mapValues { (_, l) -> l.size to l.count { it.second } }

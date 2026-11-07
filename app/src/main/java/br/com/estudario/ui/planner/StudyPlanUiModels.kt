@@ -62,6 +62,8 @@ data class ActivePlanUiState(
     val methodNotes: List<String> = emptyList(),
     /** O edital mês a mês até a prova (ou até o prazo escolhido) e se ele cabe. */
     val roadmap: br.com.estudario.domain.planner.EditalRoadmapResult? = null,
+    /** O balanço dos últimos 7 dias (WeeklyBalance). */
+    val weeklyBalance: br.com.estudario.domain.planner.WeeklyBalance? = null,
     val message: String? = null,
     /** A conta já foi conferida desde que o app voltou para a tela (SyncGate). */
     val syncFresh: Boolean = true,

@@ -44,10 +44,12 @@ object PlannerSnapshotBuilder {
         val position: Int,
         val studied: Boolean,
         val lastStudiedAt: Long?,
+        /** Questões de provas de verdade sobre o tópico (na banca do concurso; sem ela, todas). null = sem dado. */
+        val incidence: Int? = null,
     )
 
     /** [sessionId] "simulado-N" marca as respostas de um simulado; [answeredAt] em epoch millis. */
-    data class Attempt(val questionId: Long, val correct: Boolean, val answeredAt: Long? = null, val sessionId: String? = null)
+    data class Attempt(val questionId: Long, val correct: Boolean, val answeredAt: Long? = null, val sessionId: String? = null, val topicId: Long? = null)
 
     /** Revisão ainda pendente (nem feita nem ignorada). */
     data class PendingReview(val id: Long, val topicId: Long, val dueAt: Long, val questionTotal: Int)
@@ -227,6 +229,7 @@ object PlannerSnapshotBuilder {
                 evidence = topicEvidence.getValue(topic.id),
                 need = topicNeeds[topic.id],
                 questionCap = questionCap[topic.id],
+                incidence = topic.incidence,
                 // As salvas menos as já acertadas: o treino nunca pede mais do que dá para fazer de novo.
                 questionsLeft = questionsByTopic[topic.id]?.takeIf { it.isNotEmpty() }?.count { id -> attemptsByQuestion[id].orEmpty().none { it.correct } },
             )
@@ -300,8 +303,11 @@ object PlannerSnapshotBuilder {
                 lastSubjectMixBySubject = lastSubjectMix,
                 liveSubjectMixes = liveSubjectMixes,
                 liveTheoryTopics = tasks.filter { it.status in live && it.type == PlanTaskType.THEORY }.mapNotNullTo(hashSetOf()) { it.topicId },
-                lastTheoryByTopic = theoryDone.groupBy { it.topicId!! }.mapValues { (_, l) -> l.maxOf { it.date } },
-                lastSimulation = tasks.filter { it.type == PlanTaskType.SIMULATION && it.status == PlanTaskStatus.CONCLUIDA }.maxOfOrNull { it.date },
+                // Retomada pulada também conta (senão voltava no dia seguinte, todo dia).
+                lastTheoryByTopic = (theoryDone + tasks.filter { it.type == PlanTaskType.THEORY && it.status == PlanTaskStatus.NAO_REALIZADA && it.topicId != null && it.date <= today })
+                    .groupBy { it.topicId!! }.mapValues { (_, l) -> l.maxOf { it.date } },
+                // Simulado pulado também marca o intervalo: senão um novo nascia a cada reorganização.
+                lastSimulation = tasks.filter { it.type == PlanTaskType.SIMULATION && (it.status == PlanTaskStatus.CONCLUIDA || (it.status == PlanTaskStatus.NAO_REALIZADA && it.date <= today)) }.maxOfOrNull { it.date },
                 liveSimulation = tasks.any { it.type == PlanTaskType.SIMULATION && it.status in live },
                 lastTheoryBySubject = lastTheory.mapValues { (_, days) -> days.keys.max() },
                 theoryCountOnLastDay = lastTheory.mapValues { (_, days) -> days.getValue(days.keys.max()).size },

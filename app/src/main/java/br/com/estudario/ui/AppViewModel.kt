@@ -84,6 +84,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             app.supabaseAuthRepository.observeSession().first { it !is br.com.estudario.data.remote.SupabaseSessionState.Loading }
             runCatching { br.com.estudario.data.planner.LibraryGaps.refresh(app) }
+            // Quanto cada tópico cai nas provas de verdade (uma vez por dia): entra no próximo replanejamento.
+            runCatching { br.com.estudario.data.planner.TopicIncidence.refresh(app) }
         }
     }
 

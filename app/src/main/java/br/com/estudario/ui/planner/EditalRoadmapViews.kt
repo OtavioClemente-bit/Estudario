@@ -124,19 +124,19 @@ private fun VerdictCard(roadmap: EditalRoadmapResult, onEditAvailability: () -> 
         roadmap.verdict == RoadmapVerdict.TIGHT -> Triple(Color(0xFFE08A00), Icons.Outlined.WarningAmber, "Cabe, mas no limite")
         else -> Triple(MaterialTheme.colorScheme.error, Icons.Outlined.ErrorOutline, "O edital inteiro não cabe nas suas horas")
     }
-    val daily = roadmap.weeklyCapacityMinutes / 7
+    val daily = roadmap.minutesPerStudyDay
     val extra = roadmap.extraMinutesPerDayToFit
     val leftOut = "${roadmap.topicsLeftOut} ${if (roadmap.topicsLeftOut == 1) "tópico" else "tópicos"}"
     val body = when {
-        focused -> "Você cobre ${roadmap.weightCoveredPercent}% do peso da prova. Os $leftOut de menor peso" +
-            (roadmap.atRiskSubjects.takeIf { it.isNotEmpty() }?.let { " (de ${it.take(2).joinToString(" e ")})" } ?: "") +
-            " ficam para o fim, se sobrar tempo."
+        focused -> "Você cobre ${roadmap.weightCoveredPercent}% do peso da prova. Ficam para o fim os $leftOut que menos caem nas provas" +
+            (roadmap.atRiskSubjects.takeIf { it.isNotEmpty() }?.let { ", mais de ${it.take(2).joinToString(" e ")}" } ?: "") +
+            ": se sobrar tempo, eles entram."
         roadmap.verdict == RoadmapVerdict.COMFORTABLE ->
             "Você vê o último tópico em ${roadmap.coverageDate!!.toJavaLocalDate().label()} e ainda sobram ${roadmap.slackDays} dias antes da reta final."
         roadmap.verdict == RoadmapVerdict.TIGHT ->
             "O último tópico entra em ${roadmap.coverageDate!!.toJavaLocalDate().label()}, colado na reta final. Qualquer atraso aperta a revisão."
         else -> buildString {
-            append("Com ${dayLength(daily)} por dia, ficam $leftOut de fora")
+            append("Com ${dayLength(daily)} por dia de estudo, ficam $leftOut de fora")
             if (roadmap.atRiskSubjects.isNotEmpty()) append(", principalmente de ${roadmap.atRiskSubjects.take(2).joinToString(" e ")}")
             append(". Escolha como seguir:")
         }
@@ -157,7 +157,7 @@ private fun VerdictCard(roadmap: EditalRoadmapResult, onEditAvailability: () -> 
                 )
                 FitChoice(
                     "Focar no que mais cai",
-                    "Fica com ${dayLength(daily)} por dia e cobre ${roadmap.weightCoveredPercent}% do peso da prova. Sai só o de menor peso.",
+                    "Fica com ${dayLength(daily)} por dia de estudo e cobre ${roadmap.weightCoveredPercent}% do peso da prova. Saem por último os tópicos que menos caem.",
                     Icons.Outlined.CheckCircle, Color(0xFF2F5BD3),
                 ) { chooseFocus(true) }
             }
@@ -167,7 +167,7 @@ private fun VerdictCard(roadmap: EditalRoadmapResult, onEditAvailability: () -> 
             // Números que sustentam o selo: a pessoa vê a conta, não só a conclusão.
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Stat("${roadmap.studiedTopics}/${roadmap.totalTopics}", "tópicos vistos", Modifier.weight(1f))
-                Stat(dayLength(daily), "por dia", Modifier.weight(1f))
+                Stat(dayLength(daily), "por dia de estudo", Modifier.weight(1f))
                 Stat("${daysBetween(roadmap.start, roadmap.end)}", if (roadmap.hasExamDate) "dias até a prova" else "dias de plano", Modifier.weight(1f))
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -186,7 +186,7 @@ private fun VerdictCard(roadmap: EditalRoadmapResult, onEditAvailability: () -> 
                     FilledTonalButton(onClick = { onShiftEnd(30) }, modifier = Modifier.weight(1f)) { Text("+ 30 dias") }
                 }
                 if (focused) {
-                    OutlinedButton(onClick = { chooseFocus(false) }, modifier = Modifier.weight(1f)) { Text("Quero ver tudo") }
+                    OutlinedButton(onClick = { chooseFocus(false); onEditAvailability() }, modifier = Modifier.weight(1f)) { Text("Quero ver tudo") }
                 } else if (!notFit && (roadmap.verdict != RoadmapVerdict.COMFORTABLE || roadmap.hasExamDate)) {
                     OutlinedButton(onClick = onEditAvailability, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Outlined.Schedule, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Horas")

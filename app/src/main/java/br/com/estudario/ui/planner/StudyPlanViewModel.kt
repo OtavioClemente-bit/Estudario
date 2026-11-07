@@ -126,7 +126,9 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
         // rolante (4 semanas), e a conta antiga dizia "edital fechado em 4 semanas" faltando meses.
         // Até o mapa chegar, fica a conta das tarefas marcadas (e o mapa anterior, se já havia um).
         val previous = _state.value.takeIf { it.activePlan?.id == planId }
-        return mapped.copy(forecastDate = previous?.forecastDate ?: forecast.estimatedDate?.toJavaLocalDate(), masterAlerts = alerts, weakTopics = weakTopics, methodNotes = methodNotes, roadmap = previous?.roadmap) to { roadmapFor(plan, weeklyCapacity, mapped.planSubjects) }
+        // O balanço da semana usa as mesmas entradas do motor (tarefas, tempo registrado, respostas e tópicos).
+        val balance = runCatching { br.com.estudario.domain.planner.WeeklyBalance.from(service.plannerInput(planId)) }.getOrNull()
+        return mapped.copy(forecastDate = previous?.forecastDate ?: forecast.estimatedDate?.toJavaLocalDate(), masterAlerts = alerts, weakTopics = weakTopics, methodNotes = methodNotes, roadmap = previous?.roadmap, weeklyBalance = balance) to { roadmapFor(plan, weeklyCapacity, mapped.planSubjects, availability.count { !it.unavailable && it.availableMinutes > 0 }) }
     }
 
     private val roadmapPrefs = app.getSharedPreferences("plan_roadmap", android.content.Context.MODE_PRIVATE)
@@ -139,6 +141,7 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
         plan: br.com.estudario.data.local.planner.StudyPlanEntity,
         weeklyCapacity: Int,
         planSubjects: List<br.com.estudario.data.local.planner.PlanSubjectEntity>,
+        studyDays: Int = 7,
     ): Pair<br.com.estudario.domain.planner.EditalRoadmapResult, KDate?> = withContext(Dispatchers.Default) {
         val today = br.com.estudario.time.today()
         val profile = runCatching { br.com.estudario.domain.planner.StudyProfile.valueOf(plan.profile) }.getOrDefault(br.com.estudario.domain.planner.StudyProfile.DO_ZERO)
@@ -173,7 +176,7 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
         }
         fun build(end: KDate, hasExam: Boolean, projected: br.com.estudario.domain.planner.PlanProjection.Result?) =
             br.com.estudario.domain.planner.EditalRoadmap.build(today, end, hasExam, profile, weeklyCapacity, subjects, topics, projected,
-                maxTopicsPerDay = br.com.estudario.domain.planner.PlannerSnapshotBuilder.topicsPerDay(br.com.estudario.data.planner.LibraryGaps.free(app)))
+                maxTopicsPerDay = br.com.estudario.domain.planner.PlannerSnapshotBuilder.topicsPerDay(br.com.estudario.data.planner.LibraryGaps.free(app)), studyDaysPerWeek = studyDays.coerceIn(1, 7))
         val exam = plan.examEpochDay?.let { KDate.fromEpochDays(it) }?.takeIf { it.isAfter(today) }
         if (exam != null) {
             val roadmap = build(exam, hasExam = true, project(exam, withExam = true))
@@ -203,7 +206,7 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
         roadmapPrefs.edit().putLong("end_${plan.id}", end.toEpochDay()).apply()
         viewModelScope.launch {
             val weekly = current.availability.sumOf { if (it.unavailable) 0 else it.availableMinutes }
-            val updated = runCatching { roadmapFor(plan, weekly, current.planSubjects) }.getOrNull() ?: return@launch
+            val updated = runCatching { roadmapFor(plan, weekly, current.planSubjects, current.availability.count { !it.unavailable && it.availableMinutes > 0 }) }.getOrNull() ?: return@launch
             _state.update { it.copy(roadmap = updated.first, forecastDate = (updated.second ?: updated.first.coverageDate)?.toJavaLocalDate() ?: it.forecastDate) }
         }
     }

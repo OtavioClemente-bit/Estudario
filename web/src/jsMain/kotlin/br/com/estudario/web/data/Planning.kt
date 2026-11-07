@@ -120,13 +120,13 @@ object Planning {
     }
 
     /** As entradas do motor (StudyPlanSnapshotFactory do app); também alimentam a previsão (PlanProjection). */
-    fun inputFor(data: Snapshot, planId: String, freeRules: Boolean = LibraryGaps.free(), excludedTopicIds: Set<Long> = LibraryGaps.excluded(data)): PlannerSnapshotBuilder.Input? {
+    fun inputFor(data: Snapshot, planId: String, freeRules: Boolean = LibraryGaps.free(), excludedTopicIds: Set<Long> = LibraryGaps.excluded(data), incidence: Map<Long, Int> = TopicIncidence.counts()): PlannerSnapshotBuilder.Input? {
         val planRow = data.array(Keys.PLANS).firstOrNull { (it as? JsonObject)?.str("id") == planId } as? JsonObject ?: return null
         val tasks = data.array(Keys.TASKS).mapNotNull { it as? JsonObject }.filter { it.str("planId") == planId }.mapNotNull { it.toPlannerTask() }
-        return inputFor(data, planId, planRow, tasks, planRow.long("revision") ?: 0, Queries.todayDate(), freeRules, excludedTopicIds)
+        return inputFor(data, planId, planRow, tasks, planRow.long("revision") ?: 0, Queries.todayDate(), freeRules, excludedTopicIds, incidence)
     }
 
-    private fun inputFor(data: Snapshot, planId: String, planRow: JsonObject, tasks: List<PlannerTask>, revision: Long, today: LocalDate, freeRules: Boolean = LibraryGaps.free(), excludedTopicIds: Set<Long> = LibraryGaps.excluded(data)): PlannerSnapshotBuilder.Input =
+    private fun inputFor(data: Snapshot, planId: String, planRow: JsonObject, tasks: List<PlannerTask>, revision: Long, today: LocalDate, freeRules: Boolean = LibraryGaps.free(), excludedTopicIds: Set<Long> = LibraryGaps.excluded(data), incidence: Map<Long, Int> = TopicIncidence.counts()): PlannerSnapshotBuilder.Input =
             PlannerSnapshotBuilder.Input(
                 plan = PlannerSnapshotBuilder.Plan(planId, revision, planRow.long("start") ?: today.toEpochDay(), planRow.long("exam"), planRow.methodConfig()),
                 planSubjects = data.array(Keys.PLAN_SUBJECTS).mapNotNull { it as? JsonObject }.filter { it.str("planId") == planId }.map { row ->
@@ -142,10 +142,11 @@ object Planning {
                         initialKnowledge = enumOr(row.str("initialKnowledge"), InitialKnowledge.NONE),
                     )
                 },
-                topics = data.topics.map { PlannerSnapshotBuilder.Topic(it.id, it.subjectId, it.parentTopicId, it.title, it.position, it.status != "NAO_ESTUDADO", it.lastStudiedAt) },
+                topics = incidence.let { counts -> data.topics.map { PlannerSnapshotBuilder.Topic(it.id, it.subjectId, it.parentTopicId, it.title, it.position, it.status != "NAO_ESTUDADO", it.lastStudiedAt, counts[it.id]) } },
                 // Questões de simulado não contam como questões do tópico para o plano.
                 questionsByTopic = data.questions.filter { it.simulationId == null }.groupBy({ it.topicId }, { it.id }).mapValues { it.value.toSet() },
-                attempts = data.attempts.map { PlannerSnapshotBuilder.Attempt(it.questionId, it.correct, it.answeredAt, it.sessionId) },
+                // A resposta do simulado leva o tópico junto: a questão do simulado é uma cópia, fora do banco do tópico.
+                attempts = data.questions.associate { it.id to it.topicId }.let { topicOf -> data.attempts.map { PlannerSnapshotBuilder.Attempt(it.questionId, it.correct, it.answeredAt, it.sessionId, if (it.sessionId?.startsWith("simulado-") == true) topicOf[it.questionId] else null) } },
                 pendingReviews = data.reviews.filter { it.completedAt == null && it.ignoredAt == null }.map { PlannerSnapshotBuilder.PendingReview(it.id, it.topicId, it.dueAt, it.questionTotal) },
                 tasks = tasks,
                 executions = data.executions.filter { it.planId == planId }.map {

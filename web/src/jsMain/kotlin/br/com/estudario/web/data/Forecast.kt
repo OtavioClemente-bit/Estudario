@@ -47,6 +47,7 @@ object Forecast {
         /** Parte do peso da prova coberta até a reta final (o que sai é o de menor peso). */
         val weightCoveredPercent: Int = 100,
         val weeklyCapacityMinutes: Int = 0,
+        val studyDaysPerWeek: Int = 7,
     ) {
         val slackDays: Long get() = coverageDate?.let { daysBetween(it, contentDeadline) } ?: 0
     }
@@ -63,10 +64,11 @@ object Forecast {
         r.months.map { m -> MonthSummary(m.month.year, m.month.month.ordinal + 1, m.newTopics, m.coveragePercent, m.slices.filter { it.newTopics > 0 }.sortedByDescending { it.newTopics }.map { SubjectSlice(it.name, it.newTopics) }) },
         weightCoveredPercent = r.weightCoveredPercent,
         weeklyCapacityMinutes = r.weeklyCapacityMinutes,
+        studyDaysPerWeek = r.studyDaysPerWeek,
     )
 
     /** Executado exclusivamente no worker, nunca durante a composição das telas. */
-    internal fun compute(data: Snapshot, plan: StudyPlan, freeRules: Boolean, excludedTopicIds: Set<Long>): Result? {
+    internal fun compute(data: Snapshot, plan: StudyPlan, freeRules: Boolean, excludedTopicIds: Set<Long>, incidence: Map<Long, Int> = emptyMap()): Result? {
         val today = Queries.todayDate()
         val weekly = data.availability.filter { it.planId == plan.id && !it.unavailable }.sumOf { it.minutes }
         val profile = plan.profile?.let { runCatching { StudyProfile.valueOf(it) }.getOrNull() } ?: StudyProfile.DO_ZERO
@@ -87,11 +89,12 @@ object Forecast {
         ).items.associate { it.topicId to (it.theoryMinutes + it.questionMinutes to it.theoryMinutes) }
         val topics = leaves.map { RoadmapTopic(it.id, it.subjectId, it.position, Queries.isStudied(it), estimate[it.id]?.first ?: config.blockMinutes, estimate[it.id]?.second ?: config.blockMinutes) }
         // O próprio plano simulado semana a semana (PlanProjection), como no app.
-        val input = Planning.inputFor(data, plan.id, freeRules, excludedTopicIds)
+        val input = Planning.inputFor(data, plan.id, freeRules, excludedTopicIds, incidence)
         fun project(end: LocalDate, withExam: Boolean) = input?.let {
             runCatching { PlanProjection.project(if (withExam) it else it.copy(plan = it.plan.copy(examEpochDay = null)), end) }.getOrNull()
         }
-        fun build(end: LocalDate, hasExam: Boolean, projected: PlanProjection.Result?) = EditalRoadmap.build(today, end, hasExam, profile, weekly, subjects, topics, projected, maxTopicsPerDay = br.com.estudario.domain.planner.PlannerSnapshotBuilder.topicsPerDay(freeRules))
+        fun build(end: LocalDate, hasExam: Boolean, projected: PlanProjection.Result?) = EditalRoadmap.build(today, end, hasExam, profile, weekly, subjects, topics, projected, maxTopicsPerDay = br.com.estudario.domain.planner.PlannerSnapshotBuilder.topicsPerDay(freeRules),
+            studyDaysPerWeek = data.availability.count { it.planId == plan.id && !it.unavailable && it.minutes > 0 }.coerceIn(1, 7))
         val exam = plan.exam?.let { LocalDate.fromEpochDays(it.toInt()) }?.takeIf { it > today }
         if (exam != null) {
             val roadmap = build(exam, hasExam = true, project(exam, withExam = true))

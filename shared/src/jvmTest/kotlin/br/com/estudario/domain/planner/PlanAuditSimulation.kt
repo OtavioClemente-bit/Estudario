@@ -114,7 +114,7 @@ class PlanAuditSimulation {
             repeat(s.topics) { p ->
                 val id = 1000L * (i + 1) + p
                 val marked = s.name in st.markStudied
-                topics += PlannerSnapshotBuilder.Topic(id, i + 1L, null, "${s.name} ${p + 1}", p, marked, if (marked) start.minusDays(30).toEpochDays() * dayMs else null)
+                topics += PlannerSnapshotBuilder.Topic(id, i + 1L, null, "${s.name} ${p + 1}", p, marked, if (marked) start.minusDays(30).toEpochDays() * dayMs else null, incidence = ((p * 37 + i * 11) % 60) + 1)
                 questionsByTopic[id] = (0 until 40).map { qid++ }.toSet()
             }
         }
@@ -239,11 +239,12 @@ class PlanAuditSimulation {
                         val tid = tid ?: seenOfSubject.randomOrNull(rnd)
                         if (tid != null) {
                             val n = usedQ.getOrElse(tid) { 0 }
-                            val q = questionsByTopic.getValue(tid).elementAt(n % 40)
+                            // No simulado a questão é uma cópia (outro id, fora do banco do tópico), como no app.
+                            val q = if (session != null) 9_000_000L + nextId++ else questionsByTopic.getValue(tid).elementAt(n % 40)
                             usedQ[tid] = n + 1
                             val ok = rnd.nextDouble() < pCorrect(tid)
                             if (ok) correct++
-                            attempts += PlannerSnapshotBuilder.Attempt(q, ok, day.toEpochDays() * dayMs + 3_600_000L, session)
+                            attempts += PlannerSnapshotBuilder.Attempt(q, ok, day.toEpochDays() * dayMs + 3_600_000L, session, if (session != null) tid else null)
                         }
                     }
                     // O tempo de verdade: quem é lento leva mais na teoria e por questão (é o que o app mede).
@@ -306,7 +307,7 @@ class PlanAuditSimulation {
             .joinToString(" ; ") { (d, l) -> "$d cap ${capOf(d)}: " + l.joinToString(",") { "${it.type.name.take(4)}${it.plannedMinutes}${if (it.status == PlanTaskStatus.CONCLUIDA) "ok" else ""}" } }
         val total = topics.size
         // Visto = estudado ou dispensado pelo diagnóstico (8+ questões com 75%+ de acerto).
-        val byQuestion = attempts.groupBy { a -> questionsByTopic.entries.first { a.questionId in it.value }.key }
+        val byQuestion = attempts.groupBy { a -> questionsByTopic.entries.firstOrNull { a.questionId in it.value }?.key ?: -1L }
         val leaves = topics.count { t -> t.studied || byQuestion[t.id].orEmpty().let { it.size >= 8 && it.count { a -> a.correct } * 4 >= it.size * 3 } }
         val phases = StudyMethod.phases(start, exam, st.profile)
         val contentDeadline = phases.firstOrNull { it.kind == PlanPhaseKind.RETA_FINAL }?.start ?: exam
@@ -323,6 +324,7 @@ class PlanAuditSimulation {
             appendLine("Fases: " + phases.joinToString(" | ") { "${it.kind.label} ${it.start}..${it.end} (${it.mix.describe()})" })
             appendLine("Edital: $leaves/$total tópicos vistos até a prova; $coveredByDeadline/$total antes da reta final ($contentDeadline).")
             appendLine("Último tópico novo em: ${studiedOn.values.maxOrNull() ?: "-"}; depois da reta final: " + studiedOn.filterValues { !it.isBefore(contentDeadline) }.map { (id, d) -> topics.first { it.id == id }.title + " " + d }.joinToString(", ") + "; nunca vistos: " + topics.filter { t -> !t.studied && t.id !in studiedOn && byQuestion[t.id].orEmpty().let { it.size < 8 || it.count { a -> a.correct } * 4 < it.size * 3 } }.joinToString(", ") { it.title })
+run { val left = topics.filter { t -> !t.studied && t.id !in studiedOn }; if (left.isNotEmpty()) appendLine("Incidência média: dos que ficaram de fora ${left.mapNotNull { it.incidence }.average().toInt()} questões · do edital ${topics.mapNotNull { it.incidence }.average().toInt()}") }
             appendLine("Tempo feito: teoria ${tot.theory * 100 / allMin}% · questões ${tot.questions * 100 / allMin}% · revisão ${tot.review * 100 / allMin}% · reforço ${tot.recall * 100 / allMin}% · outros ${tot.other * 100 / allMin}% (total ${allMin / 60} h de ${st.weeklyMinutes * st.examInDays / 7 / 60} h disponíveis)")
             appendLine("Estabilidade: ${if (weekSlots == 0) 0 else weekChanged * 100 / weekSlots}% da próxima semana mudou a cada conclusão · dias acima do limite: $overDays · ex.: $overSample")
             if (events.isNotEmpty()) appendLine("Eventos: " + events.joinToString(" · "))

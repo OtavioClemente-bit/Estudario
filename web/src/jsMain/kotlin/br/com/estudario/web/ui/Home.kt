@@ -619,6 +619,11 @@ fun TaskRow(task: PlanTask, onComplete: () -> Unit) {
                 task.status == "NAO_REALIZADA" -> Span { Text("não realizada") }
             }
         }
+        // O tópico está entre os que mais caem nas provas de verdade da matéria (a mesma régua do plano).
+        if (task.topicId != null && task.topicId in br.com.estudario.web.data.TopicIncidence.hot()) {
+            val n = br.com.estudario.web.data.TopicIncidence.counts()[task.topicId]
+            Div({ classes("mission-hot") }) { Text("🔥 Cai muito na prova" + (n?.let { " · $it questões em provas" } ?: "")) }
+        }
         // Questões de um tópico: onde está a teoria dele (feita, atrasada ou marcada para outro dia).
         if (task.type == "QUESTIONS" && task.topicId != null && !done) {
             val theory = Store.data.tasks.filter { it.topicId == task.topicId && it.planId == task.planId && it.type == "THEORY" && it.status != "REPROGRAMADA" && it.status != "CANCELADA" }.maxByOrNull { it.day }

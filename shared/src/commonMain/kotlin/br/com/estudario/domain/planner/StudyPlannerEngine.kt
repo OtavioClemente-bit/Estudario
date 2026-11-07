@@ -70,6 +70,10 @@ class StudyPlannerEngine(
         // Tarefa ainda não começada ganha o tamanho do ritmo real da pessoa (teoria e minutos por questão):
         // sem isso, as 4 semanas já marcadas seguiam no tamanho antigo e o dia de quem é mais lento estourava.
         val liveTheoryCount = replanCandidates.filter { it.type == PlanTaskType.THEORY && it.topicId != null }.groupingBy { it.topicId!! }.eachCount()
+        // Teoria com alguma parte já feita (concluída ou com tempo registrado) não é redimensionada: a parte
+        // que falta viraria a teoria inteira de novo.
+        val theoryStarted = snapshot.tasks.filter { it.type == PlanTaskType.THEORY && it.topicId != null && (it.status == PlanTaskStatus.CONCLUIDA || executionsByTask[it.id].orEmpty().isNotEmpty()) }
+            .mapTo(hashSetOf()) { it.topicId!! }
         val derivedDemands = replanCandidates.filter { it.type != PlanTaskType.REVIEW }.mapNotNull { task ->
             val executedMinutes = executionsByTask[task.id].orEmpty().sumOf { it.minutes }
             val executedQuestions = executionsByTask[task.id].orEmpty().sumOf { it.questions }
@@ -86,7 +90,7 @@ class StudyPlannerEngine(
             val untouched = executedMinutes == 0 && task.status == PlanTaskStatus.PLANEJADA
             val sized = when {
                 !untouched -> minutes
-                task.type == PlanTaskType.THEORY && task.topicId != null && liveTheoryCount[task.topicId] == 1 ->
+                task.type == PlanTaskType.THEORY && task.topicId != null && liveTheoryCount[task.topicId] == 1 && task.topicId !in theoryStarted ->
                     snapshot.theoryMinutesByTopic[task.topicId] ?: minutes
                 task.type == PlanTaskType.QUESTIONS && questions > 0 && snapshot.minutesPerQuestion != null ->
                     questions * snapshot.minutesPerQuestion

@@ -169,6 +169,7 @@ class EstudarioApplication : Application() {
             database, StudyPlannerEngine(), calendarSyncService,
             excludedTopics = { br.com.estudario.data.planner.LibraryGaps.excluded(this) },
             freeRules = { br.com.estudario.data.planner.LibraryGaps.free(this) },
+            incidence = { br.com.estudario.data.planner.TopicIncidence.counts(this) },
         )
         executionService = StudyExecutionService(database, planService)
         planTransferService = StudyPlanTransferService(database)

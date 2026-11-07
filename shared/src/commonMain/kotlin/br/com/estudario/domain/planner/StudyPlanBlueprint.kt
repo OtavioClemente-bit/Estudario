@@ -38,6 +38,8 @@ data class BlueprintTopic(
     val questionsLeft: Int? = null,
     /** Teto de questões numa tarefa deste tópico (as salvas, ou o que a geração entrega); null = sem teto. */
     val questionCap: Int? = null,
+    /** Questões de provas de verdade sobre o tópico (null = sem dado). */
+    val incidence: Int? = null,
 )
 
 data class BlueprintInput(
@@ -120,6 +122,8 @@ object StudyPlanBlueprint {
     private const val RETAKE_BELOW_PERCENT = 45
     private const val RETAKE_EVERY_DAYS = 30
     private const val RETAKES_PER_WEEK = 2
+    /** Quanto o tópico que mais cai nas provas ganha a mais de questões. */
+    private const val HIGH_INCIDENCE_BOOST = 1.25
     private fun retakeAccuracy(ev: StudyEvidence): Int =
         if (ev.recentAnswered >= 10) ev.recentCorrect * 100 / ev.recentAnswered else ev.correct * 100 / ev.answered.coerceAtLeast(1)
     /** Diagnóstico de quem diz dominar: questões antes de qualquer teoria. */
@@ -176,6 +180,22 @@ object StudyPlanBlueprint {
             InitialKnowledge.BASIC -> "No plano: teoria curta de retomada e questões em cada tópico."
             InitialKnowledge.SOLID, InitialKnowledge.STRONG -> "No plano: sem teoria. Cada tópico começa com $DIAGNOSTIC_QUESTIONS questões; se errar muito, a teoria volta."
         } + pace
+    }
+
+    /**
+     * Os tópicos que mais caem e os que quase não caem, comparados dentro de cada matéria ([groups]: por
+     * matéria, tópico e questões oficiais; 3+ com dado). O quarto de cima (acima da mediana) e o de baixo
+     * (abaixo dela). É a mesma régua do plano e da etiqueta "Cai muito" no app e no site.
+     */
+    fun incidenceLevels(groups: Collection<List<Pair<Long, Int>>>): Pair<Set<Long>, Set<Long>> {
+        val high = hashSetOf<Long>(); val low = hashSetOf<Long>()
+        groups.forEach { known ->
+            if (known.size < 3) return@forEach
+            val sorted = known.map { it.second }.sorted()
+            val p25 = sorted[(sorted.size - 1) / 4]; val p75 = sorted[(sorted.size - 1) * 3 / 4]; val median = sorted[(sorted.size - 1) / 2]
+            known.forEach { (id, n) -> if (n >= p75 && n > median) high += id else if (n <= p25 && n < median) low += id }
+        }
+        return high to low
     }
 
     /** A teoria padrão de um tópico novo na dificuldade dada, sem o ritmo pessoal (a régua do PersonalPace). */
@@ -283,6 +303,10 @@ object StudyPlanBlueprint {
         // semanas, para o que sobra de tempo virar treino e revisão em vez de engolir o edital em
         // dois meses e deixar o resto vazio.
         val weights = activeSubjects.associate { it.subjectId to effectiveWeight(it) }
+        // Incidência nas provas de verdade, comparada dentro de cada matéria (3+ tópicos com dado): o quarto
+        // que mais cai ganha mais treino e volta mais cedo; o quarto que quase não cai vai para o fim da fila da
+        // matéria (quando o edital não cabe, é o que fica de fora).
+        val (highIncidence, lowIncidence) = incidenceLevels(topicsBySubject.values.map { list -> list.mapNotNull { t -> t.incidence?.let { t.topicId to it } } })
         val maxWeight = weights.values.maxOrNull()?.coerceAtLeast(1) ?: 1
         val contentEnd = phases.firstOrNull { it.kind == PlanPhaseKind.RETA_FINAL }?.start?.minusDays(1) ?: phases.last().end
         val contentDays = if (phase.kind == PlanPhaseKind.RETA_FINAL) 0
@@ -300,7 +324,7 @@ object StudyPlanBlueprint {
         activeSubjects.forEach { subject ->
             val factor = difficultyFactor(subject.dimensions.personalDifficulty)
             val tracks = topicsBySubject[subject.subjectId].orEmpty()
-                .sortedWith(compareBy({ it.position }, { it.topicId }))
+                .sortedWith(compareBy({ it.topicId in lowIncidence }, { it.position }, { it.topicId }))
                 .map { it to trackOf(it, subject) }
             skippedByEvidence += tracks.count { (t, track) -> track == Track.COVERED && !t.studied }
             val pending = tracks.filter { it.second != Track.COVERED }
@@ -364,7 +388,7 @@ object StudyPlanBlueprint {
                         val planned = if (topicNeed == null) config.questionsPerTopic else {
                             QuestionAllocator.allocate(config.questionsPerTopic, topicNeed, topic.evidence, covered = false).questions
                         }
-                        val scaled = javaRound(planned * factor.coerceAtLeast(0.8)).toInt().coerceAtLeast(1)
+                        val scaled = javaRound(planned * factor.coerceAtLeast(0.8) * (if (topic.topicId in highIncidence) HIGH_INCIDENCE_BOOST else 1.0)).toInt().coerceAtLeast(1)
                         val quantidade = topic.questionCap?.let { minOf(scaled, it) } ?: scaled
                         unit += TaskDemand(
                             id = "topic-questions:${topic.topicId}", subjectId = subject.subjectId, topicId = topic.topicId,
@@ -393,6 +417,11 @@ object StudyPlanBlueprint {
         if (diagnosticCount > 0) {
             notes += "$diagnosticCount tópico(s) que você disse dominar começam com um diagnóstico de $DIAGNOSTIC_QUESTIONS questões: acertando ${(DIAGNOSTIC_PASS * 100).toInt()}% ou mais, a teoria sai do plano; errando, ela volta."
         }
+        if (highIncidence.isNotEmpty()) {
+            val top = input.topics.filter { it.topicId in highIncidence && it.subjectId in subjectById }.sortedByDescending { it.incidence ?: 0 }.take(2)
+            notes += "Os tópicos que mais caem nas provas de verdade (como ${top.joinToString(" e ") { "${it.title} (${it.incidence} questões)" }}) ganham mais questões e voltam mais cedo" +
+                (if (lowIncidence.isNotEmpty()) "; os que quase não caem ficam para o fim de cada matéria." else ".")
+        }
         if (skippedByEvidence > 0) {
             notes += "$skippedByEvidence tópico(s) ficaram sem teoria porque suas questões já mostraram que você sabe."
         }
@@ -415,7 +444,9 @@ object StudyPlanBlueprint {
                     val maturity = if (need != null && topic.evidence.hasSample) QuestionAllocator.maturityOf(need, topic.evidence, covered = true)
                         else if (topic.answered >= PlannerWeights.MINIMUM_MEANINGFUL_SAMPLE && (topic.accuracyPercent ?: 100) < (PlannerWeights.WEAK_ACCURACY * 100).toInt()) ContentMaturity.WEAK
                         else ContentMaturity.CONSOLIDATING
-                    val gap = when (maturity) { ContentMaturity.WEAK -> 3; ContentMaturity.STRONG -> 14; else -> 7 }
+                    // O que mais cai na prova volta mais cedo.
+                    val high = topic.topicId in highIncidence
+                    val gap = when (maturity) { ContentMaturity.WEAK -> 3; ContentMaturity.STRONG -> if (high) 10 else 14; else -> if (high) 5 else 7 }
                     val last = input.lastPracticeByTopic[topic.topicId] ?: topic.lastStudied
                     // Errou no último simulado: volta já, sem esperar o intervalo.
                     val dueOn = if (topic.topicId in focus?.missedTopics.orEmpty()) input.today else last?.plusDays(gap.toLong()) ?: input.today
@@ -428,7 +459,7 @@ object StudyPlanBlueprint {
             val units = pool.mapNotNull { (info, anchor) ->
                 val (topic, need, maturity) = info
                 val planned = if (need == null) config.questionsPerTopic else QuestionAllocator.allocate(config.questionsPerTopic, need, topic.evidence, covered = true).questions
-                val scaled = javaRound(planned * factor.coerceAtLeast(0.8)).toInt().coerceAtLeast(1)
+                val scaled = javaRound(planned * factor.coerceAtLeast(0.8) * (if (topic.topicId in highIncidence) HIGH_INCIDENCE_BOOST else 1.0)).toInt().coerceAtLeast(1)
                 // Nunca mais do que a pessoa tem para fazer: as salvas que ela ainda não acertou (o
                 // treino não repete acerto). Sem nenhuma sobrando, o tópico não volta como treino.
                 val limit = topic.questionsLeft ?: topic.questionCap
@@ -515,14 +546,16 @@ object StudyPlanBlueprint {
                 .take(retakeLimit)
             // Uma por semana entra mesmo com o plano apertado (errar sempre o mesmo tópico custa mais que adiar
             // um treino); as outras, só com folga.
-            val guaranteed = (input.horizonDays / 7).coerceAtLeast(1)
+            val guaranteed = 1
             retakes.forEachIndexed { i, (subject, topic) ->
                 val minutes = roundTo5(SHORT_THEORY_MINUTES * difficultyFactor(subject.dimensions.personalDifficulty) * config.theoryPace).coerceAtLeast(20)
                 if (practiceRoom < minutes && i >= guaranteed) return@forEachIndexed
                 practiceRoom -= minutes
+                // Espalhadas: duas por semana, nas semanas seguintes (antes caíam todas nos primeiros dias).
+                val anchor = input.today.plusDays((7 * (i / RETAKES_PER_WEEK)).toLong()).takeIf { it.isAfter(input.today) }
                 demands += TaskDemand(
                     id = "retake:${topic.topicId}", order = next(), subjectId = subject.subjectId, topicId = topic.topicId,
-                    type = PlanTaskType.THEORY, minutes = minutes,
+                    type = PlanTaskType.THEORY, minutes = minutes, anchorDate = anchor,
                     priority = subject.priority, subjectPosition = subject.position, topicPosition = topic.position,
                 )
                 theoryPlanned += minutes

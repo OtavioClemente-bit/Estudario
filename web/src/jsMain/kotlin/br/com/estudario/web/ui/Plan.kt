@@ -378,6 +378,7 @@ private fun PlanProgressHeader(plan: br.com.estudario.web.data.StudyPlan, tasks:
 /** Visão geral: como fica sua semana (barras por dia), para onde vai o tempo e o andamento. */
 @Composable
 private fun PlanOverview(planId: String, tasks: List<PlanTask>, todayEpoch: Long, exam: Long?) {
+    WeeklyBalanceCard(planId)
     val load = tasks.load()
     val window = load.filter { it.day in todayEpoch..(todayEpoch + 13) }
     if (window.isNotEmpty()) Card(extra = "pad-lg") {
@@ -457,7 +458,7 @@ private fun PlanOverview(planId: String, tasks: List<PlanTask>, todayEpoch: Long
     val fitRoadmap = projection?.roadmap?.takeIf { projection.remainingTopics > 0 && it.verdict == br.com.estudario.domain.planner.RoadmapVerdict.DOES_NOT_FIT }
     if (fitRoadmap != null) {
         val r = fitRoadmap
-        val daily = r.weeklyCapacityMinutes / 7
+        val daily = r.weeklyCapacityMinutes / r.studyDaysPerWeek.coerceIn(1, 7)
         val leftOut = "${r.topicsLeftOut} ${if (r.topicsLeftOut == 1) "tópico" else "tópicos"}"
         val from = r.atRiskSubjects.takeIf { it.isNotEmpty() }?.take(2)?.joinToString(" e ")
         Div({ classes("card", "fit-card", if (focus) "focus" else "alert") }) {
@@ -467,15 +468,15 @@ private fun PlanOverview(planId: String, tasks: List<PlanTask>, todayEpoch: Long
                     H2 { Text(if (focus) "Foco no que mais cai" else "O edital inteiro não cabe nas suas horas") }
                     P({ classes("small", "muted") }) {
                         Text(
-                            if (focus) "Você cobre ${r.weightCoveredPercent}% do peso da prova. Os $leftOut de menor peso${from?.let { " (de $it)" } ?: ""} ficam para o fim, se sobrar tempo."
-                            else "Com ${Queries.minutesLabel(daily)} por dia, ficam $leftOut de fora${from?.let { ", principalmente de $it" } ?: ""}. Escolha como seguir:",
+                            if (focus) "Você cobre ${r.weightCoveredPercent}% do peso da prova. Ficam para o fim os $leftOut que menos caem nas provas${from?.let { ", mais de $it" } ?: ""}: se sobrar tempo, eles entram."
+                            else "Com ${Queries.minutesLabel(daily)} por dia de estudo, ficam $leftOut de fora${from?.let { ", principalmente de $it" } ?: ""}. Escolha como seguir:",
                         )
                     }
                 }
             }
             if (focus) {
                 Div({ attr("style", "margin-top:12px") }) { ProgressBar(r.weightCoveredPercent / 100.0, "green") }
-                Div({ classes("row"); attr("style", "margin-top:12px") }) { Btn("Quero ver tudo", { chooseFocus(false) }, style = "ghost", small = true) }
+                Div({ classes("row"); attr("style", "margin-top:12px") }) { Btn("Quero ver tudo", { chooseFocus(false); Router.go(Route.PlanSettings) }, style = "ghost", small = true) }
             } else Div({ classes("fit-choices") }) {
                 Button({ classes("fit-choice"); onClick { Router.go(Route.PlanSettings) } }) {
                     Icon("schedule")
@@ -491,7 +492,7 @@ private fun PlanOverview(planId: String, tasks: List<PlanTask>, todayEpoch: Long
                     Icon("center_focus_strong")
                     Div({ classes("grow") }) {
                         B { Text("Focar no que mais cai") }
-                        Span({ classes("small", "muted") }) { Text("Fica com ${Queries.minutesLabel(daily)} por dia e cobre ${r.weightCoveredPercent}% do peso da prova. Sai só o de menor peso.") }
+                        Span({ classes("small", "muted") }) { Text("Fica com ${Queries.minutesLabel(daily)} por dia de estudo e cobre ${r.weightCoveredPercent}% do peso da prova. Saem por último os tópicos que menos caem.") }
                     }
                     Icon("arrow_forward")
                 }
@@ -563,4 +564,39 @@ private fun taskKind(type: String) = when (type) {
     "QUESTIONS" -> "questions"
     "SIMULATION", "DISCURSIVE" -> "sim"
     else -> "review"
+}
+
+/** "Sua semana": o balanço dos últimos 7 dias (WeeklyBalance, o mesmo do app) e a previsão do edital. */
+@Composable
+private fun WeeklyBalanceCard(planId: String) {
+    val data = Store.data
+    // Refaz só quando muda o que entra na conta (tarefas, tempo registrado, respostas, tópicos) ou o dia.
+    val balance = androidx.compose.runtime.remember(planId, data.tasks.size, data.attempts.size, data.topics.count { it.status != "NAO_ESTUDADO" }, data.array(br.com.estudario.web.data.Keys.EXECUTIONS).size, Queries.todayEpoch()) {
+        runCatching { br.com.estudario.web.data.Planning.inputFor(data, planId)?.let { br.com.estudario.domain.planner.WeeklyBalance.from(it) } }.getOrNull()
+    } ?: return
+    val plan = data.plans.firstOrNull { it.id == planId }
+    val roadmap = rememberForecast(data, plan).result?.roadmap
+    Div({ classes("card", "week-balance", if (balance.idle) "idle" else "on") }) {
+        Span({ classes("wb-label") }) { Text("Sua semana") }
+        H2 { Text(balance.headline()) }
+        Div({ classes("wb-stats") }) {
+            listOfNotNull(
+                br.com.estudario.domain.planner.WeeklyBalance.hours(balance.minutesStudied) to "estudadas",
+                "${balance.daysStudied}/7" to "dias",
+                "${balance.newTopics}" to (if (balance.newTopics == 1) "tópico novo" else "tópicos novos"),
+                balance.accuracy?.let { "$it%" to "acerto" },
+            ).forEach { (value, label) -> Div({ classes("wb-stat") }) { B { Text(value) }; Span({ classes("xs", "muted") }) { Text(label) } } }
+        }
+        balance.details().forEach { line -> P({ classes("small", "muted"); attr("style", "margin:4px 0 0") }) { Text(line) } }
+        Div({ attr("style", "margin-top:10px") }) { ProgressBar(balance.seenPercent / 100.0, "green") }
+        roadmap?.let { r ->
+            val text = when {
+                r.verdict != br.com.estudario.domain.planner.RoadmapVerdict.DOES_NOT_FIT && r.coverageDate != null ->
+                    "No seu ritmo, o edital fecha em ${Queries.dayLabel(r.coverageDate)}" + (if (r.slackDays > 0) ", ${r.slackDays} dias antes da reta final. Você vai conseguir." else ", colado na reta final.")
+                r.verdict == br.com.estudario.domain.planner.RoadmapVerdict.DOES_NOT_FIT -> "No ritmo de hoje ficam ${r.topicsLeftOut} tópicos de fora; veja abaixo como resolver."
+                else -> null
+            }
+            text?.let { P({ classes("small", "strong"); attr("style", "margin:10px 0 0") }) { Text(it) } }
+        }
+    }
 }

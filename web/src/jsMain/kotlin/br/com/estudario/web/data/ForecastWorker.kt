@@ -19,6 +19,8 @@ internal data class ForecastRequest(
     val planId: String,
     val freeRules: Boolean,
     val excludedTopicIds: Set<Long>,
+    /** Questões de provas por tópico (o worker não lê o armazenamento do navegador). */
+    val incidence: Map<Long, Int> = emptyMap(),
 )
 
 /** O worker importa o mesmo motor do app; não acessa rede, sessão ou armazenamento da conta. */
@@ -30,7 +32,7 @@ internal fun installForecastWorker(): Boolean {
             val request = Json.decodeFromString<ForecastRequest>(event.data as String)
             val data = Snapshot.parse(request.snapshot)
             val plan = data.plans.firstOrNull { it.id == request.planId } ?: error("Plano indisponível")
-            val result = Forecast.compute(data, plan, request.freeRules, request.excludedTopicIds)
+            val result = Forecast.compute(data, plan, request.freeRules, request.excludedTopicIds, request.incidence)
             worker.postMessage(kotlin.js.json("ok" to true, "result" to Json.encodeToString<Forecast.Result?>(result)))
         } catch (_: Throwable) {
             worker.postMessage(kotlin.js.json("ok" to false))
@@ -65,7 +67,7 @@ internal class ForecastKey(
         }
         trim(Keys.QUESTIONS, setOf("id", "topicId"), "statement")
         trim(Keys.ATTEMPTS, setOf("id", "questionId", "correct", "answeredAt"), "selectedKey")
-        return ForecastRequest(JsonObject(root).toString(), planId, freeRules, excludedTopicIds)
+        return ForecastRequest(JsonObject(root).toString(), planId, freeRules, excludedTopicIds, TopicIncidence.counts())
     }
 }
 

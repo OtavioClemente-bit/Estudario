@@ -144,6 +144,8 @@ fun App() {
     // Grátis: confere na biblioteca quais tópicos já têm matéria pronta (os outros ficam fora do plano).
     if (Store.load == LoadState.Ready && !Store.demo) androidx.compose.runtime.LaunchedEffect(Unit) {
         runCatching { br.com.estudario.web.data.LibraryGaps.refresh(Store.data, isFreeTier()) }
+        // Quanto cada tópico cai nas provas de verdade (uma vez por dia): entra no próximo replanejamento.
+        runCatching { br.com.estudario.web.data.TopicIncidence.refresh(Store.data) }
         // O plano se reorganiza uma vez por dia (vencidas voltam na frente, ritmo refeito).
         runCatching { br.com.estudario.web.data.Planning.reorganizeDaily() }
         // O edital escolhido no catálogo se atualiza sozinho (tópicos novos, nomes corrigidos, os que saíram ficam marcados).

@@ -19,6 +19,8 @@ class StudyPlanSnapshotFactory(
     private val excludedTopics: () -> Set<Long> = { emptySet() },
     /** Conta no Grátis: até 2 matérias novas por dia e o dia de hoje não muda ao replanejar. */
     private val freeRules: () -> Boolean = { false },
+    /** Questões de provas de verdade por tópico (TopicIncidence). */
+    private val incidence: () -> Map<Long, Int> = { emptyMap() },
 ) {
     suspend fun create(planId: String, today: LocalDate = today()): StudyPlannerSnapshot = PlannerSnapshotBuilder.build(input(planId, today))
 
@@ -26,6 +28,8 @@ class StudyPlanSnapshotFactory(
     suspend fun input(planId: String, today: LocalDate = today()): PlannerSnapshotBuilder.Input = db.withTransaction {
         val planner = db.plannerDao()
         val plan = planner.plan(planId) ?: error("Plano não encontrado.")
+        val allQuestions = db.dao().questionsOnce()
+        val topicOfQuestion = allQuestions.associate { it.question.id to it.question.topicId }
             PlannerSnapshotBuilder.Input(
                 plan = PlannerSnapshotBuilder.Plan(plan.id, plan.revision, plan.startEpochDay, plan.examEpochDay, plan.methodConfig()),
                 planSubjects = planner.subjectsFor(planId).map {
@@ -41,12 +45,13 @@ class StudyPlanSnapshotFactory(
                         initialKnowledge = it.initialKnowledge,
                     )
                 },
-                topics = db.dao().topicsOnce().map {
-                    PlannerSnapshotBuilder.Topic(it.id, it.subjectId, it.parentTopicId, it.title, it.position, it.status != TopicStatus.NAO_ESTUDADO, it.lastStudiedAt)
-                },
+                topics = incidence().let { counts -> db.dao().topicsOnce().map {
+                    PlannerSnapshotBuilder.Topic(it.id, it.subjectId, it.parentTopicId, it.title, it.position, it.status != TopicStatus.NAO_ESTUDADO, it.lastStudiedAt, counts[it.id])
+                } },
                 // Questões de simulado não contam como do tópico (o treino do plano usa só as do banco dele).
-                questionsByTopic = db.dao().questionsOnce().filter { it.question.simulationId == null }.groupBy({ it.question.topicId }, { it.question.id }).mapValues { it.value.toSet() },
-                attempts = db.dao().attemptsOnce().map { PlannerSnapshotBuilder.Attempt(it.questionId, it.correct, it.answeredAt, it.sessionId) },
+                questionsByTopic = allQuestions.filter { it.question.simulationId == null }.groupBy({ it.question.topicId }, { it.question.id }).mapValues { it.value.toSet() },
+                // A resposta do simulado leva o tópico junto: a questão do simulado é uma cópia, fora do banco do tópico.
+                attempts = db.dao().attemptsOnce().map { PlannerSnapshotBuilder.Attempt(it.questionId, it.correct, it.answeredAt, it.sessionId, if (it.sessionId?.startsWith("simulado-") == true) topicOfQuestion[it.questionId] else null) },
                 pendingReviews = db.dao().reviewsOnce().filter { it.completedAt == null && it.ignoredAt == null }
                     .map { PlannerSnapshotBuilder.PendingReview(it.id, it.topicId, it.dueAt, it.questionTotal) },
                 tasks = planner.tasksForOnce(planId).map { it.toDomain() },

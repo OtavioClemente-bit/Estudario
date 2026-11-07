@@ -74,9 +74,11 @@ class StudyPlanApplicationService(
     excludedTopics: () -> Set<Long> = { emptySet() },
     /** Conta no Grátis (LibraryGaps.free): teto de matérias por dia e hoje fixo ao replanejar. */
     freeRules: () -> Boolean = { false },
+    /** Questões de provas de verdade por tópico (TopicIncidence). */
+    incidence: () -> Map<Long, Int> = { emptyMap() },
 ) {
     private val planner = db.plannerDao()
-    private val snapshotFactory = StudyPlanSnapshotFactory(db, excludedTopics, freeRules)
+    private val snapshotFactory = StudyPlanSnapshotFactory(db, excludedTopics, freeRules, incidence)
 
     /** Entradas do motor para a previsão (PlanProjection). */
     suspend fun plannerInput(planId: String): br.com.estudario.domain.planner.PlannerSnapshotBuilder.Input = snapshotFactory.input(planId)
