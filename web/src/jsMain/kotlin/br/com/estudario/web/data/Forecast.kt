@@ -44,6 +44,9 @@ object Forecast {
         val extraMinutesPerDayToFit: Int,
         /** O caminho mês a mês (para o mês do plano mostrar o que vem depois das tarefas marcadas). */
         val months: List<MonthSummary> = emptyList(),
+        /** Parte do peso da prova coberta até a reta final (o que sai é o de menor peso). */
+        val weightCoveredPercent: Int = 100,
+        val weeklyCapacityMinutes: Int = 0,
     ) {
         val slackDays: Long get() = coverageDate?.let { daysBetween(it, contentDeadline) } ?: 0
     }
@@ -58,6 +61,8 @@ object Forecast {
     private fun summary(r: EditalRoadmapResult) = RoadmapSummary(
         r.totalTopics, r.studiedTopics, r.coverageDate, r.contentDeadline, r.verdict, r.topicsLeftOut, r.atRiskSubjects, r.extraMinutesPerDayToFit,
         r.months.map { m -> MonthSummary(m.month.year, m.month.month.ordinal + 1, m.newTopics, m.coveragePercent, m.slices.filter { it.newTopics > 0 }.sortedByDescending { it.newTopics }.map { SubjectSlice(it.name, it.newTopics) }) },
+        weightCoveredPercent = r.weightCoveredPercent,
+        weeklyCapacityMinutes = r.weeklyCapacityMinutes,
     )
 
     /** Executado exclusivamente no worker, nunca durante a composição das telas. */

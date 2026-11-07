@@ -450,7 +450,55 @@ private fun PlanOverview(planId: String, tasks: List<PlanTask>, todayEpoch: Long
     if (prediction.loading || prediction.failed) P({ classes("small", "muted"); attr("role", "status") }) {
         Text(if (prediction.loading) "Calculando a previsão…" else "Previsão indisponível no momento. Você pode continuar estudando normalmente.")
     }
-    if (projection != null) {
+    // Não cabe: a pessoa escolhe entre aumentar as horas e focar no que mais cai (guardado no navegador).
+    val focusKey = "estudario.plano.foco.$planId"
+    var focus by androidx.compose.runtime.remember(planId) { androidx.compose.runtime.mutableStateOf(runCatching { kotlinx.browser.localStorage.getItem(focusKey) == "1" }.getOrDefault(false)) }
+    fun chooseFocus(value: Boolean) { focus = value; runCatching { if (value) kotlinx.browser.localStorage.setItem(focusKey, "1") else kotlinx.browser.localStorage.removeItem(focusKey) } }
+    val fitRoadmap = projection?.roadmap?.takeIf { projection.remainingTopics > 0 && it.verdict == br.com.estudario.domain.planner.RoadmapVerdict.DOES_NOT_FIT }
+    if (fitRoadmap != null) {
+        val r = fitRoadmap
+        val daily = r.weeklyCapacityMinutes / 7
+        val leftOut = "${r.topicsLeftOut} ${if (r.topicsLeftOut == 1) "tópico" else "tópicos"}"
+        val from = r.atRiskSubjects.takeIf { it.isNotEmpty() }?.take(2)?.joinToString(" e ")
+        Div({ classes("card", "fit-card", if (focus) "focus" else "alert") }) {
+            Div({ classes("row") }) {
+                Icon(if (focus) "center_focus_strong" else "error")
+                Div({ classes("grow") }) {
+                    H2 { Text(if (focus) "Foco no que mais cai" else "O edital inteiro não cabe nas suas horas") }
+                    P({ classes("small", "muted") }) {
+                        Text(
+                            if (focus) "Você cobre ${r.weightCoveredPercent}% do peso da prova. Os $leftOut de menor peso${from?.let { " (de $it)" } ?: ""} ficam para o fim, se sobrar tempo."
+                            else "Com ${Queries.minutesLabel(daily)} por dia, ficam $leftOut de fora${from?.let { ", principalmente de $it" } ?: ""}. Escolha como seguir:",
+                        )
+                    }
+                }
+            }
+            if (focus) {
+                Div({ attr("style", "margin-top:12px") }) { ProgressBar(r.weightCoveredPercent / 100.0, "green") }
+                Div({ classes("row"); attr("style", "margin-top:12px") }) { Btn("Quero ver tudo", { chooseFocus(false) }, style = "ghost", small = true) }
+            } else Div({ classes("fit-choices") }) {
+                Button({ classes("fit-choice"); onClick { Router.go(Route.PlanSettings) } }) {
+                    Icon("schedule")
+                    Div({ classes("grow") }) {
+                        B { Text("Ver o edital inteiro") }
+                        Span({ classes("small", "muted") }) {
+                            Text(if (r.extraMinutesPerDayToFit > 0) "Mais ${r.extraMinutesPerDayToFit} min por dia: de ${Queries.minutesLabel(daily)} para ${Queries.minutesLabel(daily + r.extraMinutesPerDayToFit)}." else "Aumente as horas da semana.")
+                        }
+                    }
+                    Icon("arrow_forward")
+                }
+                Button({ classes("fit-choice"); onClick { chooseFocus(true) } }) {
+                    Icon("center_focus_strong")
+                    Div({ classes("grow") }) {
+                        B { Text("Focar no que mais cai") }
+                        Span({ classes("small", "muted") }) { Text("Fica com ${Queries.minutesLabel(daily)} por dia e cobre ${r.weightCoveredPercent}% do peso da prova. Sai só o de menor peso.") }
+                    }
+                    Icon("arrow_forward")
+                }
+            }
+        }
+    }
+    if (projection != null && fitRoadmap == null) {
         val r = projection.roadmap
         val text = when {
             projection.remainingTopics == 0 -> "Todos os ${r.totalTopics} tópicos já foram vistos. Daqui até a prova é revisão e questões."

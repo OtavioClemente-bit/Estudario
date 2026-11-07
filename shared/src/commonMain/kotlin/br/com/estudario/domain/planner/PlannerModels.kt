@@ -195,6 +195,10 @@ data class StudyPlannerSnapshot(
      * as que ele recebe ao gerar a matéria). A tarefa reprogramada também respeita.
      */
     val questionCapByTopic: Map<Long, Int> = emptyMap(),
+    /** Teoria de cada tópico pendente no ritmo real da pessoa (PersonalPace). */
+    val theoryMinutesByTopic: Map<Long, Int> = emptyMap(),
+    /** Minutos por questão medidos; null = o tamanho que a tarefa já tem. */
+    val minutesPerQuestion: Int? = null,
 ) {
     init {
         require(revision >= 0)

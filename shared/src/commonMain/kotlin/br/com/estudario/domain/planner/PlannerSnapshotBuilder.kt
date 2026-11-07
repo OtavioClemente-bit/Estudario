@@ -46,7 +46,8 @@ object PlannerSnapshotBuilder {
         val lastStudiedAt: Long?,
     )
 
-    data class Attempt(val questionId: Long, val correct: Boolean)
+    /** [sessionId] "simulado-N" marca as respostas de um simulado; [answeredAt] em epoch millis. */
+    data class Attempt(val questionId: Long, val correct: Boolean, val answeredAt: Long? = null, val sessionId: String? = null)
 
     /** Revisão ainda pendente (nem feita nem ignorada). */
     data class PendingReview(val id: Long, val topicId: Long, val dueAt: Long, val questionTotal: Int)
@@ -270,12 +271,24 @@ object PlannerSnapshotBuilder {
             .groupBy { it.first }
             .mapValues { (_, list) -> list.groupBy({ it.second }, { it.third }).mapValues { (_, ids) -> ids.toSet() } }
 
+        // O ritmo real da pessoa (teoria e minutos por questão) e o que o último simulado mostrou.
+        val subjectById = planSubjects.associateBy { it.subjectId }
+        val pace = PersonalPace.measure(tasks, executions) { topicId ->
+            val subject = subjectByTopic[topicId]?.let { subjectById[it] } ?: return@measure null
+            // Só quem começou do zero na matéria tem a teoria padrão inteira para comparar.
+            if (subject.initialKnowledge > InitialKnowledge.CONTACT) null else StudyPlanBlueprint.baseTheoryMinutes(subject.personalDifficulty)
+        }
+        val simuladoFocus = SimuladoFocus.from(attempts, questionsByTopic, subjectByTopic, today, zone)
+        val personalConfig = config.copy(theoryPace = pace.theoryFactor, personalMinutesPerQuestion = pace.minutesPerQuestion)
+
         val blueprint = StudyPlanBlueprint.build(
             BlueprintInput(
                 today = today,
                 planStart = planStart,
                 examDate = examDate,
-                config = config,
+                config = personalConfig,
+                pace = pace,
+                simuladoFocus = simuladoFocus,
                 subjects = blueprintSubjects,
                 topics = blueprintTopics,
                 pendingReviews = reviewDemands,
@@ -316,12 +329,14 @@ object PlannerSnapshotBuilder {
             topicPerformance = performance,
             completedDependencyIds = tasks.filter { it.status == PlanTaskStatus.CONCLUIDA }.mapTo(hashSetOf()) { it.id },
             // Previsão de conclusão do edital: teoria + consolidação de tudo que falta ver.
-            remainingPhaseMinutes = remainingTopics * (config.blockMinutes + config.questionsPerTopic * config.minutesPerQuestion),
+            remainingPhaseMinutes = remainingTopics * ((config.blockMinutes * pace.theoryFactor).toInt() + config.questionsPerTopic * personalConfig.minutesPerQuestion),
             recurringReservedMinutes = planSubjects.sumOf { it.minimumMaintenanceMinutes },
             // O teto de tópicos novos por dia é o menor entre o do plano (Grátis 2, pagos 4) e o do ritmo.
             policy = policy.copy(maxTheoryTopicsPerDay = minOf(topicsPerDay(freeRules), blueprint.theoryTopicsPerDay ?: topicsPerDay(freeRules))),
             notes = blueprint.notes,
             questionCapByTopic = questionCap,
+            theoryMinutesByTopic = if (pace.theorySamples >= PersonalPace.MIN_THEORY_TOPICS) blueprint.theoryMinutesByTopic else emptyMap(),
+            minutesPerQuestion = pace.minutesPerQuestion,
         )
     }
 }

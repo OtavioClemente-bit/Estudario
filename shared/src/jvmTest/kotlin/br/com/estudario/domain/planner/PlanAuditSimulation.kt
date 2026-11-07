@@ -33,6 +33,10 @@ class PlanAuditSimulation {
         val priorityChange: Triple<Int, String, PlanPriority>? = null,
         /** Matérias em que a pessoa vai mal de verdade (acerto bem menor que o esperado). */
         val struggles: Set<String> = emptySet(),
+        /** Quanto a teoria leva de verdade em relação à planejada (1.5 = 50% a mais). */
+        val theorySpeed: Double = 1.0,
+        /** Minutos reais por questão (null = o que o plano marcou). */
+        val questionMinutes: Int? = null,
     )
 
     private val trt = listOf(
@@ -77,6 +81,8 @@ class PlanAuditSimulation {
             ),
             Student("10. Do zero, 20h/sem, 6 meses; vai mal em Dir. do Trabalho e Redes; no dia 20 põe Redes como crítica", StudyProfile.DO_ZERO, trt, 20 * 60, 180,
                 priorityChange = Triple(20, "Redes", PlanPriority.CRITICAL), struggles = setOf("Dir. do Trabalho", "Redes")),
+            Student("11. Do zero, 20h/sem, 6 meses; lento: teoria leva 50% a mais e 4 min por questão", StudyProfile.DO_ZERO, trt, 20 * 60, 180, theorySpeed = 1.5, questionMinutes = 4),
+            Student("12. Do zero, 20h/sem, 6 meses; rápido: teoria em 70% do tempo", StudyProfile.DO_ZERO, trt, 20 * 60, 180, theorySpeed = 0.7),
         )
     }
 
@@ -159,6 +165,7 @@ class PlanAuditSimulation {
         var reviewsDone = 0
         var retakesDone = 0
         val reviewLoad = mutableMapOf<LocalDate, Int>()
+        val realLoad = mutableMapOf<LocalDate, Int>()
         val events = mutableListOf<String>()
         val capByDay = mutableMapOf<LocalDate, Int>()
         var day = start
@@ -193,6 +200,7 @@ class PlanAuditSimulation {
             if (dayNo > 0) replan(day, ReplanReason.DAY_MISSED)
             val today = tasks.filter { it.date == day && it.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO) }.sortedBy { it.sequence }
             capByDay[day] = availability.first { it.isoDayOfWeek == (day.dayOfWeek.ordinal + 1) }.minutes
+            val paceToday = PersonalPace.measure(tasks, executions) { 50 }.theoryFactor
             val capacityToday = availability.first { it.isoDayOfWeek == (day.dayOfWeek.ordinal + 1) }.minutes
             if (today.isEmpty() && capacityToday > 0) w.emptyDays++
             val studies = rnd.nextDouble() < st.adherence
@@ -225,7 +233,8 @@ class PlanAuditSimulation {
                     var correct = 0
                     val tid = task.topicId
                     // Revisão de matéria (sem tópico): questões dos tópicos já vistos da matéria.
-                    val seenOfSubject = topics.filter { it.subjectId == task.subjectId && it.studied }.map { it.id }
+                    val seenOfSubject = topics.filter { (task.type == PlanTaskType.SIMULATION || it.subjectId == task.subjectId) && it.studied }.map { it.id }
+                    val session = if (task.type == PlanTaskType.SIMULATION) "simulado-${task.id}" else null
                     repeat(task.plannedQuestions) {
                         val tid = tid ?: seenOfSubject.randomOrNull(rnd)
                         if (tid != null) {
@@ -234,10 +243,18 @@ class PlanAuditSimulation {
                             usedQ[tid] = n + 1
                             val ok = rnd.nextDouble() < pCorrect(tid)
                             if (ok) correct++
-                            attempts += PlannerSnapshotBuilder.Attempt(q, ok)
+                            attempts += PlannerSnapshotBuilder.Attempt(q, ok, day.toEpochDays() * dayMs + 3_600_000L, session)
                         }
                     }
-                    executions += TaskExecution("e${nextId++}", task.id, task.subjectId, tid, day, task.plannedMinutes, task.plannedQuestions, correct)
+                    // O tempo de verdade: quem é lento leva mais na teoria e por questão (é o que o app mede).
+                    val realMinutes = when {
+                        // O plano já pode ter esticado a teoria pelo ritmo medido: o tempo real é o da pessoa sobre o padrão.
+                        task.type == PlanTaskType.THEORY -> kotlin.math.round(task.plannedMinutes / paceToday * st.theorySpeed).toInt()
+                        task.type == PlanTaskType.QUESTIONS && st.questionMinutes != null -> task.plannedQuestions * st.questionMinutes
+                        else -> task.plannedMinutes
+                    }
+                    realLoad[day] = realLoad.getOrElse(day) { 0 } + realMinutes
+                    executions += TaskExecution("e${nextId++}", task.id, task.subjectId, tid, day, realMinutes, task.plannedQuestions, correct)
                     val subName = subjects.first { it.subjectId == task.subjectId }.name
                     minutesBySubject[subName] = minutesBySubject.getOrElse(subName) { 0 } + task.plannedMinutes
                     when (task.type) {
@@ -273,14 +290,15 @@ class PlanAuditSimulation {
         // Dias acima do limite: o que o plano marcou no dia (feito ou não) passa das horas do dia.
         val capOf = { d: LocalDate -> capByDay[d] ?: 0 }
         // Carga real de cada dia estudado: tarefas feitas + revisões feitas, contra as horas do dia.
-        val doneByDay = tasks.filter { it.status == PlanTaskStatus.CONCLUIDA }.groupBy { it.date }.mapValues { (_, l) -> l.sumOf { it.plannedMinutes } }
+        val doneByDay: Map<LocalDate, Int> = realLoad
         val realDays = (doneByDay.keys + reviewLoad.keys).filter { capOf(it) > 0 }
         val realOver = realDays.map { d -> (doneByDay[d] ?: 0) + (reviewLoad[d] ?: 0) - capOf(d) to d }
         val over10 = realOver.count { (o, d) -> o * 10 > capOf(d) }
         val worst = realOver.maxByOrNull { it.first }
         val simus = tasks.filter { it.type == PlanTaskType.SIMULATION && it.status == PlanTaskStatus.CONCLUIDA }.map { it.date }.distinct().sorted()
         // Teoria partida: o mesmo tópico com teoria em mais de um dia.
-        val splitTheory = tasks.filter { it.type == PlanTaskType.THEORY && it.status == PlanTaskStatus.CONCLUIDA && it.topicId != null }.groupBy { it.topicId }.count { (_, l) -> l.map { it.date }.distinct().size > 1 }
+        // Teoria partida: a primeira passada do tópico em dois dias seguidos (a retomada, semanas depois, não conta).
+        val splitTheory = tasks.filter { it.type == PlanTaskType.THEORY && it.status == PlanTaskStatus.CONCLUIDA && it.topicId != null }.groupBy { it.topicId }.count { (_, l) -> val ds = l.map { it.date }.distinct().sorted(); ds.size > 1 && daysBetween(ds[0], ds[1]) <= 2 }
         val overDays = tasks.filter { it.status == PlanTaskStatus.PLANEJADA || it.status == PlanTaskStatus.CONCLUIDA }.groupBy { it.date }
             .count { (d, l) -> capOf(d) > 0 && l.sumOf { it.plannedMinutes } > capOf(d) }
         val overSample = tasks.filter { it.status == PlanTaskStatus.PLANEJADA || it.status == PlanTaskStatus.CONCLUIDA }.groupBy { it.date }
@@ -308,7 +326,7 @@ class PlanAuditSimulation {
             appendLine("Tempo feito: teoria ${tot.theory * 100 / allMin}% · questões ${tot.questions * 100 / allMin}% · revisão ${tot.review * 100 / allMin}% · reforço ${tot.recall * 100 / allMin}% · outros ${tot.other * 100 / allMin}% (total ${allMin / 60} h de ${st.weeklyMinutes * st.examInDays / 7 / 60} h disponíveis)")
             appendLine("Estabilidade: ${if (weekSlots == 0) 0 else weekChanged * 100 / weekSlots}% da próxima semana mudou a cada conclusão · dias acima do limite: $overDays · ex.: $overSample")
             if (events.isNotEmpty()) appendLine("Eventos: " + events.joinToString(" · "))
-            appendLine("Carga real (tarefas + revisões): ${over10} dias passaram mais de 10% das horas do dia; pior: ${worst?.let { "+${it.first} min em ${it.second} (dia de ${capOf(it.second)})" } ?: "-"} · teoria partida em 2+ dias: $splitTheory tópicos")
+            appendLine("Carga real (tarefas + revisões): ${over10} dias passaram mais de 10% das horas do dia; pior: ${worst?.let { "+${it.first} min em ${it.second} (dia de ${capOf(it.second)})" } ?: "-"} · teoria partida em 2+ dias: $splitTheory tópicos · por mês: " + realOver.filter { (o, d) -> o * 10 > capOf(d) }.groupingBy { "${it.second.year}-${it.second.monthNumber}" }.eachCount().entries.joinToString(" ") { "${it.key}:${it.value}" })
             appendLine("Teorias de retomada (tópico em que errava muito): $retakesDone · Simulados do plano feitos: ${simus.size} (${simus.joinToString(", ")})")
             appendLine("Teoria gasta em matérias que a pessoa disse dominar: ${theoryOnKnown[0] / 60} h · revisões espaçadas feitas: $reviewsDone")
             appendLine("Semana | teoria questões revisão reforço | tópicos novos | tarefas vencidas | revisões vencidas | dias vazios | horizonte (dias)")

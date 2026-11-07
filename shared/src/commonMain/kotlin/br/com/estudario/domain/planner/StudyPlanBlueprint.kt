@@ -66,6 +66,10 @@ data class BlueprintInput(
     val lastSimulation: LocalDate? = null,
     /** Último dia com teoria concluída de cada tópico (a primeira ou uma retomada). */
     val lastTheoryByTopic: Map<Long, LocalDate> = emptyMap(),
+    /** O ritmo real medido (só para explicar; o ritmo já vem aplicado no config). */
+    val pace: PersonalPace = PersonalPace(),
+    /** O que o último simulado mostrou (matérias fracas ganham treino por 3 semanas). */
+    val simuladoFocus: SimuladoFocus? = null,
     /** Tópicos com teoria marcada e ainda não feita. */
     val liveTheoryTopics: Set<Long> = emptySet(),
     /** Já tem simulado do plano marcado e ainda não feito. */
@@ -86,6 +90,8 @@ data class BlueprintResult(
     val algorithmVersion: Int = PlannerWeights.ALGORITHM_VERSION,
     /** Tópicos novos por dia que mantêm o ritmo de fechar o edital no prazo (null = sem teoria no período). */
     val theoryTopicsPerDay: Int? = null,
+    /** O tamanho certo da teoria de cada tópico pendente, já no ritmo da pessoa (para redimensionar o que já estava marcado). */
+    val theoryMinutesByTopic: Map<Long, Int> = emptyMap(),
 )
 
 /**
@@ -172,6 +178,9 @@ object StudyPlanBlueprint {
         } + pace
     }
 
+    /** A teoria padrão de um tópico novo na dificuldade dada, sem o ritmo pessoal (a régua do PersonalPace). */
+    fun baseTheoryMinutes(difficulty: PersonalDifficulty): Int = roundTo5(THEORY_BASE_MINUTES * difficultyFactor(difficulty))
+
     private fun roundTo5(minutes: Double): Int = (javaRound(minutes / 5.0).toInt() * 5).coerceAtLeast(5)
     private const val REINFORCEMENT_ACCURACY = 70
 
@@ -225,6 +234,29 @@ object StudyPlanBlueprint {
         }
 
         notes += "Fase atual: ${phase.kind.label}, ${mix.describe()}."
+        val pace = input.pace
+        if (pace.theorySamples >= PersonalPace.MIN_THEORY_TOPICS && kotlin.math.abs(config.theoryPace - 1.0) >= 0.08) {
+            val typical = roundTo5(THEORY_BASE_MINUTES * config.theoryPace)
+            notes += "Pelo seu tempo real nos últimos ${pace.theorySamples} tópicos, cada teoria leva uns $typical min (o padrão é $THEORY_BASE_MINUTES): o plano já conta assim, para o seu dia caber nas suas horas."
+        }
+        pace.minutesPerQuestion?.takeIf { it != 2 }?.let { notes += "Você leva em média $it min por questão (medido em ${pace.questionSamples}): as tarefas de questões já vêm com esse tempo." }
+        val focus = input.simuladoFocus?.takeIf { !input.today.isAfter(it.until) }
+        val boosted = focus?.weakSubjects.orEmpty().filter { it in subjectById }.toSet()
+        if (focus != null) {
+            fun pct(id: Long) = "${subjectById.getValue(id).name} (${focus.percent(id)}%)"
+            val good = focus.bySubject.keys.filter { it in subjectById && it !in boosted && (focus.percent(it) ?: 0) >= 75 }
+                .sortedByDescending { focus.percent(it) }.take(2)
+            val day = "${focus.date.dayOfMonth.toString().padStart(2, '0')}/${focus.date.monthNumber.toString().padStart(2, '0')}"
+            val until = "${focus.until.dayOfMonth.toString().padStart(2, '0')}/${focus.until.monthNumber.toString().padStart(2, '0')}"
+            notes += if (boosted.isEmpty()) "Simulado de $day: nenhuma matéria abaixo de ${SimuladoFocus.WEAK_BELOW_PERCENT}%. O treino segue o ritmo normal."
+            else buildString {
+                append("Simulado de $day: ")
+                if (good.isNotEmpty()) append("você foi bem em ${good.joinToString(" e ") { pct(it) }}; ")
+                append("${boosted.sortedBy { focus.percent(it) }.joinToString(" e ") { pct(it) }} ")
+                append(if (boosted.size == 1) "ganha" else "ganham")
+                append(" mais treino até $until, começando pelos assuntos que você errou.")
+            }
+        }
         notes += "Teoria usa blocos de $block minutos; tarefas de questões usam cerca de ${config.minutesPerQuestion} min por questão."
 
         // 1. Revisões espaçadas (D+1, D+7, D+30 e as seguintes) vivem na aba Revisões, com o ritmo que
@@ -263,6 +295,7 @@ object StudyPlanBlueprint {
         val anchoredUnits = mutableListOf<Triple<LocalDate, Int, List<TaskDemand>>>()
         val horizonEndContent = minOf(input.today.plusDays(input.horizonDays.toLong()), contentEnd.plusDays(1))
         val newUnits = mutableListOf<Pair<Long, List<TaskDemand>>>()
+        val theorySizes = mutableMapOf<Long, Int>()
 
         activeSubjects.forEach { subject ->
             val factor = difficultyFactor(subject.dimensions.personalDifficulty)
@@ -273,11 +306,12 @@ object StudyPlanBlueprint {
             val pending = tracks.filter { it.second != Track.COVERED }
             if (pending.isEmpty() || contentDays == 0) return@forEach
             fun minutesOf(track: Track) = when (track) {
-                Track.FULL -> roundTo5(THEORY_BASE_MINUTES * factor)
-                Track.SHORT -> roundTo5(SHORT_THEORY_MINUTES * factor).coerceAtLeast(20)
+                Track.FULL -> roundTo5(THEORY_BASE_MINUTES * factor * config.theoryPace)
+                Track.SHORT -> roundTo5(SHORT_THEORY_MINUTES * factor * config.theoryPace).coerceAtLeast(20)
                 Track.DIAGNOSE -> DIAGNOSTIC_QUESTIONS * config.minutesPerQuestion
                 Track.COVERED -> 0
             }
+            pending.forEach { (t, track) -> if (track == Track.FULL || track == Track.SHORT) theorySizes[t.topicId] = minutesOf(track) }
             // A matéria de mais peso termina antes (75% da janela); a de menos, no fim dela.
             val weight = weights.getValue(subject.subjectId)
             val finishShare = 1.0 - 0.25 * (weight - 1).toDouble() / (maxWeight - 1).coerceAtLeast(1)
@@ -383,11 +417,13 @@ object StudyPlanBlueprint {
                         else ContentMaturity.CONSOLIDATING
                     val gap = when (maturity) { ContentMaturity.WEAK -> 3; ContentMaturity.STRONG -> 14; else -> 7 }
                     val last = input.lastPracticeByTopic[topic.topicId] ?: topic.lastStudied
-                    val dueOn = last?.plusDays(gap.toLong()) ?: input.today
+                    // Errou no último simulado: volta já, sem esperar o intervalo.
+                    val dueOn = if (topic.topicId in focus?.missedTopics.orEmpty()) input.today else last?.plusDays(gap.toLong()) ?: input.today
                     if (!dueOn.isBefore(horizonEnd2)) return@mapNotNull null
                     Triple(topic, need, maturity) to (if (dueOn.isAfter(input.today)) dueOn else null)
                 }
-                .sortedWith(compareByDescending<Pair<Triple<BlueprintTopic, StudyNeed?, ContentMaturity>, LocalDate?>> { it.first.second?.score ?: 0.0 }
+                .sortedWith(compareByDescending<Pair<Triple<BlueprintTopic, StudyNeed?, ContentMaturity>, LocalDate?>> { it.first.first.topicId in focus?.missedTopics.orEmpty() }
+                    .thenByDescending { it.first.second?.score ?: 0.0 }
                     .thenBy { it.first.first.accuracyPercent ?: 100 }.thenBy { it.first.first.topicId })
             val units = pool.mapNotNull { (info, anchor) ->
                 val (topic, need, maturity) = info
@@ -410,7 +446,9 @@ object StudyPlanBlueprint {
                     ),
                 )
             }.toMutableList()
-            if (units.isNotEmpty()) practiceStreams += weights.getValue(subject.subjectId) to units
+            // A matéria em que a pessoa foi mal no último simulado pesa mais no treino por 3 semanas.
+            val practiceWeight = weights.getValue(subject.subjectId).let { if (subject.subjectId in boosted) javaRound(it * SimuladoFocus.WEIGHT_BOOST).toInt().coerceAtLeast(it + 1) else it }
+            if (units.isNotEmpty()) practiceStreams += practiceWeight to units
         }
         // O treino cede ao conteúdo novo quando o prazo aperta: ele só ocupa o que sobra depois do
         // conteúdo que precisa ser visto no período e das revisões. Com folga, sobra muito; com o
@@ -479,7 +517,7 @@ object StudyPlanBlueprint {
             // um treino); as outras, só com folga.
             val guaranteed = (input.horizonDays / 7).coerceAtLeast(1)
             retakes.forEachIndexed { i, (subject, topic) ->
-                val minutes = roundTo5(SHORT_THEORY_MINUTES * difficultyFactor(subject.dimensions.personalDifficulty)).coerceAtLeast(20)
+                val minutes = roundTo5(SHORT_THEORY_MINUTES * difficultyFactor(subject.dimensions.personalDifficulty) * config.theoryPace).coerceAtLeast(20)
                 if (practiceRoom < minutes && i >= guaranteed) return@forEachIndexed
                 practiceRoom -= minutes
                 demands += TaskDemand(
@@ -586,7 +624,7 @@ object StudyPlanBlueprint {
             notes = notes,
             plannedMinutes = planned,
             horizonCapacityMinutes = horizonCapacity,
-
+            theoryMinutesByTopic = theorySizes,
         )
     }
 

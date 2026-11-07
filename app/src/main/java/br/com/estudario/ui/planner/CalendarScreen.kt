@@ -441,7 +441,7 @@ private fun OverviewPlanView(state: ActivePlanUiState, header: LazyListScope.() 
         // O caminho inteiro até a prova vem primeiro: é o que dá confiança no plano.
         // Primeiro o plano do jeito que a pessoa vive (a semana), depois o caminho inteiro até a prova.
         item(key = "week-shape") { PlanWeekShape(state) }
-        state.roadmap?.let { roadmap -> editalRoadmap(roadmap, onEditAvailability, onShiftRoadmapEnd) }
+        state.roadmap?.let { roadmap -> editalRoadmap(roadmap, onEditAvailability, onShiftRoadmapEnd, state.activePlan?.id.orEmpty()) }
         item { Text("Andamento", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp)) }
         item {
             Text(

@@ -81,6 +81,10 @@ data class StudyMethodConfig(
      * decorativa.
      */
     val dailySubjectSharePercent: Int = 60,
+    /** Ritmo real da teoria (PersonalPace): 1.3 = a pessoa leva 30% a mais que o padrão. Não é salvo; vem da medida. */
+    val theoryPace: Double = 1.0,
+    /** Minutos por questão medidos (PersonalPace); null = o padrão. */
+    val personalMinutesPerQuestion: Int? = null,
 ) {
     init {
         require(blockMinutes in 15..180) { "O bloco precisa ter entre 15 e 180 minutos." }
@@ -92,7 +96,7 @@ data class StudyMethodConfig(
     }
 
     /** Minutos por questão usados para dimensionar as tarefas de questões. */
-    val minutesPerQuestion: Int get() = 2
+    val minutesPerQuestion: Int get() = personalMinutesPerQuestion ?: 2
 
     companion object {
         val BLOCK_OPTIONS = listOf(25, 30, 45, 50, 60, 90)

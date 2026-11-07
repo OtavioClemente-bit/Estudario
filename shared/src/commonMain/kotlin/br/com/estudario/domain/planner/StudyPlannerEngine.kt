@@ -67,6 +67,9 @@ class StudyPlannerEngine(
         }
         // Revisão espaçada não é mais tarefa do plano (fica na aba Revisões, com o tempo reservado no
         // dia): as que sobraram de planos antigos saem na primeira reorganização, em vez de voltar.
+        // Tarefa ainda não começada ganha o tamanho do ritmo real da pessoa (teoria e minutos por questão):
+        // sem isso, as 4 semanas já marcadas seguiam no tamanho antigo e o dia de quem é mais lento estourava.
+        val liveTheoryCount = replanCandidates.filter { it.type == PlanTaskType.THEORY && it.topicId != null }.groupingBy { it.topicId!! }.eachCount()
         val derivedDemands = replanCandidates.filter { it.type != PlanTaskType.REVIEW }.mapNotNull { task ->
             val executedMinutes = executionsByTask[task.id].orEmpty().sumOf { it.minutes }
             val executedQuestions = executionsByTask[task.id].orEmpty().sumOf { it.questions }
@@ -80,13 +83,22 @@ class StudyPlannerEngine(
             val minutes = if (questions < leftQuestions && leftQuestions > 0) {
                 (remainingMinutes * questions / leftQuestions).coerceAtLeast(snapshot.policy.minimumBlockMinutes)
             } else remainingMinutes
+            val untouched = executedMinutes == 0 && task.status == PlanTaskStatus.PLANEJADA
+            val sized = when {
+                !untouched -> minutes
+                task.type == PlanTaskType.THEORY && task.topicId != null && liveTheoryCount[task.topicId] == 1 ->
+                    snapshot.theoryMinutesByTopic[task.topicId] ?: minutes
+                task.type == PlanTaskType.QUESTIONS && questions > 0 && snapshot.minutesPerQuestion != null ->
+                    questions * snapshot.minutesPerQuestion
+                else -> minutes
+            }
             remainingMinutes.takeIf { it > 0 && !leftover && !(questions == 0 && leftQuestions > 0) }?.let {
                 TaskDemand(
                     id = "replan:${task.id}",
                     subjectId = task.subjectId ?: return@mapNotNull null,
                     topicId = task.topicId,
                     type = task.type,
-                    minutes = minutes,
+                    minutes = sized,
                     questions = questions,
                     priority = task.priority,
                     deadline = task.deadline,

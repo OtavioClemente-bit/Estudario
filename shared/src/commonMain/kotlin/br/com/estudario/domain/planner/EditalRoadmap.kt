@@ -65,6 +65,12 @@ data class EditalRoadmapResult(
     /** Minutos a mais por dia que fariam tudo caber até [contentDeadline]. */
     val extraMinutesPerDayToFit: Int,
     val weeklyCapacityMinutes: Int,
+    /**
+     * Quanto do peso da prova fica coberto até a reta final, de 0 a 100: cada matéria vale o peso dela,
+     * repartido pelos tópicos. Quando não cabe tudo, o que fica de fora é o de menor peso, e este número
+     * mostra que o essencial está garantido.
+     */
+    val weightCoveredPercent: Int = 100,
 ) {
     val slackDays: Long get() = coverageDate?.let { daysBetween(it, contentDeadline) } ?: 0
 }
@@ -181,7 +187,12 @@ object EditalRoadmap {
             coverageDate != null && daysBetween(coverageDate, contentDeadline) >= COMFORTABLE_SLACK_DAYS -> RoadmapVerdict.COMFORTABLE
             else -> RoadmapVerdict.TIGHT
         }
+        val topicsInSubject = known.groupingBy { it.subjectId }.eachCount()
+        fun topicWeight(t: RoadmapTopic) = subjectById.getValue(t.subjectId).weight.coerceAtLeast(1).toDouble() / topicsInSubject.getValue(t.subjectId)
+        val totalWeight = known.sumOf { topicWeight(it) }
+        val coveredWeight = known.filter { it.studied || it.id in assignedOn }.sumOf { topicWeight(it) }
         return EditalRoadmapResult(
+            weightCoveredPercent = if (totalWeight <= 0.0) 100 else kotlin.math.floor(coveredWeight * 100 / totalWeight).toInt().coerceIn(0, 100),
             start = today,
             end = safeEnd,
             hasExamDate = hasExamDate,
