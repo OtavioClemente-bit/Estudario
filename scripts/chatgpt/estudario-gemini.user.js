@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Estudário – fila automática do Gemini
 // @namespace    estudario
-// @version      1.13
+// @version      1.14
 // @updateURL    http://127.0.0.1:8788/estudario-gemini.meta.js
 // @downloadURL  http://127.0.0.1:8788/estudario-gemini.user.js
 // @description  Envia os pedidos da fila do Estudário ao Gemini (modo Argon) e salva no PC o JSON de cada resposta (arquivos .chatgpt-80N).
@@ -81,7 +81,8 @@ PEDIDO:
     const chat = [...document.querySelectorAll(".gem-segmented-button-action")].find((e) => e.innerText?.trim() === "Chat");
     if (chat && !chat.parentElement?.classList.contains("gem-segmented-button-selected")) { chat.click(); await w(1200); }
     const seletor = () => document.querySelector("button[aria-label^='Abrir seletor de modo']");
-    const itens = () => [...document.querySelectorAll("[role='menuitem']")];
+    // 07/11: o Gemini passou os modelos e os níveis para role="menuitemradio" (o script não achava o Argon e travava).
+    const itens = () => [...document.querySelectorAll("[role='menuitem'],[role='menuitemradio']")];
     const fechar = () => document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     if (!seletor()) return false;
     seletor().click();
