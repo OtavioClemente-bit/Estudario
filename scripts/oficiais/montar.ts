@@ -58,6 +58,8 @@ for (const arquivo of arquivos) {
     if (explicacao.length < 120) { contagem.curtas++; continue; }
     const ce = q.alternativas.length === 0;
     const statement = `${q.base && q.base.length > 20 && !/^\(?Dispon[ií]vel em/i.test(q.base) ? `${q.base.trim()}\n\n` : ""}${String(q.enunciado).trim()}`;
+    // O validador aceita enunciado de 20 a 4.000 caracteres (texto-base longo de inglês passava disso, 07/11).
+    if (statement.length < 20 || statement.length > 4000) { contagem.curtas++; continue; }
     const questao: Json = {
       topico: null, estilo: String(q.banca).toUpperCase(), statement,
       format: ce ? "TRUE_FALSE" : "MULTIPLE_CHOICE", difficulty: "MEDIA",
